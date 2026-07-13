@@ -8,6 +8,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
+import { toUrl } from '@/lib/utils';
 import type { NavItem } from '@/types';
 
 defineProps<{
@@ -27,7 +28,27 @@ const { isCurrentUrl } = useCurrentUrl();
                     :is-active="isCurrentUrl(item.href)"
                     :tooltip="item.title"
                 >
-                    <Link :href="item.href">
+                    <!--
+                        Plain anchor (not <Link>) for the already-active
+                        item: clicking it would otherwise still fire a full
+                        Inertia visit to the URL you're already on — a
+                        pointless round-trip and progress-bar flash. This
+                        branch is deliberately NOT wired through Inertia's
+                        router at all (a conditional inside Link's own
+                        click handler would run too late to reliably cancel
+                        it), so there is no navigation to cancel in the
+                        first place.
+                    -->
+                    <a
+                        v-if="isCurrentUrl(item.href)"
+                        :href="toUrl(item.href)"
+                        aria-current="page"
+                        @click.prevent
+                    >
+                        <component :is="item.icon" />
+                        <span>{{ item.title }}</span>
+                    </a>
+                    <Link v-else :href="item.href">
                         <component :is="item.icon" />
                         <span>{{ item.title }}</span>
                     </Link>
