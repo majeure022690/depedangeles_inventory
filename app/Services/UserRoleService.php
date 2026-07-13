@@ -14,16 +14,21 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * The only sanctioned entry point for changing which role(s) the
- * users.manage admin screen has assigned to a user. role_user is a
- * genuine many-to-many pivot — a user commonly needs more than one
- * permission bundle (e.g. Encoder plus some future cross-cutting role) —
- * so syncRoles() replaces a user's entire role set in one call, the same
- * way Eloquent's BelongsToMany::sync() itself works, rather than the
- * older single-role changeRole() this method replaces.
+ * The only sanctioned entry point for the users.manage admin screen's
+ * full CRUD — creating admin-provisioned accounts (createUser()),
+ * updating profile + role set together (updateUser()), removing
+ * accounts (deleteUser()), and changing just the role set (syncRoles(),
+ * still called on its own by updateUser() and directly by earlier
+ * callers). role_user is a genuine many-to-many pivot — a user commonly
+ * needs more than one permission bundle (e.g. Encoder plus some future
+ * cross-cutting role) — so syncRoles() replaces a user's entire role set
+ * in one call, the same way Eloquent's BelongsToMany::sync() itself
+ * works, rather than the older single-role changeRole() this method
+ * replaces.
  *
  * Enforces the following requirements from the 2026-07 security review,
- * generalized to multi-role semantics:
+ * generalized to multi-role semantics (and extended to createUser()/
+ * deleteUser() below):
  *   1. A user can never change their own role set (self-escalation
  *      guard) — unchanged from the single-role version: still an
  *      absolute block, because actor and target are the same row
@@ -76,11 +81,136 @@ final class UserRoleService
     }
 
     /**
+     * Creates a brand-new user account (the admin-provisioning counterpart
+     * to Fortify self-registration — see CreateNewUser) and assigns its
+     * initial role set in one step. Subject to the same permission-tier
+     * guard as syncRoles(): an actor can only hand out roles whose entire
+     * permission set is already a subset of their own.
+     *
+     * @param  array{name: string, email: string, password: string}  $attributes
+     * @param  array<int, int>  $roleIds
+     */
+    public function createUser(User $actor, array $attributes, array $roleIds): User
+    {
+        $this->guardAgainstPermissionTierViolation($actor, $roleIds);
+
+        return DB::transaction(function () use ($actor, $attributes, $roleIds) {
+            $user = User::create($attributes);
+
+            if ($roleIds !== []) {
+                $user->roles()->sync($roleIds);
+                $user->forgetCachedPermissions();
+            }
+
+            AuditLog::record('user.created', $user, [
+                'name' => $user->name,
+                'email' => $user->email,
+                'role_ids' => $roleIds,
+                'roles' => Role::query()->whereIn('id', $roleIds)->orderBy('name')->pluck('name')->all(),
+            ], $actor->id);
+
+            return $user;
+        });
+    }
+
+    /**
+     * Updates an existing user's profile (name/email) and role set
+     * together — the single entry point the users.manage "Edit" action
+     * uses. An actor can never edit their own account through this path
+     * (mirrors syncRoles()'s self-escalation guard, and the Index.vue UI
+     * never even offers the action against the acting user's own row) —
+     * self-service name/email changes go through Settings instead.
+     *
+     * @param  array{name: string, email: string}  $attributes
+     * @param  array<int, int>  $roleIds
+     */
+    public function updateUser(User $actor, User $target, array $attributes, array $roleIds): void
+    {
+        if ($actor->is($target)) {
+            throw ValidationException::withMessages([
+                'name' => __('You cannot edit your own account here — use Settings instead.'),
+            ]);
+        }
+
+        $target->fill($attributes);
+
+        if ($target->isDirty(['name', 'email'])) {
+            $previous = [
+                'name' => $target->getOriginal('name'),
+                'email' => $target->getOriginal('email'),
+            ];
+
+            $target->save();
+
+            AuditLog::record('user.profile_updated', $target, [
+                'previous' => $previous,
+                'new' => ['name' => $target->name, 'email' => $target->email],
+            ], $actor->id);
+        }
+
+        $this->syncRoles($actor, $target, $roleIds);
+    }
+
+    /**
+     * Deletes a user account. Two guards mirror the ones already enforced
+     * for role changes: an actor can never delete their own account
+     * (self-escalation-adjacent — the Index.vue UI never offers the
+     * action against the acting user's own row either), and the last
+     * remaining holder of `users.manage` can never be deleted, under the
+     * same lockForUpdate() chokepoint lock syncRoles() uses to close the
+     * TOCTOU race between two concurrent removals.
+     *
+     * Every FK referencing `users.id` elsewhere in the schema
+     * (audit_logs.actor_id, equipment_transactions.recorded_by_user_id,
+     * isp_speed_tests/isp_subscription_costs.recorded_by_user_id) is
+     * nullable + nullOnDelete by design specifically so this is always
+     * schema-safe — deleting an account never cascades away the business
+     * records or audit history it was once attached to.
+     */
+    public function deleteUser(User $actor, User $target): void
+    {
+        if ($actor->is($target)) {
+            throw ValidationException::withMessages([
+                'user' => __('You cannot delete your own account.'),
+            ]);
+        }
+
+        DB::transaction(function () use ($actor, $target): void {
+            Permission::where('name', PermissionEnum::UsersManage->value)->lockForUpdate()->first();
+
+            if ($target->hasPermissionTo(PermissionEnum::UsersManage)) {
+                $remainingUsersManageHolders = User::query()
+                    ->whereKeyNot($target->id)
+                    ->whereHas('roles.permissions', fn ($query) => $query->where('name', PermissionEnum::UsersManage->value))
+                    ->count();
+
+                if ($remainingUsersManageHolders === 0) {
+                    throw ValidationException::withMessages([
+                        'user' => __(
+                            'Cannot delete :name: they are the only remaining user who can manage users. '.
+                            'Assign another user a role that can manage users first.',
+                            ['name' => $target->name],
+                        ),
+                    ]);
+                }
+            }
+
+            AuditLog::record('user.deleted', $target, [
+                'name' => $target->name,
+                'email' => $target->email,
+                'roles' => $target->roles()->pluck('name')->sort()->values()->all(),
+            ], $actor->id);
+
+            $target->delete();
+        });
+    }
+
+    /**
      * @param  array<int, int>  $roleIds
      */
     public function syncRoles(User $actor, User $target, array $roleIds): void
     {
-        // Belt-and-suspenders: UserRoleUpdateRequest already blocks this
+        // Belt-and-suspenders: UserUpdateRequest already blocks this
         // at the HTTP layer (where it can populate the Inertia form's
         // error bag), but this Service is the one place the invariant
         // must hold for every caller, HTTP or otherwise.

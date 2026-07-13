@@ -49,11 +49,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('isp-accounts/{ispAccount}/subscription-costs', [IspSubscriptionCostController::class, 'store'])
         ->name('isp-accounts.subscription-costs.store');
 
-    // users.manage admin screen: list + a single role-assignment action —
-    // not a generic user-profile-editing resource, so only these two
-    // routes exist (no create/store/edit-as-a-page/destroy).
-    Route::get('users', [UserController::class, 'index'])->name('users.index');
-    Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
+    // users.manage admin screen: full CRUD over accounts (create/update/
+    // delete), plus role assignment folded into update — see
+    // UserController's doc-comment. No 'show' (the index list is the only
+    // read view) and no 'edit' page (Index.vue edits a user via an inline
+    // dialog, not a dedicated page, since the fields involved are few).
+    Route::resource('users', UserController::class)->except(['show', 'edit']);
 
     // roles.manage admin screen: full CRUD over role definitions — see
     // RoleController's doc-comment. Ordinary resource shape (unlike

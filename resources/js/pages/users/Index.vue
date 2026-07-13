@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Plus, Trash2 } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import CheckboxGroupField from '@/components/CheckboxGroupField.vue';
 import Heading from '@/components/Heading.vue';
@@ -16,6 +17,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -64,35 +66,60 @@ const roleOptions = computed(() => props.roles.map((role) => ({ value: role.id, 
 
 const editingUser = ref<UserListItem | null>(null);
 
-const form = useForm<{ role_ids: number[] }>({
+const editForm = useForm<{ name: string; email: string; role_ids: number[] }>({
+    name: '',
+    email: '',
     role_ids: [],
 });
 
-function openEditRoles(row: UserListItem) {
+function openEdit(row: UserListItem) {
     if (row.is_self) {
         return;
     }
 
     editingUser.value = row;
-    form.clearErrors();
-    form.defaults({ role_ids: [...row.role_ids] });
-    form.reset();
+    editForm.clearErrors();
+    editForm.defaults({ name: row.name, email: row.email, role_ids: [...row.role_ids] });
+    editForm.reset();
 }
 
-function closeDialog() {
+function closeEditDialog() {
     editingUser.value = null;
-    form.clearErrors();
+    editForm.clearErrors();
 }
 
-function submit() {
+function submitEdit() {
     if (!editingUser.value) {
         return;
     }
 
-    form.patch(usersRoutes.update.url(editingUser.value.id), {
+    editForm.patch(usersRoutes.update.url(editingUser.value.id), {
         preserveScroll: true,
         onSuccess: () => {
             editingUser.value = null;
+        },
+    });
+}
+
+const pendingDelete = ref<UserListItem | null>(null);
+
+function requestDelete(row: UserListItem) {
+    if (row.is_self) {
+        return;
+    }
+
+    pendingDelete.value = row;
+}
+
+function confirmDelete() {
+    if (!pendingDelete.value) {
+        return;
+    }
+
+    router.delete(usersRoutes.destroy.url(pendingDelete.value.id), {
+        preserveScroll: true,
+        onFinish: () => {
+            pendingDelete.value = null;
         },
     });
 }
@@ -102,10 +129,18 @@ function submit() {
     <Head title="Users" />
 
     <div class="flex flex-col gap-6 p-4">
-        <Heading
-            title="User Management"
-            description="Assign roles to control what each user can see and do."
-        />
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <Heading
+                title="User Management"
+                description="Provision accounts and control what each user can see and do."
+            />
+            <Link :href="usersRoutes.create()">
+                <Button data-test="add-user-button">
+                    <Plus class="size-4" />
+                    Add user
+                </Button>
+            </Link>
+        </div>
 
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div class="sm:max-w-sm sm:flex-1">
@@ -172,18 +207,18 @@ function submit() {
                             </div>
                         </td>
                         <td class="px-4 py-3">
-                            <div class="flex items-center justify-end">
+                            <div class="flex items-center justify-end gap-2">
                                 <TooltipProvider v-if="row.is_self">
                                     <Tooltip>
                                         <TooltipTrigger as-child>
                                             <span tabindex="0" class="inline-block">
                                                 <Button variant="outline" size="sm" disabled>
-                                                    Edit roles
+                                                    Edit
                                                 </Button>
                                             </span>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            You cannot change your own roles.
+                                            You cannot edit your own account here.
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
@@ -191,10 +226,33 @@ function submit() {
                                     v-else
                                     variant="outline"
                                     size="sm"
-                                    :aria-label="`Edit roles for ${row.name}`"
-                                    @click="openEditRoles(row)"
+                                    :aria-label="`Edit ${row.name}`"
+                                    @click="openEdit(row)"
                                 >
-                                    Edit roles
+                                    Edit
+                                </Button>
+                                <TooltipProvider v-if="row.is_self">
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <span tabindex="0" class="inline-block">
+                                                <Button variant="ghost" size="sm" disabled :aria-label="`Delete ${row.name}`">
+                                                    <Trash2 class="size-4 text-muted-foreground" />
+                                                </Button>
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            You cannot delete your own account.
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                                <Button
+                                    v-else
+                                    variant="ghost"
+                                    size="sm"
+                                    :aria-label="`Delete ${row.name}`"
+                                    @click="requestDelete(row)"
+                                >
+                                    <Trash2 class="size-4 text-destructive" />
                                 </Button>
                             </div>
                         </td>
@@ -206,34 +264,67 @@ function submit() {
         <Pagination :links="props.users.links" />
     </div>
 
-    <Dialog :open="editingUser !== null" @update:open="(open) => !open && closeDialog()">
+    <Dialog :open="editingUser !== null" @update:open="(open) => !open && closeEditDialog()">
         <DialogContent>
             <DialogHeader>
-                <DialogTitle>Edit roles</DialogTitle>
+                <DialogTitle>Edit user</DialogTitle>
                 <DialogDescription>
-                    Choose the roles <strong>{{ editingUser?.name }}</strong> should hold. A user
-                    may hold zero, one, or several roles at once — their effective permissions are
-                    the union of every role granted.
+                    Update <strong>{{ editingUser?.name }}</strong>'s account details and roles. A
+                    user may hold zero, one, or several roles at once — their effective
+                    permissions are the union of every role granted.
                 </DialogDescription>
             </DialogHeader>
 
-            <form v-if="editingUser" class="space-y-4" @submit.prevent="submit">
-                <CheckboxGroupField
-                    :form="form"
-                    field="role_ids"
-                    :options="roleOptions"
-                    id-prefix="user-role"
-                />
-                <InputError :message="form.errors.role_ids" />
+            <form v-if="editingUser" class="space-y-4" @submit.prevent="submitEdit">
+                <div class="grid gap-2">
+                    <Label for="edit-name">Name</Label>
+                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
+                    <Input id="edit-name" v-model="editForm.name" required autocomplete="name" />
+                    <InputError :message="editForm.errors.name" />
+                </div>
+                <div class="grid gap-2">
+                    <Label for="edit-email">Email</Label>
+                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
+                    <Input id="edit-email" v-model="editForm.email" type="email" required autocomplete="email" />
+                    <InputError :message="editForm.errors.email" />
+                </div>
+                <div class="grid gap-2">
+                    <Label>Roles</Label>
+                    <CheckboxGroupField
+                        :form="editForm"
+                        field="role_ids"
+                        :options="roleOptions"
+                        id-prefix="user-role"
+                    />
+                    <InputError :message="editForm.errors.role_ids" />
+                </div>
 
                 <DialogFooter class="gap-2">
-                    <Button type="button" variant="secondary" @click="closeDialog">Cancel</Button>
-                    <Button type="submit" :disabled="form.processing" data-test="save-user-roles-button">
-                        <Spinner v-if="form.processing" />
+                    <Button type="button" variant="secondary" @click="closeEditDialog">Cancel</Button>
+                    <Button type="submit" :disabled="editForm.processing" data-test="save-user-button">
+                        <Spinner v-if="editForm.processing" />
                         Save changes
                     </Button>
                 </DialogFooter>
             </form>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog :open="pendingDelete !== null" @update:open="(open) => !open && (pendingDelete = null)">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Delete user?</DialogTitle>
+                <DialogDescription>
+                    This will permanently delete <strong>{{ pendingDelete?.name }}</strong>'s
+                    account. This cannot be undone.
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter class="gap-2">
+                <Button variant="secondary" @click="pendingDelete = null">Cancel</Button>
+                <Button variant="destructive" @click="confirmDelete" data-test="confirm-delete-user-button">
+                    Delete
+                </Button>
+            </DialogFooter>
         </DialogContent>
     </Dialog>
 </template>

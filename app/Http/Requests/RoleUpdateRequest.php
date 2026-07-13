@@ -43,7 +43,8 @@ class RoleUpdateRequest extends FormRequest
      * Protected-'pending'-role guard (see Role::PENDING's doc-comment):
      * populates the Inertia form's error bag the same way
      * UserRoleUpdateRequest's self-escalation guard does, rather than a
-     * silent no-op. RoleService::update() re-checks both invariants for
+     * silent no-op, the same way UserUpdateRequest's self-escalation
+     * guard does. RoleService::update() re-checks both invariants for
      * any caller that isn't this HTTP route.
      */
     public function withValidator(Validator $validator): void

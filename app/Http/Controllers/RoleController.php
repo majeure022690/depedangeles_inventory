@@ -67,7 +67,11 @@ class RoleController extends Controller
     {
         $role = $roleService->create(
             $request->user(),
-            $request->safe()->only(['name', 'label', 'description']),
+            [
+                'name' => $request->validated('name'),
+                'label' => $request->validated('label'),
+                'description' => $request->validated('description'),
+            ],
             $request->validated('permissions', []),
         );
 
@@ -91,7 +95,11 @@ class RoleController extends Controller
         $roleService->update(
             $request->user(),
             $role,
-            $request->safe()->only(['name', 'label', 'description']),
+            [
+                'name' => $request->validated('name'),
+                'label' => $request->validated('label'),
+                'description' => $request->validated('description'),
+            ],
             $request->validated('permissions', []),
         );
 
