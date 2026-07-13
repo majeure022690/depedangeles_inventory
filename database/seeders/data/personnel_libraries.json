@@ -1,0 +1,164 @@
+[
+    {
+        "type": "name_suffix",
+        "value": "Jr.",
+        "description": "Used for a son who has the same name as his father.",
+        "sort_order": 0
+    },
+    {
+        "type": "name_suffix",
+        "value": "Sr.",
+        "description": "Used for the senior, or elder, when there are two people with the same name (e.g., Father and Son, or Father and Grandson)",
+        "sort_order": 1
+    },
+    {
+        "type": "name_suffix",
+        "value": "II",
+        "description": "Used when a child is named after a relative, such as a grandfather or uncle, who is not the father.",
+        "sort_order": 2
+    },
+    {
+        "type": "name_suffix",
+        "value": "III",
+        "description": "Used for each subsequent generation that carries on the name, for example, a son named after his father who was a \"II\".",
+        "sort_order": 3
+    },
+    {
+        "type": "name_suffix",
+        "value": "IV",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "name_suffix",
+        "value": "V",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "name_suffix",
+        "value": "VI",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "type": "name_suffix",
+        "value": "VII",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "type": "name_suffix",
+        "value": "VIII",
+        "description": null,
+        "sort_order": 8
+    },
+    {
+        "type": "name_suffix",
+        "value": "IX",
+        "description": null,
+        "sort_order": 9
+    },
+    {
+        "type": "name_suffix",
+        "value": "X",
+        "description": null,
+        "sort_order": 10
+    },
+    {
+        "type": "teachers_funding_source",
+        "value": "Provincial's SEF",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "teachers_funding_source",
+        "value": "Municipality / City's SEF",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "teachers_funding_source",
+        "value": "Provincial's General Fund",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "teachers_funding_source",
+        "value": "Municipality / City's General Fund",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "teachers_funding_source",
+        "value": "LGU's Other Fund's funding",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "teachers_funding_source",
+        "value": "Other funding",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "cause_of_separation",
+        "value": "Resignation",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "cause_of_separation",
+        "value": "Retirement",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "cause_of_separation",
+        "value": "Dropping from the Rolls",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "cause_of_separation",
+        "value": "Termination of Temporary Appointment",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "cause_of_separation",
+        "value": "Expiration of Appointment or Contract",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "cause_of_separation",
+        "value": "Death",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "cause_of_separation",
+        "value": "Dismissal or Removal for Cause",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "type": "cause_of_separation",
+        "value": "Abolition of Office / Reorganization",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "type": "cause_of_separation",
+        "value": "Transfer",
+        "description": null,
+        "sort_order": 8
+    },
+    {
+        "type": "cause_of_separation",
+        "value": "Detailed",
+        "description": null,
+        "sort_order": 9
+    }
+]

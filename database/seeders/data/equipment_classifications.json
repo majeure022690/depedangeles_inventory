@@ -1,0 +1,27 @@
+[
+    {
+        "name": "Office, ICT Equipment, Furniture And Fixtures",
+        "description": "This category encompasses assets used in the office environment for administrative and organizational purposes. Examples include desks, chairs, computers, printers, and office furniture.",
+        "sort_order": 0
+    },
+    {
+        "name": "Machinery and Equipment",
+        "description": "This category typically includes assets used for production, manufacturing, or operational processes. Examples may include machinery used in manufacturing, industrial equipment, or tools required for specific operations.",
+        "sort_order": 2
+    },
+    {
+        "name": "Other Property, Plant And Equipment",
+        "description": "-",
+        "sort_order": 3
+    },
+    {
+        "name": "Transportation Equipment",
+        "description": "-",
+        "sort_order": 4
+    },
+    {
+        "name": "ICS - Supplies",
+        "description": "Supplies that requires ICS",
+        "sort_order": 5
+    }
+]

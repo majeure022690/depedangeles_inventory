@@ -1,0 +1,327 @@
+[
+    {
+        "name": "Server (System Unit)",
+        "description": "Server alone (just the System Unit, motherboard, CPU, and RAM in a Server Chassis)",
+        "sort_order": 0
+    },
+    {
+        "name": "Thin Client Server (Set)",
+        "description": "Server with connected lightweight, client devices",
+        "sort_order": 1
+    },
+    {
+        "name": "Server (Bundle)",
+        "description": "This includes a full Server - keyboard, monitor, etc.",
+        "sort_order": 2
+    },
+    {
+        "name": "Desktop (package)",
+        "description": "This includes a full set - keyboard, monitor, etc.; it also includes all-in-one units",
+        "sort_order": 3
+    },
+    {
+        "name": "Laptop",
+        "description": "Laptop",
+        "sort_order": 4
+    },
+    {
+        "name": "2-in-1 Tablet",
+        "description": "A tablet that combines the features of a tablet and a laptop into a single device, runs on Windows, Linux or Mac OS. A hybrid device that functions as both a laptop and a tablet, offering the power of a laptop with the portability and touchscreen of a tablet. They are versatile and can be used in \"laptop mode\" with a keyboard for productivity, or in \"tablet mode\" by detaching or flipping the keyboard back for tasks like drawing, note-taking, or casual browsing.",
+        "sort_order": 5
+    },
+    {
+        "name": "Tablet",
+        "description": "A standard tablet (runs on a mobile operating system, e.g. Android / iOS)",
+        "sort_order": 6
+    },
+    {
+        "name": "Smartphone",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "name": "External Hard Drive",
+        "description": null,
+        "sort_order": 8
+    },
+    {
+        "name": "USB Flash Drive",
+        "description": null,
+        "sort_order": 9
+    },
+    {
+        "name": "Smart TV",
+        "description": null,
+        "sort_order": 10
+    },
+    {
+        "name": "Standard TV",
+        "description": "Non-smart TV (Includes LED TV)",
+        "sort_order": 11
+    },
+    {
+        "name": "Monitor",
+        "description": "If issued separately",
+        "sort_order": 12
+    },
+    {
+        "name": "CPU",
+        "description": "If issued separately",
+        "sort_order": 13
+    },
+    {
+        "name": "Keyboard",
+        "description": "If issued separately",
+        "sort_order": 14
+    },
+    {
+        "name": "Mouse",
+        "description": "If issued separately",
+        "sort_order": 15
+    },
+    {
+        "name": "Trackpad",
+        "description": "If issued separately",
+        "sort_order": 16
+    },
+    {
+        "name": "Stylus",
+        "description": "If issued separately",
+        "sort_order": 17
+    },
+    {
+        "name": "Signature pad",
+        "description": "If issued separately",
+        "sort_order": 18
+    },
+    {
+        "name": "Memory Card (RAM)",
+        "description": "If issued separately",
+        "sort_order": 19
+    },
+    {
+        "name": "Power Generator",
+        "description": null,
+        "sort_order": 20
+    },
+    {
+        "name": "UPS",
+        "description": "Uninterrupted Power Supply, If issued separately",
+        "sort_order": 21
+    },
+    {
+        "name": "AVR",
+        "description": "Automatic Voltage Regulator, If issued separately",
+        "sort_order": 22
+    },
+    {
+        "name": "Charging Cart",
+        "description": "If issued separately (Productivity Tools, Anti-virus, Operating System)",
+        "sort_order": 23
+    },
+    {
+        "name": "Software Licenses",
+        "description": null,
+        "sort_order": 24
+    },
+    {
+        "name": "Rack Cabinet",
+        "description": "Server / Network Rack",
+        "sort_order": 25
+    },
+    {
+        "name": "Pocket Wifi",
+        "description": "Network/Connectivity",
+        "sort_order": 26
+    },
+    {
+        "name": "Mobile Broadband USB Stick",
+        "description": "Network/Connectivity",
+        "sort_order": 27
+    },
+    {
+        "name": "Modem / Router",
+        "description": "Network/Connectivity",
+        "sort_order": 28
+    },
+    {
+        "name": "Access Point",
+        "description": "Network/Connectivity",
+        "sort_order": 29
+    },
+    {
+        "name": "Dish (Satellite Internet Communication System)",
+        "description": "Like Starlink",
+        "sort_order": 30
+    },
+    {
+        "name": "Network Switch",
+        "description": "Network/Connectivity",
+        "sort_order": 31
+    },
+    {
+        "name": "Firewall Appliance",
+        "description": "Network/Connectivity/Security",
+        "sort_order": 32
+    },
+    {
+        "name": "Bluetooth / Wi-fi Adapter",
+        "description": "Network/Connectivity",
+        "sort_order": 33
+    },
+    {
+        "name": "Docking Station / USB Hub",
+        "description": "Network/Connectivity",
+        "sort_order": 34
+    },
+    {
+        "name": "PABX",
+        "description": "Network/Connectivity/Communication",
+        "sort_order": 35
+    },
+    {
+        "name": "Fax Machine",
+        "description": "Network/Connectivity/Communication",
+        "sort_order": 36
+    },
+    {
+        "name": "Computer Table",
+        "description": null,
+        "sort_order": 37
+    },
+    {
+        "name": "Printer",
+        "description": "Inkjet / Laser / Dot Matrix",
+        "sort_order": 38
+    },
+    {
+        "name": "Scanner",
+        "description": "Scanner Alone",
+        "sort_order": 39
+    },
+    {
+        "name": "Copier / Xerox Machine",
+        "description": "Copier / Xerox",
+        "sort_order": 40
+    },
+    {
+        "name": "Multifunction Printer",
+        "description": "Print / Scan / Copy / Fax (All-in-one) / 3-in-1 Multifunction Printer",
+        "sort_order": 41
+    },
+    {
+        "name": "Biometric Readers",
+        "description": "Fingerprint / Facial scanners / Door access locks",
+        "sort_order": 42
+    },
+    {
+        "name": "Barcode or QR Scanner",
+        "description": null,
+        "sort_order": 43
+    },
+    {
+        "name": "Microphone",
+        "description": null,
+        "sort_order": 44
+    },
+    {
+        "name": "Lapel",
+        "description": null,
+        "sort_order": 45
+    },
+    {
+        "name": "Speakers",
+        "description": null,
+        "sort_order": 46
+    },
+    {
+        "name": "Headset with Microphone",
+        "description": null,
+        "sort_order": 47
+    },
+    {
+        "name": "Webcam",
+        "description": null,
+        "sort_order": 48
+    },
+    {
+        "name": "Digital Camera",
+        "description": null,
+        "sort_order": 49
+    },
+    {
+        "name": "Voice Recorder",
+        "description": null,
+        "sort_order": 50
+    },
+    {
+        "name": "Document cameras / Visualizers",
+        "description": null,
+        "sort_order": 51
+    },
+    {
+        "name": "Interactive Whiteboards / Smartboards",
+        "description": null,
+        "sort_order": 52
+    },
+    {
+        "name": "DVD Player",
+        "description": null,
+        "sort_order": 53
+    },
+    {
+        "name": "Projector",
+        "description": null,
+        "sort_order": 54
+    },
+    {
+        "name": "Projector Screen",
+        "description": null,
+        "sort_order": 55
+    },
+    {
+        "name": "Laser pointer",
+        "description": null,
+        "sort_order": 56
+    },
+    {
+        "name": "Network Cable Tester",
+        "description": null,
+        "sort_order": 57
+    },
+    {
+        "name": "Crimper Tools",
+        "description": "Network/Connectivity Tools",
+        "sort_order": 58
+    },
+    {
+        "name": "Cables Adaptor",
+        "description": "Network/Connectivity Tools",
+        "sort_order": 59
+    },
+    {
+        "name": "Power Cords",
+        "description": "USB Printer connection cable, USB Charger cables",
+        "sort_order": 60
+    },
+    {
+        "name": "Extension Cords",
+        "description": "Power cable for PC/monitor/printer/UPS etc.",
+        "sort_order": 61
+    },
+    {
+        "name": "USB Charger",
+        "description": "Multi-outlet cord with sockets, extension power strip",
+        "sort_order": 62
+    },
+    {
+        "name": "Power bank",
+        "description": "Portable Power bank",
+        "sort_order": 63
+    },
+    {
+        "name": "Others",
+        "description": "Other devices / peripherals",
+        "sort_order": 64
+    }
+]

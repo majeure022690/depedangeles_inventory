@@ -1,0 +1,362 @@
+[
+    {
+        "type": "unit_of_measure",
+        "value": "Piece",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "unit_of_measure",
+        "value": "Set (bundled)",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "unit_of_measure",
+        "value": "Lot",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "dcp_package",
+        "value": "E-Textbooks",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "dcp_package",
+        "value": "eLearning Cart Package",
+        "description": "A mobile ICT package provided under DCP, Consisting of of laptops, a smart TV, a charging cart, and pre-installed educational software. It is designed to support digital learning in classroom without requiring a fix computer lab. The cart allows flexible use accross different grade level and subject.",
+        "sort_order": 1
+    },
+    {
+        "type": "dcp_package",
+        "value": "G4-G6 ICT Package",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "dcp_package",
+        "value": "IT Equipment",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "dcp_package",
+        "value": "JHS/SHS ICT Package",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "dcp_package",
+        "value": "Laptop for Non-Teaching",
+        "description": "Laptops for non‑teaching staff / division offices.",
+        "sort_order": 5
+    },
+    {
+        "type": "dcp_package",
+        "value": "Laptop for Teaching",
+        "description": "Laptops for teaching staff.",
+        "sort_order": 6
+    },
+    {
+        "type": "dcp_package",
+        "value": "Multimedia Package",
+        "description": "Contains, for example: 1 laptop, 1 Smart TV, 1 lapel (microphone) per package.",
+        "sort_order": 7
+    },
+    {
+        "type": "dcp_package",
+        "value": "Smart TV Package",
+        "description": "Supply & delivery of Smart TVs (e.g., 5 units per package) + external hard drives.",
+        "sort_order": 8
+    },
+    {
+        "type": "mode_of_acquisition",
+        "value": "DepEd Purchase",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "mode_of_acquisition",
+        "value": "Donation",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "mode_of_acquisition",
+        "value": "Grant",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "source_of_acquisition",
+        "value": "Central Office",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "source_of_acquisition",
+        "value": "Regional Office",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "source_of_acquisition",
+        "value": "School Division Office",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "source_of_acquisition",
+        "value": "School",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "source_of_acquisition",
+        "value": "Local Government Unit (LGU)",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "source_of_acquisition",
+        "value": "Private Corporation",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "source_of_acquisition",
+        "value": "Non-Governmental Organization (NGO)",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "type": "source_of_acquisition",
+        "value": "DICT",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "type": "source_of_acquisition",
+        "value": "Other National Government Agency",
+        "description": null,
+        "sort_order": 8
+    },
+    {
+        "type": "source_of_acquisition",
+        "value": "Parent Teacher's Association",
+        "description": null,
+        "sort_order": 9
+    },
+    {
+        "type": "source_of_funds",
+        "value": "General Fund (GF)",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "source_of_funds",
+        "value": "Maintenance and Other Operating Expenses (MOOE)",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "source_of_funds",
+        "value": "Capital Outlay (CO)",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "source_of_funds",
+        "value": "Special Education Fund (SEF)",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "source_of_funds",
+        "value": "Trust Fund (TF)",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "source_of_funds",
+        "value": "Program Support Fund (PSF)",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "source_of_funds",
+        "value": "Not Applicable",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "type": "allotment_class",
+        "value": "Personal Services (PS)",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "allotment_class",
+        "value": "Maintenance and Other Operating Expenses (MOOE)",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "allotment_class",
+        "value": "Capital Outlay (CO)",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "allotment_class",
+        "value": "Not Applicable",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "supporting_document_type",
+        "value": "Sales Invoice (SI)",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "supporting_document_type",
+        "value": "Official Receipt (OR)",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "supporting_document_type",
+        "value": "Delivery Receipt (DR)",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "supporting_document_type",
+        "value": "Inspection Acceptance Report (IAR)",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "supporting_document_type",
+        "value": "Report of Receipt and Stock Position (RRSP)",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "supporting_document_type",
+        "value": "Property Acknowledgment Receipt (PAR)",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "supporting_document_type",
+        "value": "Inventory Custodian Slip (ICS)",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "type": "supporting_document_type",
+        "value": "Return and Receipt of Property/Equipment (RRPE)",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "type": "supporting_document_type",
+        "value": "Waste Material Report (WMR)",
+        "description": null,
+        "sort_order": 8
+    },
+    {
+        "type": "disposition_status",
+        "value": "Normal",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "disposition_status",
+        "value": "Transferred",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "disposition_status",
+        "value": "Stolen",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "disposition_status",
+        "value": "Lost",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "disposition_status",
+        "value": "Damaged due to calamity",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "disposition_status",
+        "value": "For Disposal",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "disposition_status",
+        "value": "Disposed",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "type": "disposition_status",
+        "value": "Donated",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "type": "transaction_type",
+        "value": "Delivery",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "transaction_type",
+        "value": "Inspection",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "transaction_type",
+        "value": "Beginning Inventory",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "transaction_type",
+        "value": "Issuance/Transfer",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "transaction_type",
+        "value": "Return",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "transaction_type",
+        "value": "Disposal",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "transaction_type",
+        "value": "Stock Position",
+        "description": null,
+        "sort_order": 6
+    }
+]

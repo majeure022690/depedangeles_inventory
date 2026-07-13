@@ -1,0 +1,67 @@
+[
+    {
+        "name": "Administrative Division",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "name": "Curriculum and Learning Management Division",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "name": "Education Support Services Division",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "name": "Field Technical Assistance Division",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "name": "Finance Division",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "name": "Human Resource Development Division",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "name": "ICT Unit",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "name": "Legal Unit",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "name": "Office of the Assistant Regional Director",
+        "description": null,
+        "sort_order": 8
+    },
+    {
+        "name": "Office of the Regional Director Proper",
+        "description": null,
+        "sort_order": 9
+    },
+    {
+        "name": "Policy, Planning and Research Division",
+        "description": null,
+        "sort_order": 10
+    },
+    {
+        "name": "Public Affairs Unit",
+        "description": null,
+        "sort_order": 11
+    },
+    {
+        "name": "Quality Assurance Division",
+        "description": null,
+        "sort_order": 12
+    }
+]

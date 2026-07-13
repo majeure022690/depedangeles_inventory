@@ -1,0 +1,1582 @@
+[
+    {
+        "name": "Accountant I",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "name": "Accountant II",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "name": "Accountant III",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "name": "Accountant IV",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "name": "Accounting Analyst",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "name": "Accounting Clerk II",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "name": "Accounting Staff 1",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "name": "Accounting Staff 2",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "name": "Accounting Staff 3",
+        "description": null,
+        "sort_order": 8
+    },
+    {
+        "name": "Accounting Staff 4",
+        "description": null,
+        "sort_order": 9
+    },
+    {
+        "name": "Accounting Staff 5",
+        "description": null,
+        "sort_order": 10
+    },
+    {
+        "name": "Admin Support 1",
+        "description": null,
+        "sort_order": 11
+    },
+    {
+        "name": "Admin Support 10",
+        "description": null,
+        "sort_order": 12
+    },
+    {
+        "name": "Admin Support 11",
+        "description": null,
+        "sort_order": 13
+    },
+    {
+        "name": "Admin Support 12",
+        "description": null,
+        "sort_order": 14
+    },
+    {
+        "name": "Admin Support 13",
+        "description": null,
+        "sort_order": 15
+    },
+    {
+        "name": "Admin Support 2",
+        "description": null,
+        "sort_order": 16
+    },
+    {
+        "name": "Admin Support 3",
+        "description": null,
+        "sort_order": 17
+    },
+    {
+        "name": "Admin Support 4",
+        "description": null,
+        "sort_order": 18
+    },
+    {
+        "name": "Admin Support 5",
+        "description": null,
+        "sort_order": 19
+    },
+    {
+        "name": "Admin Support 6",
+        "description": null,
+        "sort_order": 20
+    },
+    {
+        "name": "Admin Support 7",
+        "description": null,
+        "sort_order": 21
+    },
+    {
+        "name": "Admin Support 8",
+        "description": null,
+        "sort_order": 22
+    },
+    {
+        "name": "Admin Support 9",
+        "description": null,
+        "sort_order": 23
+    },
+    {
+        "name": "Administrative Aide I",
+        "description": null,
+        "sort_order": 24
+    },
+    {
+        "name": "Administrative Aide II",
+        "description": null,
+        "sort_order": 25
+    },
+    {
+        "name": "Administrative Aide III",
+        "description": null,
+        "sort_order": 26
+    },
+    {
+        "name": "Administrative Aide IV",
+        "description": null,
+        "sort_order": 27
+    },
+    {
+        "name": "Administrative Aide V",
+        "description": null,
+        "sort_order": 28
+    },
+    {
+        "name": "Administrative Aide VI",
+        "description": null,
+        "sort_order": 29
+    },
+    {
+        "name": "Administrative Assistant I",
+        "description": null,
+        "sort_order": 30
+    },
+    {
+        "name": "Administrative Assistant II",
+        "description": null,
+        "sort_order": 31
+    },
+    {
+        "name": "Administrative Assistant III",
+        "description": null,
+        "sort_order": 32
+    },
+    {
+        "name": "Administrative Assistant IV",
+        "description": null,
+        "sort_order": 33
+    },
+    {
+        "name": "Administrative Assistant V",
+        "description": null,
+        "sort_order": 34
+    },
+    {
+        "name": "Administrative Assistant VI",
+        "description": null,
+        "sort_order": 35
+    },
+    {
+        "name": "Administrative Officer I",
+        "description": null,
+        "sort_order": 36
+    },
+    {
+        "name": "Administrative Officer II",
+        "description": null,
+        "sort_order": 37
+    },
+    {
+        "name": "Administrative Officer III",
+        "description": null,
+        "sort_order": 38
+    },
+    {
+        "name": "Administrative Officer IV",
+        "description": null,
+        "sort_order": 39
+    },
+    {
+        "name": "Administrative Officer V",
+        "description": null,
+        "sort_order": 40
+    },
+    {
+        "name": "Agriculturist I",
+        "description": null,
+        "sort_order": 41
+    },
+    {
+        "name": "Agriculturist II",
+        "description": null,
+        "sort_order": 42
+    },
+    {
+        "name": "Aquacultural Technician II",
+        "description": null,
+        "sort_order": 43
+    },
+    {
+        "name": "Aquaculturist I",
+        "description": null,
+        "sort_order": 44
+    },
+    {
+        "name": "Architech Consultant",
+        "description": null,
+        "sort_order": 45
+    },
+    {
+        "name": "Architect 2",
+        "description": null,
+        "sort_order": 46
+    },
+    {
+        "name": "Architect 3",
+        "description": null,
+        "sort_order": 47
+    },
+    {
+        "name": "Architect 4",
+        "description": null,
+        "sort_order": 48
+    },
+    {
+        "name": "Architect II",
+        "description": null,
+        "sort_order": 49
+    },
+    {
+        "name": "Architect III",
+        "description": null,
+        "sort_order": 50
+    },
+    {
+        "name": "Artist-Illustrator II",
+        "description": null,
+        "sort_order": 51
+    },
+    {
+        "name": "Assistant Professor II",
+        "description": null,
+        "sort_order": 52
+    },
+    {
+        "name": "Assistant Schools Division Superintendent",
+        "description": null,
+        "sort_order": 53
+    },
+    {
+        "name": "Assistant Secondary School Principal",
+        "description": null,
+        "sort_order": 54
+    },
+    {
+        "name": "Assistant Teachers Camp Superintendent",
+        "description": null,
+        "sort_order": 55
+    },
+    {
+        "name": "Assistant Teacher's Camp Superintendent",
+        "description": null,
+        "sort_order": 56
+    },
+    {
+        "name": "Attorney I",
+        "description": null,
+        "sort_order": 57
+    },
+    {
+        "name": "Attorney II",
+        "description": null,
+        "sort_order": 58
+    },
+    {
+        "name": "Attorney III",
+        "description": null,
+        "sort_order": 59
+    },
+    {
+        "name": "Attorney IV",
+        "description": null,
+        "sort_order": 60
+    },
+    {
+        "name": "Attorney V",
+        "description": null,
+        "sort_order": 61
+    },
+    {
+        "name": "Bookkeeper",
+        "description": null,
+        "sort_order": 62
+    },
+    {
+        "name": "Cashier I",
+        "description": null,
+        "sort_order": 63
+    },
+    {
+        "name": "Cashier II",
+        "description": null,
+        "sort_order": 64
+    },
+    {
+        "name": "Chief Accountant",
+        "description": null,
+        "sort_order": 65
+    },
+    {
+        "name": "Chief Administrative Officer",
+        "description": null,
+        "sort_order": 66
+    },
+    {
+        "name": "Chief Education Program Specialist",
+        "description": null,
+        "sort_order": 67
+    },
+    {
+        "name": "Chief Education Supervisor",
+        "description": null,
+        "sort_order": 68
+    },
+    {
+        "name": "Chief Health Program Officer",
+        "description": null,
+        "sort_order": 69
+    },
+    {
+        "name": "Clerk I",
+        "description": null,
+        "sort_order": 70
+    },
+    {
+        "name": "Clerk II",
+        "description": null,
+        "sort_order": 71
+    },
+    {
+        "name": "Clerk III",
+        "description": null,
+        "sort_order": 72
+    },
+    {
+        "name": "CODS",
+        "description": null,
+        "sort_order": 73
+    },
+    {
+        "name": "College Librarian I",
+        "description": null,
+        "sort_order": 74
+    },
+    {
+        "name": "College Librarian II",
+        "description": null,
+        "sort_order": 75
+    },
+    {
+        "name": "Communication Consultant",
+        "description": null,
+        "sort_order": 76
+    },
+    {
+        "name": "Communications Equipment Operator II",
+        "description": null,
+        "sort_order": 77
+    },
+    {
+        "name": "Communications Equipment Operator III",
+        "description": null,
+        "sort_order": 78
+    },
+    {
+        "name": "Computer File Librarian I",
+        "description": null,
+        "sort_order": 79
+    },
+    {
+        "name": "Computer File Librarian II",
+        "description": null,
+        "sort_order": 80
+    },
+    {
+        "name": "Computer Maintenance Technologist I",
+        "description": null,
+        "sort_order": 81
+    },
+    {
+        "name": "Computer Maintenance Technologist III",
+        "description": null,
+        "sort_order": 82
+    },
+    {
+        "name": "Computer Programmer II",
+        "description": null,
+        "sort_order": 83
+    },
+    {
+        "name": "Computer Programmer III",
+        "description": null,
+        "sort_order": 84
+    },
+    {
+        "name": "Construction and Maintenance Man",
+        "description": null,
+        "sort_order": 85
+    },
+    {
+        "name": "Cook I",
+        "description": null,
+        "sort_order": 86
+    },
+    {
+        "name": "Copy Reader",
+        "description": null,
+        "sort_order": 87
+    },
+    {
+        "name": "Coxswain",
+        "description": null,
+        "sort_order": 88
+    },
+    {
+        "name": "Crafts Education Demonstrator I",
+        "description": null,
+        "sort_order": 89
+    },
+    {
+        "name": "Crafts Education Demonstrator II",
+        "description": null,
+        "sort_order": 90
+    },
+    {
+        "name": "Creative Arts Specialist I",
+        "description": null,
+        "sort_order": 91
+    },
+    {
+        "name": "Creative Arts Specialist II",
+        "description": null,
+        "sort_order": 92
+    },
+    {
+        "name": "Dental Aide",
+        "description": null,
+        "sort_order": 93
+    },
+    {
+        "name": "Dentist I",
+        "description": null,
+        "sort_order": 94
+    },
+    {
+        "name": "Dentist II",
+        "description": null,
+        "sort_order": 95
+    },
+    {
+        "name": "Dentist III",
+        "description": null,
+        "sort_order": 96
+    },
+    {
+        "name": "Department Assistant Secretary",
+        "description": null,
+        "sort_order": 97
+    },
+    {
+        "name": "Department Legislative Liaison Specialist",
+        "description": null,
+        "sort_order": 98
+    },
+    {
+        "name": "Department Secretary",
+        "description": null,
+        "sort_order": 99
+    },
+    {
+        "name": "Department Undersecretary",
+        "description": null,
+        "sort_order": 100
+    },
+    {
+        "name": "DepEd Project Architect",
+        "description": null,
+        "sort_order": 101
+    },
+    {
+        "name": "DepEd Project Engineer",
+        "description": null,
+        "sort_order": 102
+    },
+    {
+        "name": "Director III",
+        "description": null,
+        "sort_order": 103
+    },
+    {
+        "name": "Director IV",
+        "description": null,
+        "sort_order": 104
+    },
+    {
+        "name": "Directory III",
+        "description": null,
+        "sort_order": 105
+    },
+    {
+        "name": "Directory IV",
+        "description": null,
+        "sort_order": 106
+    },
+    {
+        "name": "Disbursing Officer I",
+        "description": null,
+        "sort_order": 107
+    },
+    {
+        "name": "Disbursing Officer II",
+        "description": null,
+        "sort_order": 108
+    },
+    {
+        "name": "Dormitory Manager I",
+        "description": null,
+        "sort_order": 109
+    },
+    {
+        "name": "Dormitory Manager II",
+        "description": null,
+        "sort_order": 110
+    },
+    {
+        "name": "Draftsman I",
+        "description": null,
+        "sort_order": 111
+    },
+    {
+        "name": "Draftsman II",
+        "description": null,
+        "sort_order": 112
+    },
+    {
+        "name": "Driver 1",
+        "description": null,
+        "sort_order": 113
+    },
+    {
+        "name": "Driver 2",
+        "description": null,
+        "sort_order": 114
+    },
+    {
+        "name": "Driver 3",
+        "description": null,
+        "sort_order": 115
+    },
+    {
+        "name": "Driver I",
+        "description": null,
+        "sort_order": 116
+    },
+    {
+        "name": "Education Program Specialist I",
+        "description": null,
+        "sort_order": 117
+    },
+    {
+        "name": "Education Program Specialist II",
+        "description": null,
+        "sort_order": 118
+    },
+    {
+        "name": "Education Program Supervisor",
+        "description": null,
+        "sort_order": 119
+    },
+    {
+        "name": "Education Research Assistant II",
+        "description": null,
+        "sort_order": 120
+    },
+    {
+        "name": "Education Supervisor I",
+        "description": null,
+        "sort_order": 121
+    },
+    {
+        "name": "Electrical Engineer",
+        "description": null,
+        "sort_order": 122
+    },
+    {
+        "name": "Encoder",
+        "description": null,
+        "sort_order": 123
+    },
+    {
+        "name": "Engineer 1",
+        "description": null,
+        "sort_order": 124
+    },
+    {
+        "name": "Engineer 2",
+        "description": null,
+        "sort_order": 125
+    },
+    {
+        "name": "Engineer II",
+        "description": null,
+        "sort_order": 126
+    },
+    {
+        "name": "Engineer III",
+        "description": null,
+        "sort_order": 127
+    },
+    {
+        "name": "Engineer IV",
+        "description": null,
+        "sort_order": 128
+    },
+    {
+        "name": "Engineer V",
+        "description": null,
+        "sort_order": 129
+    },
+    {
+        "name": "Executive Assistant I",
+        "description": null,
+        "sort_order": 130
+    },
+    {
+        "name": "Executive Assistant II",
+        "description": null,
+        "sort_order": 131
+    },
+    {
+        "name": "Executive Assistant III",
+        "description": null,
+        "sort_order": 132
+    },
+    {
+        "name": "Executive Assistant IV",
+        "description": null,
+        "sort_order": 133
+    },
+    {
+        "name": "Executive Assistant V",
+        "description": null,
+        "sort_order": 134
+    },
+    {
+        "name": "Executive Director II",
+        "description": null,
+        "sort_order": 135
+    },
+    {
+        "name": "Farm Worker I",
+        "description": null,
+        "sort_order": 136
+    },
+    {
+        "name": "Fisherman",
+        "description": null,
+        "sort_order": 137
+    },
+    {
+        "name": "Ground Maintenance",
+        "description": null,
+        "sort_order": 138
+    },
+    {
+        "name": "Guesthouse Caretaker",
+        "description": null,
+        "sort_order": 139
+    },
+    {
+        "name": "Guidance Coordinator I",
+        "description": null,
+        "sort_order": 140
+    },
+    {
+        "name": "Guidance Coordinator II",
+        "description": null,
+        "sort_order": 141
+    },
+    {
+        "name": "Guidance Coordinator III",
+        "description": null,
+        "sort_order": 142
+    },
+    {
+        "name": "Guidance Counselor I",
+        "description": null,
+        "sort_order": 143
+    },
+    {
+        "name": "Guidance Counselor II",
+        "description": null,
+        "sort_order": 144
+    },
+    {
+        "name": "Guidance Counselor III",
+        "description": null,
+        "sort_order": 145
+    },
+    {
+        "name": "Guidance Services Specialist I",
+        "description": null,
+        "sort_order": 146
+    },
+    {
+        "name": "Guidance Services Specialist II",
+        "description": null,
+        "sort_order": 147
+    },
+    {
+        "name": "Handicraft Worker I",
+        "description": null,
+        "sort_order": 148
+    },
+    {
+        "name": "Handicraft Worker II",
+        "description": null,
+        "sort_order": 149
+    },
+    {
+        "name": "Head Executive Assistant",
+        "description": null,
+        "sort_order": 150
+    },
+    {
+        "name": "Head Teacher I",
+        "description": null,
+        "sort_order": 151
+    },
+    {
+        "name": "Head Teacher II",
+        "description": null,
+        "sort_order": 152
+    },
+    {
+        "name": "Head Teacher III",
+        "description": null,
+        "sort_order": 153
+    },
+    {
+        "name": "Head Teacher IV",
+        "description": null,
+        "sort_order": 154
+    },
+    {
+        "name": "Head Teacher V",
+        "description": null,
+        "sort_order": 155
+    },
+    {
+        "name": "Head Teacher VI",
+        "description": null,
+        "sort_order": 156
+    },
+    {
+        "name": "Health Education and Promotion Officer II",
+        "description": null,
+        "sort_order": 157
+    },
+    {
+        "name": "Health Education and Promotion Officer III",
+        "description": null,
+        "sort_order": 158
+    },
+    {
+        "name": "Heavy Equipment Operator I",
+        "description": null,
+        "sort_order": 159
+    },
+    {
+        "name": "Houseparent I",
+        "description": null,
+        "sort_order": 160
+    },
+    {
+        "name": "Human Resource Management Officer I",
+        "description": null,
+        "sort_order": 161
+    },
+    {
+        "name": "Human Resource Management Officer II",
+        "description": null,
+        "sort_order": 162
+    },
+    {
+        "name": "Information Systems Analyst II",
+        "description": null,
+        "sort_order": 163
+    },
+    {
+        "name": "Information Systems Analyst III",
+        "description": null,
+        "sort_order": 164
+    },
+    {
+        "name": "Information Systems Researcher III",
+        "description": null,
+        "sort_order": 165
+    },
+    {
+        "name": "Information Technology Officer I",
+        "description": null,
+        "sort_order": 166
+    },
+    {
+        "name": "Information Technology Officer II",
+        "description": null,
+        "sort_order": 167
+    },
+    {
+        "name": "Information Technology Officer III",
+        "description": null,
+        "sort_order": 168
+    },
+    {
+        "name": "Instructor I",
+        "description": null,
+        "sort_order": 169
+    },
+    {
+        "name": "Instructor II",
+        "description": null,
+        "sort_order": 170
+    },
+    {
+        "name": "Instructor III",
+        "description": null,
+        "sort_order": 171
+    },
+    {
+        "name": "Internal Auditing Assistant",
+        "description": null,
+        "sort_order": 172
+    },
+    {
+        "name": "Internal Auditor I",
+        "description": null,
+        "sort_order": 173
+    },
+    {
+        "name": "Internal Auditor II",
+        "description": null,
+        "sort_order": 174
+    },
+    {
+        "name": "Internal Auditor III",
+        "description": null,
+        "sort_order": 175
+    },
+    {
+        "name": "Internal Auditor IV",
+        "description": null,
+        "sort_order": 176
+    },
+    {
+        "name": "Internal Auditor V",
+        "description": null,
+        "sort_order": 177
+    },
+    {
+        "name": "IT Consultant",
+        "description": null,
+        "sort_order": 178
+    },
+    {
+        "name": "Laboratory Technician I",
+        "description": null,
+        "sort_order": 179
+    },
+    {
+        "name": "Laundry Woman",
+        "description": null,
+        "sort_order": 180
+    },
+    {
+        "name": "Legal Aide",
+        "description": null,
+        "sort_order": 181
+    },
+    {
+        "name": "Legal Assistant I",
+        "description": null,
+        "sort_order": 182
+    },
+    {
+        "name": "Legal Assistant II",
+        "description": null,
+        "sort_order": 183
+    },
+    {
+        "name": "Librarian I",
+        "description": null,
+        "sort_order": 184
+    },
+    {
+        "name": "Librarian II",
+        "description": null,
+        "sort_order": 185
+    },
+    {
+        "name": "Light Equipment Operator",
+        "description": null,
+        "sort_order": 186
+    },
+    {
+        "name": "Marine Engineman I",
+        "description": null,
+        "sort_order": 187
+    },
+    {
+        "name": "Master Fisherman I",
+        "description": null,
+        "sort_order": 188
+    },
+    {
+        "name": "Master Teacher I",
+        "description": null,
+        "sort_order": 189
+    },
+    {
+        "name": "Master Teacher II",
+        "description": null,
+        "sort_order": 190
+    },
+    {
+        "name": "Master Teacher III",
+        "description": null,
+        "sort_order": 191
+    },
+    {
+        "name": "Master Teacher IV",
+        "description": null,
+        "sort_order": 192
+    },
+    {
+        "name": "Master Teacher V",
+        "description": null,
+        "sort_order": 193
+    },
+    {
+        "name": "Mechanic I",
+        "description": null,
+        "sort_order": 194
+    },
+    {
+        "name": "Mechanic II",
+        "description": null,
+        "sort_order": 195
+    },
+    {
+        "name": "Mechanical Plant Operator I",
+        "description": null,
+        "sort_order": 196
+    },
+    {
+        "name": "Medical Officer II",
+        "description": null,
+        "sort_order": 197
+    },
+    {
+        "name": "Medical Officer III",
+        "description": null,
+        "sort_order": 198
+    },
+    {
+        "name": "Medical Officer IV",
+        "description": null,
+        "sort_order": 199
+    },
+    {
+        "name": "Messenger",
+        "description": null,
+        "sort_order": 200
+    },
+    {
+        "name": "Metal Worker I",
+        "description": null,
+        "sort_order": 201
+    },
+    {
+        "name": "Nurse I",
+        "description": null,
+        "sort_order": 202
+    },
+    {
+        "name": "Nurse II",
+        "description": null,
+        "sort_order": 203
+    },
+    {
+        "name": "Nurse Maid I",
+        "description": null,
+        "sort_order": 204
+    },
+    {
+        "name": "Nursing Attendant I",
+        "description": null,
+        "sort_order": 205
+    },
+    {
+        "name": "Nutritionist Dietitian I",
+        "description": null,
+        "sort_order": 206
+    },
+    {
+        "name": "Nutritionist-Dietitian II",
+        "description": null,
+        "sort_order": 207
+    },
+    {
+        "name": "Nutritionist-Dietitian III",
+        "description": null,
+        "sort_order": 208
+    },
+    {
+        "name": "Photoengraver II",
+        "description": null,
+        "sort_order": 209
+    },
+    {
+        "name": "Planning Officer I",
+        "description": null,
+        "sort_order": 210
+    },
+    {
+        "name": "Planning Officer II",
+        "description": null,
+        "sort_order": 211
+    },
+    {
+        "name": "Planning Officer III",
+        "description": null,
+        "sort_order": 212
+    },
+    {
+        "name": "Planning Officer IV",
+        "description": null,
+        "sort_order": 213
+    },
+    {
+        "name": "Planning Officer V",
+        "description": null,
+        "sort_order": 214
+    },
+    {
+        "name": "Printing Foreman",
+        "description": null,
+        "sort_order": 215
+    },
+    {
+        "name": "Project Development Assistant",
+        "description": null,
+        "sort_order": 216
+    },
+    {
+        "name": "Project Development Officer I",
+        "description": null,
+        "sort_order": 217
+    },
+    {
+        "name": "Project Development Officer II",
+        "description": null,
+        "sort_order": 218
+    },
+    {
+        "name": "Project Development Officer III",
+        "description": null,
+        "sort_order": 219
+    },
+    {
+        "name": "Project Development Officer IV",
+        "description": null,
+        "sort_order": 220
+    },
+    {
+        "name": "Project Development Officer V",
+        "description": null,
+        "sort_order": 221
+    },
+    {
+        "name": "Project Evaluation Officer IV",
+        "description": null,
+        "sort_order": 222
+    },
+    {
+        "name": "Proofreader II",
+        "description": null,
+        "sort_order": 223
+    },
+    {
+        "name": "Psychologist I",
+        "description": null,
+        "sort_order": 224
+    },
+    {
+        "name": "Public Schools District Supervisor",
+        "description": null,
+        "sort_order": 225
+    },
+    {
+        "name": "Publication Production Supervisor",
+        "description": null,
+        "sort_order": 226
+    },
+    {
+        "name": "Records Officer II",
+        "description": null,
+        "sort_order": 227
+    },
+    {
+        "name": "Registrar I",
+        "description": null,
+        "sort_order": 228
+    },
+    {
+        "name": "Registrar II",
+        "description": null,
+        "sort_order": 229
+    },
+    {
+        "name": "Reproduction Machine Operator I",
+        "description": null,
+        "sort_order": 230
+    },
+    {
+        "name": "School Farm Demonstrator",
+        "description": null,
+        "sort_order": 231
+    },
+    {
+        "name": "School Farming Coordinator I",
+        "description": null,
+        "sort_order": 232
+    },
+    {
+        "name": "School Farming Coordinator II",
+        "description": null,
+        "sort_order": 233
+    },
+    {
+        "name": "School Farming Coordinator III",
+        "description": null,
+        "sort_order": 234
+    },
+    {
+        "name": "School Librarian I",
+        "description": null,
+        "sort_order": 235
+    },
+    {
+        "name": "School Librarian II",
+        "description": null,
+        "sort_order": 236
+    },
+    {
+        "name": "School Librarian III",
+        "description": null,
+        "sort_order": 237
+    },
+    {
+        "name": "School Principal I",
+        "description": null,
+        "sort_order": 238
+    },
+    {
+        "name": "School Principal II",
+        "description": null,
+        "sort_order": 239
+    },
+    {
+        "name": "School Principal III",
+        "description": null,
+        "sort_order": 240
+    },
+    {
+        "name": "School Principal IV",
+        "description": null,
+        "sort_order": 241
+    },
+    {
+        "name": "Schools Division Superintendent",
+        "description": null,
+        "sort_order": 242
+    },
+    {
+        "name": "Science Research Assistant",
+        "description": null,
+        "sort_order": 243
+    },
+    {
+        "name": "Science Research Specialist II",
+        "description": null,
+        "sort_order": 244
+    },
+    {
+        "name": "Science Research Technician I",
+        "description": null,
+        "sort_order": 245
+    },
+    {
+        "name": "Science Research Technician II",
+        "description": null,
+        "sort_order": 246
+    },
+    {
+        "name": "Science Research Technician III",
+        "description": null,
+        "sort_order": 247
+    },
+    {
+        "name": "Science Research Technician IV",
+        "description": null,
+        "sort_order": 248
+    },
+    {
+        "name": "Secondary School Principal",
+        "description": null,
+        "sort_order": 249
+    },
+    {
+        "name": "Secretary",
+        "description": null,
+        "sort_order": 250
+    },
+    {
+        "name": "Security Guard I",
+        "description": null,
+        "sort_order": 251
+    },
+    {
+        "name": "Security Guard II",
+        "description": null,
+        "sort_order": 252
+    },
+    {
+        "name": "Security Guard III",
+        "description": null,
+        "sort_order": 253
+    },
+    {
+        "name": "Senior Administrative Assistant I",
+        "description": null,
+        "sort_order": 254
+    },
+    {
+        "name": "Senior Administrative Assistant II",
+        "description": null,
+        "sort_order": 255
+    },
+    {
+        "name": "Senior Administrative Assistant III",
+        "description": null,
+        "sort_order": 256
+    },
+    {
+        "name": "Senior Administrative Assistant V",
+        "description": null,
+        "sort_order": 257
+    },
+    {
+        "name": "Senior Bookkeeper",
+        "description": null,
+        "sort_order": 258
+    },
+    {
+        "name": "Senior Education Program Specialist",
+        "description": null,
+        "sort_order": 259
+    },
+    {
+        "name": "Senior Science Research Specialist",
+        "description": null,
+        "sort_order": 260
+    },
+    {
+        "name": "Skilled Worker",
+        "description": null,
+        "sort_order": 261
+    },
+    {
+        "name": "Social Welfare Officer I",
+        "description": null,
+        "sort_order": 262
+    },
+    {
+        "name": "Special Education Teacher I",
+        "description": null,
+        "sort_order": 263
+    },
+    {
+        "name": "Special Education Teacher II",
+        "description": null,
+        "sort_order": 264
+    },
+    {
+        "name": "Special Education Teacher III",
+        "description": null,
+        "sort_order": 265
+    },
+    {
+        "name": "Special Education Teacher V",
+        "description": null,
+        "sort_order": 266
+    },
+    {
+        "name": "Special Investigator II",
+        "description": null,
+        "sort_order": 267
+    },
+    {
+        "name": "Special Investigator III",
+        "description": null,
+        "sort_order": 268
+    },
+    {
+        "name": "Special School Principal I",
+        "description": null,
+        "sort_order": 269
+    },
+    {
+        "name": "Special School Principal II",
+        "description": null,
+        "sort_order": 270
+    },
+    {
+        "name": "Special Science Teacher I",
+        "description": null,
+        "sort_order": 271
+    },
+    {
+        "name": "Statistician Aide",
+        "description": null,
+        "sort_order": 272
+    },
+    {
+        "name": "Statistician I",
+        "description": null,
+        "sort_order": 273
+    },
+    {
+        "name": "Statistician II",
+        "description": null,
+        "sort_order": 274
+    },
+    {
+        "name": "Statistician III",
+        "description": null,
+        "sort_order": 275
+    },
+    {
+        "name": "Structural Engineer",
+        "description": null,
+        "sort_order": 276
+    },
+    {
+        "name": "Supervising Administrative Officer",
+        "description": null,
+        "sort_order": 277
+    },
+    {
+        "name": "Supervising Education Program Specialist",
+        "description": null,
+        "sort_order": 278
+    },
+    {
+        "name": "Supervising Health Program Officer",
+        "description": null,
+        "sort_order": 279
+    },
+    {
+        "name": "Supply Officer I",
+        "description": null,
+        "sort_order": 280
+    },
+    {
+        "name": "Supply Officer II",
+        "description": null,
+        "sort_order": 281
+    },
+    {
+        "name": "System Administrator",
+        "description": null,
+        "sort_order": 282
+    },
+    {
+        "name": "Teacher Credentials Evaluator I",
+        "description": null,
+        "sort_order": 283
+    },
+    {
+        "name": "Teacher Credentials Evaluator II",
+        "description": null,
+        "sort_order": 284
+    },
+    {
+        "name": "Teacher Credentials Evaluator III",
+        "description": null,
+        "sort_order": 285
+    },
+    {
+        "name": "Teacher I",
+        "description": null,
+        "sort_order": 286
+    },
+    {
+        "name": "Teacher II",
+        "description": null,
+        "sort_order": 287
+    },
+    {
+        "name": "Teacher III",
+        "description": null,
+        "sort_order": 288
+    },
+    {
+        "name": "Teacher IV",
+        "description": null,
+        "sort_order": 289
+    },
+    {
+        "name": "Teacher V",
+        "description": null,
+        "sort_order": 290
+    },
+    {
+        "name": "Teacher VI",
+        "description": null,
+        "sort_order": 291
+    },
+    {
+        "name": "Teacher VII",
+        "description": null,
+        "sort_order": 292
+    },
+    {
+        "name": "Teachers Camp Superintendent",
+        "description": null,
+        "sort_order": 293
+    },
+    {
+        "name": "Teaching Aids Specialist",
+        "description": null,
+        "sort_order": 294
+    },
+    {
+        "name": "Technical Assistant 1",
+        "description": null,
+        "sort_order": 295
+    },
+    {
+        "name": "Technical Assistant 2",
+        "description": null,
+        "sort_order": 296
+    },
+    {
+        "name": "Technical Assistant 3",
+        "description": null,
+        "sort_order": 297
+    },
+    {
+        "name": "Technical Assistant 4",
+        "description": null,
+        "sort_order": 298
+    },
+    {
+        "name": "Typesetter II",
+        "description": null,
+        "sort_order": 299
+    },
+    {
+        "name": "Undersecretary",
+        "description": null,
+        "sort_order": 300
+    },
+    {
+        "name": "Utility Foreman",
+        "description": null,
+        "sort_order": 301
+    },
+    {
+        "name": "Utility Worker",
+        "description": null,
+        "sort_order": 302
+    },
+    {
+        "name": "Utility Worker I",
+        "description": null,
+        "sort_order": 303
+    },
+    {
+        "name": "Vocational Instruction Supervisor I",
+        "description": null,
+        "sort_order": 304
+    },
+    {
+        "name": "Vocational Instruction Supervisor II",
+        "description": null,
+        "sort_order": 305
+    },
+    {
+        "name": "Vocational Instruction Supervisor III",
+        "description": null,
+        "sort_order": 306
+    },
+    {
+        "name": "Vocational Placement Coordinator I",
+        "description": null,
+        "sort_order": 307
+    },
+    {
+        "name": "Vocational School Administrator I",
+        "description": null,
+        "sort_order": 308
+    },
+    {
+        "name": "Vocational School Administrator II",
+        "description": null,
+        "sort_order": 309
+    },
+    {
+        "name": "Vocational School Superintendent I",
+        "description": null,
+        "sort_order": 310
+    },
+    {
+        "name": "Warehouseman I",
+        "description": null,
+        "sort_order": 311
+    },
+    {
+        "name": "Warehouseman II",
+        "description": null,
+        "sort_order": 312
+    },
+    {
+        "name": "Warehouseman III",
+        "description": null,
+        "sort_order": 313
+    },
+    {
+        "name": "Watchman I",
+        "description": null,
+        "sort_order": 314
+    },
+    {
+        "name": "Watchman II",
+        "description": null,
+        "sort_order": 315
+    }
+]

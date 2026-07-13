@@ -1,0 +1,382 @@
+[
+    {
+        "name": "Acer",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "name": "Adobe",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "name": "Amazon",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "name": "AMD",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "name": "Apple",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "name": "Aruba Networks",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "name": "Asus",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "name": "BenQ",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "name": "Bose",
+        "description": null,
+        "sort_order": 8
+    },
+    {
+        "name": "Broadcom",
+        "description": null,
+        "sort_order": 9
+    },
+    {
+        "name": "Brother",
+        "description": null,
+        "sort_order": 10
+    },
+    {
+        "name": "Canon",
+        "description": null,
+        "sort_order": 11
+    },
+    {
+        "name": "Cisco",
+        "description": null,
+        "sort_order": 12
+    },
+    {
+        "name": "Coby",
+        "description": null,
+        "sort_order": 13
+    },
+    {
+        "name": "Crestron",
+        "description": null,
+        "sort_order": 14
+    },
+    {
+        "name": "Dahua",
+        "description": null,
+        "sort_order": 15
+    },
+    {
+        "name": "Dell",
+        "description": null,
+        "sort_order": 16
+    },
+    {
+        "name": "Epson",
+        "description": null,
+        "sort_order": 17
+    },
+    {
+        "name": "Ericsson",
+        "description": null,
+        "sort_order": 18
+    },
+    {
+        "name": "EVGA",
+        "description": null,
+        "sort_order": 19
+    },
+    {
+        "name": "Extron",
+        "description": null,
+        "sort_order": 20
+    },
+    {
+        "name": "Fortinet",
+        "description": null,
+        "sort_order": 21
+    },
+    {
+        "name": "Gigabyte",
+        "description": null,
+        "sort_order": 22
+    },
+    {
+        "name": "Google / Alphabet",
+        "description": null,
+        "sort_order": 23
+    },
+    {
+        "name": "Hikvision",
+        "description": null,
+        "sort_order": 24
+    },
+    {
+        "name": "HP (Hewlett-Packard)",
+        "description": null,
+        "sort_order": 25
+    },
+    {
+        "name": "Huawei",
+        "description": null,
+        "sort_order": 26
+    },
+    {
+        "name": "IBM",
+        "description": null,
+        "sort_order": 27
+    },
+    {
+        "name": "Intel",
+        "description": null,
+        "sort_order": 28
+    },
+    {
+        "name": "JBL",
+        "description": null,
+        "sort_order": 29
+    },
+    {
+        "name": "Juniper",
+        "description": null,
+        "sort_order": 30
+    },
+    {
+        "name": "Kyocera",
+        "description": null,
+        "sort_order": 31
+    },
+    {
+        "name": "Lenovo",
+        "description": null,
+        "sort_order": 32
+    },
+    {
+        "name": "LG",
+        "description": null,
+        "sort_order": 33
+    },
+    {
+        "name": "Logitech",
+        "description": null,
+        "sort_order": 34
+    },
+    {
+        "name": "MediaTek",
+        "description": null,
+        "sort_order": 35
+    },
+    {
+        "name": "Meta",
+        "description": null,
+        "sort_order": 36
+    },
+    {
+        "name": "Micron Technology",
+        "description": null,
+        "sort_order": 37
+    },
+    {
+        "name": "MikroTik",
+        "description": null,
+        "sort_order": 38
+    },
+    {
+        "name": "Motorola",
+        "description": null,
+        "sort_order": 39
+    },
+    {
+        "name": "MSI",
+        "description": null,
+        "sort_order": 40
+    },
+    {
+        "name": "NetApp",
+        "description": null,
+        "sort_order": 41
+    },
+    {
+        "name": "Netgear",
+        "description": null,
+        "sort_order": 42
+    },
+    {
+        "name": "Nintendo",
+        "description": null,
+        "sort_order": 43
+    },
+    {
+        "name": "NVIDIA",
+        "description": null,
+        "sort_order": 44
+    },
+    {
+        "name": "OnePlus",
+        "description": null,
+        "sort_order": 45
+    },
+    {
+        "name": "Oppo",
+        "description": null,
+        "sort_order": 46
+    },
+    {
+        "name": "Panasonic",
+        "description": null,
+        "sort_order": 47
+    },
+    {
+        "name": "Poly / Polycom",
+        "description": null,
+        "sort_order": 48
+    },
+    {
+        "name": "QNAP",
+        "description": null,
+        "sort_order": 49
+    },
+    {
+        "name": "Qualcomm",
+        "description": null,
+        "sort_order": 50
+    },
+    {
+        "name": "Razer",
+        "description": null,
+        "sort_order": 51
+    },
+    {
+        "name": "Realme",
+        "description": null,
+        "sort_order": 52
+    },
+    {
+        "name": "Ricoh",
+        "description": null,
+        "sort_order": 53
+    },
+    {
+        "name": "Salesforce",
+        "description": null,
+        "sort_order": 54
+    },
+    {
+        "name": "Samsung",
+        "description": null,
+        "sort_order": 55
+    },
+    {
+        "name": "SAP",
+        "description": null,
+        "sort_order": 56
+    },
+    {
+        "name": "Seagate",
+        "description": null,
+        "sort_order": 57
+    },
+    {
+        "name": "Sennheiser",
+        "description": null,
+        "sort_order": 58
+    },
+    {
+        "name": "Sharp",
+        "description": null,
+        "sort_order": 59
+    },
+    {
+        "name": "Siemens",
+        "description": null,
+        "sort_order": 60
+    },
+    {
+        "name": "SK Hynix",
+        "description": null,
+        "sort_order": 61
+    },
+    {
+        "name": "Sony",
+        "description": null,
+        "sort_order": 62
+    },
+    {
+        "name": "Supermicro",
+        "description": null,
+        "sort_order": 63
+    },
+    {
+        "name": "Synology",
+        "description": null,
+        "sort_order": 64
+    },
+    {
+        "name": "Tesla",
+        "description": null,
+        "sort_order": 65
+    },
+    {
+        "name": "Texas Instruments",
+        "description": null,
+        "sort_order": 66
+    },
+    {
+        "name": "TP-Link",
+        "description": null,
+        "sort_order": 67
+    },
+    {
+        "name": "TSMC",
+        "description": null,
+        "sort_order": 68
+    },
+    {
+        "name": "Ubiquiti",
+        "description": null,
+        "sort_order": 69
+    },
+    {
+        "name": "ViewSonic",
+        "description": null,
+        "sort_order": 70
+    },
+    {
+        "name": "Western Digital (WD)",
+        "description": null,
+        "sort_order": 71
+    },
+    {
+        "name": "Xerox",
+        "description": null,
+        "sort_order": 72
+    },
+    {
+        "name": "Xiaomi",
+        "description": null,
+        "sort_order": 73
+    },
+    {
+        "name": "ZTE",
+        "description": null,
+        "sort_order": 74
+    },
+    {
+        "name": "Others",
+        "description": null,
+        "sort_order": 75
+    }
+]

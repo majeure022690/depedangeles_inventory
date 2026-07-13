@@ -1,0 +1,22 @@
+[
+    {
+        "name": "Serviceable",
+        "description": "The property is in use, in good condition and usable for its intended purpose.",
+        "sort_order": 0
+    },
+    {
+        "name": "For Repair",
+        "description": "The property is temporarily not working properly but still repairable or economically practical to fix.",
+        "sort_order": 1
+    },
+    {
+        "name": "Unserviceable",
+        "description": "The property is permanently unusable, beyond economical repair, obsolete, no longer usable or should be disposed of.",
+        "sort_order": 2
+    },
+    {
+        "name": "Not Applicable",
+        "description": null,
+        "sort_order": 3
+    }
+]

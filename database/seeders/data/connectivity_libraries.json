@@ -1,0 +1,254 @@
+[
+    {
+        "type": "school_level_coverage",
+        "value": "ES",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "school_level_coverage",
+        "value": "JHS",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "school_level_coverage",
+        "value": "SHS",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "school_level_coverage",
+        "value": "ES & JHS",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "school_level_coverage",
+        "value": "ES & SHS",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "school_level_coverage",
+        "value": "JHS & SHS",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "school_level_coverage",
+        "value": "All (Areawide)",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "type": "school_level_coverage",
+        "value": "Not Applicable",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "type": "isp_connection_type",
+        "value": "Cable",
+        "description": "Delivered over coaxial cable (often shared with TV service).",
+        "sort_order": 0
+    },
+    {
+        "type": "isp_connection_type",
+        "value": "DSL",
+        "description": "Uses existing telephone lines.",
+        "sort_order": 1
+    },
+    {
+        "type": "isp_connection_type",
+        "value": "Fiber",
+        "description": "High-speed internet using fiber-optic cables.",
+        "sort_order": 2
+    },
+    {
+        "type": "isp_connection_type",
+        "value": "Leased Line",
+        "description": "Dedicated high-speed wired connection, typically for businesses; also known as T1 or T3.",
+        "sort_order": 3
+    },
+    {
+        "type": "isp_connection_type",
+        "value": "Mobile Data",
+        "description": "Internet via mobile networks / Cellular (LTE, 3G, 4G, 5G).",
+        "sort_order": 4
+    },
+    {
+        "type": "isp_connection_type",
+        "value": "Point-to-point",
+        "description": "Dedicated link between two locations.",
+        "sort_order": 5
+    },
+    {
+        "type": "isp_connection_type",
+        "value": "Satellite",
+        "description": "Internet via satellite connection, typically for remote areas.",
+        "sort_order": 6
+    },
+    {
+        "type": "isp_connection_type",
+        "value": "Wireless broadband",
+        "description": "Internet delivered wirelessly to a fixed location; also known as Fixed Wireless.",
+        "sort_order": 7
+    },
+    {
+        "type": "isp_connection_type",
+        "value": "Others",
+        "description": null,
+        "sort_order": 8
+    },
+    {
+        "type": "subscription_type",
+        "value": "Prepaid",
+        "description": "Customers pay in advance for a specific amount of data or time. Service stops or slows down when the balance/data runs out. Often used for mobile or temporary connections.",
+        "sort_order": 0
+    },
+    {
+        "type": "subscription_type",
+        "value": "Postpaid",
+        "description": "Customers are billed after usage, typically monthly. Often comes with a fixed data allowance or unlimited plan.",
+        "sort_order": 1
+    },
+    {
+        "type": "purpose_of_subscription",
+        "value": "For administrative use",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "purpose_of_subscription",
+        "value": "For classroom instruction use",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "purpose_of_subscription",
+        "value": "For both administrative and classroom instruction use",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "purpose_of_subscription",
+        "value": "Others",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "signal_quality",
+        "value": "Strong",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "signal_quality",
+        "value": "Stable",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "signal_quality",
+        "value": "Weak",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "signal_quality",
+        "value": "Intermittent",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "signal_quality",
+        "value": "Poor",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "mobile_network_signal",
+        "value": "3G",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "mobile_network_signal",
+        "value": "LTE (4G LTE)",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "mobile_network_signal",
+        "value": "LTE-Advanced/True 4G",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "mobile_network_signal",
+        "value": "5G",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "mobile_network_signal",
+        "value": "No Signal",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "coverage_area",
+        "value": "Building/Office-wide",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "coverage_area",
+        "value": "School-wide",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "coverage_area",
+        "value": "Faculty area",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "coverage_area",
+        "value": "Principal office",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "coverage_area",
+        "value": "Elementary School",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "coverage_area",
+        "value": "Junior High School Area",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "coverage_area",
+        "value": "Senior High School Area",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "type": "coverage_area",
+        "value": "ICT Room/Laboratory",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "type": "coverage_area",
+        "value": "Library",
+        "description": null,
+        "sort_order": 8
+    }
+]

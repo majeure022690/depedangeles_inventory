@@ -1,0 +1,43 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - vendor/nesbot/carbon/extension.neon
+
+parameters:
+    paths:
+        - app/
+        - bootstrap/app.php
+        - config/
+        - database/
+        - routes/
+
+    level: 7
+
+    # parseModelCastsMethod defaults to false in
+    # vendor/larastan/larastan/extension.neon. Larastan's magic-property
+    # type inference (App\Models\Equipment::$received_date etc.) always
+    # reads a model's casts to know real attribute types (Carbon, bool,
+    # int, ...) instead of falling back to the raw DB column type
+    # (string) — but by default it only reads the legacy `protected
+    # $casts` property. Every model in this app declares casts via the
+    # Laravel 11+ `casts(): array` method instead, so without this flag
+    # Larastan never sees them and treats every cast attribute as a plain
+    # string — which is what caused ~90 false-positive "Cannot call
+    # method toDateString()/toIso8601String() on string" errors across
+    # EquipmentController/IspAccountController/IspSpeedTestController.
+    parseModelCastsMethod: true
+
+    # checkModelProperties (also default false) is Larastan's *separate*,
+    # much stricter opt-in that additionally validates every ::where(),
+    # ::create(), etc. column-name argument against the model's real
+    # schema/casts, and requires generic Builder<Model>/relation return
+    # types everywhere. It found real gaps (now fixed: missing
+    # BelongsTo/HasMany/BelongsToMany/MorphTo generics and Builder<Model>
+    # scope param types across every model), but fully adopting it also
+    # requires annotating every ::create($request->validated()) call site
+    # in the app with Larastan's `array<model-property<X>, mixed>`
+    # pseudo-type (a convention not used anywhere in this codebase today)
+    # to avoid false positives on spread arrays — a separate, larger
+    # strictness upgrade than what this fix was scoped to (the casts()/
+    # Carbon gap). Left off; revisit as an explicit follow-up if the team
+    # wants that stricter guarantee.
+    checkModelProperties: false

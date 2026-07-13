@@ -1,0 +1,12 @@
+[
+    {
+        "name": "High-value",
+        "description": "An item / equipment costing P50,000 and above",
+        "sort_order": 0
+    },
+    {
+        "name": "Low-value",
+        "description": "An item / equipment costing below P50,000",
+        "sort_order": 1
+    }
+]

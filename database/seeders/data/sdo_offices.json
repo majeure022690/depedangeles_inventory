@@ -1,0 +1,42 @@
+[
+    {
+        "name": "Office of the Schools Division Superintendent",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "name": "Office of the Assistant Schools Division Superintendent",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "name": "Legal Services",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "name": "Administrative Services",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "name": "Finance Services",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "name": "ICT Services",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "name": "Curriculum Implementation Division",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "name": "Schools Governance and Operations Division",
+        "description": null,
+        "sort_order": 7
+    }
+]

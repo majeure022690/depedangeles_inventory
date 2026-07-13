@@ -1,0 +1,296 @@
+[
+    {
+        "type": "governance_level",
+        "value": "Central Office",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "governance_level",
+        "value": "Regional Office",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "governance_level",
+        "value": "Division Office",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "governance_level",
+        "value": "School",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "community_context",
+        "value": "Indigenous People",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "community_context",
+        "value": "Poverty Incidence",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "community_context",
+        "value": "Geographical Isolation",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "type_of_access_road",
+        "value": "Paved",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "type_of_access_road",
+        "value": "Unpaved",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "type_of_access_road",
+        "value": "Levelled",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "type_of_access_road",
+        "value": "Unlevelled/Rough Road",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "type_of_access_road",
+        "value": "On-going construction",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "by_transportation",
+        "value": "Private 4 wheel Vehicle",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "by_transportation",
+        "value": "Private Motorcycle",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "by_transportation",
+        "value": "Boat",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "by_transportation",
+        "value": "Pedicab",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "by_transportation",
+        "value": "Tricycle",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "by_transportation",
+        "value": "Jeepney",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "by_transportation",
+        "value": "Bus",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "type": "by_transportation",
+        "value": "Habal-habal",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "type": "by_transportation",
+        "value": "Train",
+        "description": null,
+        "sort_order": 8
+    },
+    {
+        "type": "by_transportation",
+        "value": "UV Express",
+        "description": null,
+        "sort_order": 9
+    },
+    {
+        "type": "by_transportation",
+        "value": "Biking",
+        "description": null,
+        "sort_order": 10
+    },
+    {
+        "type": "by_transportation",
+        "value": "Walking/Hiking",
+        "description": null,
+        "sort_order": 11
+    },
+    {
+        "type": "by_transportation",
+        "value": "Others (Specify)",
+        "description": null,
+        "sort_order": 12
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Provincial/City/Municipal Hall",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Barangay Hall",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Police Station",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Health Center",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Fire Station",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Hospital",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Church/Mosque",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Airport",
+        "description": null,
+        "sort_order": 7
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Port",
+        "description": null,
+        "sort_order": 8
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Central Integrated Terminal (Bus, UV Express, Jeepney)",
+        "description": null,
+        "sort_order": 9
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Market",
+        "description": null,
+        "sort_order": 10
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Mall",
+        "description": null,
+        "sort_order": 11
+    },
+    {
+        "type": "nearby_institution",
+        "value": "Others (Specify)",
+        "description": null,
+        "sort_order": 12
+    },
+    {
+        "type": "community_engagement",
+        "value": "Active PTA",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "community_engagement",
+        "value": "LGU Support",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "community_engagement",
+        "value": "Barangay Engagement",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "source_of_electricity",
+        "value": "Grid",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "source_of_electricity",
+        "value": "Generator",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "source_of_electricity",
+        "value": "Solar",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "source_of_electricity",
+        "value": "Grid and Solar",
+        "description": null,
+        "sort_order": 3
+    },
+    {
+        "type": "source_of_electricity",
+        "value": "Solar and Generator",
+        "description": null,
+        "sort_order": 4
+    },
+    {
+        "type": "source_of_electricity",
+        "value": "Grid, Solar and Generator",
+        "description": null,
+        "sort_order": 5
+    },
+    {
+        "type": "source_of_electricity",
+        "value": "Grid and Generator",
+        "description": null,
+        "sort_order": 6
+    },
+    {
+        "type": "source_of_electricity",
+        "value": "None",
+        "description": null,
+        "sort_order": 7
+    }
+]
