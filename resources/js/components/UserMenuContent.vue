@@ -1,6 +1,17 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
 import { LogOut, Settings } from '@lucide/vue';
+import { ref } from 'vue';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -16,11 +27,13 @@ type Props = {
     user: User;
 };
 
+defineProps<Props>();
+
+const showLogoutConfirm = ref(false);
+
 const handleLogout = () => {
     router.flushAll();
 };
-
-defineProps<Props>();
 </script>
 
 <template>
@@ -39,16 +52,38 @@ defineProps<Props>();
         </DropdownMenuItem>
     </DropdownMenuGroup>
     <DropdownMenuSeparator />
-    <DropdownMenuItem :as-child="true">
-        <Link
-            class="block w-full cursor-pointer"
-            :href="logout()"
-            @click="handleLogout"
-            as="button"
-            data-test="logout-button"
-        >
-            <LogOut class="mr-2 h-4 w-4" />
-            Log out
-        </Link>
+    <DropdownMenuItem
+        class="cursor-pointer"
+        variant="destructive"
+        data-test="logout-button"
+        @select="showLogoutConfirm = true"
+    >
+        <LogOut class="mr-2 h-4 w-4" />
+        Log out
     </DropdownMenuItem>
+
+    <Dialog v-model:open="showLogoutConfirm">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Log out?</DialogTitle>
+                <DialogDescription>
+                    You'll need to sign in again to access your account.
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter class="gap-2">
+                <DialogClose as-child>
+                    <Button variant="secondary">Cancel</Button>
+                </DialogClose>
+                <Button variant="destructive" as-child>
+                    <Link
+                        :href="logout()"
+                        @click="handleLogout"
+                        data-test="confirm-logout-button"
+                    >
+                        Log out
+                    </Link>
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 </template>
