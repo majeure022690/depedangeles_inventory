@@ -107,7 +107,7 @@ const mainNavItems = computed<NavItem[]>(() => {
     // the ADR's Step 4 cleanup alongside LookupController/lookups/Index.vue.
     if (can('reference-data.manage')) {
         items.push({
-            title: 'Reference Data',
+            title: 'Libraries',
             href: referenceData.index(),
             icon: Database,
         });
