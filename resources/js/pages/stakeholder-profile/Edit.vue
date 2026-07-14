@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import { toast } from 'vue-sonner';
 import Heading from '@/components/Heading.vue';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
 import { usePermissions } from '@/composables/usePermissions';
 import StakeholderProfileForm from '@/pages/stakeholder-profile/Partials/Form.vue';
@@ -121,6 +122,48 @@ function submit() {
 }
 
 const canEdit = computed(() => can('stakeholder_profile.edit') || can('stakeholder_profile.view_all'));
+
+/**
+ * Fields counted toward completion, grouped by the stepper section (ids
+ * match Form.vue's `sections`) — every field in the form except the four
+ * boolean flags (false is a legitimate answer, not "not yet filled in")
+ * and the two free-text "_other" companion fields (only relevant when
+ * their own checkbox group is used, not core progress).
+ */
+const sectionFields: Record<string, (keyof StakeholderProfileFormData)[]> = {
+    location: ['province', 'city_municipality', 'legislative_district', 'barangay', 'street', 'psgc'],
+    organization: ['governance_level', 'ro', 'sdo', 'school_district', 'school_name', 'school_id'],
+    personnel: [
+        'chief_name', 'chief_position', 'chief_email', 'chief_mobile',
+        'admin_staff_name', 'admin_staff_position', 'admin_staff_email', 'admin_staff_mobile',
+        'network_administrator_name',
+    ],
+    contacts: ['mobile_1', 'mobile_2', 'landline'],
+    coordinates: ['longitude', 'latitude'],
+    accessibility: ['nearby_institutions', 'travel_time_to_center_minutes', 'access_paths', 'transportation_options', 'remote_context_notes'],
+    community: ['community_engagement', 'community_context_remarks'],
+    notes: ['submitted_at', 'transaction_type', 'notes_corrections', 'notes_recent_development'],
+};
+
+const completionFields = Object.values(sectionFields).flat();
+
+function isFieldFilled(field: keyof StakeholderProfileFormData): boolean {
+    const value = form[field];
+
+    return Array.isArray(value) ? value.length > 0 : String(value).trim() !== '';
+}
+
+const completionPercent = computed(() => {
+    const filled = completionFields.filter(isFieldFilled).length;
+
+    return Math.round((filled / completionFields.length) * 100);
+});
+
+const sectionComplete = computed(() =>
+    Object.fromEntries(
+        Object.entries(sectionFields).map(([sectionId, fields]) => [sectionId, fields.every(isFieldFilled)]),
+    ),
+);
 </script>
 
 <template>
@@ -132,11 +175,20 @@ const canEdit = computed(() => can('stakeholder_profile.edit') || can('stakehold
             description="Identity, location, contacts, and community context for this school/office."
         />
 
+        <div class="grid gap-2">
+            <div class="flex items-center justify-between text-sm">
+                <span class="font-medium">Profile completion</span>
+                <span class="text-muted-foreground">{{ completionPercent }}%</span>
+            </div>
+            <Progress :model-value="completionPercent" />
+        </div>
+
         <form class="space-y-8" @submit.prevent="submit">
             <StakeholderProfileForm
                 :form="form"
                 :options="props.options"
                 :complete-address="props.stakeholderProfile.complete_address"
+                :section-complete="sectionComplete"
                 :disabled="!canEdit"
             />
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { InertiaForm } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import CheckboxGroupField from '@/components/CheckboxGroupField.vue';
 import InputError from '@/components/InputError.vue';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -21,9 +21,11 @@ const props = withDefaults(
         form: InertiaForm<StakeholderProfileFormData>;
         options: StakeholderProfileFormOptions;
         completeAddress: string;
+        sectionComplete?: Record<string, boolean>;
         disabled?: boolean;
     }>(),
     {
+        sectionComplete: () => ({}),
         disabled: false,
     },
 );
@@ -42,12 +44,102 @@ function nullableSelect(field: 'governance_level' | 'transaction_type') {
 
 const governanceLevelModel = nullableSelect('governance_level');
 const transactionTypeModel = nullableSelect('transaction_type');
+
+const sections = [
+    { id: 'location', label: 'Location' },
+    { id: 'organization', label: 'Organization' },
+    { id: 'personnel', label: 'Key personnel' },
+    { id: 'contacts', label: 'Contact numbers' },
+    { id: 'coordinates', label: 'Geographic coordinates' },
+    { id: 'accessibility', label: 'Accessibility' },
+    { id: 'community', label: 'Community engagement' },
+    { id: 'notes', label: 'Submission & notes' },
+];
+
+const activeSection = ref(sections[0].id);
 </script>
 
 <template>
-    <div class="grid gap-6 lg:grid-cols-2 items-start">
-        <fieldset class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
-            <legend class="px-1 text-base font-medium">Organization</legend>
+    <nav class="mb-6 overflow-x-auto">
+        <ol class="flex min-w-max items-start">
+            <li v-for="(section, index) in sections" :key="section.id" class="flex flex-1 items-start last:flex-none">
+                <button
+                    type="button"
+                    class="flex flex-col items-center gap-1 text-center text-xs text-muted-foreground hover:text-foreground"
+                    @click="activeSection = section.id"
+                >
+                    <span class="relative">
+                        <span
+                            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-medium"
+                            :class="activeSection === section.id ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-muted'"
+                        >
+                            {{ index + 1 }}
+                        </span>
+                        <span
+                            v-if="sectionComplete[section.id] === false"
+                            class="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-amber-500"
+                            title="This section still has empty fields"
+                        />
+                    </span>
+                    <span class="w-20">{{ section.label }}</span>
+                </button>
+                <div v-if="index < sections.length - 1" class="mx-2 mt-4 h-px flex-1 bg-border" />
+            </li>
+        </ol>
+    </nav>
+
+    <div>
+        <fieldset v-if="activeSection === 'location'" class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
+            <legend class="px-1 text-base font-medium">1. Location</legend>
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div class="grid gap-2">
+                    <Label for="province">Province</Label>
+                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
+                    <Input id="province" v-model="form.province" :disabled="disabled" />
+                    <InputError :message="form.errors.province" />
+                </div>
+                <div class="grid gap-2">
+                    <Label for="city_municipality">City / Municipality</Label>
+                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
+                    <Input id="city_municipality" v-model="form.city_municipality" :disabled="disabled" />
+                    <InputError :message="form.errors.city_municipality" />
+                </div>
+                <div class="grid gap-2">
+                    <Label for="legislative_district">Legislative district</Label>
+                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
+                    <Input id="legislative_district" v-model="form.legislative_district" :disabled="disabled" />
+                    <InputError :message="form.errors.legislative_district" />
+                </div>
+                <div class="grid gap-2">
+                    <Label for="barangay">Barangay</Label>
+                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
+                    <Input id="barangay" v-model="form.barangay" :disabled="disabled" />
+                    <InputError :message="form.errors.barangay" />
+                </div>
+                <div class="grid gap-2">
+                    <Label for="street">Street</Label>
+                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
+                    <Input id="street" v-model="form.street" :disabled="disabled" />
+                    <InputError :message="form.errors.street" />
+                </div>
+                <div class="grid gap-2">
+                    <Label for="psgc">PSGC</Label>
+                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
+                    <Input id="psgc" v-model="form.psgc" :disabled="disabled" />
+                    <InputError :message="form.errors.psgc" />
+                </div>
+                <div class="grid gap-2 sm:col-span-2">
+                    <Label for="complete_address">Complete address</Label>
+                    <Input id="complete_address" :model-value="completeAddress" readonly disabled />
+                    <p class="text-sm text-muted-foreground">
+                        Generated automatically from street, barangay, city/municipality, and province.
+                    </p>
+                </div>
+            </div>
+        </fieldset>
+
+        <fieldset v-if="activeSection === 'organization'" class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
+            <legend class="px-1 text-base font-medium">2. Organization</legend>
             <div class="grid gap-4 sm:grid-cols-2">
                 <div class="grid gap-2">
                     <Label for="governance_level">Governance level</Label>
@@ -97,57 +189,8 @@ const transactionTypeModel = nullableSelect('transaction_type');
             </div>
         </fieldset>
 
-        <fieldset class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
-            <legend class="px-1 text-base font-medium">Location</legend>
-            <div class="grid gap-4 sm:grid-cols-2">
-                <div class="grid gap-2">
-                    <Label for="province">Province</Label>
-                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="province" v-model="form.province" :disabled="disabled" />
-                    <InputError :message="form.errors.province" />
-                </div>
-                <div class="grid gap-2">
-                    <Label for="city_municipality">City / Municipality</Label>
-                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="city_municipality" v-model="form.city_municipality" :disabled="disabled" />
-                    <InputError :message="form.errors.city_municipality" />
-                </div>
-                <div class="grid gap-2">
-                    <Label for="legislative_district">Legislative district</Label>
-                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="legislative_district" v-model="form.legislative_district" :disabled="disabled" />
-                    <InputError :message="form.errors.legislative_district" />
-                </div>
-                <div class="grid gap-2">
-                    <Label for="barangay">Barangay</Label>
-                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="barangay" v-model="form.barangay" :disabled="disabled" />
-                    <InputError :message="form.errors.barangay" />
-                </div>
-                <div class="grid gap-2">
-                    <Label for="street">Street</Label>
-                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="street" v-model="form.street" :disabled="disabled" />
-                    <InputError :message="form.errors.street" />
-                </div>
-                <div class="grid gap-2">
-                    <Label for="psgc">PSGC</Label>
-                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="psgc" v-model="form.psgc" :disabled="disabled" />
-                    <InputError :message="form.errors.psgc" />
-                </div>
-                <div class="grid gap-2 sm:col-span-2">
-                    <Label for="complete_address">Complete address</Label>
-                    <Input id="complete_address" :model-value="completeAddress" readonly disabled />
-                    <p class="text-sm text-muted-foreground">
-                        Generated automatically from street, barangay, city/municipality, and province.
-                    </p>
-                </div>
-            </div>
-        </fieldset>
-
-        <fieldset class="space-y-4 rounded-lg border border-input bg-muted/30 p-4 lg:col-span-2">
-            <legend class="px-1 text-base font-medium">Key personnel</legend>
+        <fieldset v-if="activeSection === 'personnel'" class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
+            <legend class="px-1 text-base font-medium">3. Key personnel</legend>
             <div class="grid gap-4 sm:grid-cols-2">
                 <div class="grid gap-2">
                     <Label for="chief_name">RO/SDO Chief / School Head — name</Label>
@@ -208,8 +251,8 @@ const transactionTypeModel = nullableSelect('transaction_type');
             </div>
         </fieldset>
 
-        <fieldset class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
-            <legend class="px-1 text-base font-medium">Contact numbers</legend>
+        <fieldset v-if="activeSection === 'contacts'" class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
+            <legend class="px-1 text-base font-medium">4. Contact numbers</legend>
             <div class="grid gap-4 sm:grid-cols-3">
                 <div class="grid gap-2">
                     <Label for="mobile_1">Mobile 1</Label>
@@ -232,8 +275,8 @@ const transactionTypeModel = nullableSelect('transaction_type');
             </div>
         </fieldset>
 
-        <fieldset class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
-            <legend class="px-1 text-base font-medium">Geographic coordinates</legend>
+        <fieldset v-if="activeSection === 'coordinates'" class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
+            <legend class="px-1 text-base font-medium">5. Geographic coordinates</legend>
             <div class="grid gap-4 sm:grid-cols-2">
                 <div class="grid gap-2">
                     <Label for="longitude">Longitude</Label>
@@ -268,8 +311,8 @@ const transactionTypeModel = nullableSelect('transaction_type');
             </div>
         </fieldset>
 
-        <fieldset class="space-y-4 rounded-lg border border-input bg-muted/30 p-4 lg:col-span-2">
-            <legend class="px-1 text-base font-medium">Accessibility</legend>
+        <fieldset v-if="activeSection === 'accessibility'" class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
+            <legend class="px-1 text-base font-medium">6. Accessibility</legend>
             <div class="grid gap-4">
                 <fieldset class="grid gap-4">
                     <legend class="mb-2 text-sm leading-none font-medium">Nearby institutions</legend>
@@ -358,8 +401,8 @@ const transactionTypeModel = nullableSelect('transaction_type');
             </div>
         </fieldset>
 
-        <fieldset class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
-            <legend class="px-1 text-base font-medium">Community engagement</legend>
+        <fieldset v-if="activeSection === 'community'" class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
+            <legend class="px-1 text-base font-medium">7. Community engagement</legend>
             <div class="grid gap-4">
                 <fieldset class="grid gap-4">
                     <legend class="mb-2 text-sm leading-none font-medium">Community engagement</legend>
@@ -381,8 +424,8 @@ const transactionTypeModel = nullableSelect('transaction_type');
             </div>
         </fieldset>
 
-        <fieldset class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
-            <legend class="px-1 text-base font-medium">Submission &amp; notes</legend>
+        <fieldset v-if="activeSection === 'notes'" class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
+            <legend class="px-1 text-base font-medium">8. Submission &amp; notes</legend>
             <div class="grid gap-4 sm:grid-cols-2">
                 <div class="grid gap-2">
                     <Label for="submitted_at">Submitted at</Label>
