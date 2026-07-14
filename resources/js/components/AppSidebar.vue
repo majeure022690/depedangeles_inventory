@@ -4,11 +4,9 @@ import { Building2, Database, HardDrive, KeySquare, LayoutGrid, ShieldCheck, Sig
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavMain from '@/components/NavMain.vue';
-import NavUser from '@/components/NavUser.vue';
 import {
     Sidebar,
     SidebarContent,
-    SidebarFooter,
     SidebarHeader,
     SidebarMenu,
     SidebarMenuButton,
@@ -125,10 +123,6 @@ const mainNavItems = computed<NavItem[]>(() => {
         <SidebarContent>
             <NavMain :items="mainNavItems" />
         </SidebarContent>
-
-        <SidebarFooter>
-            <NavUser />
-        </SidebarFooter>
     </Sidebar>
     <slot />
 </template>

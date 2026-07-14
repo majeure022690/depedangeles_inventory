@@ -1,7 +1,18 @@
 <script setup lang="ts">
+import { usePage } from '@inertiajs/vue3';
+import { ChevronsUpDown } from '@lucide/vue';
+import { computed } from 'vue';
 import AppearanceToggleDropdown from '@/components/AppearanceToggleDropdown.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
+import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import UserInfo from '@/components/UserInfo.vue';
+import UserMenuContent from '@/components/UserMenuContent.vue';
 import type { BreadcrumbItem } from '@/types';
 
 withDefaults(
@@ -12,6 +23,8 @@ withDefaults(
         breadcrumbs: () => [],
     },
 );
+
+const user = computed(() => usePage().props.auth.user);
 </script>
 
 <template>
@@ -27,6 +40,22 @@ withDefaults(
 
         <div class="ml-auto flex items-center gap-2">
             <AppearanceToggleDropdown />
+
+            <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                    <Button
+                        variant="ghost"
+                        class="gap-2 px-2"
+                        data-test="navbar-user-menu-button"
+                    >
+                        <UserInfo :user="user" />
+                        <ChevronsUpDown class="size-4 text-muted-foreground" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent class="w-56" align="end" :side-offset="4">
+                    <UserMenuContent :user="user" />
+                </DropdownMenuContent>
+            </DropdownMenu>
         </div>
     </header>
 </template>
