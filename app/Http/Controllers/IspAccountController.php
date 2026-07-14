@@ -227,8 +227,8 @@ class IspAccountController extends Controller
             'package_purchased_inclusion' => $ispAccount->package_purchased_inclusion,
 
             'school_area_coverage' => $ispAccount->school_area_coverage,
-            'min_speed' => (float) $ispAccount->min_speed,
-            'max_speed' => (float) $ispAccount->max_speed,
+            'min_speed' => $ispAccount->min_speed !== null ? (float) $ispAccount->min_speed : null,
+            'max_speed' => $ispAccount->max_speed !== null ? (float) $ispAccount->max_speed : null,
 
             'subscription_type' => $ispAccount->subscription_type,
             'isp_connection_type' => $ispAccount->isp_connection_type,

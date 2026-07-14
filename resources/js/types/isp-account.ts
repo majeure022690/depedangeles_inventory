@@ -78,8 +78,8 @@ export type IspAccountFull = {
     package_purchased_inclusion: string;
 
     school_area_coverage: string;
-    min_speed: number;
-    max_speed: number;
+    min_speed: number | null;
+    max_speed: number | null;
 
     subscription_type: string;
     isp_connection_type: string;

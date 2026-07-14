@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { Download, Printer } from '@lucide/vue';
+import { computed } from 'vue';
 import Heading from '@/components/Heading.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +24,11 @@ const props = defineProps<{
     personnelOptions: LookupOption[];
 }>();
 
+// property_no is null for equipment still pending official issuance —
+// falls back to a clear placeholder instead of the literal string "null"
+// appearing in the page title/heading.
+const displayPropertyNo = computed(() => props.equipment.property_no ?? 'Pending property no.');
+
 // Note: defineOptions() is hoisted to module scope at compile time, so it
 // cannot reference `props` (route params like the equipment id are only
 // known at runtime) — the trailing crumb below intentionally links back to
@@ -37,7 +43,7 @@ defineOptions({
 });
 
 const form = useForm<EquipmentFormData>({
-    property_no: props.equipment.property_no,
+    property_no: props.equipment.property_no ?? '',
     old_property_no: props.equipment.old_property_no ?? '',
     serial_number: props.equipment.serial_number ?? '',
     item_type_id: props.equipment.item_type_id,
@@ -52,7 +58,7 @@ const form = useForm<EquipmentFormData>({
     equipment_classification_id: props.equipment.equipment_classification_id,
     gl_sl_code: props.equipment.gl_sl_code ?? '',
     uacs: props.equipment.uacs ?? '',
-    acquisition_cost: String(props.equipment.acquisition_cost),
+    acquisition_cost: props.equipment.acquisition_cost !== null ? String(props.equipment.acquisition_cost) : '',
     received_date: props.equipment.received_date ?? '',
     estimated_useful_life: props.equipment.estimated_useful_life
         ? String(props.equipment.estimated_useful_life)
@@ -81,12 +87,12 @@ const qrCodeUrl = equipmentRoutes.qrCode.url(props.equipment.id);
 </script>
 
 <template>
-    <Head :title="`Edit ${props.equipment.property_no}`" />
+    <Head :title="`Edit ${displayPropertyNo}`" />
 
     <div class="flex flex-col gap-10 p-4">
         <div class="flex flex-col gap-6">
             <Heading
-                :title="`Edit ${props.equipment.property_no}`"
+                :title="`Edit ${displayPropertyNo}`"
                 :description="`${props.equipment.item} — currently held by ${props.equipment.current_accountable_officer?.full_name ?? 'no one on record'}`"
             />
 
@@ -97,7 +103,7 @@ const qrCodeUrl = equipmentRoutes.qrCode.url(props.equipment.id);
                 <CardContent class="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                     <img
                         :src="qrCodeUrl"
-                        :alt="`QR code for property no. ${props.equipment.property_no}`"
+                        :alt="`QR code for property no. ${displayPropertyNo}`"
                         class="size-32 rounded-md border bg-white p-2"
                         width="128"
                         height="128"
@@ -105,7 +111,7 @@ const qrCodeUrl = equipmentRoutes.qrCode.url(props.equipment.id);
                     <div class="flex flex-col gap-2">
                         <p class="text-sm text-muted-foreground">
                             Scan or print this code to identify property no.
-                            {{ props.equipment.property_no }}.
+                            {{ displayPropertyNo }}.
                         </p>
                         <div class="flex gap-2">
                             <a :href="qrCodeUrl" target="_blank" rel="noopener noreferrer">

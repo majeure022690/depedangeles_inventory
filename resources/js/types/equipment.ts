@@ -7,7 +7,7 @@ export type PersonnelSummary = {
 
 export type EquipmentListItem = {
     id: number;
-    property_no: string;
+    property_no: string | null;
     item: string;
     brand_manufacturer: string;
     model: string | null;
@@ -15,7 +15,7 @@ export type EquipmentListItem = {
     category: string;
     equipment_condition: string;
     disposition_status: string;
-    acquisition_cost: number;
+    acquisition_cost: number | null;
     current_accountable_officer: PersonnelSummary | null;
     current_end_user: PersonnelSummary | null;
 };
@@ -47,7 +47,7 @@ export type EquipmentTransaction = {
  */
 export type EquipmentFull = {
     id: number;
-    property_no: string;
+    property_no: string | null;
     old_property_no: string | null;
     serial_number: string | null;
     item: string;
@@ -66,7 +66,7 @@ export type EquipmentFull = {
     equipment_classification_id: number;
     gl_sl_code: string | null;
     uacs: string | null;
-    acquisition_cost: number;
+    acquisition_cost: number | null;
     received_date: string | null;
     estimated_useful_life: number | null;
     mode_acquisition: string;

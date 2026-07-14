@@ -51,7 +51,7 @@ const dcpPackageModel = nullableSelect('dcp_package');
                         />
                     </div>
                     <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="property_no" v-model="form.property_no" required aria-describedby="property_no-hint" />
+                    <Input id="property_no" v-model="form.property_no" aria-describedby="property_no-hint" />
                     <InputError :message="form.errors.property_no" />
                 </div>
                 <div class="grid gap-2">
@@ -124,7 +124,6 @@ const dcpPackageModel = nullableSelect('dcp_package');
                         type="number"
                         step="0.01"
                         min="0"
-                        required
                         aria-describedby="acquisition_cost-hint"
                     />
                     <!-- eslint-enable vue/no-mutating-props -->

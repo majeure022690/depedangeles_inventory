@@ -114,14 +114,14 @@ const rateConnectivityClassroomModel = nullableSelect('rate_connectivity_classro
                 <div class="grid gap-2">
                     <Label for="min_speed">Minimum speed (Mbps)</Label>
                     <!-- eslint-disable vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="min_speed" v-model="form.min_speed" type="number" step="0.01" min="0" required />
+                    <Input id="min_speed" v-model="form.min_speed" type="number" step="0.01" min="0" />
                     <!-- eslint-enable vue/no-mutating-props -->
                     <InputError :message="form.errors.min_speed" />
                 </div>
                 <div class="grid gap-2">
                     <Label for="max_speed">Maximum speed (Mbps)</Label>
                     <!-- eslint-disable vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="max_speed" v-model="form.max_speed" type="number" step="0.01" min="0" required />
+                    <Input id="max_speed" v-model="form.max_speed" type="number" step="0.01" min="0" />
                     <!-- eslint-enable vue/no-mutating-props -->
                     <InputError :message="form.errors.max_speed" />
                 </div>

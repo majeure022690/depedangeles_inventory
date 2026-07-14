@@ -203,7 +203,10 @@ function confirmDelete() {
                         </td>
                     </tr>
                     <tr v-for="row in props.equipment.data" :key="row.id">
-                        <td class="px-4 py-3 font-mono text-xs">{{ row.property_no }}</td>
+                        <td class="px-4 py-3 font-mono text-xs">
+                            <span v-if="row.property_no">{{ row.property_no }}</span>
+                            <Badge v-else variant="secondary">Pending</Badge>
+                        </td>
                         <td class="px-4 py-3">
                             <div class="font-medium">{{ row.item }}</div>
                             <div class="text-xs text-muted-foreground">
@@ -219,7 +222,9 @@ function confirmDelete() {
                             {{ row.current_accountable_officer?.full_name ?? '—' }}
                         </td>
                         <td class="px-4 py-3">{{ row.current_end_user?.full_name ?? '—' }}</td>
-                        <td class="px-4 py-3">{{ currencyFormatter.format(row.acquisition_cost) }}</td>
+                        <td class="px-4 py-3">
+                            {{ row.acquisition_cost !== null ? currencyFormatter.format(row.acquisition_cost) : '—' }}
+                        </td>
                         <td class="px-4 py-3">
                             <div class="flex items-center justify-end gap-2">
                                 <Link v-if="can('equipment.edit')" :href="equipmentRoutes.edit(row.id)">
@@ -229,7 +234,7 @@ function confirmDelete() {
                                     v-if="can('equipment.delete')"
                                     variant="ghost"
                                     size="sm"
-                                    :aria-label="`Delete ${row.property_no}`"
+                                    :aria-label="`Delete ${row.property_no ?? 'pending equipment record'}`"
                                     @click="requestDelete(row)"
                                 >
                                     <Trash2 class="size-4 text-destructive" />
@@ -249,10 +254,13 @@ function confirmDelete() {
             <DialogHeader>
                 <DialogTitle>Delete equipment record?</DialogTitle>
                 <DialogDescription>
-                    This will soft-delete property no.
-                    <strong>{{ pendingDelete?.property_no }}</strong>. The record
-                    can be restored later if needed, but it will disappear from
-                    this list.
+                    This will soft-delete
+                    <template v-if="pendingDelete?.property_no">
+                        property no. <strong>{{ pendingDelete.property_no }}</strong>
+                    </template>
+                    <template v-else>this pending equipment record</template>. The
+                    record can be restored later if needed, but it will disappear
+                    from this list.
                 </DialogDescription>
             </DialogHeader>
             <DialogFooter class="gap-2">

@@ -44,8 +44,8 @@ class IspAccountStoreRequest extends FormRequest
             'package_purchased_inclusion' => ['required', 'string'],
 
             'school_area_coverage' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SchoolLevelCoverage))],
-            'min_speed' => ['required', 'numeric', 'min:0'],
-            'max_speed' => ['required', 'numeric', 'min:0', 'gte:min_speed'],
+            'min_speed' => ['nullable', 'numeric', 'min:0'],
+            'max_speed' => ['nullable', 'numeric', 'min:0', 'gte:min_speed'],
 
             'subscription_type' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SubscriptionType))],
             'isp_connection_type' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::IspConnectionType))],
