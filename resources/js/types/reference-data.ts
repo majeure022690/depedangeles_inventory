@@ -56,3 +56,19 @@ export type ReferenceDataFormData = {
     sort_order: string;
     is_active: boolean;
 };
+
+/**
+ * Shape handed to Inertia's useForm() for the create dialog. Mirrors
+ * ReferenceDataStoreRequest's tier split: Tier 1 submits `name`, Tier 2
+ * submits `type` (picked once, at create time, from the table's own enum —
+ * see the `types` prop) + `value`. Both tiers share description/sort_order/
+ * is_active.
+ */
+export type ReferenceDataCreateFormData = {
+    name?: string;
+    type?: string;
+    value?: string;
+    description: string;
+    sort_order: string;
+    is_active: boolean;
+};

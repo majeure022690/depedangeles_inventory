@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
+import { Plus, Trash2 } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
@@ -31,6 +32,7 @@ import referenceData from '@/routes/reference-data';
 import type { LookupOption } from '@/types/lookup';
 import type { Paginated } from '@/types/pagination';
 import type {
+    ReferenceDataCreateFormData,
     ReferenceDataFilters,
     ReferenceDataFormData,
     ReferenceDataTier1Row,
@@ -125,20 +127,102 @@ function submit() {
         },
     });
 }
+
+const isCreating = ref(false);
+
+const createForm = useForm<ReferenceDataCreateFormData>({
+    name: '',
+    type: undefined,
+    value: '',
+    description: '',
+    sort_order: '0',
+    is_active: true,
+});
+
+function openCreateDialog() {
+    isCreating.value = true;
+    createForm.clearErrors();
+    createForm.defaults({
+        name: '',
+        type: undefined,
+        value: '',
+        description: '',
+        sort_order: '0',
+        is_active: true,
+    });
+    createForm.reset();
+}
+
+function closeCreateDialog() {
+    isCreating.value = false;
+    createForm.clearErrors();
+}
+
+function submitCreate() {
+    createForm.post(referenceData.store.url(props.table), {
+        preserveScroll: true,
+        onSuccess: () => {
+            isCreating.value = false;
+        },
+    });
+}
+
+const pendingDelete = ref<ReferenceDataTier1Row | ReferenceDataTier2Row | null>(null);
+
+// `delete` can't be a typed useForm() field — it collides with the form
+// instance's own `.delete()` submit method — but ReferenceDataController::
+// destroy() genuinely uses that key in its ValidationException (see
+// guardDeletable()'s "still in use" message). Read it off the runtime
+// errors bag directly rather than widening the form's data type.
+const deleteForm = useForm({});
+const deleteError = computed(() => (deleteForm.errors as Record<string, string | undefined>).delete);
+
+function requestDelete(row: ReferenceDataTier1Row | ReferenceDataTier2Row) {
+    pendingDelete.value = row;
+    deleteForm.clearErrors();
+}
+
+function closeDeleteDialog() {
+    pendingDelete.value = null;
+    deleteForm.clearErrors();
+}
+
+function confirmDelete() {
+    if (!pendingDelete.value) {
+        return;
+    }
+
+    deleteForm.delete(referenceData.destroy.url([props.table, pendingDelete.value.id]), {
+        preserveScroll: true,
+        onSuccess: () => {
+            pendingDelete.value = null;
+        },
+    });
+}
+
+function rowLabel(row: ReferenceDataTier1Row | ReferenceDataTier2Row): string {
+    return isTier1.value ? (row as ReferenceDataTier1Row).name : (row as ReferenceDataTier2Row).value;
+}
 </script>
 
 <template>
     <Head :title="props.label" />
 
     <div class="flex flex-col gap-6 p-4">
-        <Heading
-            :title="props.label"
-            :description="
-                isTier1
-                    ? 'Dedicated reference table — name, description, sort order, and active status are editable.'
-                    : 'Grouped library table — type and value are permanently fixed; description, sort order, and active status are editable.'
-            "
-        />
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <Heading
+                :title="props.label"
+                :description="
+                    isTier1
+                        ? 'Dedicated reference table — name, description, sort order, and active status are editable.'
+                        : 'Grouped library table — type and value are permanently fixed; description, sort order, and active status are editable.'
+                "
+            />
+            <Button data-test="add-reference-data-button" @click="openCreateDialog">
+                <Plus class="size-4" />
+                Add new
+            </Button>
+        </div>
 
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div class="sm:max-w-sm sm:flex-1">
@@ -198,7 +282,7 @@ function submit() {
                                 </Badge>
                             </td>
                             <td class="px-4 py-3">
-                                <div class="flex items-center justify-end">
+                                <div class="flex items-center justify-end gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -206,6 +290,14 @@ function submit() {
                                         @click="editRow(row)"
                                     >
                                         Edit
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        :aria-label="`Delete ${row.name}`"
+                                        @click="requestDelete(row)"
+                                    >
+                                        <Trash2 class="size-4 text-destructive" />
                                     </Button>
                                 </div>
                             </td>
@@ -223,7 +315,7 @@ function submit() {
                                 </Badge>
                             </td>
                             <td class="px-4 py-3">
-                                <div class="flex items-center justify-end">
+                                <div class="flex items-center justify-end gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -231,6 +323,14 @@ function submit() {
                                         @click="editRow(row)"
                                     >
                                         Edit
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        :aria-label="`Delete ${row.value}`"
+                                        @click="requestDelete(row)"
+                                    >
+                                        <Trash2 class="size-4 text-destructive" />
                                     </Button>
                                 </div>
                             </td>
@@ -304,6 +404,106 @@ function submit() {
                     </Button>
                 </DialogFooter>
             </form>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog :open="isCreating" @update:open="(open) => !open && closeCreateDialog()">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Add {{ isTier1 ? 'reference row' : 'library value' }}</DialogTitle>
+                <DialogDescription v-if="isTier1">
+                    Add a new entry to this reference table. The name must be unique within the
+                    table.
+                </DialogDescription>
+                <DialogDescription v-else>
+                    Add a new value under a type in this library table. The type cannot be changed
+                    after creation, and the value must be unique within that type.
+                </DialogDescription>
+            </DialogHeader>
+
+            <form class="space-y-4" @submit.prevent="submitCreate">
+                <template v-if="isTier1">
+                    <div class="grid gap-2">
+                        <Label for="create-name">Name</Label>
+                        <Input id="create-name" v-model="createForm.name" required autofocus />
+                        <InputError :message="createForm.errors.name" />
+                    </div>
+                </template>
+                <template v-else>
+                    <div class="grid gap-2">
+                        <Label for="create-type">Type</Label>
+                        <Select v-model="createForm.type">
+                            <SelectTrigger id="create-type" class="w-full" aria-label="Type">
+                                <SelectValue placeholder="Select a type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem v-for="opt in props.types ?? []" :key="opt.value" :value="opt.value">
+                                    {{ opt.label }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <InputError :message="createForm.errors.type" />
+                    </div>
+                    <div class="grid gap-2">
+                        <Label for="create-value">Value</Label>
+                        <Input id="create-value" v-model="createForm.value" required autofocus />
+                        <InputError :message="createForm.errors.value" />
+                    </div>
+                </template>
+
+                <div class="grid gap-2">
+                    <Label for="create-description">Description</Label>
+                    <Textarea id="create-description" v-model="createForm.description" rows="3" />
+                    <InputError :message="createForm.errors.description" />
+                </div>
+
+                <div class="grid gap-2">
+                    <Label for="create-sort_order">Sort order</Label>
+                    <Input id="create-sort_order" v-model="createForm.sort_order" type="number" min="0" />
+                    <InputError :message="createForm.errors.sort_order" />
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <Checkbox id="create-is_active" v-model="createForm.is_active" />
+                    <Label for="create-is_active">Active</Label>
+                </div>
+                <InputError :message="createForm.errors.is_active" />
+
+                <DialogFooter class="gap-2">
+                    <Button type="button" variant="secondary" @click="closeCreateDialog">Cancel</Button>
+                    <Button type="submit" :disabled="createForm.processing" data-test="create-reference-data-button">
+                        <Spinner v-if="createForm.processing" />
+                        Add
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog :open="pendingDelete !== null" @update:open="(open) => !open && closeDeleteDialog()">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Delete {{ isTier1 ? 'reference row' : 'library value' }}?</DialogTitle>
+                <DialogDescription>
+                    This will permanently delete
+                    <strong>{{ pendingDelete ? rowLabel(pendingDelete) : '' }}</strong>. This cannot
+                    be undone.
+                </DialogDescription>
+            </DialogHeader>
+            <InputError :message="deleteError" />
+            <DialogFooter class="gap-2">
+                <Button type="button" variant="secondary" @click="closeDeleteDialog">Cancel</Button>
+                <Button
+                    type="button"
+                    variant="destructive"
+                    :disabled="deleteForm.processing"
+                    data-test="confirm-delete-reference-data-button"
+                    @click="confirmDelete"
+                >
+                    <Spinner v-if="deleteForm.processing" />
+                    Delete
+                </Button>
+            </DialogFooter>
         </DialogContent>
     </Dialog>
 </template>

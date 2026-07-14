@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Enums\Permission;
+use App\Http\Requests\ReferenceDataStoreRequest;
 use App\Http\Requests\ReferenceDataUpdateRequest;
 use App\Models\AuditLog;
 use App\Services\ReferenceDataResolver;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -24,21 +28,23 @@ use Inertia\Response;
  * exist" (ADR Question 3); this controller is the single place that reads
  * it for admin CRUD.
  *
- * Three actions, mirroring LookupController's shape scaled from 1 table to
- * 13:
+ * Five actions, mirroring LookupController's shape scaled from 1 table to
+ * 13, extended beyond LookupController's read/update-only shape to add
+ * create/hard-delete once a real need surfaced (deactivating a bad row
+ * doesn't help when the row simply shouldn't exist, e.g. a typo'd value
+ * created in error, or a genuinely new option the seeded set never
+ * anticipated):
  *  - index()   Overview of all 13 tables (label, tier, row count) — the
  *              landing page an admin picks a table from.
  *  - show()    Paginated/searchable (and, for Tier 2, type-filterable) row
  *              listing for ONE table.
+ *  - store()   Creates a new row — name (Tier 1) or type+value (Tier 2).
  *  - update()  Edits description/sort_order/is_active (+ name for Tier 1
  *              — see below) for one row.
- *
- * No create/destroy, same reasoning as LookupController: the reference
- * data is already fully seeded/migrated from the old `lookups` table
- * (ADR Step 1), so there's no known need to add brand-new rows or
- * hard-delete existing ones through this UI today — deactivating a bad
- * row (is_active = false) already covers "stop offering this without
- * touching historical records that reference it."
+ *  - destroy() Hard-deletes a row, guarded by ReferenceDataResolver::
+ *              guardDeletable() (Tier 2 + the isp-providers JSON-column
+ *              exception) and a QueryException catch for Tier 1's
+ *              restrictOnDelete() FKs — see destroy()'s own doc-comment.
  *
  * Tier-1-`name`-editability decision (ReferenceDataUpdateRequest enforces
  * this; see its own doc-comment for the mirrored short version): UNLIKE
@@ -161,6 +167,45 @@ class ReferenceDataController extends Controller
         ]);
     }
 
+    /**
+     * Authorization is handled entirely by ReferenceDataStoreRequest::
+     * authorize() (mirrors update()'s split with ReferenceDataUpdateRequest
+     * — no `$this->authorize(...)` call needed here since the Form Request
+     * already gated the request before this method runs).
+     */
+    public function store(ReferenceDataStoreRequest $request, string $table): RedirectResponse
+    {
+        $entry = ReferenceDataResolver::entry($table);
+
+        /** @var class-string<Model> $modelClass */
+        $modelClass = $entry['model'];
+
+        $data = $request->validated();
+        $data['sort_order'] ??= 0;
+        $data['is_active'] ??= true;
+
+        try {
+            $row = $modelClass::create($data);
+        } catch (QueryException $e) {
+            if ($e->getCode() === '23000') {
+                throw ValidationException::withMessages([
+                    ($entry['tier'] === 1 ? 'name' : 'value') => __('This value already exists.'),
+                ]);
+            }
+
+            throw $e;
+        }
+
+        AuditLog::record('reference_data.created', $row, [
+            'table' => $table,
+            ...$data,
+        ]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Reference data created.')]);
+
+        return to_route('reference-data.show', $table);
+    }
+
     public function update(ReferenceDataUpdateRequest $request, string $table, int $id): RedirectResponse
     {
         $entry = ReferenceDataResolver::entry($table);
@@ -181,6 +226,58 @@ class ReferenceDataController extends Controller
         ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Reference data updated.')]);
+
+        return to_route('reference-data.show', $table);
+    }
+
+    /**
+     * Hard-delete. Authorized inline (unlike store()/update()) because
+     * there's no Form Request here — a plain `{table}/{id}` DELETE has no
+     * body to validate, so there's nothing for a Form Request to add over
+     * a direct `$this->authorize()` call, matching how index()/show()
+     * authorize inline for the same "no Form Request in play" reason.
+     *
+     * Two-layer delete-safety, per the `database` agent's analysis (see
+     * ReferenceDataResolver::guardDeletable()'s doc-comment for the full
+     * split):
+     *  1. ReferenceDataResolver::guardDeletable() runs FIRST and throws a
+     *     friendly ValidationException for Tier 2 rows still referenced
+     *     by their fixed table.column usage map, and for isp_providers
+     *     rows still referenced via the two unenforced JSON survey
+     *     columns — both need an explicit pre-check because neither has a
+     *     database-level FK to rely on.
+     *  2. For the remaining Tier 1 tables, the delete is simply attempted
+     *     and the resulting QueryException is caught here: their
+     *     `restrictOnDelete()` FK is already authoritative and atomic, so
+     *     a redundant pre-query would just be a second query without
+     *     buying any additional safety (and would still need this catch
+     *     anyway, to guard the race between the check and the delete).
+     */
+    public function destroy(string $table, int $id): RedirectResponse
+    {
+        $row = ReferenceDataResolver::resolveRow($table, $id);
+
+        $this->authorize('delete', $row);
+
+        ReferenceDataResolver::guardDeletable($table, $row);
+
+        try {
+            DB::transaction(function () use ($row, $table): void {
+                $row->delete();
+
+                AuditLog::record('reference_data.deleted', $row, ['table' => $table]);
+            });
+        } catch (QueryException $e) {
+            if ($e->getCode() === '23000') {
+                throw ValidationException::withMessages([
+                    'delete' => __('This value is still in use and cannot be deleted — deactivate it instead.'),
+                ]);
+            }
+
+            throw $e;
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Reference data deleted.')]);
 
         return to_route('reference-data.show', $table);
     }

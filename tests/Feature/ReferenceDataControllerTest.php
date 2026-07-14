@@ -3,9 +3,15 @@
 namespace Tests\Feature;
 
 use App\Enums\EquipmentLibraryType;
+use App\Enums\PersonnelLibraryType;
 use App\Models\AuditLog;
+use App\Models\Equipment;
 use App\Models\EquipmentLibrary;
+use App\Models\InternetConnectivitySurvey;
+use App\Models\IspProvider;
 use App\Models\ItemType;
+use App\Models\Personnel;
+use App\Models\PersonnelLibrary;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -322,5 +328,228 @@ class ReferenceDataControllerTest extends TestCase
         $this->assertNotNull($log);
         $this->assertSame('equipment-libraries', $log->properties['table']);
         $this->assertArrayNotHasKey('name', $log->properties['before']);
+    }
+
+    public function test_store_is_forbidden_without_reference_data_manage(): void
+    {
+        $this->actingAs($this->encoder())
+            ->post(route('reference-data.store', 'item-types'), ['name' => 'Tablet'])
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('item_types', ['name' => 'Tablet']);
+    }
+
+    public function test_admin_can_create_a_tier1_row(): void
+    {
+        $admin = $this->admin();
+
+        $response = $this->actingAs($admin)->post(route('reference-data.store', 'item-types'), [
+            'name' => 'Tablet',
+            'description' => 'Handheld touchscreen device.',
+        ]);
+
+        $response->assertRedirect(route('reference-data.show', 'item-types'));
+
+        $itemType = ItemType::where('name', 'Tablet')->first();
+        $this->assertNotNull($itemType);
+        $this->assertSame('Handheld touchscreen device.', $itemType->description);
+        $this->assertSame(0, $itemType->sort_order);
+        $this->assertTrue($itemType->is_active);
+
+        $log = AuditLog::where('action', 'reference_data.created')->where('subject_id', $itemType->id)->first();
+        $this->assertNotNull($log);
+        $this->assertSame('item-types', $log->properties['table']);
+        $this->assertSame('Tablet', $log->properties['name']);
+    }
+
+    public function test_store_rejects_a_tier1_name_duplicating_another_row_in_the_same_table(): void
+    {
+        ItemType::create(['name' => 'Laptop', 'sort_order' => 0, 'is_active' => true]);
+
+        $this->actingAs($this->admin())
+            ->post(route('reference-data.store', 'item-types'), ['name' => 'Laptop'])
+            ->assertSessionHasErrors('name');
+
+        $this->assertSame(1, ItemType::where('name', 'Laptop')->count());
+    }
+
+    public function test_admin_can_create_a_tier2_row_with_a_valid_type(): void
+    {
+        $admin = $this->admin();
+
+        $response = $this->actingAs($admin)->post(route('reference-data.store', 'equipment-libraries'), [
+            'type' => EquipmentLibraryType::UnitOfMeasure->value,
+            'value' => 'Lot',
+        ]);
+
+        $response->assertRedirect(route('reference-data.show', 'equipment-libraries'));
+
+        $library = EquipmentLibrary::where('value', 'Lot')->first();
+        $this->assertNotNull($library);
+        $this->assertSame(EquipmentLibraryType::UnitOfMeasure, $library->type);
+        $this->assertTrue($library->is_active);
+    }
+
+    public function test_store_rejects_a_tier2_type_that_is_not_a_valid_enum_case(): void
+    {
+        $this->actingAs($this->admin())
+            ->post(route('reference-data.store', 'equipment-libraries'), [
+                'type' => 'not-a-real-type',
+                'value' => 'Lot',
+            ])
+            ->assertSessionHasErrors('type');
+    }
+
+    public function test_store_rejects_a_tier2_value_duplicating_another_row_of_the_same_type(): void
+    {
+        EquipmentLibrary::create([
+            'type' => EquipmentLibraryType::UnitOfMeasure->value,
+            'value' => 'Unit',
+            'sort_order' => 0,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($this->admin())
+            ->post(route('reference-data.store', 'equipment-libraries'), [
+                'type' => EquipmentLibraryType::UnitOfMeasure->value,
+                'value' => 'Unit',
+            ])
+            ->assertSessionHasErrors('value');
+    }
+
+    public function test_store_allows_a_tier2_value_reused_under_a_different_type(): void
+    {
+        EquipmentLibrary::create([
+            'type' => EquipmentLibraryType::UnitOfMeasure->value,
+            'value' => 'Serviceable',
+            'sort_order' => 0,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($this->admin())
+            ->post(route('reference-data.store', 'equipment-libraries'), [
+                'type' => EquipmentLibraryType::DispositionStatus->value,
+                'value' => 'Serviceable',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(2, EquipmentLibrary::where('value', 'Serviceable')->count());
+    }
+
+    public function test_destroy_is_forbidden_without_reference_data_manage(): void
+    {
+        $itemType = ItemType::create(['name' => 'Laptop', 'sort_order' => 0, 'is_active' => true]);
+
+        $this->actingAs($this->encoder())
+            ->delete(route('reference-data.destroy', ['table' => 'item-types', 'id' => $itemType->id]))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('item_types', ['id' => $itemType->id]);
+    }
+
+    public function test_admin_can_hard_delete_an_unreferenced_tier1_row(): void
+    {
+        $admin = $this->admin();
+        $itemType = ItemType::create(['name' => 'Fax Machine', 'sort_order' => 0, 'is_active' => true]);
+
+        $response = $this->actingAs($admin)
+            ->delete(route('reference-data.destroy', ['table' => 'item-types', 'id' => $itemType->id]));
+
+        $response->assertRedirect(route('reference-data.show', 'item-types'));
+        $this->assertDatabaseMissing('item_types', ['id' => $itemType->id]);
+
+        $log = AuditLog::where('action', 'reference_data.deleted')->where('subject_id', $itemType->id)->first();
+        $this->assertNotNull($log);
+        $this->assertSame('item-types', $log->properties['table']);
+    }
+
+    public function test_tier1_delete_is_blocked_by_the_restrict_on_delete_fk_when_still_referenced(): void
+    {
+        $itemType = ItemType::create(['name' => 'Laptop', 'sort_order' => 0, 'is_active' => true]);
+        Equipment::factory()->create(['item_type_id' => $itemType->id]);
+
+        $this->actingAs($this->admin())
+            ->delete(route('reference-data.destroy', ['table' => 'item-types', 'id' => $itemType->id]))
+            ->assertSessionHasErrors('delete');
+
+        $this->assertDatabaseHas('item_types', ['id' => $itemType->id]);
+    }
+
+    public function test_isp_provider_delete_is_blocked_when_referenced_only_via_json_survey_columns(): void
+    {
+        $provider = IspProvider::create(['name' => 'PLDT', 'sort_order' => 0, 'is_active' => true]);
+        InternetConnectivitySurvey::create(['available_isps' => [$provider->id]]);
+
+        $this->actingAs($this->admin())
+            ->delete(route('reference-data.destroy', ['table' => 'isp-providers', 'id' => $provider->id]))
+            ->assertSessionHasErrors('delete');
+
+        $this->assertDatabaseHas('isp_providers', ['id' => $provider->id]);
+    }
+
+    public function test_isp_provider_delete_succeeds_when_not_referenced_anywhere(): void
+    {
+        $provider = IspProvider::create(['name' => 'Globe', 'sort_order' => 0, 'is_active' => true]);
+
+        $this->actingAs($this->admin())
+            ->delete(route('reference-data.destroy', ['table' => 'isp-providers', 'id' => $provider->id]))
+            ->assertRedirect(route('reference-data.show', 'isp-providers'));
+
+        $this->assertDatabaseMissing('isp_providers', ['id' => $provider->id]);
+    }
+
+    public function test_tier2_delete_is_blocked_when_referenced_via_a_string_column(): void
+    {
+        $library = EquipmentLibrary::create([
+            'type' => EquipmentLibraryType::UnitOfMeasure->value,
+            'value' => 'Unit',
+            'sort_order' => 0,
+            'is_active' => true,
+        ]);
+        Equipment::factory()->create(['uom' => 'Unit']);
+
+        $this->actingAs($this->admin())
+            ->delete(route('reference-data.destroy', ['table' => 'equipment-libraries', 'id' => $library->id]))
+            ->assertSessionHasErrors('delete');
+
+        $this->assertDatabaseHas('equipment_libraries', ['id' => $library->id]);
+    }
+
+    public function test_tier2_delete_is_blocked_when_referenced_via_a_json_array_column(): void
+    {
+        $library = PersonnelLibrary::create([
+            'type' => PersonnelLibraryType::TeachersFundingSource->value,
+            'value' => 'SEF',
+            'sort_order' => 0,
+            'is_active' => true,
+        ]);
+        Personnel::factory()->create(['fund_source' => [$library->id]]);
+
+        $this->actingAs($this->admin())
+            ->delete(route('reference-data.destroy', ['table' => 'personnel-libraries', 'id' => $library->id]))
+            ->assertSessionHasErrors('delete');
+
+        $this->assertDatabaseHas('personnel_libraries', ['id' => $library->id]);
+    }
+
+    public function test_tier2_delete_succeeds_when_not_referenced_anywhere(): void
+    {
+        $admin = $this->admin();
+        $library = EquipmentLibrary::create([
+            'type' => EquipmentLibraryType::UnitOfMeasure->value,
+            'value' => 'Lot',
+            'sort_order' => 0,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->delete(route('reference-data.destroy', ['table' => 'equipment-libraries', 'id' => $library->id]));
+
+        $response->assertRedirect(route('reference-data.show', 'equipment-libraries'));
+        $this->assertDatabaseMissing('equipment_libraries', ['id' => $library->id]);
+
+        $log = AuditLog::where('action', 'reference_data.deleted')->where('subject_id', $library->id)->first();
+        $this->assertNotNull($log);
+        $this->assertSame('equipment-libraries', $log->properties['table']);
     }
 }

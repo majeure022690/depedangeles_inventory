@@ -75,10 +75,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('reference-data/{table}', [ReferenceDataController::class, 'show'])
         ->where('table', '[a-z-]+')
         ->name('reference-data.show');
+    Route::post('reference-data/{table}', [ReferenceDataController::class, 'store'])
+        ->where('table', '[a-z-]+')
+        ->name('reference-data.store');
     Route::patch('reference-data/{table}/{id}', [ReferenceDataController::class, 'update'])
         ->where('table', '[a-z-]+')
         ->whereNumber('id')
         ->name('reference-data.update');
+    Route::delete('reference-data/{table}/{id}', [ReferenceDataController::class, 'destroy'])
+        ->where('table', '[a-z-]+')
+        ->whereNumber('id')
+        ->name('reference-data.destroy');
 
     // StakeholderProfile: one row PER OFFICE (see its doc-comment), not a
     // global singleton — edit()/update() are always scoped to a specific
