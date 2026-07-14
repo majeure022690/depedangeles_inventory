@@ -1,0 +1,18 @@
+#!/bin/sh
+# Runs automatically after every `git pull` (fetch + merge) on any machine
+# that has run `npm install` at least once, via Husky's `prepare` script.
+# Keeps composer/npm deps, the built frontend, the DB schema, and Wayfinder's
+# generated route helpers in sync with whatever just came in from origin —
+# the exact steps this project's CLAUDE.md agents have had to do by hand
+# after every pull so far (stale routes/build caused a real 404 once).
+
+echo "post-merge: syncing environment with pulled changes..."
+
+composer install --no-interaction
+npm install
+php artisan wayfinder:generate
+npm run build
+php artisan migrate --force
+php artisan db:seed --force
+
+echo "post-merge: done."
