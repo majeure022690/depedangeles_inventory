@@ -18,11 +18,16 @@ const props = defineProps<{
 
 const { can } = usePermissions();
 
+// Note: defineOptions() is hoisted to module scope at compile time, so it
+// cannot reference `props` (the office's name/id are only known at
+// runtime) — the trailing crumb below intentionally links back to the
+// index rather than to this exact office (same pattern as Equipment/
+// Personnel's Edit pages).
 defineOptions({
     layout: {
         breadcrumbs: [
             { title: 'Stakeholder Profile', href: stakeholderProfilesRoutes.index() },
-            { title: props.office.office_name, href: stakeholderProfilesRoutes.edit(props.office.id) },
+            { title: 'Edit profile', href: stakeholderProfilesRoutes.index() },
         ],
     },
 });
