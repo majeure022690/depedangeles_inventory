@@ -7,20 +7,21 @@ namespace App\Http\Requests;
 use App\Enums\EquipmentLibraryType;
 use App\Enums\StakeholderLibraryType;
 use App\Models\EquipmentLibrary;
+use App\Models\Office;
 use App\Models\StakeholderLibrary;
 use App\Models\StakeholderProfile;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Validates the single StakeholderProfile singleton's editable fields.
+ * Validates one office's StakeholderProfile editable fields.
  * `complete_address` is deliberately absent — it's a MySQL STORED
  * generated column (see the create_stakeholder_profiles_table migration
  * and StakeholderProfile's doc-comment), never mass-assignable.
  *
- * Every rule is nullable: this is a progressively-filled singleton record
- * (see the migration's class-level note — every column is nullable by
- * design, there is no "required at insert" set the way there is for list
+ * Every rule is nullable: this is a progressively-filled record (see the
+ * migration's class-level note — every column is nullable by design,
+ * there is no "required at insert" set the way there is for list
  * resources like Equipment/Personnel), so nothing here is `required`.
  *
  * TIER 2 CUTOVER (lookup-normalization ADR, Step 2+3 — StakeholderProfile
@@ -46,12 +47,18 @@ class StakeholderProfileUpdateRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // Authorize against a transient (unsaved) instance rather than
-        // `firstOrCreate([])` — StakeholderProfilePolicy never inspects the
-        // model instance (only hasPermissionTo()), so this is
-        // authorization-equivalent, but doesn't create the singleton row
-        // as a side effect of an unauthorized request.
-        return $this->user()->can('update', new StakeholderProfile);
+        // Authorize against a transient (unsaved) instance scoped to the
+        // route's {office} rather than `firstOrCreate(['office_id' =>
+        // ...])` — StakeholderProfilePolicy checks $stakeholderProfile-
+        // >office_id against the acting user's own, so the transient
+        // instance needs office_id set to be authorization-equivalent to
+        // the persisted row, without creating it as a side effect of an
+        // unauthorized request.
+        $office = $this->route('office');
+
+        return $this->user()->can('update', new StakeholderProfile([
+            'office_id' => $office instanceof Office ? $office->id : null,
+        ]));
     }
 
     /**

@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import { toast } from 'vue-sonner';
 import Heading from '@/components/Heading.vue';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { usePermissions } from '@/composables/usePermissions';
 import StakeholderProfileForm from '@/pages/stakeholder-profile/Partials/Form.vue';
-import * as stakeholderProfileRoutes from '@/routes/stakeholder-profile';
+import * as stakeholderProfilesRoutes from '@/routes/stakeholder-profiles';
 import type { StakeholderProfileFormData, StakeholderProfileFormOptions, StakeholderProfileFull } from '@/types/stakeholder-profile';
 
 const props = defineProps<{
+    office: { id: number; office_name: string };
     stakeholderProfile: StakeholderProfileFull;
     options: StakeholderProfileFormOptions;
 }>();
@@ -18,8 +20,10 @@ const { can } = usePermissions();
 
 defineOptions({
     layout: {
-        breadcrumbs: [{ title: 'Stakeholder Profile', href: stakeholderProfileRoutes.edit() }],
-        wide: true,
+        breadcrumbs: [
+            { title: 'Stakeholder Profile', href: stakeholderProfilesRoutes.index() },
+            { title: props.office.office_name, href: stakeholderProfilesRoutes.edit(props.office.id) },
+        ],
     },
 });
 
@@ -98,30 +102,29 @@ const form = useForm<StakeholderProfileFormData>({
 });
 
 function submit() {
-    if (!can('stakeholder_profile.edit')) {
+    if (!can('stakeholder_profile.edit') && !can('stakeholder_profile.view_all')) {
         toast.error('You do not have permission to edit the Stakeholder Profile.');
 
         return;
     }
 
-    form.put(stakeholderProfileRoutes.update.url(), {
+    form.put(stakeholderProfilesRoutes.update.url(props.office.id), {
         onError: () => {
             toast.error('Unable to save changes. Please review the highlighted fields and try again.');
         },
     });
 }
+
+const canEdit = computed(() => can('stakeholder_profile.edit') || can('stakeholder_profile.view_all'));
 </script>
 
 <template>
-    <Head title="Stakeholder Profile" />
+    <Head :title="`Stakeholder Profile - ${office.office_name}`" />
 
-    <h1 class="sr-only">Stakeholder Profile</h1>
-
-    <div class="flex flex-col gap-6">
+    <div class="flex flex-col gap-6 p-4">
         <Heading
-            variant="small"
-            title="Stakeholder Profile"
-            description="Division Office identity, location, contacts, and community context."
+            :title="`Stakeholder Profile — ${office.office_name}`"
+            description="Identity, location, contacts, and community context for this school/office."
         />
 
         <form class="space-y-8" @submit.prevent="submit">
@@ -129,10 +132,10 @@ function submit() {
                 :form="form"
                 :options="props.options"
                 :complete-address="props.stakeholderProfile.complete_address"
-                :disabled="!can('stakeholder_profile.edit')"
+                :disabled="!canEdit"
             />
 
-            <div v-if="can('stakeholder_profile.edit')" class="flex items-center gap-4">
+            <div v-if="canEdit" class="flex items-center gap-4">
                 <Button type="submit" :disabled="form.processing" data-test="update-stakeholder-profile-button">
                     <Spinner v-if="form.processing" />
                     Save changes

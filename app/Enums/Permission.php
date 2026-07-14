@@ -92,21 +92,33 @@ enum Permission: string
     // for that role.
     case RolesManage = 'roles.manage';
 
-    // Stakeholder Profile (SINGLETON — exactly one row per division
-    // office; see App\Models\StakeholderProfile). No .create/.delete
-    // permissions: there is no "create a new one" or "delete it" action,
-    // only view/edit of the one always-existing record (Backend uses
-    // StakeholderProfile::firstOrCreate([])). Unlike LookupsManage (a
-    // single permission for an admin-only screen), this singleton still
-    // gets a separate .view permission alongside .edit: 'viewer' is an
-    // established read-only role spanning every other resource in this
-    // app (Personnel, Equipment, ISP accounts), and this record holds
-    // division contact/address information a non-editing stakeholder
-    // (e.g. a higher office or an auditor) may legitimately need to read
-    // without being able to change it — the "Viewer role should be able
-    // to read without editing" case.
+    // Stakeholder Profile (one row PER OFFICE — see
+    // App\Models\StakeholderProfile — not a global singleton). No
+    // .create/.delete permissions: there is no "create a new one" or
+    // "delete it" action, only view/edit of an office's always-existing
+    // record (Backend uses StakeholderProfile::firstOrCreate(['office_id'
+    // => ...])). Unlike LookupsManage (a single permission for an
+    // admin-only screen), this still gets a separate .view permission
+    // alongside .edit: 'viewer' is an established read-only role spanning
+    // every other resource in this app (Personnel, Equipment, ISP
+    // accounts), and this record holds division contact/address
+    // information a non-editing stakeholder (e.g. a higher office or an
+    // auditor) may legitimately need to read without being able to change
+    // it — the "Viewer role should be able to read without editing" case.
+    // .view/.edit are scoped to the ACTING USER'S OWN office_id
+    // (StakeholderProfilePolicy) — holding .view lets someone read only
+    // their own school's profile, never another school's.
     case StakeholderProfileView = 'stakeholder_profile.view';
     case StakeholderProfileEdit = 'stakeholder_profile.edit';
+
+    // Cross-office visibility: view AND edit every office's stakeholder
+    // profile, plus the admin list of all of them
+    // (stakeholder-profiles.index). Deliberately separate from
+    // .view/.edit above (which are always scoped to the acting user's own
+    // office_id, even for an actor who happens to also hold this
+    // permission) — this is the "division-level oversight" capability,
+    // analogous to reference-data.manage. Only 'admin' is seeded with it.
+    case StakeholderProfileViewAll = 'stakeholder_profile.view_all';
 
     // Internet Connectivity Survey (SINGLETON — see
     // App\Models\InternetConnectivitySurvey). Same reasoning as

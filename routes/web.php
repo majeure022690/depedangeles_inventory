@@ -80,16 +80,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->whereNumber('id')
         ->name('reference-data.update');
 
-    // SINGLETON resources (see StakeholderProfile/InternetConnectivitySurvey
-    // doc-comments) — exactly one row per division office, no {id} route
-    // parameter and no resource() call: only edit()/update() exist, there
-    // is no index/create/store/destroy for a record that's always fetched/
-    // created via firstOrCreate([]).
-    Route::get('stakeholder-profile', [StakeholderProfileController::class, 'edit'])
-        ->name('stakeholder-profile.edit');
-    Route::put('stakeholder-profile', [StakeholderProfileController::class, 'update'])
-        ->name('stakeholder-profile.update');
+    // StakeholderProfile: one row PER OFFICE (see its doc-comment), not a
+    // global singleton — edit()/update() are always scoped to a specific
+    // {office}, and index() is the cross-office admin list
+    // (stakeholder_profile.view_all only). Still no create()/store()/
+    // destroy(): a profile is always firstOrCreate(['office_id' => ...])'d
+    // lazily, never explicitly created or deleted.
+    Route::get('stakeholder-profiles', [StakeholderProfileController::class, 'index'])
+        ->name('stakeholder-profiles.index');
+    Route::get('stakeholder-profiles/{office}', [StakeholderProfileController::class, 'edit'])
+        ->name('stakeholder-profiles.edit');
+    Route::put('stakeholder-profiles/{office}', [StakeholderProfileController::class, 'update'])
+        ->name('stakeholder-profiles.update');
 
+    // SINGLETON resource (see InternetConnectivitySurvey doc-comment) —
+    // exactly one row for the whole application, no {id} route parameter
+    // and no resource() call: only edit()/update() exist, there is no
+    // index/create/store/destroy for a record that's always fetched/
+    // created via firstOrCreate([]).
     Route::get('internet-connectivity-survey', [InternetConnectivitySurveyController::class, 'edit'])
         ->name('internet-connectivity-survey.edit');
     Route::put('internet-connectivity-survey', [InternetConnectivitySurveyController::class, 'update'])

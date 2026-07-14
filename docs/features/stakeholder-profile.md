@@ -2,20 +2,30 @@
 
 ## Purpose
 
-A single record describing the division office itself — governance level, location/address, contact persons (chief, admin staff, network administrator), community/access context. One edit form, no list, no multiple records. This is one of two modules the singleton pattern (see [`docs/architecture.md`](../architecture.md#3-singleton-stakeholder-profile-internet-connectivity-survey)) exists for.
+A profile describing a school or division-level office — governance level, location/address, contact persons (chief, admin staff, network administrator), community/access context. One edit form per office, shared by every user assigned to that office.
+
+Started (2026-07-10) as a true global singleton — one record for the whole application, following the pattern documented in [`docs/architecture.md`](../architecture.md#3-singleton-internet-connectivity-survey). Converted (2026-07-14) to **one row per `App\Models\Office`** once the app grew to track multiple schools under the division (the `offices` table) rather than a single division office — see [`docs/architecture.md`](../architecture.md#3b-one-row-per-tenant-stakeholder-profile) for the full pattern description and how it differs from a true singleton.
 
 ## Architecture
 
-- `App\Models\StakeholderProfile` — bare structural model, fillable/casts only, **no factory** (only one real row ever exists, so fake/seeded multiples don't make sense), no relationships to Equipment/Personnel/IspAccount (standalone survey/profile data).
-- `App\Policies\StakeholderProfilePolicy` — deliberately only `view`/`update` (no `create`/`delete` to authorize, since neither action exists).
-- `App\Http\Controllers\StakeholderProfileController` — deliberately only `edit()`/`update()`.
+- `App\Models\StakeholderProfile` — bare structural model, fillable/casts/`belongsTo(Office)` only, **no factory** (profiles are created lazily per office, never seeded/faked in bulk), no relationships to Equipment/Personnel/IspAccount (standalone survey/profile data, scoped only to its owning Office).
+- `App\Models\Office::stakeholderProfile()` — the inverse `hasOne`.
+- `App\Policies\StakeholderProfilePolicy` — `view`/`update` (own-office scoped) plus `viewAny` (gates the cross-office admin list). No `create`/`delete` to authorize, since neither action exists.
+- `App\Http\Controllers\StakeholderProfileController` — `index()` (admin list) plus `edit()`/`update()`, both always scoped to one specific `{office}`.
+
+## Access model
+
+- **Own office only** — a user holding `stakeholder_profile.view`/`.edit` can only read/write the profile matching their own `office_id` (`User::office_id`). Attempting another office's profile (by URL) 403s, and never creates that office's row as a side effect.
+- **Cross-office oversight** — a user holding `stakeholder_profile.view_all` (seeded only to `admin`) can view and edit *any* office's profile, and is the only one who can reach the admin list. This is independent of whether they also have an `office_id` of their own.
+- **No office assigned** — a `view`/`.edit` holder with no `office_id` has nothing to view (hidden from the sidebar entirely); a `.view_all` holder with no `office_id` still gets the full cross-office list.
 
 ## Flow
 
-1. **Edit** (`GET /stakeholder-profile`, `stakeholder-profile.edit`) — authorizes against a transient (unsaved) `StakeholderProfile` instance *before* touching the database, then `firstOrCreate([])`s the singleton row and renders it.
-2. **Update** (`PUT /stakeholder-profile`, `stakeholder-profile.update`) — same `firstOrCreate([])`, then updates.
+1. **Index** (`GET /stakeholder-profiles`, `stakeholder-profiles.index`, `view_all` only) — paginated/searchable list of every `Office`, each row showing whether it has a profile yet (`has_profile`) and when it was last updated. Office-centric, not StakeholderProfile-row-centric, since most offices won't have a profile row until their first edit.
+2. **Edit** (`GET /stakeholder-profiles/{office}`, `stakeholder-profiles.edit`) — authorizes against a transient (unsaved) `StakeholderProfile` instance with `office_id` already set *before* touching the database, then `firstOrCreate(['office_id' => $office->id])`s that office's row and renders it.
+3. **Update** (`PUT /stakeholder-profiles/{office}`, `stakeholder-profiles.update`) — same `firstOrCreate`, then updates.
 
-There is no `index`, `create`, `store`, or `destroy` route — `routes/web.php` declares only these two routes by hand (not `Route::resource()`), and neither takes an `{id}` parameter.
+There is no `create`, `store`, or `destroy` route — a profile is always reached via the lazy `firstOrCreate`, never explicitly created or deleted.
 
 Every update writes an `AuditLog` entry (`stakeholder_profile.updated`) with a field-level before/after diff.
 
@@ -25,9 +35,10 @@ Requires `auth`+`verified`. Controller: `App\Http\Controllers\StakeholderProfile
 
 | Route | Page component | Key props |
 |---|---|---|
-| `GET /stakeholder-profile` (`stakeholder-profile.edit`) | `stakeholder-profile/Edit` | `stakeholderProfile` (the singleton record), `options` (governance level, nearby institution, access-road type, transportation, community engagement, transaction-type lookups) |
+| `GET /stakeholder-profiles` (`stakeholder-profiles.index`) | `stakeholder-profile/Index` | `offices` (paginated list: `id`, `office_name`, `office_type`, `school_id`, `has_profile`, `updated_at`), `filters` (`search`) |
+| `GET /stakeholder-profiles/{office}` (`stakeholder-profiles.edit`) | `stakeholder-profile/Edit` | `office` (`id`, `office_name`), `stakeholderProfile` (that office's record), `options` (governance level, nearby institution, access-road type, transportation, community engagement, transaction-type lookups) |
 
-`stakeholderProfile` prop shape (every fillable column, plus one read-only derived field):
+`stakeholderProfile` prop shape (every fillable column except `office_id` itself, plus one read-only derived field):
 
 ```php
 [
@@ -52,22 +63,27 @@ Requires `auth`+`verified`. Controller: `App\Http\Controllers\StakeholderProfile
 ]
 ```
 
+Note `school_district`/`school_name`/`school_id` are independent free-text fields users fill in on the form — not derived from the owning `Office` row, even though `Office` also has its own `office_name`/`school_id`. They can (and often will) match, but nothing keeps them in sync automatically.
+
 ## Key files
 
 - `app/Http/Controllers/StakeholderProfileController.php`
-- `app/Models/StakeholderProfile.php`
+- `app/Models/StakeholderProfile.php`, `app/Models/Office.php`
 - `app/Policies/StakeholderProfilePolicy.php`
 - `app/Http/Requests/StakeholderProfileUpdateRequest.php`
-- `database/migrations/2026_07_10_090000_create_stakeholder_profiles_table.php`, `2026_07_11_000000_add_singleton_guard_to_stakeholder_profiles_and_internet_connectivity_surveys_tables.php`
-- `resources/js/pages/stakeholder-profile/` (`Edit.vue`, `Partials/`)
+- `database/migrations/2026_07_10_090000_create_stakeholder_profiles_table.php`, `2026_07_14_071751_make_stakeholder_profiles_office_scoped.php` (converts from global singleton to one-per-office; supersedes the now-removed `2026_07_11_000000_add_singleton_guard_...` guard for this table)
+- `resources/js/pages/stakeholder-profile/` (`Index.vue`, `Edit.vue`, `Partials/`)
+- `resources/js/components/AppSidebar.vue` — conditional nav item (list for `.view_all`, own-office edit link otherwise)
 
 ## Non-obvious design decisions
 
-- **Singleton, not a list resource.** No `index`/`create`/`store`/`destroy` exist by design — see [`docs/architecture.md`](../architecture.md#3-singleton-stakeholder-profile-internet-connectivity-survey) for the full pattern, including the DB-level `singleton_guard` unique-constraint fix that closes a race condition where two concurrent first-load requests could both `INSERT` a duplicate row before that constraint existed.
+- **One row per office, not a global singleton or a full CRUD list resource.** No `create`/`store`/`destroy` exist by design (a profile is always lazily `firstOrCreate`'d, never explicitly made or removed) — but unlike a true singleton, there is an `index()`, because there are now up to one row per office (95+ possible) rather than exactly one ever.
+- **The same permission string means something different depending on whose office it's checked against.** `stakeholder_profile.view`/`.edit` are scoped to the acting user's own `office_id` by the Policy, not by the permission system itself — `stakeholder_profile.view_all` is what actually grants cross-office access, and it's a completely separate permission, not a modifier on the other two.
+- **`office_id` is `NOT NULL`, unique.** The old `singleton_guard` column (a race-condition guard for "exactly one row globally") no longer applies and was dropped; a plain `unique` index on `office_id` provides the equivalent guarantee ("at most one profile per office") without needing a sentinel column, since MySQL/MariaDB's unique index semantics already give the right behavior for a `NOT NULL` column.
 - **`complete_address` is a MySQL STORED generated column**, computed by the database from the other address fields — deliberately excluded from `$fillable`, since it can never be mass-assigned, only read. It's included in the `stakeholderProfile` prop as a read-only display value.
-- **Authorization checks a transient instance before any DB write.** `StakeholderProfilePolicy` never inspects the model instance (only `hasPermissionTo()`), so authorizing `new StakeholderProfile` is equivalent to authorizing the persisted row — but it means a `pending`-role user's `GET` request is 403'd *before* the singleton row gets created by `firstOrCreate([])`, rather than creating it and then denying access to it.
-- **`stakeholder_profile.view` is kept separate from `.edit`**, unlike the admin-only `reference-data.manage`. The `viewer` role is an established read-only role spanning every other resource in this app, and this record holds contact/address information a non-editing stakeholder (a higher office, an auditor) may legitimately need to read without being able to change it.
+- **Authorization checks a transient instance (with `office_id` already set) before any DB write.** `StakeholderProfilePolicy` needs `$stakeholderProfile->office_id` to compare against the acting user's own — so the controller/Form Request build `new StakeholderProfile(['office_id' => $office->id])` and authorize that, rather than `firstOrCreate`-ing first. A wrong-office (or `pending`-role) user's `GET` is 403'd *before* that office's row gets created, rather than creating it and then denying access to it.
 
 ## Future considerations
 
-None flagged as blocking during review.
+- Internet Connectivity Survey remains a true global singleton (not converted alongside this) — revisit only if the same multi-school need arises there.
+- No trusted-device-style "recently viewed offices" shortcut for admins browsing many schools — the index list's search is the only navigation aid today.

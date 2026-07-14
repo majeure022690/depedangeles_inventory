@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ConnectivityLibrary;
 use App\Models\InternetConnectivitySurvey;
 use App\Models\IspProvider;
+use App\Models\Office;
 use App\Models\Personnel;
 use App\Models\PersonnelLibrary;
 use App\Models\StakeholderLibrary;
@@ -18,10 +19,11 @@ use Tests\TestCase;
  * Proves ReferenceDataJsonBackfillSeeder's array-content migration logic
  * (value-strings -> reference-table ids) against realistic data, per the
  * lookup-normalization ADR's Question 4 / Step 1.5. Production
- * StakeholderProfile/InternetConnectivitySurvey singletons are currently
- * blank and Personnel has 0 real rows, so there is genuinely nothing to
- * migrate in the real `inventory` database today — this test is what
- * proves the logic is correct before any future real data depends on it.
+ * StakeholderProfile rows and the InternetConnectivitySurvey singleton are
+ * currently blank and Personnel has 0 real rows, so there is genuinely
+ * nothing to migrate in the real `inventory` database today — this test is
+ * what proves the logic is correct before any future real data depends on
+ * it.
  */
 class ReferenceDataJsonBackfillSeederTest extends TestCase
 {
@@ -62,6 +64,7 @@ class ReferenceDataJsonBackfillSeederTest extends TestCase
         $engagement = StakeholderLibrary::query()->active()->where('type', 'community_engagement')->first();
 
         $profile = StakeholderProfile::create([
+            'office_id' => Office::create(['office_name' => 'Test Elementary School'])->id,
             'nearby_institutions' => [$nearby->value],
             'access_paths' => [$accessPath->value],
             'transportation_options' => [$transport->value],

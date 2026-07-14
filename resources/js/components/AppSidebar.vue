@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
-import { Database, HardDrive, KeySquare, LayoutGrid, ShieldCheck, Signal, Users, Wifi } from '@lucide/vue';
+import { Link, usePage } from '@inertiajs/vue3';
+import { Building2, Database, HardDrive, KeySquare, LayoutGrid, ShieldCheck, Signal, Users, Wifi } from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -20,10 +20,12 @@ import ispAccounts from '@/routes/isp-accounts';
 import personnel from '@/routes/personnel';
 import referenceData from '@/routes/reference-data';
 import roles from '@/routes/roles';
+import stakeholderProfiles from '@/routes/stakeholder-profiles';
 import users from '@/routes/users';
 import type { NavItem } from '@/types';
 
 const { can } = usePermissions();
+const page = usePage();
 
 const mainNavItems = computed<NavItem[]>(() => {
     const items: NavItem[] = [
@@ -55,6 +57,24 @@ const mainNavItems = computed<NavItem[]>(() => {
             title: 'ISP Accounts',
             href: ispAccounts.index(),
             icon: Wifi,
+        });
+    }
+
+    // Cross-office admins (view_all) get the all-offices list; a regular
+    // office-scoped user (view, own office_id) goes straight to their own
+    // office's profile — there's nothing else for them to browse. Hidden
+    // entirely for a view-holder with no office_id (nothing to show).
+    if (can('stakeholder_profile.view_all')) {
+        items.push({
+            title: 'Stakeholder Profile',
+            href: stakeholderProfiles.index(),
+            icon: Building2,
+        });
+    } else if (can('stakeholder_profile.view') && page.props.auth.user.office_id !== null) {
+        items.push({
+            title: 'Stakeholder Profile',
+            href: stakeholderProfiles.edit(page.props.auth.user.office_id),
+            icon: Building2,
         });
     }
 

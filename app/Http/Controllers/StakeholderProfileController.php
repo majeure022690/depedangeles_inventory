@@ -10,45 +10,81 @@ use App\Http\Controllers\Concerns\HasLookupOptions;
 use App\Http\Requests\StakeholderProfileUpdateRequest;
 use App\Models\AuditLog;
 use App\Models\EquipmentLibrary;
+use App\Models\Office;
 use App\Models\StakeholderLibrary;
 use App\Models\StakeholderProfile;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * SINGLETON controller (see App\Models\StakeholderProfile) — deliberately
- * only edit()/update(), never a resource controller. There is exactly one
- * row for the whole application, fetched/created via
- * `StakeholderProfile::firstOrCreate([])`; no index/paginated listing, no
- * create()/store() that would produce a second row, no destroy().
+ * ONE ROW PER OFFICE (see App\Models\StakeholderProfile) — index() is the
+ * cross-office admin list (stakeholder_profile.view_all only); edit()/
+ * update() are always scoped to one specific {office}, never a bare
+ * singleton. No create()/store() (a profile is always
+ * firstOrCreate(['office_id' => ...])'d lazily, never explicitly created)
+ * and no destroy() (removing a profile isn't a supported action).
  */
 class StakeholderProfileController extends Controller
 {
     use HasLookupOptions;
 
-    public function edit(): Response
+    public function index(Request $request): Response
+    {
+        $this->authorize('viewAny', StakeholderProfile::class);
+
+        $search = $request->string('search')->toString() ?: null;
+
+        $offices = Office::query()
+            ->with('stakeholderProfile:id,office_id,governance_level,updated_at')
+            ->when($search, fn ($query) => $query->where('office_name', 'like', "%{$search}%"))
+            ->orderBy('office_name')
+            ->paginate(20)
+            ->withQueryString()
+            ->through(fn (Office $office) => [
+                'id' => $office->id,
+                'office_name' => $office->office_name,
+                'office_type' => $office->office_type,
+                'school_id' => $office->school_id,
+                'has_profile' => $office->stakeholderProfile !== null,
+                'updated_at' => $office->stakeholderProfile?->updated_at?->toIso8601String(),
+            ]);
+
+        return Inertia::render('stakeholder-profile/Index', [
+            'offices' => $offices,
+            'filters' => [
+                'search' => $search,
+            ],
+        ]);
+    }
+
+    public function edit(Office $office): Response
     {
         // Authorize against a transient (unsaved) instance BEFORE touching
-        // the DB — StakeholderProfilePolicy never inspects the model
-        // instance (only hasPermissionTo()), so this is authorization-
-        // equivalent to the persisted row, but a `pending`-role user's GET
-        // no longer creates the singleton row before being 403'd.
-        $this->authorize('view', new StakeholderProfile);
+        // the DB — with office_id already set, so StakeholderProfilePolicy
+        // can correctly compare it against the acting user's own office_id
+        // — a `pending`-role (or wrong-office) user's GET no longer
+        // creates the row before being 403'd.
+        $this->authorize('view', new StakeholderProfile(['office_id' => $office->id]));
 
-        $stakeholderProfile = StakeholderProfile::firstOrCreate([]);
+        $stakeholderProfile = StakeholderProfile::firstOrCreate(['office_id' => $office->id]);
 
         return Inertia::render('stakeholder-profile/Edit', [
+            'office' => [
+                'id' => $office->id,
+                'office_name' => $office->office_name,
+            ],
             'stakeholderProfile' => $this->stakeholderProfileProps($stakeholderProfile),
             'options' => $this->formOptions(),
         ]);
     }
 
-    public function update(StakeholderProfileUpdateRequest $request): RedirectResponse
+    public function update(StakeholderProfileUpdateRequest $request, Office $office): RedirectResponse
     {
-        $this->authorize('update', new StakeholderProfile);
+        $this->authorize('update', new StakeholderProfile(['office_id' => $office->id]));
 
-        $stakeholderProfile = StakeholderProfile::firstOrCreate([]);
+        $stakeholderProfile = StakeholderProfile::firstOrCreate(['office_id' => $office->id]);
 
         $before = $stakeholderProfile->getOriginal();
 
@@ -63,7 +99,7 @@ class StakeholderProfileController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Stakeholder profile updated.')]);
 
-        return to_route('stakeholder-profile.edit');
+        return to_route('stakeholder-profiles.edit', $office);
     }
 
     /**

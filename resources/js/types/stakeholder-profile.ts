@@ -1,6 +1,25 @@
 import type { LookupOption, ReferenceOption } from '@/types/lookup';
 
 /**
+ * One row of the stakeholder-profiles.index admin list (StakeholderProfile
+ * is one-per-office, not a global singleton) — Office-centric, not
+ * StakeholderProfile-row-centric, since most offices won't have a profile
+ * row yet (lazily created on first edit).
+ */
+export type StakeholderProfileOfficeListItem = {
+    id: number;
+    office_name: string;
+    office_type: string | null;
+    school_id: number | null;
+    has_profile: boolean;
+    updated_at: string | null;
+};
+
+export type StakeholderProfileFilters = {
+    search: string | null;
+};
+
+/**
  * Shape of the `stakeholderProfile` Inertia prop from
  * StakeholderProfileController::edit()/update() — mirrors
  * StakeholderProfile's singleton row. `complete_address` is a MySQL
