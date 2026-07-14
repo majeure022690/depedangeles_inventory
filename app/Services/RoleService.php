@@ -271,11 +271,32 @@ final class RoleService
      */
     private function syncPermissions(Role $role, array $permissionValues): void
     {
-        $permissionIds = Permission::query()
+        $permissions = Permission::query()
             ->whereIn('name', $permissionValues)
-            ->pluck('id')
-            ->all();
+            ->pluck('id', 'name');
 
-        $role->permissions()->sync($permissionIds);
+        // RoleUpdateRequest/RoleStoreRequest already validate each value
+        // against the Permission ENUM (App\Enums\Permission), so a request
+        // can only ever submit a real permission NAME. But this table is a
+        // separate, seeded materialization of that enum (RolePermissionSeeder)
+        // — if a permission was added to the enum without re-seeding, its
+        // name resolves to no row here, and whereIn()->pluck() would
+        // silently drop it from the sync instead of attaching it, with no
+        // error surfaced anywhere. Fail loudly instead: this is a seeding
+        // gap to fix (`php artisan db:seed --class=RolePermissionSeeder`),
+        // not a legitimate "grant nothing" outcome.
+        $missing = array_diff($permissionValues, $permissions->keys()->all());
+
+        if ($missing !== []) {
+            throw ValidationException::withMessages([
+                'permissions' => __(
+                    'Cannot save: :names not found in the permissions table. Run '.
+                    '"php artisan db:seed --class=RolePermissionSeeder" to sync newly added permissions, then try again.',
+                    ['names' => implode(', ', $missing)],
+                ),
+            ]);
+        }
+
+        $role->permissions()->sync($permissions->values()->all());
     }
 }

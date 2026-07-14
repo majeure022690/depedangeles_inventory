@@ -307,6 +307,40 @@ class RoleControllerTest extends TestCase
         $this->assertNotNull(AuditLog::where('action', 'role.updated')->where('subject_id', $role->id)->first());
     }
 
+    /**
+     * Regression test: a permission NAME that passes RoleUpdateRequest's
+     * enum validation (App\Enums\Permission) but has no matching row in
+     * the `permissions` table (e.g. a new enum case added without
+     * re-running RolePermissionSeeder) must fail loudly, not silently
+     * resolve to fewer ids than submitted and attach a truncated set with
+     * no error surfaced — that exact silent-drop bug shipped once already.
+     */
+    public function test_update_fails_loudly_when_a_submitted_permission_is_not_yet_seeded(): void
+    {
+        $admin = $this->rolesManageUser();
+        $role = Role::create(['name' => 'custom', 'label' => 'Custom', 'description' => null]);
+        $role->permissions()->sync(Permission::where('name', PermissionEnum::EquipmentView->value)->pluck('id'));
+
+        // Simulate "enum case exists in code but its row was never
+        // seeded" without needing a second real unseeded enum case.
+        Permission::where('name', PermissionEnum::EquipmentEdit->value)->delete();
+
+        $response = $this->actingAs($admin)->patch(route('roles.update', $role), [
+            'name' => 'custom',
+            'label' => 'Custom',
+            'permissions' => [PermissionEnum::EquipmentView->value, PermissionEnum::EquipmentEdit->value],
+        ]);
+
+        $response->assertSessionHasErrors(['permissions']);
+
+        // Nothing was silently attached or changed — the whole update was
+        // rejected, not partially applied.
+        $this->assertSame(
+            [PermissionEnum::EquipmentView->value],
+            $role->fresh()->permissions()->pluck('name')->all(),
+        );
+    }
+
     public function test_update_rejects_an_uppercase_role_name(): void
     {
         $admin = $this->rolesManageUser();
