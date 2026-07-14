@@ -169,4 +169,19 @@
     body {
         @apply bg-background text-foreground;
     }
+
+    /*
+      Browser autofill (e.g. Chrome remembering a previously-typed value)
+      paints its own opaque background via -webkit-autofill, ignoring our
+      bg-transparent input styling and breaking dark mode. Force it back
+      to the theme's input/foreground colors using the long-transition
+      trick, since `background-color` itself can't override autofill.
+    */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+        -webkit-text-fill-color: var(--foreground);
+        transition: background-color 600000s 0s;
+        caret-color: var(--foreground);
+    }
 }
