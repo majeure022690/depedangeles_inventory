@@ -73,7 +73,10 @@ Seeding must run in this order — `DatabaseSeeder` already does this for you, s
 ```bash
 php artisan migrate
 php artisan db:seed
+php artisan storage:link
 ```
+
+`storage:link` symlinks `public/storage` to `storage/app/public` — required for uploaded profile photos (Settings > Profile) to actually be viewable; without it, avatar uploads succeed but the image 404s.
 
 This runs, in order (see `database/seeders/DatabaseSeeder.php`):
 

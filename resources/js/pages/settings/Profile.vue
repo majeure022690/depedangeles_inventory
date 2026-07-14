@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { Form, Head, usePage } from '@inertiajs/vue3';
+import { Form, Head, router, usePage } from '@inertiajs/vue3';
 import { Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import DeleteUser from '@/components/DeleteUser.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useInitials } from '@/composables/useInitials';
 import { edit } from '@/routes/profile';
+import avatar from '@/routes/profile/avatar';
 import { send } from '@/routes/verification';
 
 defineOptions({
@@ -25,6 +28,39 @@ defineOptions({
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
+const { getInitials } = useInitials();
+
+const avatarInput = ref<HTMLInputElement | null>(null);
+const avatarPreview = ref<string | null>(null);
+
+function onAvatarSelected(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+
+    if (!file) {
+        return;
+    }
+
+    if (avatarPreview.value) {
+        URL.revokeObjectURL(avatarPreview.value);
+    }
+
+    avatarPreview.value = URL.createObjectURL(file);
+}
+
+const avatarSrc = computed<string | undefined>(() => avatarPreview.value ?? user.value.avatar);
+
+function removeAvatar() {
+    router.delete(avatar.destroy.url(), {
+        preserveScroll: true,
+        onSuccess: () => {
+            avatarPreview.value = null;
+
+            if (avatarInput.value) {
+                avatarInput.value.value = '';
+            }
+        },
+    });
+}
 </script>
 
 <template>
@@ -36,7 +72,7 @@ const user = computed(() => page.props.auth.user);
         <Heading
             variant="small"
             title="Profile"
-            description="Update your name and email address"
+            description="Update your name, email address, and profile photo"
         />
 
         <Form
@@ -44,6 +80,50 @@ const user = computed(() => page.props.auth.user);
             class="space-y-6"
             v-slot="{ errors, processing }"
         >
+            <div class="flex items-center gap-4">
+                <Avatar class="size-16">
+                    <AvatarImage
+                        v-if="avatarSrc"
+                        :src="avatarSrc"
+                        :alt="user.name"
+                    />
+                    <AvatarFallback class="text-lg">
+                        {{ getInitials(user.name) }}
+                    </AvatarFallback>
+                </Avatar>
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-center gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="avatarInput?.click()"
+                        >
+                            Change photo
+                        </Button>
+                        <Button
+                            v-if="user.avatar"
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            @click="removeAvatar"
+                        >
+                            Remove
+                        </Button>
+                    </div>
+                    <input
+                        id="avatar"
+                        ref="avatarInput"
+                        type="file"
+                        name="avatar"
+                        accept="image/jpeg,image/png,image/webp"
+                        class="hidden"
+                        @change="onAvatarSelected"
+                    />
+                    <InputError :message="errors.avatar" />
+                </div>
+            </div>
+
             <div class="grid gap-2">
                 <Label for="name">Name</Label>
                 <Input
