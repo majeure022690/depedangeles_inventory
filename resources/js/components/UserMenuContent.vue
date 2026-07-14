@@ -1,17 +1,6 @@
 <script setup lang="ts">
-import { Link, router } from '@inertiajs/vue3';
+import { Link } from '@inertiajs/vue3';
 import { LogOut, Settings } from '@lucide/vue';
-import { ref } from 'vue';
-import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -19,7 +8,6 @@ import {
     DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import UserInfo from '@/components/UserInfo.vue';
-import { logout } from '@/routes';
 import { edit } from '@/routes/profile';
 import type { User } from '@/types';
 
@@ -29,23 +17,16 @@ type Props = {
 
 defineProps<Props>();
 
-const showLogoutConfirm = ref(false);
-
 /**
- * Deferred to the next tick: opening the Dialog synchronously inside the
- * DropdownMenuItem's @select handler races the dropdown's own close/focus-
- * return cycle, so the Dialog's outside-click detector catches the tail end
- * of that same click and immediately dismisses itself.
+ * The confirmation Dialog can't live in here: this component is rendered as
+ * DropdownMenuContent's slot content, and the dropdown unmounts that whole
+ * subtree the instant an item is selected — destroying a nested Dialog along
+ * with it regardless of its own open state. The parent owns the Dialog and
+ * its open state instead; this just asks for it.
  */
-function openLogoutConfirm() {
-    requestAnimationFrame(() => {
-        showLogoutConfirm.value = true;
-    });
-}
-
-const handleLogout = () => {
-    router.flushAll();
-};
+const emit = defineEmits<{
+    requestLogoutConfirm: [];
+}>();
 </script>
 
 <template>
@@ -68,34 +49,9 @@ const handleLogout = () => {
         class="cursor-pointer"
         variant="destructive"
         data-test="logout-button"
-        @select="openLogoutConfirm"
+        @select="emit('requestLogoutConfirm')"
     >
         <LogOut class="mr-2 h-4 w-4" />
         Log out
     </DropdownMenuItem>
-
-    <Dialog v-model:open="showLogoutConfirm">
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Log out?</DialogTitle>
-                <DialogDescription>
-                    You'll need to sign in again to access your account.
-                </DialogDescription>
-            </DialogHeader>
-            <DialogFooter class="gap-2">
-                <DialogClose as-child>
-                    <Button variant="secondary">Cancel</Button>
-                </DialogClose>
-                <Button variant="destructive" as-child>
-                    <Link
-                        :href="logout()"
-                        @click="handleLogout"
-                        data-test="confirm-logout-button"
-                    >
-                        Log out
-                    </Link>
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
 </template>
