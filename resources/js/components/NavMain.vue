@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { router } from '@inertiajs/vue3';
 import {
     SidebarGroup,
     SidebarGroupLabel,
@@ -16,6 +16,16 @@ defineProps<{
 }>();
 
 const { isCurrentUrl } = useCurrentUrl();
+
+function onNavClick(event: MouseEvent, href: NavItem['href']) {
+    event.preventDefault();
+
+    if (isCurrentUrl(href)) {
+        return;
+    }
+
+    router.get(toUrl(href));
+}
 </script>
 
 <template>
@@ -28,30 +38,14 @@ const { isCurrentUrl } = useCurrentUrl();
                     :is-active="isCurrentUrl(item.href)"
                     :tooltip="item.title"
                 >
-                    <!--
-                        Plain anchor (not <Link>) for the already-active
-                        item: clicking it would otherwise still fire a full
-                        Inertia visit to the URL you're already on — a
-                        pointless round-trip and progress-bar flash. This
-                        branch is deliberately NOT wired through Inertia's
-                        router at all (a conditional inside Link's own
-                        click handler would run too late to reliably cancel
-                        it), so there is no navigation to cancel in the
-                        first place.
-                    -->
                     <a
-                        v-if="isCurrentUrl(item.href)"
                         :href="toUrl(item.href)"
-                        aria-current="page"
-                        @click.prevent
+                        :aria-current="isCurrentUrl(item.href) ? 'page' : undefined"
+                        @click="onNavClick($event, item.href)"
                     >
                         <component :is="item.icon" />
                         <span>{{ item.title }}</span>
                     </a>
-                    <Link v-else :href="item.href">
-                        <component :is="item.icon" />
-                        <span>{{ item.title }}</span>
-                    </Link>
                 </SidebarMenuButton>
             </SidebarMenuItem>
         </SidebarMenu>
