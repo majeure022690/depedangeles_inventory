@@ -31,6 +31,18 @@ defineProps<Props>();
 
 const showLogoutConfirm = ref(false);
 
+/**
+ * Deferred to the next tick: opening the Dialog synchronously inside the
+ * DropdownMenuItem's @select handler races the dropdown's own close/focus-
+ * return cycle, so the Dialog's outside-click detector catches the tail end
+ * of that same click and immediately dismisses itself.
+ */
+function openLogoutConfirm() {
+    requestAnimationFrame(() => {
+        showLogoutConfirm.value = true;
+    });
+}
+
 const handleLogout = () => {
     router.flushAll();
 };
@@ -56,7 +68,7 @@ const handleLogout = () => {
         class="cursor-pointer"
         variant="destructive"
         data-test="logout-button"
-        @select="showLogoutConfirm = true"
+        @select="openLogoutConfirm"
     >
         <LogOut class="mr-2 h-4 w-4" />
         Log out
