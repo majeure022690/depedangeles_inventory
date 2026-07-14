@@ -19,7 +19,7 @@ Built for the ICT unit of a single division office: encoders enter and maintain 
 
 Built on the official [Laravel Vue Starter Kit](https://github.com/laravel/vue-starter-kit) — extended, not forked or replaced.
 
-- **Backend:** Laravel 13, PHP 8.3
+- **Backend:** Laravel 13, PHP 8.4
 - **Frontend rendering:** Inertia.js v3 (`inertiajs/inertia-laravel` + `@inertiajs/vue3`) — this is a server-driven monolith. Pages are returned via `Inertia::render()` from `routes/web.php`; there is no separate REST API.
 - **Frontend:** Vue 3 + Composition API + `<script setup>`, strict TypeScript
 - **Auth:** Laravel Fortify (session-based), extended with a hand-rolled roles/permissions layer (not spatie/laravel-permission)
@@ -33,7 +33,7 @@ Built on the official [Laravel Vue Starter Kit](https://github.com/laravel/vue-s
 ### Prerequisites
 
 - [XAMPP](https://www.apachefriends.org/) (or a standalone MySQL/MariaDB server) — **this project uses MySQL, not the Laravel default SQLite.** Start Apache and MySQL from the XAMPP control panel before proceeding.
-- PHP 8.3+ with the extensions Laravel 13 requires (bundled with XAMPP)
+- PHP 8.4+ with the extensions Laravel 13 requires (bundled with XAMPP)
 - [Composer](https://getcomposer.org/)
 - Node.js 18+ and npm
 

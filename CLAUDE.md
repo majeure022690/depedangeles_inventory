@@ -4,7 +4,7 @@
 
 Built on the official **Laravel Vue Starter Kit**. Do not replace or fork any of these — extend them:
 
-- Laravel 13, PHP 8.3
+- Laravel 13, PHP 8.4
 - Inertia.js v3 (`inertiajs/inertia-laravel` + `@inertiajs/vue3`) — this is a **server-driven monolith, not a REST API**. Pages are returned via `Inertia::render()`; there is no separate `api.php` surface unless a genuine external consumer needs one.
 - Vue 3 + Composition API + `<script setup>`, TypeScript
 - Laravel Fortify for authentication (session-based, driving Inertia auth pages) — extend it, never fork it
