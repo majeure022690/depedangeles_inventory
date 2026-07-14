@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { Building2, Database, HardDrive, KeySquare, LayoutGrid, ShieldCheck, Signal, Users, Wifi } from '@lucide/vue';
+import { Database, HardDrive, KeySquare, LayoutGrid, ShieldCheck, Signal, Users, Wifi } from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -20,7 +20,6 @@ import ispAccounts from '@/routes/isp-accounts';
 import personnel from '@/routes/personnel';
 import referenceData from '@/routes/reference-data';
 import roles from '@/routes/roles';
-import stakeholderProfile from '@/routes/stakeholder-profile';
 import users from '@/routes/users';
 import type { NavItem } from '@/types';
 
@@ -56,14 +55,6 @@ const mainNavItems = computed<NavItem[]>(() => {
             title: 'ISP Accounts',
             href: ispAccounts.index(),
             icon: Wifi,
-        });
-    }
-
-    if (can('stakeholder_profile.view')) {
-        items.push({
-            title: 'Stakeholder Profile',
-            href: stakeholderProfile.edit(),
-            icon: Building2,
         });
     }
 

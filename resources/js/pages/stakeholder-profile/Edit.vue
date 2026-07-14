@@ -19,6 +19,7 @@ const { can } = usePermissions();
 defineOptions({
     layout: {
         breadcrumbs: [{ title: 'Stakeholder Profile', href: stakeholderProfileRoutes.edit() }],
+        wide: true,
     },
 });
 
@@ -114,8 +115,11 @@ function submit() {
 <template>
     <Head title="Stakeholder Profile" />
 
-    <div class="flex flex-col gap-6 p-4">
+    <h1 class="sr-only">Stakeholder Profile</h1>
+
+    <div class="flex flex-col gap-6">
         <Heading
+            variant="small"
             title="Stakeholder Profile"
             description="Division Office identity, location, contacts, and community context."
         />
