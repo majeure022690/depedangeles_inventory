@@ -42,13 +42,20 @@ export function useTableFilters<T extends Record<string, FilterValue>>(
     function update<K extends keyof T>(key: K, value: T[K]) {
         filters[key] = value;
 
-        if (debounceKeys.has(key)) {
-            if (timeout) {
-                clearTimeout(timeout);
-            }
+        if (timeout) {
+            clearTimeout(timeout);
+            timeout = undefined;
+        }
 
+        if (debounceKeys.has(key)) {
             timeout = setTimeout(apply, debounceMs);
         } else {
+            // An immediate change already reflects the latest value of
+            // every filter (including any pending debounced one, since
+            // `filters[key]` above is set synchronously) — so the request
+            // just sent below covers whatever the debounce would have
+            // fired anyway. Cancelling it above avoids a redundant
+            // duplicate request.
             apply();
         }
     }

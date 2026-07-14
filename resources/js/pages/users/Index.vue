@@ -50,14 +50,19 @@ defineOptions({
     },
 });
 
+// Display-only sentinel for the "All roles" <Select> option — the actual
+// filter state driving the URL (`filters.role`) stays '' for "all"; only
+// `roleModel` below ever sees ALL.
 const ALL = '__all__';
 
 const { filters, update } = useTableFilters(usersRoutes.index.url(), {
     search: props.filters.search ?? '',
-    role: props.filters.role ?? ALL,
+    role: props.filters.role ?? '',
 }, {
     debounceKeys: ['search'],
 });
+
+const roleModel = computed(() => (filters.role === '' ? ALL : filters.role));
 
 function updateRoleFilter(value: string) {
     update('role', value === ALL ? '' : value);
@@ -166,7 +171,7 @@ function confirmDelete() {
                 />
             </div>
             <Select
-                :model-value="filters.role"
+                :model-value="roleModel"
                 @update:model-value="(value) => updateRoleFilter(String(value))"
             >
                 <SelectTrigger class="w-full sm:w-48" aria-label="Filter by role">

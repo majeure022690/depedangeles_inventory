@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import { Plus, Trash2 } from '@lucide/vue';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import Heading from '@/components/Heading.vue';
 import Pagination from '@/components/Pagination.vue';
 import { Badge } from '@/components/ui/badge';
@@ -44,17 +44,23 @@ defineOptions({
     },
 });
 
+// Display-only sentinel for the "All ..." <Select> option — the actual
+// filter state driving the URL (`filters.*`) stays '' for "all"; only the
+// <Select> `model-value` computeds below ever see ALL.
 const ALL = '__all__';
 
 const { can } = usePermissions();
 
 const { filters, update } = useTableFilters(ispAccountsRoutes.index.url(), {
     search: props.filters.search ?? '',
-    isp: props.filters.isp ?? ALL,
-    status: props.filters.status ?? ALL,
+    isp: props.filters.isp ?? '',
+    status: props.filters.status ?? '',
 }, {
     debounceKeys: ['search'],
 });
+
+const ispModel = computed(() => (filters.isp === '' ? ALL : filters.isp));
+const statusModel = computed(() => (filters.status === '' ? ALL : filters.status));
 
 function updateFilter(key: 'isp' | 'status', value: string) {
     update(key, value === ALL ? '' : value);
@@ -118,7 +124,7 @@ function confirmDelete() {
                 />
             </div>
             <Select
-                :model-value="filters.isp"
+                :model-value="ispModel"
                 @update:model-value="(value) => updateFilter('isp', String(value))"
             >
                 <SelectTrigger class="w-full lg:w-48" aria-label="Filter by ISP provider">
@@ -136,7 +142,7 @@ function confirmDelete() {
                 </SelectContent>
             </Select>
             <Select
-                :model-value="filters.status"
+                :model-value="statusModel"
                 @update:model-value="(value) => updateFilter('status', String(value))"
             >
                 <SelectTrigger class="w-full lg:w-44" aria-label="Filter by contract status">

@@ -72,12 +72,18 @@ const isTier1 = computed(() => props.tier === 1);
 const tier1Rows = computed(() => props.rows.data as ReferenceDataTier1Row[]);
 const tier2Rows = computed(() => props.rows.data as ReferenceDataTier2Row[]);
 
+// Display-only sentinel for the "All types" <Select> option (Tier 2 tables
+// only — Tier 1 tables never render this filter). The actual filter state
+// driving the URL (`filters.type`) stays '' for "all"; only `typeModel`
+// below ever sees ALL.
 const ALL = '__all__';
 
 const { filters, update } = useTableFilters(referenceData.show.url(props.table), {
     search: props.filters.search ?? '',
-    type: props.filters.type ?? ALL,
+    type: props.filters.type ?? '',
 });
+
+const typeModel = computed(() => (filters.type === '' ? ALL : filters.type));
 
 function updateTypeFilter(value: string) {
     update('type', value === ALL ? '' : value);
@@ -236,7 +242,7 @@ function rowLabel(row: ReferenceDataTier1Row | ReferenceDataTier2Row): string {
             </div>
             <Select
                 v-if="!isTier1 && props.types"
-                :model-value="filters.type"
+                :model-value="typeModel"
                 @update:model-value="(value) => updateTypeFilter(String(value))"
             >
                 <SelectTrigger class="w-full sm:w-56" aria-label="Filter by type">
@@ -244,7 +250,7 @@ function rowLabel(row: ReferenceDataTier1Row | ReferenceDataTier2Row): string {
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem :value="ALL">All types</SelectItem>
-                    <SelectItem v-for="opt in props.types" :key="opt.value" :value="opt.value">
+                    <SelectItem v-for="opt in props.types" :key="opt.value" :value="String(opt.value)">
                         {{ opt.label }}
                     </SelectItem>
                 </SelectContent>

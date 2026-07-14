@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import { Plus, Trash2 } from '@lucide/vue';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import Heading from '@/components/Heading.vue';
 import Pagination from '@/components/Pagination.vue';
 import { Badge } from '@/components/ui/badge';
@@ -44,18 +44,29 @@ defineOptions({
     },
 });
 
+// Display-only sentinel for the "All ..." <Select> option — Reka's Select
+// can't bind an empty-string item value, so the trigger needs a concrete
+// value to match. The actual filter state driving the URL (`filters.*`)
+// stays '' for "all"; only the <Select> `model-value` computeds below ever
+// see ALL.
 const ALL = '__all__';
 
 const { can } = usePermissions();
 
 const { filters, update } = useTableFilters(equipmentRoutes.index.url(), {
     search: props.filters.search ?? '',
-    condition: props.filters.condition ?? ALL,
-    category: props.filters.category ?? ALL,
-    disposition_status: props.filters.disposition_status ?? ALL,
+    condition: props.filters.condition ?? '',
+    category: props.filters.category ?? '',
+    disposition_status: props.filters.disposition_status ?? '',
 }, {
     debounceKeys: ['search'],
 });
+
+const conditionModel = computed(() => (filters.condition === '' ? ALL : filters.condition));
+const categoryModel = computed(() => (filters.category === '' ? ALL : filters.category));
+const dispositionStatusModel = computed(() =>
+    filters.disposition_status === '' ? ALL : filters.disposition_status,
+);
 
 function updateFilter(key: 'condition' | 'category' | 'disposition_status', value: string) {
     update(key, value === ALL ? '' : value);
@@ -114,7 +125,7 @@ function confirmDelete() {
                 />
             </div>
             <Select
-                :model-value="filters.condition"
+                :model-value="conditionModel"
                 @update:model-value="(value) => updateFilter('condition', String(value))"
             >
                 <SelectTrigger class="w-full lg:w-44" aria-label="Filter by condition">
@@ -132,7 +143,7 @@ function confirmDelete() {
                 </SelectContent>
             </Select>
             <Select
-                :model-value="filters.category"
+                :model-value="categoryModel"
                 @update:model-value="(value) => updateFilter('category', String(value))"
             >
                 <SelectTrigger class="w-full lg:w-44" aria-label="Filter by category">
@@ -150,7 +161,7 @@ function confirmDelete() {
                 </SelectContent>
             </Select>
             <Select
-                :model-value="filters.disposition_status"
+                :model-value="dispositionStatusModel"
                 @update:model-value="(value) => updateFilter('disposition_status', String(value))"
             >
                 <SelectTrigger class="w-full lg:w-48" aria-label="Filter by disposition status">
@@ -161,7 +172,7 @@ function confirmDelete() {
                     <SelectItem
                         v-for="opt in options.disposition_status"
                         :key="opt.value"
-                        :value="opt.value"
+                        :value="String(opt.value)"
                     >
                         {{ opt.label }}
                     </SelectItem>
