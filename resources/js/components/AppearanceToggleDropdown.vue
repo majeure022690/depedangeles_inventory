@@ -11,7 +11,7 @@ import {
 import { useAppearance } from '@/composables/useAppearance';
 import type { Appearance } from '@/types/ui';
 
-const { appearance, resolvedAppearance, updateAppearance } = useAppearance();
+const { appearance, updateAppearance } = useAppearance();
 </script>
 
 <template>
@@ -23,14 +23,8 @@ const { appearance, resolvedAppearance, updateAppearance } = useAppearance();
                 class="group h-9 w-9 cursor-pointer"
                 data-test="appearance-toggle-button"
             >
-                <Sun
-                    v-if="resolvedAppearance === 'light'"
-                    class="size-5 opacity-80 group-hover:opacity-100"
-                />
-                <Moon
-                    v-else
-                    class="size-5 opacity-80 group-hover:opacity-100"
-                />
+                <Sun class="size-5 opacity-80 group-hover:opacity-100 dark:hidden" />
+                <Moon class="hidden size-5 opacity-80 group-hover:opacity-100 dark:block" />
                 <span class="sr-only">Toggle theme</span>
             </Button>
         </DropdownMenuTrigger>
