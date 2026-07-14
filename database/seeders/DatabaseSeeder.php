@@ -56,5 +56,28 @@ class DatabaseSeeder extends Seeder
         // immediately above (resolves accountable_officer_id against the
         // personnel table it seeds).
         $this->call(EquipmentSeeder::class);
+
+        // Division ISP subscriptions, imported from the source Excel
+        // workbook. Depends on ReferenceDataSeeder above (isp_providers).
+        $this->call(IspAccountSeeder::class);
+
+        // Speed-test history and cost/budget tracking per ISP account,
+        // imported from the source Excel workbook. Depend on
+        // IspAccountSeeder immediately above.
+        $this->call(IspSpeedTestSeeder::class);
+        $this->call(IspSubscriptionCostSeeder::class);
+
+        // Division's answers to the 27-question Internet Connectivity
+        // survey. Depends on ReferenceDataSeeder above (isp_providers,
+        // connectivity_libraries, stakeholder_libraries).
+        $this->call(InternetConnectivitySurveySeeder::class);
+
+        // Division's answers to the Stakeholder Profile sheet, attached to
+        // office_id 74 (OSDS-OFFICE OF THE SCHOOLS DIVISION SUPERINTENDENT
+        // — see StakeholderProfileSeeder's doc-comment for why). Depends on
+        // OfficeSeeder, PsgcProvinceSeeder/PsgcMunicipalitySeeder/
+        // PsgcBarangaySeeder, and ReferenceDataSeeder (stakeholder_libraries)
+        // above.
+        $this->call(StakeholderProfileSeeder::class);
     }
 }

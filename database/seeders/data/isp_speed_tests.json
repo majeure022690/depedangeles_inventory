@@ -1,0 +1,42 @@
+[
+    {
+        "isp": "CONVERGE",
+        "isp_billing_account_number": "1474702237179",
+        "download_speed": 711.37,
+        "upload_speed": 711.52,
+        "ping": 7,
+        "tested_at": "2026-02-05 08:48:00",
+        "signal_quality": "Stable",
+        "rate_isp_service": 4
+    },
+    {
+        "isp": "CONVERGE",
+        "isp_billing_account_number": "20231180824",
+        "download_speed": 49.41,
+        "upload_speed": 48.63,
+        "ping": 2,
+        "tested_at": "2026-02-05 08:52:00",
+        "signal_quality": "Stable",
+        "rate_isp_service": 4
+    },
+    {
+        "isp": "CONVERGE",
+        "isp_billing_account_number": "20231180822",
+        "download_speed": 48.23,
+        "upload_speed": 48.58,
+        "ping": 2,
+        "tested_at": "2026-02-05 08:54:00",
+        "signal_quality": "Stable",
+        "rate_isp_service": 4
+    },
+    {
+        "isp": "CONVERGE",
+        "isp_billing_account_number": "20231128059",
+        "download_speed": 892.75,
+        "upload_speed": 751.89,
+        "ping": 2,
+        "tested_at": "2026-02-05 08:23:00",
+        "signal_quality": "Stable",
+        "rate_isp_service": 4
+    }
+]
