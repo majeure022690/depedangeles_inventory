@@ -102,7 +102,7 @@ class ProfileUpdateTest extends TestCase
 
     /**
      * Regression coverage for the 2026-07 security review's Finding #2:
-     * an account holding `users.manage` (e.g. a Division ICT Admin) could
+     * an account holding `users.manage` (e.g. an Administrator) could
      * self-delete via this same page with no admin review, which is
      * exactly the account whose disappearance can leave the system
      * unadministered. ProfileDeleteRequest now denies self-deletion for

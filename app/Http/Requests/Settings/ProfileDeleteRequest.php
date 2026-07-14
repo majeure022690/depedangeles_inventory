@@ -56,7 +56,7 @@ class ProfileDeleteRequest extends FormRequest
 
         throw new AuthorizationException(
             'Accounts with user-management permissions can\'t delete themselves from this page. '.
-            'Ask another Division ICT Admin to remove this account if it\'s no longer needed.'
+            'Ask another Administrator to remove this account if it\'s no longer needed.'
         );
     }
 

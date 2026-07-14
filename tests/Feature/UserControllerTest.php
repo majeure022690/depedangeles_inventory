@@ -402,7 +402,7 @@ class UserControllerTest extends TestCase
             $this->fail('Expected a ValidationException naming the offending role/permission.');
         } catch (ValidationException $e) {
             $message = $e->errors()['role_ids'][0];
-            $this->assertStringContainsString('Division ICT Admin', $message);
+            $this->assertStringContainsString('Administrator', $message);
             $this->assertStringContainsString(PermissionEnum::RolesManage->value, $message);
         }
     }

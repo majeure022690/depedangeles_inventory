@@ -46,7 +46,7 @@ A user's flat permission list is shared to every Inertia page via `HandleInertia
 
 ### Registration is deny-by-default, not opt-in
 
-A security review (2026-07) flagged that open self-registration exposed real DepEd personnel PII to any verified email address with no admin vetting. The fix: every self-registration is assigned the zero-permission `pending` role (never `viewer`), so a new account is authenticated-and-verified but can access nothing until a Division ICT Admin reviews it and assigns a real role via `/users`. Regression-tested end-to-end in `tests/Feature/Auth/RegistrationApprovalTest.php`.
+A security review (2026-07) flagged that open self-registration exposed real DepEd personnel PII to any verified email address with no admin vetting. The fix: every self-registration is assigned the zero-permission `pending` role (never `viewer`), so a new account is authenticated-and-verified but can access nothing until an Administrator reviews it and assigns a real role via `/users`. Regression-tested end-to-end in `tests/Feature/Auth/RegistrationApprovalTest.php`.
 
 ### Admin-configurable RBAC: `/roles` and `/users`, and the two-tier guard system
 

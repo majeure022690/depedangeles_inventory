@@ -481,7 +481,7 @@ class RoleControllerTest extends TestCase
 
         $this->actingAs($admin)->patch(route('roles.update', $adminRole), [
             'name' => 'division-ict-admin',
-            'label' => 'Division ICT Admin',
+            'label' => 'Administrator',
             'description' => 'Updated description.',
             'permissions' => collect(PermissionEnum::cases())->map->value->all(),
         ])->assertRedirect(route('roles.edit', $adminRole));

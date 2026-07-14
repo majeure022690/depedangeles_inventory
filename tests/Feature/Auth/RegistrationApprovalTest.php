@@ -70,7 +70,7 @@ class RegistrationApprovalTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole(Role::where('name', 'pending')->firstOrFail());
 
-        // Simulates a Division ICT Admin's approval action (no UI yet —
+        // Simulates an Administrator's approval action (no UI yet —
         // see the forward-looking note in the security review; this is
         // the same User::assignRole()/removeRole() a future users.manage
         // UI would call).

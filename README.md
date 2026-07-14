@@ -2,7 +2,7 @@
 
 A server-driven Laravel + Inertia + Vue application for a DepEd (Department of Education) **Division Office** to track ICT equipment, personnel, ISP/connectivity accounts, and internet-connectivity survey data in one place — replacing the spreadsheet workbook the office previously maintained by hand.
 
-Built for the ICT unit of a single division office: encoders enter and maintain records day-to-day, viewers get read-only access for reporting/auditing, and a Division ICT Admin manages user roles and full CRUD across every module.
+Built for the ICT unit of a single division office: encoders enter and maintain records day-to-day, viewers get read-only access for reporting/auditing, and an Administrator manages user roles and full CRUD across every module.
 
 ## What it does
 

@@ -26,7 +26,7 @@ class RolePermissionSeeder extends Seeder
         return [
             // Deny-by-default holding pen for self-registered accounts.
             // Zero permissions, deliberately — this is not "least
-            // privilege", it's NO privilege, until a Division ICT Admin
+            // privilege", it's NO privilege, until an Administrator
             // reviews the account and assigns a real role. See
             // CreateNewUser, which grants this role (never 'viewer') to
             // every new self-registration. A user whose only role is this
@@ -37,12 +37,12 @@ class RolePermissionSeeder extends Seeder
             'pending' => [
                 'label' => 'Pending Approval',
                 'description' => 'No permissions. Automatically assigned to every new self-registration; '.
-                    'grants access to nothing until a Division ICT Admin reviews the account and assigns a '.
+                    'grants access to nothing until an Administrator reviews the account and assigns a '.
                     'real role.',
                 'permissions' => [],
             ],
             'division-ict-admin' => [
-                'label' => 'Division ICT Admin',
+                'label' => 'Administrator',
                 'description' => 'Full access — all permissions, including reference-data, role, and user '.
                     'administration.',
                 // Every permission that exists — this is the only role
@@ -90,7 +90,7 @@ class RolePermissionSeeder extends Seeder
             'viewer' => [
                 'label' => 'Viewer',
                 'description' => 'Read-only access to Personnel, Equipment, ISP account, Stakeholder Profile, and '.
-                    'Internet Connectivity Survey records. Assigned manually by a Division ICT Admin once an '.
+                    'Internet Connectivity Survey records. Assigned manually by an Administrator once an '.
                     'account is approved — never granted automatically to new self-registrations (see \'pending\').',
                 'permissions' => [
                     PermissionEnum::PersonnelView,

@@ -56,7 +56,7 @@ Both lockout guards run inside the same DB transaction as the write, behind a ro
 ## Flow: how a user gets a role
 
 1. **Self-registration** (Fortify's `CreateNewUser` action) assigns `pending` — zero permissions — never `viewer`. The account is authenticated-and-email-verified but can access nothing.
-2. A **Division ICT Admin** (or any `users.manage` holder) reviews the account at `/users` and assigns real role(s) via `PATCH /users/{user}`, which calls `UserRoleService::syncRoles()`.
+2. An **Administrator** (or any `users.manage` holder) reviews the account at `/users` and assigns real role(s) via `PATCH /users/{user}`, which calls `UserRoleService::syncRoles()`.
 3. `syncRoles()` replaces the target's entire role set with the submitted `role_ids` array — a user may end up holding more than one role.
 4. Every role-set change is audited (`user.roles_changed`, with before/after role id and name lists). Every role-definition change is audited separately (`role.created`/`role.updated`/`role.deleted`).
 
