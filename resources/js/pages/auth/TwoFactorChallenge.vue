@@ -3,12 +3,14 @@ import { Form, Head, setLayoutProps } from '@inertiajs/vue3';
 import { computed, ref, watchEffect } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
     InputOTP,
     InputOTPGroup,
     InputOTPSlot,
 } from '@/components/ui/input-otp';
+import { Label } from '@/components/ui/label';
 import { store } from '@/routes/two-factor/login';
 import type { TwoFactorConfigContent } from '@/types';
 
@@ -82,6 +84,10 @@ const toggleRecoveryMode = (clearErrors: () => void): void => {
                     </div>
                     <InputError :message="errors.code" />
                 </div>
+                <Label for="remember_device" class="flex items-center space-x-3">
+                    <Checkbox id="remember_device" name="remember_device" />
+                    <span>Remember this device for 30 days</span>
+                </Label>
                 <Button type="submit" class="w-full" :disabled="processing"
                     >Continue</Button
                 >
@@ -113,6 +119,10 @@ const toggleRecoveryMode = (clearErrors: () => void): void => {
                     required
                 />
                 <InputError :message="errors.recovery_code" />
+                <Label for="remember_device" class="flex items-center space-x-3">
+                    <Checkbox id="remember_device" name="remember_device" />
+                    <span>Remember this device for 30 days</span>
+                </Label>
                 <Button type="submit" class="w-full" :disabled="processing"
                     >Continue</Button
                 >

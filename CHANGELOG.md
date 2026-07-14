@@ -2,6 +2,31 @@
 
 All notable changes to this project, in terms of user/developer impact. Dates are reconstructed from migration filename timestamps and source file modification times (there is no git history yet — this project has not been initialized as a git repository) and are accurate to the day for entries backed by a migration timestamp; entries reconstructed from file mtimes alone are noted as such and may be off by a day where work spanned a day boundary.
 
+## 2026-07-14
+
+### Added
+
+- **"Remember this device" for two-factor authentication.** 2FA-enrolled users were being challenged on every login with no way to trust a device they'd already verified. Adds a "Remember this device for 30 days" checkbox to the 2FA challenge screen (both the authenticator-code and recovery-code forms). Backed by `two_factor_trusted_devices` (per-user, hashed token, `expires_at`) and an `httpOnly`/`secure` cookie holding the raw token — never a bare unrevocable signed cookie. Implemented by extending Fortify (never forking it): `App\Actions\Fortify\RedirectIfTwoFactorAuthenticatable` and `App\Actions\Fortify\TwoFactorLoginResponse` override the stock actions via container binding in `FortifyServiceProvider`. See `docs/features/two-factor-trusted-devices.md`.
+- **Confirmation dialog before logging out.** Clicking "Log out" in the navbar user menu previously logged out immediately; it now opens a confirm dialog first, matching the existing "Delete account" `Dialog` pattern.
+- **11-agent roster implemented as real Claude Code subagents** (`.claude/agents/*.md`). `CLAUDE.md` has documented this project's specialist-agent routing table since the initial commit, but the actual subagent definition files backing it never existed until now — each agent's scope and conventions are grounded in this project's own documented decisions, not generic Laravel advice.
+
+### Changed
+
+- **Stakeholder Profile moved from the main sidebar into Settings as its own tab.** It's a singleton (one record per division office, no list view), so it fits the same edit-form pattern as the Profile/Security/Appearance settings tabs better than a top-level list-style nav item. `SettingsLayout` gained a `wide` prop so this tab's multi-column form isn't squeezed into the other tabs' narrow single-column width.
+- **Logged-in user menu moved from the sidebar footer into the navbar.** `NavUser.vue` (sidebar `SidebarFooter`) removed; the same avatar/dropdown (reusing `UserInfo`/`UserMenuContent`) now lives in `AppSidebarHeader.vue`.
+- **Declared PHP floor corrected from `^8.3` to `^8.4`.** `composer.json` claimed `^8.3` while `composer.lock` had already resolved `symfony/clock` to a version requiring PHP `>=8.4.1` — the lock file never actually satisfied the declared floor, silently breaking any environment/CI still targeting 8.3. `composer.lock` only changed its content-hash/platform metadata; no package versions moved.
+
+### Fixed
+
+- **Sidebar tooltips getting stuck open when navigating.** The active sidebar item rendered as a plain `<a>` while every other item rendered as an Inertia `<Link>`, so navigating swapped element types and forced Vue to destroy/recreate the tooltip's trigger node mid-hover, orphaning its open state. Every item now renders the same stable `<a>`, with navigation dispatched manually so the already-active item still no-ops instead of re-visiting itself.
+- **Theme-toggle icon SSR/hydration mismatch.** The Sun/Moon icon swapped via `v-if`/`v-else` on a value that calls `window.matchMedia` — unavailable during SSR, so the server always rendered Sun regardless of the real OS theme, mismatching the client's first hydration pass for any dark-mode user. Both icons now always render (identical vdom on server and client); visibility is toggled with `dark:hidden`/`dark:block`, driven by the `.dark` class `app.blade.php`'s inline script already applies synchronously before Vue mounts.
+
+### Removed
+
+- **Starter-kit Repository/Documentation links** removed from the sidebar footer (pointed at the upstream `laravel/vue-starter-kit` repo, not this project) — `NavFooter.vue` deleted outright.
+- **Unused header-nav layout** (`AppHeaderLayout.vue`, `AppHeader.vue`, and the now-orphaned `navigation-menu` shadcn primitive) — dead code from the starter kit, never wired to a route since `AppLayout.vue` only ever renders `AppSidebarLayout`.
+- **GitHub Actions CI workflows** (`lint.yml`, `tests.yml`) removed entirely — no CI runs on push in this repo anymore.
+
 ## 2026-07-13
 
 ### Changed
