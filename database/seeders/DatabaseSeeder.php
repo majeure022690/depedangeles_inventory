@@ -19,10 +19,10 @@ class DatabaseSeeder extends Seeder
 
         $this->call(RolePermissionSeeder::class);
 
-        $testUser = User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        $testUser = User::firstOrCreate(
+            ['email' => 'test@example.com'],
+            User::factory()->raw(['name' => 'Test User']),
+        );
         $testUser->assignRole('admin');
 
         // The 13 Tier 1/Tier 2 reference tables from the lookup-
@@ -41,5 +41,20 @@ class DatabaseSeeder extends Seeder
         $this->call(PsgcProvinceSeeder::class);
         $this->call(PsgcMunicipalitySeeder::class);
         $this->call(PsgcBarangaySeeder::class);
+
+        // Division personnel roster, imported from the source Excel
+        // workbook. Depends on ReferenceDataSeeder above — resolves
+        // position_id/sdo_office_id against the positions/sdo_offices
+        // tables it seeds.
+        $this->call(PersonnelSeeder::class);
+
+        // Division asset register (equipment + paired Beginning Inventory
+        // equipment_transactions rows), imported from the source Excel
+        // workbook. Depends on ReferenceDataSeeder above (item_types/
+        // brands/equipment_categories/equipment_classifications/
+        // equipment_conditions/equipment_libraries) and PersonnelSeeder
+        // immediately above (resolves accountable_officer_id against the
+        // personnel table it seeds).
+        $this->call(EquipmentSeeder::class);
     }
 }
