@@ -39,7 +39,7 @@ class EquipmentStoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'property_no' => ['required', 'string', 'max:255', Rule::unique('equipment', 'property_no')],
+            'property_no' => ['nullable', 'string', 'max:255', Rule::unique('equipment', 'property_no')],
             'old_property_no' => ['nullable', 'string', 'max:255'],
             'serial_number' => ['nullable', 'string', 'max:255'],
 
@@ -59,7 +59,7 @@ class EquipmentStoreRequest extends FormRequest
             'gl_sl_code' => ['nullable', 'string', 'max:255'],
             'uacs' => ['nullable', 'string', 'max:255'],
 
-            'acquisition_cost' => ['required', 'numeric', 'min:0'],
+            'acquisition_cost' => ['nullable', 'numeric', 'min:0'],
             'received_date' => ['nullable', 'date'],
             'estimated_useful_life' => ['nullable', 'integer', 'min:0'],
 

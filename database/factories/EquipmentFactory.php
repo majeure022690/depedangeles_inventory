@@ -107,6 +107,23 @@ class EquipmentFactory extends Factory
     }
 
     /**
+     * Registered but awaiting Asset Management Office assignment of a
+     * property number and/or acquisition cost — a real, ongoing workflow
+     * state (not a historical-import artifact), per
+     * 2026_07_14_132356_make_property_no_and_acquisition_cost_nullable_on_equipment_table's
+     * doc-comment. `property_no` must stay unique when non-null, but here
+     * it's null outright, so the default state's unique() sequence call
+     * is simply never generated for these rows.
+     */
+    public function pending(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'property_no' => null,
+            'acquisition_cost' => null,
+        ]);
+    }
+
+    /**
      * Resolves a random existing row's id from a Tier 1 reference table
      * (lookup-normalization ADR) for realistic variety when
      * ReferenceDataSeeder has run, falling back to creating one minimal

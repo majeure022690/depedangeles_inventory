@@ -30,7 +30,7 @@ class EquipmentUpdateRequest extends FormRequest
     {
         return [
             'property_no' => [
-                'required', 'string', 'max:255',
+                'nullable', 'string', 'max:255',
                 Rule::unique('equipment', 'property_no')->ignore($this->route('equipment')),
             ],
             'old_property_no' => ['nullable', 'string', 'max:255'],
@@ -52,7 +52,7 @@ class EquipmentUpdateRequest extends FormRequest
             'gl_sl_code' => ['nullable', 'string', 'max:255'],
             'uacs' => ['nullable', 'string', 'max:255'],
 
-            'acquisition_cost' => ['required', 'numeric', 'min:0'],
+            'acquisition_cost' => ['nullable', 'numeric', 'min:0'],
             'received_date' => ['nullable', 'date'],
             'estimated_useful_life' => ['nullable', 'integer', 'min:0'],
 

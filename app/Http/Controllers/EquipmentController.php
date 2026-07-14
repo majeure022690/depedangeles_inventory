@@ -112,6 +112,14 @@ class EquipmentController extends Controller
                 'equipmentCategory:id,name',
                 'equipmentCondition:id,name',
             ])
+            // property_no is nullable now (pending-registration equipment
+            // awaiting a property number). MySQL sorts NULL first on a
+            // plain ASC orderBy, which would bury every already-tagged
+            // item under a page of pending ones. Push nulls to the end
+            // instead so the primary, fully-registered inventory listing
+            // stays the default view; pending rows are still fully visible
+            // further down/on later pages, just not first.
+            ->orderByRaw('property_no IS NULL')
             ->orderBy('property_no')
             ->paginate(15)
             ->withQueryString()
@@ -125,7 +133,10 @@ class EquipmentController extends Controller
                 'category' => $item->equipmentCategory?->name,
                 'equipment_condition' => $item->equipmentCondition?->name,
                 'disposition_status' => $item->disposition_status,
-                'acquisition_cost' => (float) $item->acquisition_cost,
+                // Cast only when present: (float) null would silently
+                // become 0.0, misrepresenting "pending, cost not yet on
+                // file" as "acquisition cost is zero".
+                'acquisition_cost' => $item->acquisition_cost !== null ? (float) $item->acquisition_cost : null,
                 'current_accountable_officer' => $item->currentAccountableOfficer?->only(['id', 'full_name']),
                 'current_end_user' => $item->currentEndUser?->only(['id', 'full_name']),
             ]);
@@ -265,7 +276,7 @@ class EquipmentController extends Controller
 
         return response($result->getString(), 200, [
             'Content-Type' => $result->getMimeType(),
-            'Content-Disposition' => sprintf('inline; filename="equipment-%s-qr.png"', $equipment->property_no),
+            'Content-Disposition' => sprintf('inline; filename="equipment-%s-qr.png"', $equipment->property_no ?? $equipment->id),
         ]);
     }
 
@@ -317,7 +328,9 @@ class EquipmentController extends Controller
             'equipment_classification_id' => $equipment->equipment_classification_id,
             'gl_sl_code' => $equipment->gl_sl_code,
             'uacs' => $equipment->uacs,
-            'acquisition_cost' => (float) $equipment->acquisition_cost,
+            // Same null-preserving cast as index()'s through() mapping —
+            // see that comment for why (float) alone is wrong here.
+            'acquisition_cost' => $equipment->acquisition_cost !== null ? (float) $equipment->acquisition_cost : null,
             'received_date' => $equipment->received_date?->toDateString(),
             'estimated_useful_life' => $equipment->estimated_useful_life,
             'mode_acquisition' => $equipment->mode_acquisition,

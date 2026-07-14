@@ -57,8 +57,14 @@ class EquipmentControllerTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole('encoder');
 
+        // property_no and acquisition_cost are deliberately absent here:
+        // both are nullable now (equipment can be registered "pending" an
+        // Asset Management Office-assigned property number/cost — see
+        // 2026_07_14_132356's migration), so an empty payload must NOT
+        // produce validation errors for either.
         $this->actingAs($user)->post(route('equipment.store'), [])
-            ->assertSessionHasErrors(['property_no', 'item_type_id', 'uom', 'brand_id', 'equipment_category_id']);
+            ->assertSessionHasErrors(['item_type_id', 'uom', 'brand_id', 'equipment_category_id'])
+            ->assertSessionDoesntHaveErrors(['property_no', 'acquisition_cost']);
 
         $itemTypeId = ItemType::where('name', 'Laptop')->value('id');
         $brandId = Brand::where('name', 'Dell')->value('id');
@@ -98,6 +104,81 @@ class EquipmentControllerTest extends TestCase
         $this->assertSame('High-value', $equipment->equipmentCategory->name);
         $this->assertSame($conditionId, $equipment->equipment_condition_id);
         $this->assertSame('Serviceable', $equipment->equipmentCondition->name);
+    }
+
+    public function test_store_creates_a_pending_record_without_property_no_or_acquisition_cost(): void
+    {
+        $this->seed(ReferenceDataSeeder::class);
+        $this->seed(RolePermissionSeeder::class);
+        $user = User::factory()->create();
+        $user->assignRole('encoder');
+
+        $itemTypeId = ItemType::where('name', 'Laptop')->value('id');
+        $brandId = Brand::where('name', 'Dell')->value('id');
+        $categoryId = EquipmentCategory::where('name', 'High-value')->value('id');
+        $classificationId = EquipmentClassification::query()->active()->value('id');
+        $conditionId = EquipmentCondition::where('name', 'Serviceable')->value('id');
+
+        $response = $this->actingAs($user)->post(route('equipment.store'), [
+            'item_type_id' => $itemTypeId,
+            'uom' => 'Piece',
+            'brand_id' => $brandId,
+            'equipment_category_id' => $categoryId,
+            'equipment_classification_id' => $classificationId,
+            'mode_acquisition' => 'DepEd Purchase',
+            'source_acquisition' => 'Central Office',
+            'source_fund' => 'Maintenance and Other Operating Expenses (MOOE)',
+            'allotment_class' => 'Maintenance and Other Operating Expenses (MOOE)',
+            'equipment_condition_id' => $conditionId,
+            'disposition_status' => 'Normal',
+        ]);
+
+        $response->assertSessionDoesntHaveErrors();
+        $equipment = Equipment::query()->whereNull('property_no')->latest('id')->firstOrFail();
+        $response->assertRedirect(route('equipment.edit', $equipment));
+
+        $this->assertNull($equipment->property_no);
+        $this->assertNull($equipment->acquisition_cost);
+    }
+
+    public function test_store_allows_a_second_pending_record_with_no_property_no(): void
+    {
+        $this->seed(ReferenceDataSeeder::class);
+        $this->seed(RolePermissionSeeder::class);
+        $user = User::factory()->create();
+        $user->assignRole('encoder');
+
+        Equipment::factory()->pending()->create([
+            'item_type_id' => ItemType::where('name', 'Laptop')->value('id'),
+            'brand_id' => Brand::where('name', 'Dell')->value('id'),
+            'equipment_category_id' => EquipmentCategory::where('name', 'High-value')->value('id'),
+            'equipment_classification_id' => EquipmentClassification::query()->active()->value('id'),
+            'equipment_condition_id' => EquipmentCondition::where('name', 'Serviceable')->value('id'),
+            'uom' => 'Piece',
+            'disposition_status' => 'Normal',
+            'mode_acquisition' => 'DepEd Purchase',
+            'source_acquisition' => 'Central Office',
+            'source_fund' => 'Maintenance and Other Operating Expenses (MOOE)',
+            'allotment_class' => 'Maintenance and Other Operating Expenses (MOOE)',
+        ]);
+
+        $response = $this->actingAs($user)->post(route('equipment.store'), [
+            'item_type_id' => ItemType::where('name', 'Laptop')->value('id'),
+            'uom' => 'Piece',
+            'brand_id' => Brand::where('name', 'Dell')->value('id'),
+            'equipment_category_id' => EquipmentCategory::where('name', 'High-value')->value('id'),
+            'equipment_classification_id' => EquipmentClassification::query()->active()->value('id'),
+            'mode_acquisition' => 'DepEd Purchase',
+            'source_acquisition' => 'Central Office',
+            'source_fund' => 'Maintenance and Other Operating Expenses (MOOE)',
+            'allotment_class' => 'Maintenance and Other Operating Expenses (MOOE)',
+            'equipment_condition_id' => EquipmentCondition::where('name', 'Serviceable')->value('id'),
+            'disposition_status' => 'Normal',
+        ]);
+
+        // A second NULL property_no must not trip the unique() rule.
+        $response->assertSessionDoesntHaveErrors(['property_no']);
+        $this->assertSame(2, Equipment::whereNull('property_no')->count());
     }
 
     public function test_store_rejects_a_nonexistent_item_type_id(): void
