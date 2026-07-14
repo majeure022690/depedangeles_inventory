@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
+import FieldHint from '@/components/FieldHint.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,9 +70,16 @@ function formatDate(value: string | null): string {
             <form class="space-y-6" @submit.prevent="submit">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div class="grid gap-2 sm:col-span-2">
-                        <Label for="transaction_type">Transaction type</Label>
+                        <div class="flex items-center gap-1.5">
+                            <Label for="transaction_type">Transaction type</Label>
+                            <FieldHint
+                                for="transaction_type"
+                                label="Transaction type"
+                                text="Select the appropriate Transaction Type from the dropdown list. For the initial transaction, choose 'Beginning Inventory.' For subsequent transactions, including movements, transfers, or updates, select the Transaction Type that corresponds to the specific activity."
+                            />
+                        </div>
                         <Select v-model="form.transaction_type">
-                            <SelectTrigger id="transaction_type" class="w-full">
+                            <SelectTrigger id="transaction_type" class="w-full" aria-describedby="transaction_type-hint">
                                 <SelectValue placeholder="Select a transaction type" />
                             </SelectTrigger>
                             <SelectContent>
@@ -88,9 +96,16 @@ function formatDate(value: string | null): string {
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="accountable_officer_id">Accountable officer</Label>
+                        <div class="flex items-center gap-1.5">
+                            <Label for="accountable_officer_id">Accountable officer</Label>
+                            <FieldHint
+                                for="accountable_officer_id"
+                                label="Accountable officer"
+                                text="Choose the employee accountable for the equipment from the dropdown."
+                            />
+                        </div>
                         <Select v-model="form.accountable_officer_id">
-                            <SelectTrigger id="accountable_officer_id" class="w-full">
+                            <SelectTrigger id="accountable_officer_id" class="w-full" aria-describedby="accountable_officer_id-hint">
                                 <SelectValue placeholder="Select personnel" />
                             </SelectTrigger>
                             <SelectContent>
@@ -106,19 +121,34 @@ function formatDate(value: string | null): string {
                         <InputError :message="form.errors.accountable_officer_id" />
                     </div>
                     <div class="grid gap-2">
-                        <Label for="date_assigned_accountable_officer">Date assigned</Label>
+                        <div class="flex items-center gap-1.5">
+                            <Label for="date_assigned_accountable_officer">Date assigned</Label>
+                            <FieldHint
+                                for="date_assigned_accountable_officer"
+                                label="Date assigned (accountable officer)"
+                                text="Enter the date when the equipment was received by the Accountable Officer in the 'MM/DD/YYYY' format."
+                            />
+                        </div>
                         <Input
                             id="date_assigned_accountable_officer"
                             v-model="form.date_assigned_accountable_officer"
                             type="date"
+                            aria-describedby="date_assigned_accountable_officer-hint"
                         />
                         <InputError :message="form.errors.date_assigned_accountable_officer" />
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="end_user_id">End user</Label>
+                        <div class="flex items-center gap-1.5">
+                            <Label for="end_user_id">End user</Label>
+                            <FieldHint
+                                for="end_user_id"
+                                label="End user"
+                                text="Select the Custodian or End User from the dropdown to whom the equipment is assigned."
+                            />
+                        </div>
                         <Select v-model="form.end_user_id">
-                            <SelectTrigger id="end_user_id" class="w-full">
+                            <SelectTrigger id="end_user_id" class="w-full" aria-describedby="end_user_id-hint">
                                 <SelectValue placeholder="Select personnel" />
                             </SelectTrigger>
                             <SelectContent>
@@ -134,19 +164,34 @@ function formatDate(value: string | null): string {
                         <InputError :message="form.errors.end_user_id" />
                     </div>
                     <div class="grid gap-2">
-                        <Label for="date_assigned_end_user">Date assigned</Label>
+                        <div class="flex items-center gap-1.5">
+                            <Label for="date_assigned_end_user">Date assigned</Label>
+                            <FieldHint
+                                for="date_assigned_end_user"
+                                label="Date assigned (end user)"
+                                text="Enter the date when the equipment was received by the Custodian/End User in the 'MM/DD/YYYY' format."
+                            />
+                        </div>
                         <Input
                             id="date_assigned_end_user"
                             v-model="form.date_assigned_end_user"
                             type="date"
+                            aria-describedby="date_assigned_end_user-hint"
                         />
                         <InputError :message="form.errors.date_assigned_end_user" />
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="received_by_id">Received by</Label>
+                        <div class="flex items-center gap-1.5">
+                            <Label for="received_by_id">Received by</Label>
+                            <FieldHint
+                                for="received_by_id"
+                                label="Received by"
+                                text="Choose the new Accountable Officer, Custodian, or End User from the dropdown for the newly assigned equipment."
+                            />
+                        </div>
                         <Select v-model="form.received_by_id">
-                            <SelectTrigger id="received_by_id" class="w-full">
+                            <SelectTrigger id="received_by_id" class="w-full" aria-describedby="received_by_id-hint">
                                 <SelectValue placeholder="Select personnel" />
                             </SelectTrigger>
                             <SelectContent>
@@ -162,19 +207,34 @@ function formatDate(value: string | null): string {
                         <InputError :message="form.errors.received_by_id" />
                     </div>
                     <div class="grid gap-2">
-                        <Label for="date_received_new_accountable">Date received</Label>
+                        <div class="flex items-center gap-1.5">
+                            <Label for="date_received_new_accountable">Date received</Label>
+                            <FieldHint
+                                for="date_received_new_accountable"
+                                label="Date received"
+                                text="Enter the date when the new Accountable Officer, Custodian, or End User received the equipment in the 'MM/DD/YYYY' format."
+                            />
+                        </div>
                         <Input
                             id="date_received_new_accountable"
                             v-model="form.date_received_new_accountable"
                             type="date"
+                            aria-describedby="date_received_new_accountable-hint"
                         />
                         <InputError :message="form.errors.date_received_new_accountable" />
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="supporting_documents1">Supporting document 1</Label>
+                        <div class="flex items-center gap-1.5">
+                            <Label for="supporting_documents1">Supporting document 1</Label>
+                            <FieldHint
+                                for="supporting_documents1"
+                                label="Supporting document 1"
+                                text="Select the appropriate document type from the dropdown to identify the transaction. This typically pertains to deliveries, inspection reports, and the initial setup of beginning inventory."
+                            />
+                        </div>
                         <Select v-model="form.supporting_documents1">
-                            <SelectTrigger id="supporting_documents1" class="w-full">
+                            <SelectTrigger id="supporting_documents1" class="w-full" aria-describedby="supporting_documents1-hint">
                                 <SelectValue placeholder="Select a document type" />
                             </SelectTrigger>
                             <SelectContent>
@@ -190,15 +250,29 @@ function formatDate(value: string | null): string {
                         <InputError :message="form.errors.supporting_documents1" />
                     </div>
                     <div class="grid gap-2">
-                        <Label for="or_si_dr_iar_no">OR/SI/DR/IAR no.</Label>
-                        <Input id="or_si_dr_iar_no" v-model="form.or_si_dr_iar_no" />
+                        <div class="flex items-center gap-1.5">
+                            <Label for="or_si_dr_iar_no">OR/SI/DR/IAR no.</Label>
+                            <FieldHint
+                                for="or_si_dr_iar_no"
+                                label="OR/SI/DR/IAR no."
+                                text="Enter the document number for the transaction (e.g., delivery, inspection, or transfer) to ensure proper tracking and identification of the equipment."
+                            />
+                        </div>
+                        <Input id="or_si_dr_iar_no" v-model="form.or_si_dr_iar_no" aria-describedby="or_si_dr_iar_no-hint" />
                         <InputError :message="form.errors.or_si_dr_iar_no" />
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="supporting_documents2">Supporting document 2</Label>
+                        <div class="flex items-center gap-1.5">
+                            <Label for="supporting_documents2">Supporting document 2</Label>
+                            <FieldHint
+                                for="supporting_documents2"
+                                label="Supporting document 2"
+                                text="Select the appropriate document type from the dropdown to identify the transaction. This typically applies to Issuances, Transfers, Returns, Stock Reports, or Waste Material."
+                            />
+                        </div>
                         <Select v-model="form.supporting_documents2">
-                            <SelectTrigger id="supporting_documents2" class="w-full">
+                            <SelectTrigger id="supporting_documents2" class="w-full" aria-describedby="supporting_documents2-hint">
                                 <SelectValue placeholder="Select a document type" />
                             </SelectTrigger>
                             <SelectContent>
@@ -214,8 +288,15 @@ function formatDate(value: string | null): string {
                         <InputError :message="form.errors.supporting_documents2" />
                     </div>
                     <div class="grid gap-2">
-                        <Label for="par_ics_rrsp_rs_wmr_no">PAR/ICS/RRSP/RS/WMR no.</Label>
-                        <Input id="par_ics_rrsp_rs_wmr_no" v-model="form.par_ics_rrsp_rs_wmr_no" />
+                        <div class="flex items-center gap-1.5">
+                            <Label for="par_ics_rrsp_rs_wmr_no">PAR/ICS/RRSP/RS/WMR no.</Label>
+                            <FieldHint
+                                for="par_ics_rrsp_rs_wmr_no"
+                                label="PAR/ICS/RRSP/RS/WMR no."
+                                text="Input the document number to track and properly identify the transaction."
+                            />
+                        </div>
+                        <Input id="par_ics_rrsp_rs_wmr_no" v-model="form.par_ics_rrsp_rs_wmr_no" aria-describedby="par_ics_rrsp_rs_wmr_no-hint" />
                         <InputError :message="form.errors.par_ics_rrsp_rs_wmr_no" />
                     </div>
                 </div>
