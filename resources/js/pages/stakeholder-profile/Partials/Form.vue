@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { InertiaForm } from '@inertiajs/vue3';
+import type { AcceptableValue } from 'reka-ui';
 import { computed, ref } from 'vue';
 import CheckboxGroupField from '@/components/CheckboxGroupField.vue';
 import InputError from '@/components/InputError.vue';
@@ -44,6 +45,63 @@ function nullableSelect(field: 'governance_level' | 'transaction_type') {
 
 const governanceLevelModel = nullableSelect('governance_level');
 const transactionTypeModel = nullableSelect('transaction_type');
+
+/**
+ * Same NONE-sentinel pattern as nullableSelect() above, translated to/from
+ * `null` instead of `''` — same convention as Personnel's position_id/
+ * ro_office_id/sdo_office_id nullableIdSelect().
+ */
+function nullableIdSelect(field: 'province_id' | 'municipality_id' | 'barangay_id') {
+    return computed<number | typeof NONE>({
+        get: () => props.form[field] ?? NONE,
+        set: (value: number | typeof NONE) => {
+            // eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object.
+            props.form[field] = value === NONE ? null : Number(value);
+        },
+    });
+}
+
+const provinceModel = nullableIdSelect('province_id');
+const municipalityModel = nullableIdSelect('municipality_id');
+const barangayModel = nullableIdSelect('barangay_id');
+
+/**
+ * Cascading dropdowns: the full PSGC hierarchy ships in one page load
+ * (see StakeholderProfileController::formOptions()), filtered client-side
+ * by the parent's selected id rather than round-tripping per selection.
+ */
+const filteredMunicipalities = computed(() =>
+    props.form.province_id === null
+        ? []
+        : props.options.municipality.filter((municipality) => municipality.parent_id === props.form.province_id),
+);
+
+const filteredBarangays = computed(() =>
+    props.form.municipality_id === null
+        ? []
+        : props.options.barangay.filter((barangay) => barangay.parent_id === props.form.municipality_id),
+);
+
+/**
+ * Changing a parent invalidates whatever child was selected under the
+ * previous parent (e.g. picking a different province leaves a
+ * municipality_id that no longer belongs to it) — clear the child (and
+ * its own child, transitively) rather than silently saving a mismatched
+ * combination.
+ */
+function onProvinceChange(value: AcceptableValue) {
+    provinceModel.value = value as number | typeof NONE;
+    // eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object.
+    props.form.municipality_id = null;
+    // eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object.
+    props.form.barangay_id = null;
+}
+
+function onMunicipalityChange(value: AcceptableValue) {
+    municipalityModel.value = value as number | typeof NONE;
+    // eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object.
+    props.form.barangay_id = null;
+}
 
 const sections = [
     { id: 'location', label: 'Location' },
@@ -93,16 +151,38 @@ const activeSection = ref(sections[0].id);
             <legend class="px-1 text-base font-medium">1. Location</legend>
             <div class="grid gap-4 sm:grid-cols-2">
                 <div class="grid gap-2">
-                    <Label for="province">Province</Label>
-                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="province" v-model="form.province" :disabled="disabled" />
-                    <InputError :message="form.errors.province" />
+                    <Label for="province_id">Province</Label>
+                    <Select :model-value="provinceModel" :disabled="disabled" @update:model-value="onProvinceChange">
+                        <SelectTrigger id="province_id" class="w-full">
+                            <SelectValue placeholder="None" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem :value="NONE">None</SelectItem>
+                            <SelectItem v-for="opt in options.province" :key="opt.value" :value="opt.value">
+                                {{ opt.label }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <InputError :message="form.errors.province_id" />
                 </div>
                 <div class="grid gap-2">
-                    <Label for="city_municipality">City / Municipality</Label>
-                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="city_municipality" v-model="form.city_municipality" :disabled="disabled" />
-                    <InputError :message="form.errors.city_municipality" />
+                    <Label for="municipality_id">City / Municipality</Label>
+                    <Select
+                        :model-value="municipalityModel"
+                        :disabled="disabled || form.province_id === null"
+                        @update:model-value="onMunicipalityChange"
+                    >
+                        <SelectTrigger id="municipality_id" class="w-full">
+                            <SelectValue :placeholder="form.province_id === null ? 'Select a province first' : 'None'" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem :value="NONE">None</SelectItem>
+                            <SelectItem v-for="opt in filteredMunicipalities" :key="opt.value" :value="opt.value">
+                                {{ opt.label }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <InputError :message="form.errors.municipality_id" />
                 </div>
                 <div class="grid gap-2">
                     <Label for="legislative_district">Legislative district</Label>
@@ -111,22 +191,25 @@ const activeSection = ref(sections[0].id);
                     <InputError :message="form.errors.legislative_district" />
                 </div>
                 <div class="grid gap-2">
-                    <Label for="barangay">Barangay</Label>
-                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="barangay" v-model="form.barangay" :disabled="disabled" />
-                    <InputError :message="form.errors.barangay" />
+                    <Label for="barangay_id">Barangay</Label>
+                    <Select v-model="barangayModel" :disabled="disabled || form.municipality_id === null">
+                        <SelectTrigger id="barangay_id" class="w-full">
+                            <SelectValue :placeholder="form.municipality_id === null ? 'Select a municipality first' : 'None'" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem :value="NONE">None</SelectItem>
+                            <SelectItem v-for="opt in filteredBarangays" :key="opt.value" :value="opt.value">
+                                {{ opt.label }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <InputError :message="form.errors.barangay_id" />
                 </div>
                 <div class="grid gap-2">
                     <Label for="street">Street</Label>
                     <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
                     <Input id="street" v-model="form.street" :disabled="disabled" />
                     <InputError :message="form.errors.street" />
-                </div>
-                <div class="grid gap-2">
-                    <Label for="psgc">PSGC</Label>
-                    <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
-                    <Input id="psgc" v-model="form.psgc" :disabled="disabled" />
-                    <InputError :message="form.errors.psgc" />
                 </div>
                 <div class="grid gap-2 sm:col-span-2">
                     <Label for="complete_address">Complete address</Label>

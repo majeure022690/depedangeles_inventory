@@ -11,6 +11,9 @@ use App\Http\Requests\StakeholderProfileUpdateRequest;
 use App\Models\AuditLog;
 use App\Models\EquipmentLibrary;
 use App\Models\Office;
+use App\Models\PsgcBarangay;
+use App\Models\PsgcMunicipality;
+use App\Models\PsgcProvince;
 use App\Models\StakeholderLibrary;
 use App\Models\StakeholderProfile;
 use Illuminate\Http\RedirectResponse;
@@ -69,16 +72,7 @@ class StakeholderProfileController extends Controller
         $this->authorize('view', new StakeholderProfile(['office_id' => $office->id]));
 
         $stakeholderProfile = StakeholderProfile::firstOrCreate(['office_id' => $office->id]);
-
-        // firstOrCreate()'s INSERT half doesn't refetch `complete_address`
-        // (a MySQL STORED generated column) into the in-memory model —
-        // it stays null in PHP on a brand-new row even though the DB
-        // itself computed it to an empty string, since CONCAT_WS() with
-        // every argument null returns '', not null. refresh() re-SELECTs
-        // so the prop below reflects what's actually in the database.
-        if ($stakeholderProfile->wasRecentlyCreated) {
-            $stakeholderProfile->refresh();
-        }
+        $stakeholderProfile->load('province', 'municipality', 'barangay');
 
         return Inertia::render('stakeholder-profile/Edit', [
             'office' => [
@@ -128,14 +122,14 @@ class StakeholderProfileController extends Controller
             'school_name' => $stakeholderProfile->school_name,
             'school_id' => $stakeholderProfile->school_id,
 
-            'province' => $stakeholderProfile->province,
-            'city_municipality' => $stakeholderProfile->city_municipality,
+            'province_id' => $stakeholderProfile->province_id,
+            'municipality_id' => $stakeholderProfile->municipality_id,
             'legislative_district' => $stakeholderProfile->legislative_district,
-            'barangay' => $stakeholderProfile->barangay,
+            'barangay_id' => $stakeholderProfile->barangay_id,
             'street' => $stakeholderProfile->street,
-            'psgc' => $stakeholderProfile->psgc,
-            // Read-only: DB-generated (STORED) column, never part of the
-            // writable Form Request payload.
+            // Read-only: PHP accessor built from the province/municipality/
+            // barangay relations, never part of the writable Form Request
+            // payload.
             'complete_address' => $stakeholderProfile->complete_address,
 
             'notes_corrections' => $stakeholderProfile->notes_corrections,
@@ -201,6 +195,16 @@ class StakeholderProfileController extends Controller
      * shape so the existing Vue form doesn't need re-keying, only its
      * bound value types change.
      *
+     * `province`/`municipality`/`barangay` are the full Region III PSGC
+     * hierarchy (~3,100 barangays total), shipped once per edit-page load
+     * so the frontend can filter municipality-by-province and
+     * barangay-by-municipality client-side (cascading selects) without a
+     * round trip per keystroke/selection — there is no cross-office reuse
+     * concern here (this is government reference data, not a per-office
+     * resource), and the payload is small enough (~200KB) for a single
+     * admin-tool page load. `municipality`/`barangay` options carry their
+     * parent id alongside {value, label} so the Vue form can filter them.
+     *
      * @return array<string, array<int, array{value: mixed, label: string}>>
      */
     private function formOptions(): array
@@ -212,6 +216,29 @@ class StakeholderProfileController extends Controller
             'type_of_access_road' => $this->libraryOptionsById(StakeholderLibrary::class, StakeholderLibraryType::TypeOfAccessRoad),
             'by_transportation' => $this->libraryOptionsById(StakeholderLibrary::class, StakeholderLibraryType::ByTransportation),
             'community_engagement' => $this->libraryOptionsById(StakeholderLibrary::class, StakeholderLibraryType::CommunityEngagement),
+            'province' => PsgcProvince::query()
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (PsgcProvince $province) => ['value' => $province->id, 'label' => $province->name])
+                ->all(),
+            'municipality' => PsgcMunicipality::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'province_id'])
+                ->map(fn (PsgcMunicipality $municipality) => [
+                    'value' => $municipality->id,
+                    'label' => $municipality->name,
+                    'parent_id' => $municipality->province_id,
+                ])
+                ->all(),
+            'barangay' => PsgcBarangay::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'municipality_id'])
+                ->map(fn (PsgcBarangay $barangay) => [
+                    'value' => $barangay->id,
+                    'label' => $barangay->name,
+                    'parent_id' => $barangay->municipality_id,
+                ])
+                ->all(),
         ];
     }
 }

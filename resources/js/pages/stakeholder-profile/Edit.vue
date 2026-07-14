@@ -51,12 +51,11 @@ const form = useForm<StakeholderProfileFormData>({
     school_name: props.stakeholderProfile.school_name ?? '',
     school_id: props.stakeholderProfile.school_id ?? '',
 
-    province: props.stakeholderProfile.province ?? '',
-    city_municipality: props.stakeholderProfile.city_municipality ?? '',
+    province_id: props.stakeholderProfile.province_id,
+    municipality_id: props.stakeholderProfile.municipality_id,
     legislative_district: props.stakeholderProfile.legislative_district ?? '',
-    barangay: props.stakeholderProfile.barangay ?? '',
+    barangay_id: props.stakeholderProfile.barangay_id,
     street: props.stakeholderProfile.street ?? '',
-    psgc: props.stakeholderProfile.psgc ?? '',
 
     notes_corrections: props.stakeholderProfile.notes_corrections ?? '',
     notes_recent_development: props.stakeholderProfile.notes_recent_development ?? '',
@@ -131,7 +130,7 @@ const canEdit = computed(() => can('stakeholder_profile.edit') || can('stakehold
  * their own checkbox group is used, not core progress).
  */
 const sectionFields: Record<string, (keyof StakeholderProfileFormData)[]> = {
-    location: ['province', 'city_municipality', 'legislative_district', 'barangay', 'street', 'psgc'],
+    location: ['province_id', 'municipality_id', 'legislative_district', 'barangay_id', 'street'],
     organization: ['governance_level', 'ro', 'sdo', 'school_district', 'school_name', 'school_id'],
     personnel: [
         'chief_name', 'chief_position', 'chief_email', 'chief_mobile',
@@ -150,7 +149,15 @@ const completionFields = Object.values(sectionFields).flat();
 function isFieldFilled(field: keyof StakeholderProfileFormData): boolean {
     const value = form[field];
 
-    return Array.isArray(value) ? value.length > 0 : String(value).trim() !== '';
+    if (Array.isArray(value)) {
+        return value.length > 0;
+    }
+
+    if (value === null) {
+        return false;
+    }
+
+    return String(value).trim() !== '';
 }
 
 const completionPercent = computed(() => {

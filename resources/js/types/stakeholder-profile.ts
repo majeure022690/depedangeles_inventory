@@ -1,4 +1,4 @@
-import type { LookupOption, ReferenceOption } from '@/types/lookup';
+import type { LookupOption, ReferenceOption, ScopedReferenceOption } from '@/types/lookup';
 
 /**
  * One row of the stakeholder-profiles.index admin list (StakeholderProfile
@@ -22,9 +22,11 @@ export type StakeholderProfileFilters = {
 /**
  * Shape of the `stakeholderProfile` Inertia prop from
  * StakeholderProfileController::edit()/update() — mirrors
- * StakeholderProfile's singleton row. `complete_address` is a MySQL
- * STORED generated column: always present, always a string (never
- * writable — see StakeholderProfileUpdateRequest, which omits it).
+ * StakeholderProfile's singleton row. `province_id`/`municipality_id`/
+ * `barangay_id` are real FKs into the PSGC reference tables. `complete_address`
+ * is a PHP accessor built from those relations: always present, always a
+ * string (never writable — see StakeholderProfileUpdateRequest, which
+ * omits it).
  */
 export type StakeholderProfileFull = {
     id: number;
@@ -37,12 +39,11 @@ export type StakeholderProfileFull = {
     school_name: string | null;
     school_id: string | null;
 
-    province: string | null;
-    city_municipality: string | null;
+    province_id: number | null;
+    municipality_id: number | null;
     legislative_district: string | null;
-    barangay: string | null;
+    barangay_id: number | null;
     street: string | null;
-    psgc: string | null;
     complete_address: string;
 
     notes_corrections: string | null;
@@ -96,8 +97,11 @@ export type StakeholderProfileFull = {
  * StakeholderProfileController::FORM_LOOKUP_TYPES. `governance_level` and
  * `transaction_type` stay string-valued (`LookupOption[]`) — those two
  * fields remain plain validated strings post lookup-normalization. The
- * other four are `stakeholder_libraries` row ids (`ReferenceOption[]`,
+ * next four are `stakeholder_libraries` row ids (`ReferenceOption[]`,
  * ADR Question 4) backing the JSON-array checkbox-group fields.
+ * `province`/`municipality`/`barangay` are the full Region III PSGC
+ * hierarchy — `municipality`/`barangay` carry `parent_id` so the form can
+ * filter them client-side into cascading dropdowns.
  */
 export type StakeholderProfileFormOptions = {
     governance_level: LookupOption[];
@@ -106,17 +110,24 @@ export type StakeholderProfileFormOptions = {
     by_transportation: ReferenceOption[];
     community_engagement: ReferenceOption[];
     transaction_type: LookupOption[];
+    province: ReferenceOption[];
+    municipality: ScopedReferenceOption[];
+    barangay: ScopedReferenceOption[];
 };
 
 /**
  * Shape of the reactive object handed to Inertia's useForm() for the
  * Stakeholder Profile edit form. Mirrors every rule in
  * StakeholderProfileUpdateRequest — `complete_address` is intentionally
- * absent (read-only, never submitted). Numeric fields are kept as strings
- * (native <input> value semantics), same convention as IspAccountFormData;
- * the backend casts them back on validation. Nullable booleans are
- * coerced to `false` for the checkbox UI — there is no tri-state checkbox
- * in this codebase, so an unanswered field and an explicit "No" are not
+ * absent (read-only, never submitted). Most numeric fields are kept as
+ * strings (native <input> value semantics), same convention as
+ * IspAccountFormData; the backend casts them back on validation. The
+ * three PSGC FK fields (`province_id`/`municipality_id`/`barangay_id`)
+ * are the exception — `number | null`, same convention as Personnel's
+ * `position_id`/`ro_office_id`/`sdo_office_id`, since they're driven by
+ * cascading `<Select>`s, not text inputs. Nullable booleans are coerced
+ * to `false` for the checkbox UI — there is no tri-state checkbox in this
+ * codebase, so an unanswered field and an explicit "No" are not
  * distinguished once the form has been saved once.
  */
 export type StakeholderProfileFormData = {
@@ -128,12 +139,11 @@ export type StakeholderProfileFormData = {
     school_name: string;
     school_id: string;
 
-    province: string;
-    city_municipality: string;
+    province_id: number | null;
+    municipality_id: number | null;
     legislative_district: string;
-    barangay: string;
+    barangay_id: number | null;
     street: string;
-    psgc: string;
 
     notes_corrections: string;
     notes_recent_development: string;

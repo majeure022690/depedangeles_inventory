@@ -33,5 +33,13 @@ class DatabaseSeeder extends Seeder
         // Every school and division-level office/unit, imported from the
         // division's existing "offices" table.
         $this->call(OfficeSeeder::class);
+
+        // Region III PSGC reference data (provinces -> municipalities ->
+        // barangays), imported from the division's legacy PSGC dump.
+        // Order matters: each seeder resolves its parent's id from the
+        // one seeded immediately before it.
+        $this->call(PsgcProvinceSeeder::class);
+        $this->call(PsgcMunicipalitySeeder::class);
+        $this->call(PsgcBarangaySeeder::class);
     }
 }

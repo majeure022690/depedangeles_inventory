@@ -15,9 +15,18 @@ use Illuminate\Validation\Rule;
 
 /**
  * Validates one office's StakeholderProfile editable fields.
- * `complete_address` is deliberately absent — it's a MySQL STORED
- * generated column (see the create_stakeholder_profiles_table migration
- * and StakeholderProfile's doc-comment), never mass-assignable.
+ * `complete_address` is deliberately absent — it's a PHP accessor built
+ * from the province/municipality/barangay relations (see
+ * StakeholderProfile's doc-comment), never mass-assignable.
+ *
+ * `province_id`/`municipality_id`/`barangay_id` are real FKs into the
+ * Region-III-only psgc_provinces/psgc_municipalities/psgc_barangays
+ * tables (cascading dropdowns), each validated with `exists()` — no
+ * parent-match cross-check between the three (e.g. a barangay_id whose
+ * municipality_id doesn't match the submitted municipality_id): the
+ * frontend cascade already prevents this, and a mismatched combination is
+ * harmless stored data, not a security or integrity concern worth the
+ * extra query.
  *
  * Every rule is nullable: this is a progressively-filled record (see the
  * migration's class-level note — every column is nullable by design,
@@ -80,12 +89,11 @@ class StakeholderProfileUpdateRequest extends FormRequest
             'school_name' => ['nullable', 'string', 'max:255'],
             'school_id' => ['nullable', 'string', 'max:255'],
 
-            'province' => ['nullable', 'string', 'max:255'],
-            'city_municipality' => ['nullable', 'string', 'max:255'],
+            'province_id' => ['nullable', 'integer', 'exists:psgc_provinces,id'],
+            'municipality_id' => ['nullable', 'integer', 'exists:psgc_municipalities,id'],
             'legislative_district' => ['nullable', 'string', 'max:255'],
-            'barangay' => ['nullable', 'string', 'max:255'],
+            'barangay_id' => ['nullable', 'integer', 'exists:psgc_barangays,id'],
             'street' => ['nullable', 'string', 'max:255'],
-            'psgc' => ['nullable', 'string', 'max:255'],
 
             'notes_corrections' => ['nullable', 'string'],
             'notes_recent_development' => ['nullable', 'string'],

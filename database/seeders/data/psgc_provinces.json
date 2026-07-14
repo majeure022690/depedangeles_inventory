@@ -1,0 +1,30 @@
+[
+    {
+        "code": "030800000",
+        "name": "BATAAN"
+    },
+    {
+        "code": "031400000",
+        "name": "BULACAN"
+    },
+    {
+        "code": "034900000",
+        "name": "NUEVA ECIJA"
+    },
+    {
+        "code": "035400000",
+        "name": "PAMPANGA"
+    },
+    {
+        "code": "036900000",
+        "name": "TARLAC"
+    },
+    {
+        "code": "037100000",
+        "name": "ZAMBALES"
+    },
+    {
+        "code": "037700000",
+        "name": "AURORA"
+    }
+]

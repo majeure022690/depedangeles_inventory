@@ -7,6 +7,9 @@ use App\Enums\StakeholderLibraryType;
 use App\Models\AuditLog;
 use App\Models\EquipmentLibrary;
 use App\Models\Office;
+use App\Models\PsgcBarangay;
+use App\Models\PsgcMunicipality;
+use App\Models\PsgcProvince;
 use App\Models\StakeholderLibrary;
 use App\Models\StakeholderProfile;
 use App\Models\User;
@@ -34,6 +37,20 @@ class StakeholderProfileControllerTest extends TestCase
     private function createOffice(array $overrides = []): Office
     {
         return Office::create(array_merge(['office_name' => 'Test Elementary School'], $overrides));
+    }
+
+    /**
+     * Minimal Region III PSGC hierarchy for a single test — real seed data
+     * (~3,100 barangays) isn't seeded here, same reasoning as
+     * PersonnelControllerTest using real RoOffice/Position rows rather than
+     * a factory: this is reference data, not a resource under test.
+     */
+    private function createPsgcBarangay(): PsgcBarangay
+    {
+        $province = PsgcProvince::create(['code' => '030800000', 'name' => 'BATAAN']);
+        $municipality = PsgcMunicipality::create(['code' => '030801000', 'province_id' => $province->id, 'name' => 'ABUCAY']);
+
+        return PsgcBarangay::create(['code' => '030801001', 'municipality_id' => $municipality->id, 'name' => 'BANGKAL']);
     }
 
     /**
@@ -327,6 +344,49 @@ class StakeholderProfileControllerTest extends TestCase
         $this->actingAs($user)
             ->put(route('stakeholder-profiles.update', $office), ['transaction_type' => 'Central Office'])
             ->assertSessionHasErrors(['transaction_type']);
+    }
+
+    /**
+     * province_id/municipality_id/barangay_id are real FKs into the PSGC
+     * reference tables — saving valid ids persists them, and
+     * complete_address (a PHP accessor, no longer a stored generated
+     * column) reflects the resolved names via the relations.
+     */
+    public function test_encoder_can_save_psgc_address_fields_and_complete_address_reflects_them(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $office = $this->createOffice();
+        $user = User::factory()->create(['office_id' => $office->id]);
+        $user->assignRole('encoder');
+
+        $barangay = $this->createPsgcBarangay();
+
+        $response = $this->actingAs($user)->put(route('stakeholder-profiles.update', $office), [
+            'province_id' => $barangay->municipality->province_id,
+            'municipality_id' => $barangay->municipality_id,
+            'barangay_id' => $barangay->id,
+            'street' => '123 Rizal St.',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+
+        $stakeholderProfile = StakeholderProfile::where('office_id', $office->id)->sole();
+        $this->assertSame($barangay->municipality->province_id, $stakeholderProfile->province_id);
+        $this->assertSame($barangay->municipality_id, $stakeholderProfile->municipality_id);
+        $this->assertSame($barangay->id, $stakeholderProfile->barangay_id);
+        $this->assertSame('123 Rizal St., BANGKAL, ABUCAY, BATAAN', $stakeholderProfile->complete_address);
+    }
+
+    public function test_validation_rejects_a_nonexistent_psgc_barangay_id(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $office = $this->createOffice();
+        $user = User::factory()->create(['office_id' => $office->id]);
+        $user->assignRole('encoder');
+
+        $this->actingAs($user)
+            ->put(route('stakeholder-profiles.update', $office), ['barangay_id' => 999999])
+            ->assertSessionHasErrors(['barangay_id']);
     }
 
     public function test_first_or_create_creates_once_per_office_and_reuses_the_same_row(): void

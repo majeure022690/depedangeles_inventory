@@ -14,3 +14,13 @@ export type ReferenceOption = {
     value: number;
     label: string;
 };
+
+/**
+ * A ReferenceOption scoped to a parent row (e.g. a municipality scoped to
+ * its province) — used for cascading dropdowns, where the frontend filters
+ * the full option list down to `parent_id === <selected parent's id>`
+ * client-side rather than round-tripping per selection.
+ */
+export type ScopedReferenceOption = ReferenceOption & {
+    parent_id: number;
+};

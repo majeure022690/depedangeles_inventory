@@ -1,0 +1,652 @@
+[
+    {
+        "code": "030801000",
+        "name": "ABUCAY",
+        "province_code": "030800000"
+    },
+    {
+        "code": "030802000",
+        "name": "BAGAC",
+        "province_code": "030800000"
+    },
+    {
+        "code": "030803000",
+        "name": "CITY OF BALANGA",
+        "province_code": "030800000"
+    },
+    {
+        "code": "030804000",
+        "name": "DINALUPIHAN",
+        "province_code": "030800000"
+    },
+    {
+        "code": "030805000",
+        "name": "HERMOSA",
+        "province_code": "030800000"
+    },
+    {
+        "code": "030806000",
+        "name": "LIMAY",
+        "province_code": "030800000"
+    },
+    {
+        "code": "030807000",
+        "name": "MARIVELES",
+        "province_code": "030800000"
+    },
+    {
+        "code": "030808000",
+        "name": "MORONG",
+        "province_code": "030800000"
+    },
+    {
+        "code": "030809000",
+        "name": "ORANI",
+        "province_code": "030800000"
+    },
+    {
+        "code": "030810000",
+        "name": "ORION",
+        "province_code": "030800000"
+    },
+    {
+        "code": "030811000",
+        "name": "PILAR",
+        "province_code": "030800000"
+    },
+    {
+        "code": "030812000",
+        "name": "SAMAL",
+        "province_code": "030800000"
+    },
+    {
+        "code": "031401000",
+        "name": "ANGAT",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031402000",
+        "name": "BALAGTAS",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031403000",
+        "name": "CITY OF BALIWAG",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031404000",
+        "name": "BOCAUE",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031405000",
+        "name": "BULACAN",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031406000",
+        "name": "BUSTOS",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031407000",
+        "name": "CALUMPIT",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031408000",
+        "name": "GUIGUINTO",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031409000",
+        "name": "HAGONOY",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031410000",
+        "name": "CITY OF MALOLOS",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031411000",
+        "name": "MARILAO",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031412000",
+        "name": "CITY OF MEYCAUAYAN",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031413000",
+        "name": "NORZAGARAY",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031414000",
+        "name": "OBANDO",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031415000",
+        "name": "PANDI",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031416000",
+        "name": "PAOMBONG",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031417000",
+        "name": "PLARIDEL",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031418000",
+        "name": "PULILAN",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031419000",
+        "name": "SAN ILDEFONSO",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031420000",
+        "name": "CITY OF SAN JOSE DEL MONTE",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031421000",
+        "name": "SAN MIGUEL",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031422000",
+        "name": "SAN RAFAEL",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031423000",
+        "name": "SANTA MARIA",
+        "province_code": "031400000"
+    },
+    {
+        "code": "031424000",
+        "name": "DOÑA REMEDIOS TRINIDAD",
+        "province_code": "031400000"
+    },
+    {
+        "code": "034901000",
+        "name": "ALIAGA",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034902000",
+        "name": "BONGABON",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034903000",
+        "name": "CITY OF CABANATUAN",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034904000",
+        "name": "CABIAO",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034905000",
+        "name": "CARRANGLAN",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034906000",
+        "name": "CUYAPO",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034907000",
+        "name": "GABALDON",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034908000",
+        "name": "CITY OF GAPAN",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034909000",
+        "name": "GENERAL MAMERTO NATIVIDAD",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034910000",
+        "name": "GENERAL TINIO",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034911000",
+        "name": "GUIMBA",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034912000",
+        "name": "JAEN",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034913000",
+        "name": "LAUR",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034914000",
+        "name": "LICAB",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034915000",
+        "name": "LLANERA",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034916000",
+        "name": "LUPAO",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034917000",
+        "name": "SCIENCE CITY OF MUÑOZ",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034918000",
+        "name": "NAMPICUAN",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034919000",
+        "name": "CITY OF PALAYAN",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034920000",
+        "name": "PANTABANGAN",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034921000",
+        "name": "PEÑARANDA",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034922000",
+        "name": "QUEZON",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034923000",
+        "name": "RIZAL",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034924000",
+        "name": "SAN ANTONIO",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034925000",
+        "name": "SAN ISIDRO",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034926000",
+        "name": "SAN JOSE CITY",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034927000",
+        "name": "SAN LEONARDO",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034928000",
+        "name": "SANTA ROSA",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034929000",
+        "name": "SANTO DOMINGO",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034930000",
+        "name": "TALAVERA",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034931000",
+        "name": "TALUGTUG",
+        "province_code": "034900000"
+    },
+    {
+        "code": "034932000",
+        "name": "ZARAGOZA",
+        "province_code": "034900000"
+    },
+    {
+        "code": "035401000",
+        "name": "CITY OF ANGELES",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035402000",
+        "name": "APALIT",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035403000",
+        "name": "ARAYAT",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035404000",
+        "name": "BACOLOR",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035405000",
+        "name": "CANDABA",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035406000",
+        "name": "FLORIDABLANCA",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035407000",
+        "name": "GUAGUA",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035408000",
+        "name": "LUBAO",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035409000",
+        "name": "MABALACAT CITY",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035410000",
+        "name": "MACABEBE",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035411000",
+        "name": "MAGALANG",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035412000",
+        "name": "MASANTOL",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035413000",
+        "name": "MEXICO",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035414000",
+        "name": "MINALIN",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035415000",
+        "name": "PORAC",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035416000",
+        "name": "CITY OF SAN FERNANDO",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035417000",
+        "name": "SAN LUIS",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035418000",
+        "name": "SAN SIMON",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035419000",
+        "name": "SANTA ANA",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035420000",
+        "name": "SANTA RITA",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035421000",
+        "name": "STO. TOMAS",
+        "province_code": "035400000"
+    },
+    {
+        "code": "035422000",
+        "name": "SASMUAN",
+        "province_code": "035400000"
+    },
+    {
+        "code": "036901000",
+        "name": "ANAO",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036902000",
+        "name": "BAMBAN",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036903000",
+        "name": "CAMILING",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036904000",
+        "name": "CAPAS",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036905000",
+        "name": "CONCEPCION",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036906000",
+        "name": "GERONA",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036907000",
+        "name": "LA PAZ",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036908000",
+        "name": "MAYANTOC",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036909000",
+        "name": "MONCADA",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036910000",
+        "name": "PANIQUI",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036911000",
+        "name": "PURA",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036912000",
+        "name": "RAMOS",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036913000",
+        "name": "SAN CLEMENTE",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036914000",
+        "name": "SAN MANUEL",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036915000",
+        "name": "SANTA IGNACIA",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036916000",
+        "name": "CITY OF TARLAC",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036917000",
+        "name": "VICTORIA",
+        "province_code": "036900000"
+    },
+    {
+        "code": "036918000",
+        "name": "SAN JOSE",
+        "province_code": "036900000"
+    },
+    {
+        "code": "037101000",
+        "name": "BOTOLAN",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037102000",
+        "name": "CABANGAN",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037103000",
+        "name": "CANDELARIA",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037104000",
+        "name": "CASTILLEJOS",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037105000",
+        "name": "IBA",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037106000",
+        "name": "MASINLOC",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037107000",
+        "name": "CITY OF OLONGAPO",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037108000",
+        "name": "PALAUIG",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037109000",
+        "name": "SAN ANTONIO",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037110000",
+        "name": "SAN FELIPE",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037111000",
+        "name": "SAN MARCELINO",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037112000",
+        "name": "SAN NARCISO",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037113000",
+        "name": "SANTA CRUZ",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037114000",
+        "name": "SUBIC",
+        "province_code": "037100000"
+    },
+    {
+        "code": "037701000",
+        "name": "BALER",
+        "province_code": "037700000"
+    },
+    {
+        "code": "037702000",
+        "name": "CASIGURAN",
+        "province_code": "037700000"
+    },
+    {
+        "code": "037703000",
+        "name": "DILASAG",
+        "province_code": "037700000"
+    },
+    {
+        "code": "037704000",
+        "name": "DINALUNGAN",
+        "province_code": "037700000"
+    },
+    {
+        "code": "037705000",
+        "name": "DINGALAN",
+        "province_code": "037700000"
+    },
+    {
+        "code": "037706000",
+        "name": "DIPACULAO",
+        "province_code": "037700000"
+    },
+    {
+        "code": "037707000",
+        "name": "MARIA AURORA",
+        "province_code": "037700000"
+    },
+    {
+        "code": "037708000",
+        "name": "SAN LUIS",
+        "province_code": "037700000"
+    }
+]

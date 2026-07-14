@@ -3,11 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Bare-bones structural model — fillable/casts/relation only.
+ * Bare-bones structural model — fillable/casts/relations/accessor only.
  *
  * ONE ROW PER OFFICE: every school and division-level office/unit
  * (App\Models\Office) has at most one stakeholder profile, shared by every
@@ -18,18 +19,24 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * provided — profiles are created lazily per office on first access, not
  * seeded/faked in bulk.
  *
- * `complete_address` is a MySQL STORED generated column (see the
- * create_stakeholder_profiles_table migration) and is therefore
- * deliberately excluded from $fillable — it can never be mass-assigned,
- * only read.
+ * `province`/`municipality`/`barangay` are real FKs into the PSGC
+ * reference tables (province_id/municipality_id/barangay_id) — cascading
+ * dropdowns, not free text. There is no stored `psgc` column anymore: the
+ * granular PSGC code is simply the selected barangay's own `code`.
+ *
+ * `complete_address` used to be a MySQL STORED generated column, but
+ * generated columns can't JOIN across tables to read the PSGC names — it's
+ * now a PHP accessor built from the three relations below. This also
+ * permanently resolves the old firstOrCreate()-doesn't-refetch-generated-
+ * columns gotcha, since there's no longer a DB-side value to refetch.
  *
  * No relationships to Equipment/Personnel/IspAccount — this table is
  * standalone survey/profile data, scoped only to its owning Office.
  */
 #[Fillable([
     'office_id', 'governance_level', 'ro', 'sdo', 'school_district', 'school_name',
-    'school_id', 'province', 'city_municipality', 'legislative_district',
-    'barangay', 'street', 'psgc', 'notes_corrections',
+    'school_id', 'province_id', 'municipality_id', 'legislative_district',
+    'barangay_id', 'street', 'notes_corrections',
     'notes_recent_development', 'mobile_1', 'mobile_2', 'landline',
     'chief_name', 'chief_position', 'chief_email', 'chief_mobile',
     'admin_staff_name', 'admin_staff_position', 'admin_staff_email',
@@ -49,6 +56,47 @@ class StakeholderProfile extends Model
     public function office(): BelongsTo
     {
         return $this->belongsTo(Office::class);
+    }
+
+    /**
+     * @return BelongsTo<PsgcProvince, $this>
+     */
+    public function province(): BelongsTo
+    {
+        return $this->belongsTo(PsgcProvince::class);
+    }
+
+    /**
+     * @return BelongsTo<PsgcMunicipality, $this>
+     */
+    public function municipality(): BelongsTo
+    {
+        return $this->belongsTo(PsgcMunicipality::class);
+    }
+
+    /**
+     * @return BelongsTo<PsgcBarangay, $this>
+     */
+    public function barangay(): BelongsTo
+    {
+        return $this->belongsTo(PsgcBarangay::class);
+    }
+
+    /**
+     * Mirrors the old STORED generated column's CONCAT_WS behavior:
+     * blank/missing components are skipped rather than leaving stray
+     * ", " separators.
+     *
+     * @return Attribute<string, never>
+     */
+    protected function completeAddress(): Attribute
+    {
+        return Attribute::get(fn () => implode(', ', array_filter([
+            $this->street,
+            $this->barangay?->name,
+            $this->municipality?->name,
+            $this->province?->name,
+        ])));
     }
 
     protected function casts(): array
