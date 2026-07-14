@@ -70,6 +70,16 @@ class StakeholderProfileController extends Controller
 
         $stakeholderProfile = StakeholderProfile::firstOrCreate(['office_id' => $office->id]);
 
+        // firstOrCreate()'s INSERT half doesn't refetch `complete_address`
+        // (a MySQL STORED generated column) into the in-memory model —
+        // it stays null in PHP on a brand-new row even though the DB
+        // itself computed it to an empty string, since CONCAT_WS() with
+        // every argument null returns '', not null. refresh() re-SELECTs
+        // so the prop below reflects what's actually in the database.
+        if ($stakeholderProfile->wasRecentlyCreated) {
+            $stakeholderProfile->refresh();
+        }
+
         return Inertia::render('stakeholder-profile/Edit', [
             'office' => [
                 'id' => $office->id,
