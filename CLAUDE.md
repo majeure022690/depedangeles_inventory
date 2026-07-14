@@ -16,7 +16,7 @@ Structure is stock Laravel throughout — flat `app/Models/`, `app/Http/Controll
 
 ## Agent roster
 
-This project uses a fixed set of specialist agents (`~/.claude/agents/*.md`), each owning a distinct slice of the stack. Use the `Agent` tool with the matching `subagent_type` rather than doing cross-domain work yourself in the main thread.
+This project uses a fixed set of specialist agents (`.claude/agents/*.md`, project-level so they travel with the repo), each owning a distinct slice of the stack. Use the `Agent` tool with the matching `subagent_type` rather than doing cross-domain work yourself in the main thread.
 
 | Agent | Owns |
 |---|---|
