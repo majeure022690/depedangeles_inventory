@@ -63,7 +63,7 @@ class IspAccountPolicyTest extends TestCase
     {
         $this->seed(RolePermissionSeeder::class);
         $admin = User::factory()->create();
-        $admin->assignRole('division-ict-admin');
+        $admin->assignRole('admin');
         $account = $this->makeIspAccount();
 
         $this->assertTrue($admin->can('create', IspAccount::class));

@@ -86,7 +86,7 @@ enum Permission: string
     // (or any role) NEW permissions, which is effectively a privilege-
     // escalation capability — a UsersManage holder should not
     // automatically be able to redefine what every role means. Only
-    // 'division-ict-admin' is seeded with this permission (see
+    // 'admin' is seeded with this permission (see
     // RolePermissionSeeder); it rides along automatically via
     // PermissionEnum::cases() the same way every other permission does
     // for that role.

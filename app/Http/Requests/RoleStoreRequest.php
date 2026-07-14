@@ -34,7 +34,7 @@ class RoleStoreRequest extends FormRequest
             // kept to a URL/identifier-safe charset, distinct from the
             // free-text 'label' shown in the UI. Lowercase-only by
             // invariant (matches the seeded pending/viewer/encoder/
-            // division-ict-admin names) — 'alpha_dash' alone permits
+            // admin names) — 'alpha_dash' alone permits
             // uppercase, so it's supplemented with an explicit regex
             // rather than relying on it to enforce case.
             'name' => ['required', 'string', 'max:255', 'alpha_dash', 'regex:/^[a-z0-9_-]+$/', Rule::unique('roles', 'name')],

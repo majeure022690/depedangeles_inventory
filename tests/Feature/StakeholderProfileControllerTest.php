@@ -104,7 +104,7 @@ class StakeholderProfileControllerTest extends TestCase
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
         $user = User::factory()->create();
-        $user->assignRole('division-ict-admin');
+        $user->assignRole('admin');
 
         $this->actingAs($user)->inertiaGet(route('stakeholder-profile.edit'))->assertOk();
 

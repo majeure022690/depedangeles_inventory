@@ -53,7 +53,7 @@ class UserControllerTest extends TestCase
     private function admin(): User
     {
         $user = User::factory()->create();
-        $user->assignRole('division-ict-admin');
+        $user->assignRole('admin');
 
         return $user;
     }
@@ -90,7 +90,7 @@ class UserControllerTest extends TestCase
      * UserRoleService::guardAgainstPermissionTierViolation() (CRITICAL,
      * 2026-07 follow-up security review): this actor must be able to
      * assign roles within their own ceiling (viewer/encoder) but never a
-     * role — like division-ict-admin — that carries roles.manage.
+     * role — like admin — that carries roles.manage.
      */
     private function actorHoldingAllPermissionsExceptRolesManage(): User
     {
@@ -300,7 +300,7 @@ class UserControllerTest extends TestCase
         );
 
         $response->assertSessionHasErrors(['role_ids']);
-        $this->assertSame(['division-ict-admin'], $admin->fresh()->roles()->pluck('name')->all());
+        $this->assertSame(['admin'], $admin->fresh()->roles()->pluck('name')->all());
         $this->assertNull(AuditLog::where('action', 'user.roles_changed')->first());
     }
 
@@ -334,7 +334,7 @@ class UserControllerTest extends TestCase
             app(UserRoleService::class)->syncRoles($actor, $soleAdmin, [$viewerRole->id]);
         } finally {
             $this->assertSame(
-                ['division-ict-admin'],
+                ['admin'],
                 $soleAdmin->fresh()->roles()->pluck('name')->all(),
             );
             $this->assertNull(AuditLog::where('action', 'user.roles_changed')->first());
@@ -354,21 +354,21 @@ class UserControllerTest extends TestCase
 
     public function test_demoting_sole_admin_succeeds_when_new_role_set_still_grants_users_manage(): void
     {
-        // Sole admin is synced to a set that includes division-ict-admin
+        // Sole admin is synced to a set that includes admin
         // ALONGSIDE viewer — the union check must see that at least one
         // role in the new set still grants users.manage, so this is not
         // a lockout even though 'viewer' alone would not grant it.
         $soleAdmin = $this->admin();
         $actor = User::factory()->create();
-        $actor->assignRole('division-ict-admin');
+        $actor->assignRole('admin');
 
         app(UserRoleService::class)->syncRoles($actor, $soleAdmin, [
-            $this->roleId('division-ict-admin'),
+            $this->roleId('admin'),
             $this->roleId('viewer'),
         ]);
 
         $this->assertSame(
-            ['division-ict-admin', 'viewer'],
+            ['admin', 'viewer'],
             $soleAdmin->fresh()->roles()->pluck('name')->sort()->values()->all(),
         );
         $this->assertTrue($soleAdmin->fresh()->hasPermissionTo('users.manage'));
@@ -384,7 +384,7 @@ class UserControllerTest extends TestCase
 
         $response = $this->actingAs($actor)->patch(
             route('users.update', $target),
-            $this->updatePayload($target, [$this->roleId('division-ict-admin')]),
+            $this->updatePayload($target, [$this->roleId('admin')]),
         );
 
         $response->assertSessionHasErrors(['role_ids']);
@@ -398,7 +398,7 @@ class UserControllerTest extends TestCase
         $target = User::factory()->create();
 
         try {
-            app(UserRoleService::class)->syncRoles($actor, $target, [$this->roleId('division-ict-admin')]);
+            app(UserRoleService::class)->syncRoles($actor, $target, [$this->roleId('admin')]);
             $this->fail('Expected a ValidationException naming the offending role/permission.');
         } catch (ValidationException $e) {
             $message = $e->errors()['role_ids'][0];
@@ -433,8 +433,8 @@ class UserControllerTest extends TestCase
 
     public function test_division_ict_admin_can_still_assign_any_role_including_itself_to_others(): void
     {
-        // division-ict-admin holds every permission, so every role —
-        // including division-ict-admin itself — must remain assignable
+        // admin holds every permission, so every role —
+        // including admin itself — must remain assignable
         // to them with no special-casing (it falls out of the "subset of
         // actor's own permissions" rule naturally).
         $admin = $this->admin();
@@ -442,10 +442,10 @@ class UserControllerTest extends TestCase
 
         $this->actingAs($admin)->patch(
             route('users.update', $target),
-            $this->updatePayload($target, [$this->roleId('division-ict-admin')]),
+            $this->updatePayload($target, [$this->roleId('admin')]),
         )->assertRedirect(route('users.index'));
 
-        $this->assertSame(['division-ict-admin'], $target->fresh()->roles()->pluck('name')->all());
+        $this->assertSame(['admin'], $target->fresh()->roles()->pluck('name')->all());
         $this->assertTrue($target->fresh()->hasPermissionTo(PermissionEnum::RolesManage));
     }
 
@@ -460,7 +460,7 @@ class UserControllerTest extends TestCase
         $this->assertContains('viewer', $roleNames);
         $this->assertContains('encoder', $roleNames);
         $this->assertContains('ops-admin', $roleNames);
-        $this->assertNotContains('division-ict-admin', $roleNames);
+        $this->assertNotContains('admin', $roleNames);
     }
 
     public function test_index_roles_prop_includes_every_role_for_division_ict_admin(): void
@@ -568,7 +568,7 @@ class UserControllerTest extends TestCase
             'email' => 'new-person@example.com',
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
-            'role_ids' => [$this->roleId('division-ict-admin')],
+            'role_ids' => [$this->roleId('admin')],
         ])->assertSessionHasErrors(['role_ids']);
 
         $this->assertNull(User::where('email', 'new-person@example.com')->first());

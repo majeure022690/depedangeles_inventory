@@ -16,6 +16,7 @@ All notable changes to this project, in terms of user/developer impact. Dates ar
 - **Stakeholder Profile moved from the main sidebar into Settings as its own tab.** It's a singleton (one record per division office, no list view), so it fits the same edit-form pattern as the Profile/Security/Appearance settings tabs better than a top-level list-style nav item. `SettingsLayout` gained a `wide` prop so this tab's multi-column form isn't squeezed into the other tabs' narrow single-column width.
 - **Logged-in user menu moved from the sidebar footer into the navbar.** `NavUser.vue` (sidebar `SidebarFooter`) removed; the same avatar/dropdown (reusing `UserInfo`/`UserMenuContent`) now lives in `AppSidebarHeader.vue`.
 - **Declared PHP floor corrected from `^8.3` to `^8.4`.** `composer.json` claimed `^8.3` while `composer.lock` had already resolved `symfony/clock` to a version requiring PHP `>=8.4.1` — the lock file never actually satisfied the declared floor, silently breaking any environment/CI still targeting 8.3. `composer.lock` only changed its content-hash/platform metadata; no package versions moved.
+- **Renamed the top role from `division-ict-admin` to `admin`** (display label: "Administrator", changed from "Division ICT Admin"). A data migration renames the existing seeded row in place rather than leaving a duplicate — `RolePermissionSeeder`'s own upsert can't do this rename by itself, since it matches on the new name. Every hardcoded reference across seeders, tests, and docs updated to match.
 
 ### Fixed
 

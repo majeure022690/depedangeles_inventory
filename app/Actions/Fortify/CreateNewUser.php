@@ -39,7 +39,7 @@ class CreateNewUser implements CreatesNewUsers
         // treated as authorization. Every new self-registration starts
         // with ZERO permissions (the 'pending' role) until a Division
         // ICT Admin reviews the account and assigns a real role
-        // (viewer/encoder/division-ict-admin). Silently skipped if the
+        // (viewer/encoder/admin). Silently skipped if the
         // role isn't seeded yet (e.g. a fresh install that hasn't run
         // the database seeders) — registration itself must never fail
         // because of it, though in that state the account also can't be

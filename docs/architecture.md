@@ -40,7 +40,7 @@ if ($user->role === 'admin') { ... }
 | `pending` | **None.** Deny-by-default holding pen. Every self-registered account gets this role (never `viewer`) — see the RBAC section below. Protected: cannot be renamed, granted permissions, or deleted. |
 | `viewer` | `*.view` across Personnel, Equipment, ISP Accounts, Stakeholder Profile, Internet Connectivity. Read-only. |
 | `encoder` | View/create/edit on Personnel, Equipment, ISP Accounts, plus `equipment.transactions.create` and view/edit on Stakeholder Profile / Internet Connectivity. No deletes, no reference-data/role/user admin. |
-| `division-ict-admin` | Every permission that exists (`PermissionEnum::cases()`), including `reference-data.manage`, `roles.manage`, and `users.manage`. |
+| `admin` | Every permission that exists (`PermissionEnum::cases()`), including `reference-data.manage`, `roles.manage`, and `users.manage`. |
 
 A user's flat permission list is shared to every Inertia page via `HandleInertiaRequests::share()` as `auth.permissions` (`app/Http/Middleware/HandleInertiaRequests.php`). The frontend never re-derives authorization: `resources/js/composables/usePermissions.ts` just reads that shared list and exposes `can()`/`canAny()`/`canAll()` for gating UI (hiding an Add/Edit/Delete button). The server is still the sole source of truth — every mutating request is re-checked against the same Policies regardless of what the client renders.
 

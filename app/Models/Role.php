@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 /**
  * A role is a named, admin-configurable bundle of permissions — never a
  * branch in application code. RolePermissionSeeder seeds four starting
- * roles (pending / viewer / encoder / division-ict-admin), but roles are
+ * roles (pending / viewer / encoder / admin), but roles are
  * genuine RBAC data from here on: RoleController/RoleService let a
  * roles.manage holder create new roles, edit which permissions any role
  * grants, and delete roles that are no longer in use. See
@@ -31,7 +31,7 @@ class Role extends Model
      * Deliberately a single named-constant check, not a generic
      * `is_system` column: exactly one role has baked-in application
      * behavior tied to its identity today. 'viewer'/'encoder'/
-     * 'division-ict-admin' are ordinary seeded starting data — editable
+     * 'admin' are ordinary seeded starting data — editable
      * and deletable like any admin-created role once no user still holds
      * them (see RoleService::delete's "in use" guard, which applies to
      * every role uniformly, seeded or custom). If a second role ever

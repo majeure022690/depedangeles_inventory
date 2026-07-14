@@ -21,7 +21,7 @@ Two permissions are treated as a materially more sensitive category than every o
 - **`users.manage`** — assign an *existing, already-vetted* role to a user.
 - **`roles.manage`** — create/edit/delete role *definitions themselves*, i.e. decide what permissions a role bundle grants.
 
-These are deliberately separate permissions, not one. Holding `users.manage` alone lets an admin hand out roles that already exist; it does **not** let them redefine what any role means or invent a role carrying permissions they don't hold themselves. Only `division-ict-admin` is seeded with `roles.manage`.
+These are deliberately separate permissions, not one. Holding `users.manage` alone lets an admin hand out roles that already exist; it does **not** let them redefine what any role means or invent a role carrying permissions they don't hold themselves. Only `admin` is seeded with `roles.manage`.
 
 ## Seeded starting roles
 
@@ -30,7 +30,7 @@ These are deliberately separate permissions, not one. Holding `users.manage` alo
 | `pending` | *(none)* | Assigned automatically to every self-registered account — see below. Protected: its name can never be changed and its permission set can never become non-empty (`Role::isProtected()`, enforced in `RoleService`/`RoleUpdateRequest`). Cannot be deleted. |
 | `viewer` | `personnel.view`, `equipment.view`, `isp_accounts.view`, `stakeholder_profile.view`, `internet_connectivity.view` | Read-only across every resource. |
 | `encoder` | View/create/edit on Personnel, Equipment, ISP Accounts; `equipment.transactions.create`; view/edit on Stakeholder Profile and Internet Connectivity | Day-to-day data entry. No deletes, no reference-data/role/user admin. |
-| `division-ict-admin` | Every `Permission` case | Full access, including reference-data, role, and user administration. |
+| `admin` | Every `Permission` case | Full access, including reference-data, role, and user administration. |
 
 These four are ordinary, editable/deletable admin-created data once seeded — not hardcoded application behavior — with the single exception of `pending`, which is protected by name because Fortify's `CreateNewUser` action hardcodes a lookup against it (see `Role::PENDING`'s doc-comment).
 

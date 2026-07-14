@@ -118,7 +118,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
         $user = User::factory()->create();
-        $user->assignRole('division-ict-admin');
+        $user->assignRole('admin');
 
         $this->actingAs($user)->inertiaGet(route('internet-connectivity-survey.edit'))->assertOk();
 
@@ -269,7 +269,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     {
         $this->seed(RolePermissionSeeder::class);
         $user = User::factory()->create();
-        $user->assignRole('division-ict-admin');
+        $user->assignRole('admin');
 
         $accountOne = $this->makeIspAccount([
             'cost_per_month' => 5000,

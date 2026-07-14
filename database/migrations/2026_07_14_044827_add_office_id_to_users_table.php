@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             // Nullable: not every account holder is tied to a specific
-            // school/office (e.g. division-ict-admin). nullOnDelete so
+            // school/office (e.g. admin). nullOnDelete so
             // deactivating/removing an office never cascades into deleting
             // the user accounts that reference it.
             $table->foreignId('office_id')->nullable()->after('email')->constrained()->nullOnDelete();

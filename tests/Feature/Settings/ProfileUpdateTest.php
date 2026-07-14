@@ -114,7 +114,7 @@ class ProfileUpdateTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
 
         $admin = User::factory()->create();
-        $admin->assignRole(Role::where('name', 'division-ict-admin')->firstOrFail());
+        $admin->assignRole(Role::where('name', 'admin')->firstOrFail());
 
         $response = $this
             ->actingAs($admin)

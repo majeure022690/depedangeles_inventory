@@ -27,7 +27,7 @@ class ReferenceDataPolicyTest extends TestCase
     private function admin(): User
     {
         $user = User::factory()->create();
-        $user->assignRole('division-ict-admin');
+        $user->assignRole('admin');
 
         return $user;
     }

@@ -18,7 +18,7 @@ use Tests\TestCase;
  * RoleService doc-comments for the Policy/Service authorization split and
  * Role::PENDING's doc-comment for why 'pending' specifically is protected
  * from deletion/renaming/permission-grants while 'viewer'/'encoder'/
- * 'division-ict-admin' are ordinary editable/deletable seeded data.
+ * 'admin' are ordinary editable/deletable seeded data.
  */
 class RoleControllerTest extends TestCase
 {
@@ -34,7 +34,7 @@ class RoleControllerTest extends TestCase
     private function rolesManageUser(): User
     {
         $user = User::factory()->create();
-        $user->assignRole('division-ict-admin');
+        $user->assignRole('admin');
 
         return $user;
     }
@@ -270,7 +270,7 @@ class RoleControllerTest extends TestCase
         // 'alpha_dash' alone permits uppercase; the form's help text
         // promises lowercase-only, so an explicit regex rule enforces
         // it — consistent with the seeded pending/viewer/encoder/
-        // division-ict-admin names, which are all lowercase.
+        // admin names, which are all lowercase.
         $admin = $this->rolesManageUser();
 
         $this->actingAs($admin)->post(route('roles.store'), [
@@ -403,9 +403,9 @@ class RoleControllerTest extends TestCase
     public function test_update_blocks_removing_roles_manage_when_no_other_role_grants_it(): void
     {
         $actor = $this->rolesManageUser();
-        $adminRole = Role::where('name', 'division-ict-admin')->firstOrFail();
+        $adminRole = Role::where('name', 'admin')->firstOrFail();
 
-        // No custom role exists granting roles.manage — division-ict-admin
+        // No custom role exists granting roles.manage — admin
         // is the only one (seeded default). Stripping it here would leave
         // nobody in the system able to manage roles at all.
         $remainingPermissions = $adminRole->permissions()->pluck('name')
@@ -413,7 +413,7 @@ class RoleControllerTest extends TestCase
             ->values()->all();
 
         $this->actingAs($actor)->patch(route('roles.update', $adminRole), [
-            'name' => 'division-ict-admin',
+            'name' => 'admin',
             'label' => $adminRole->label,
             'permissions' => $remainingPermissions,
         ])->assertSessionHasErrors(['permissions']);
@@ -477,10 +477,10 @@ class RoleControllerTest extends TestCase
         // happen to hold is fine as long as roles.manage/users.manage
         // isn't the thing being stripped away.
         $admin = $this->rolesManageUser();
-        $adminRole = Role::where('name', 'division-ict-admin')->firstOrFail();
+        $adminRole = Role::where('name', 'admin')->firstOrFail();
 
         $this->actingAs($admin)->patch(route('roles.update', $adminRole), [
-            'name' => 'division-ict-admin',
+            'name' => 'admin',
             'label' => 'Administrator',
             'description' => 'Updated description.',
             'permissions' => collect(PermissionEnum::cases())->map->value->all(),

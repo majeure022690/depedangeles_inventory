@@ -190,7 +190,7 @@ class PersonnelControllerTest extends TestCase
         // Exercises both update and delete, so the acting user needs the
         // admin role — Encoder can edit but cannot delete.
         $user = User::factory()->create();
-        $user->assignRole('division-ict-admin');
+        $user->assignRole('admin');
         $person = Personnel::factory()->create(['employee_id' => 'EMP-200']);
 
         $this->actingAs($user)->put(route('personnel.update', $person), [
@@ -212,7 +212,7 @@ class PersonnelControllerTest extends TestCase
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
         $user = User::factory()->create();
-        $user->assignRole('division-ict-admin');
+        $user->assignRole('admin');
 
         $position = Position::where('name', 'Administrative Officer II')->firstOrFail();
         $roOffice = RoOffice::query()->active()->firstOrFail();
@@ -247,7 +247,7 @@ class PersonnelControllerTest extends TestCase
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
         $user = User::factory()->create();
-        $user->assignRole('division-ict-admin');
+        $user->assignRole('admin');
 
         $this->actingAs($user)->get(route('personnel.create'))
             ->assertInertia(fn (AssertableInertia $page) => $page

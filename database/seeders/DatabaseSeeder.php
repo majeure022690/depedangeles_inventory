@@ -23,7 +23,7 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
-        $testUser->assignRole('division-ict-admin');
+        $testUser->assignRole('admin');
 
         // The 13 Tier 1/Tier 2 reference tables from the lookup-
         // normalization ADR. Supersedes the old LookupSeeder/`lookups`

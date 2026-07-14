@@ -295,7 +295,7 @@ class IspAccountControllerTest extends TestCase
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
         $user = User::factory()->create();
-        $user->assignRole('division-ict-admin');
+        $user->assignRole('admin');
         $ispAccount = $this->makeIspAccount();
 
         $response = $this->actingAs($user)->delete(route('isp-accounts.destroy', $ispAccount));

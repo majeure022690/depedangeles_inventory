@@ -59,7 +59,7 @@ final class UserRoleService
      * calls this to build the `roles` prop so the admin UI never even
      * offers an option the write side (syncRoles()) would reject.
      *
-     * division-ict-admin holds every permission in the system, so every
+     * admin holds every permission in the system, so every
      * role is trivially a subset of their own — every role remains
      * assignable to them with no special-casing required, it falls
      * straight out of the subset rule.

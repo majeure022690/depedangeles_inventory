@@ -91,7 +91,7 @@ class DashboardTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
 
         $admin = User::factory()->create();
-        $admin->assignRole('division-ict-admin');
+        $admin->assignRole('admin');
 
         $serviceable = Equipment::factory()->create([
             'disposition_status' => 'Normal',

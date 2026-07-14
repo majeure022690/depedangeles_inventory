@@ -77,8 +77,8 @@ php artisan db:seed
 
 This runs, in order (see `database/seeders/DatabaseSeeder.php`):
 
-1. **`RolePermissionSeeder`** — seeds the `permissions` table from `App\Enums\Permission` (20 cases) and composes the four starting roles (`pending`, `division-ict-admin`, `encoder`, `viewer`). Must run before any user is assigned a role. Roles are admin-configurable from here on (see `/roles`, below) — this seeder just establishes the starting set.
-2. Creates the seeded test user and assigns it the `division-ict-admin` role.
+1. **`RolePermissionSeeder`** — seeds the `permissions` table from `App\Enums\Permission` (20 cases) and composes the four starting roles (`pending`, `admin`, `encoder`, `viewer`). Must run before any user is assigned a role. Roles are admin-configurable from here on (see `/roles`, below) — this seeder just establishes the starting set.
+2. Creates the seeded test user and assigns it the `admin` role.
 3. **`ReferenceDataSeeder`** — seeds the 13 Tier 1/Tier 2 reference-data tables (item types, brands, equipment categories/classifications/conditions, positions, RO/SDO offices, ISP providers, plus 4 domain-grouped "library" tables) from `database/seeders/data/*.json` — the 677 real reference-data values originally sourced from the Excel workbook, split one JSON file per table. This replaced an earlier single `lookups` table/`LookupSeeder`, since removed — see [`docs/architecture-decisions/lookup-normalization.md`](docs/architecture-decisions/lookup-normalization.md).
 
 Both `RolePermissionSeeder` and `ReferenceDataSeeder` are idempotent — re-running `php artisan db:seed` is always safe (`RolePermissionSeeder` upserts; `ReferenceDataSeeder` uses `insertOrIgnore`, so it never reverts an admin edit made through `/reference-data` back to seed data).
@@ -90,7 +90,7 @@ Email:    test@example.com
 Password: password
 ```
 
-This account holds the `division-ict-admin` role (full permissions, including user/role management at `/users`).
+This account holds the `admin` role (full permissions, including user/role management at `/users`).
 
 If you need a completely fresh database instead of migrating onto an existing one:
 

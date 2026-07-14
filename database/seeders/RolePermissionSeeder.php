@@ -41,7 +41,7 @@ class RolePermissionSeeder extends Seeder
                     'real role.',
                 'permissions' => [],
             ],
-            'division-ict-admin' => [
+            'admin' => [
                 'label' => 'Administrator',
                 'description' => 'Full access — all permissions, including reference-data, role, and user '.
                     'administration.',
