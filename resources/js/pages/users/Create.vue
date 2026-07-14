@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import CheckboxGroupField from '@/components/CheckboxGroupField.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
@@ -7,12 +8,20 @@ import PasswordInput from '@/components/PasswordInput.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import users from '@/routes/users';
-import type { RoleOption } from '@/types/users';
+import type { OfficeOption, RoleOption } from '@/types/users';
 
 const props = defineProps<{
     roles: RoleOption[];
+    offices: OfficeOption[];
 }>();
 
 defineOptions({
@@ -31,13 +40,26 @@ const form = useForm<{
     email: string;
     password: string;
     password_confirmation: string;
+    office_id: number | null;
     role_ids: number[];
 }>({
     name: '',
     email: '',
     password: '',
     password_confirmation: '',
+    office_id: null,
     role_ids: [],
+});
+
+/** Reka's Select forbids an empty-string/null item value, so a clearable
+ * dropdown needs a distinct sentinel translated back to null. */
+const NONE = '__none__';
+
+const officeModel = computed<number | typeof NONE>({
+    get: () => form.office_id ?? NONE,
+    set: (value: number | typeof NONE) => {
+        form.office_id = value === NONE ? null : Number(value);
+    },
 });
 
 function submit() {
@@ -87,6 +109,29 @@ function submit() {
                         />
                         <InputError :message="form.errors.password_confirmation" />
                     </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="space-y-4 rounded-lg border border-input bg-muted/30 p-4">
+                <legend class="px-1 text-base font-medium">School / Office</legend>
+                <div class="grid gap-2 sm:max-w-sm">
+                    <Label for="office_id">School / office</Label>
+                    <Select v-model="officeModel">
+                        <SelectTrigger id="office_id" class="w-full">
+                            <SelectValue placeholder="None" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem :value="NONE">None</SelectItem>
+                            <SelectItem
+                                v-for="opt in offices"
+                                :key="opt.value"
+                                :value="opt.value"
+                            >
+                                {{ opt.label }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <InputError :message="form.errors.office_id" />
                 </div>
             </fieldset>
 

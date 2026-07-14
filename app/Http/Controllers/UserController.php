@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Enums\Permission;
 use App\Http\Requests\UserStoreRequest;
 use App\Http\Requests\UserUpdateRequest;
+use App\Models\Office;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\UserRoleService;
@@ -34,7 +35,7 @@ class UserController extends Controller
         $roleFilter = $request->string('role')->toString() ?: null;
 
         $users = User::query()
-            ->with('roles:id,name,label')
+            ->with(['roles:id,name,label', 'office:id,office_name,school_id'])
             ->when($search, fn ($query) => $query->where(
                 fn ($q) => $q->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%"),
@@ -49,6 +50,11 @@ class UserController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'office' => $user->office ? [
+                    'id' => $user->office->id,
+                    'name' => $user->office->office_name,
+                    'school_id' => $user->office->school_id,
+                ] : null,
                 'roles' => $user->roles->map(fn (Role $role) => [
                     'id' => $role->id,
                     'name' => $role->name,
@@ -56,11 +62,14 @@ class UserController extends Controller
                 ])->all(),
                 'role_ids' => $user->roles->pluck('id')->all(),
                 'is_self' => $user->is($request->user()),
+                'created_at' => $user->created_at?->toIso8601String(),
+                'updated_at' => $user->updated_at?->toIso8601String(),
             ]);
 
         return Inertia::render('users/Index', [
             'users' => $users,
             'roles' => $this->assignableRoleOptions($request, $userRoleService),
+            'offices' => Office::activeOptions(),
             'filters' => [
                 'search' => $search,
                 'role' => $roleFilter,
@@ -74,6 +83,7 @@ class UserController extends Controller
 
         return Inertia::render('users/Create', [
             'roles' => $this->assignableRoleOptions($request, $userRoleService),
+            'offices' => Office::activeOptions(),
         ]);
     }
 
@@ -85,6 +95,7 @@ class UserController extends Controller
                 'name' => $request->validated('name'),
                 'email' => $request->validated('email'),
                 'password' => $request->validated('password'),
+                'office_id' => $request->validated('office_id'),
             ],
             $request->validated('role_ids', []),
         );
@@ -102,6 +113,7 @@ class UserController extends Controller
             [
                 'name' => $request->validated('name'),
                 'email' => $request->validated('email'),
+                'office_id' => $request->validated('office_id'),
             ],
             $request->validated('role_ids', []),
         );

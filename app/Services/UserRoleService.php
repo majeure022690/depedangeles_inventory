@@ -87,7 +87,7 @@ final class UserRoleService
      * guard as syncRoles(): an actor can only hand out roles whose entire
      * permission set is already a subset of their own.
      *
-     * @param  array{name: string, email: string, password: string}  $attributes
+     * @param  array{name: string, email: string, password: string, office_id?: int|null}  $attributes
      * @param  array<int, int>  $roleIds
      */
     public function createUser(User $actor, array $attributes, array $roleIds): User
@@ -105,6 +105,7 @@ final class UserRoleService
             AuditLog::record('user.created', $user, [
                 'name' => $user->name,
                 'email' => $user->email,
+                'office_id' => $user->office_id,
                 'role_ids' => $roleIds,
                 'roles' => Role::query()->whereIn('id', $roleIds)->orderBy('name')->pluck('name')->all(),
             ], $actor->id);
@@ -121,7 +122,7 @@ final class UserRoleService
      * never even offers the action against the acting user's own row) —
      * self-service name/email changes go through Settings instead.
      *
-     * @param  array{name: string, email: string}  $attributes
+     * @param  array{name: string, email: string, office_id?: int|null}  $attributes
      * @param  array<int, int>  $roleIds
      */
     public function updateUser(User $actor, User $target, array $attributes, array $roleIds): void
@@ -134,17 +135,18 @@ final class UserRoleService
 
         $target->fill($attributes);
 
-        if ($target->isDirty(['name', 'email'])) {
+        if ($target->isDirty(['name', 'email', 'office_id'])) {
             $previous = [
                 'name' => $target->getOriginal('name'),
                 'email' => $target->getOriginal('email'),
+                'office_id' => $target->getOriginal('office_id'),
             ];
 
             $target->save();
 
             AuditLog::record('user.profile_updated', $target, [
                 'previous' => $previous,
-                'new' => ['name' => $target->name, 'email' => $target->email],
+                'new' => ['name' => $target->name, 'email' => $target->email, 'office_id' => $target->office_id],
             ], $actor->id);
         }
 

@@ -35,11 +35,12 @@ import {
 import { useTableFilters } from '@/composables/useTableFilters';
 import * as usersRoutes from '@/routes/users';
 import type { Paginated } from '@/types/pagination';
-import type { RoleOption, UserFilters, UserListItem } from '@/types/users';
+import type { OfficeOption, RoleOption, UserFilters, UserListItem } from '@/types/users';
 
 const props = defineProps<{
     users: Paginated<UserListItem>;
     roles: RoleOption[];
+    offices: OfficeOption[];
     filters: UserFilters;
 }>();
 
@@ -66,10 +67,22 @@ const roleOptions = computed(() => props.roles.map((role) => ({ value: role.id, 
 
 const editingUser = ref<UserListItem | null>(null);
 
-const editForm = useForm<{ name: string; email: string; role_ids: number[] }>({
+const editForm = useForm<{ name: string; email: string; office_id: number | null; role_ids: number[] }>({
     name: '',
     email: '',
+    office_id: null,
     role_ids: [],
+});
+
+/** Reka's Select forbids an empty-string/null item value, so a clearable
+ * dropdown needs a distinct sentinel translated back to null. */
+const NONE = '__none__';
+
+const editOfficeModel = computed<number | typeof NONE>({
+    get: () => editForm.office_id ?? NONE,
+    set: (value: number | typeof NONE) => {
+        editForm.office_id = value === NONE ? null : Number(value);
+    },
 });
 
 function openEdit(row: UserListItem) {
@@ -79,7 +92,7 @@ function openEdit(row: UserListItem) {
 
     editingUser.value = row;
     editForm.clearErrors();
-    editForm.defaults({ name: row.name, email: row.email, role_ids: [...row.role_ids] });
+    editForm.defaults({ name: row.name, email: row.email, office_id: row.office?.id ?? null, role_ids: [...row.role_ids] });
     editForm.reset();
 }
 
@@ -174,7 +187,10 @@ function confirmDelete() {
                     <tr>
                         <th scope="col" class="px-4 py-3 font-medium">Name</th>
                         <th scope="col" class="px-4 py-3 font-medium">Email</th>
+                        <th scope="col" class="px-4 py-3 font-medium">School / Office</th>
                         <th scope="col" class="px-4 py-3 font-medium">Roles</th>
+                        <th scope="col" class="px-4 py-3 font-medium">Created</th>
+                        <th scope="col" class="px-4 py-3 font-medium">Modified</th>
                         <th scope="col" class="px-4 py-3 font-medium">
                             <span class="sr-only">Actions</span>
                         </th>
@@ -182,7 +198,7 @@ function confirmDelete() {
                 </thead>
                 <tbody class="divide-y">
                     <tr v-if="props.users.data.length === 0">
-                        <td colspan="4" class="px-4 py-8 text-center text-muted-foreground">
+                        <td colspan="7" class="px-4 py-8 text-center text-muted-foreground">
                             No users found.
                         </td>
                     </tr>
@@ -195,6 +211,15 @@ function confirmDelete() {
                         </td>
                         <td class="px-4 py-3">{{ row.email }}</td>
                         <td class="px-4 py-3">
+                            <div v-if="row.office">
+                                {{ row.office.name }}
+                                <div v-if="row.office.school_id" class="text-xs text-muted-foreground">
+                                    School ID: {{ row.office.school_id }}
+                                </div>
+                            </div>
+                            <span v-else class="text-muted-foreground">—</span>
+                        </td>
+                        <td class="px-4 py-3">
                             <div class="flex flex-wrap gap-1">
                                 <Badge
                                     v-for="role in row.roles"
@@ -205,6 +230,12 @@ function confirmDelete() {
                                 </Badge>
                                 <span v-if="row.roles.length === 0" class="text-muted-foreground">—</span>
                             </div>
+                        </td>
+                        <td class="px-4 py-3 text-xs text-muted-foreground">
+                            {{ row.created_at ? new Date(row.created_at).toLocaleString() : '—' }}
+                        </td>
+                        <td class="px-4 py-3 text-xs text-muted-foreground">
+                            {{ row.updated_at ? new Date(row.updated_at).toLocaleString() : '—' }}
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex items-center justify-end gap-2">
@@ -287,6 +318,25 @@ function confirmDelete() {
                     <!-- eslint-disable-next-line vue/no-mutating-props -- Inertia's useForm() is shared reactive state, not a one-way prop; the parent and this component intentionally read/write the same form object. -->
                     <Input id="edit-email" v-model="editForm.email" type="email" required autocomplete="email" />
                     <InputError :message="editForm.errors.email" />
+                </div>
+                <div class="grid gap-2">
+                    <Label for="edit-office">School / office</Label>
+                    <Select v-model="editOfficeModel">
+                        <SelectTrigger id="edit-office" class="w-full">
+                            <SelectValue placeholder="None" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem :value="NONE">None</SelectItem>
+                            <SelectItem
+                                v-for="opt in offices"
+                                :key="opt.value"
+                                :value="opt.value"
+                            >
+                                {{ opt.label }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <InputError :message="editForm.errors.office_id" />
                 </div>
                 <div class="grid gap-2">
                     <Label>Roles</Label>

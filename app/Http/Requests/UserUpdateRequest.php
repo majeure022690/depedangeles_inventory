@@ -38,6 +38,7 @@ class UserUpdateRequest extends FormRequest
 
         return [
             ...$this->profileRules($target instanceof User ? $target->id : null),
+            'office_id' => ['nullable', 'integer', Rule::exists('offices', 'id')],
             'role_ids' => ['present', 'array'],
             'role_ids.*' => ['integer', Rule::exists('roles', 'id')],
         ];

@@ -35,6 +35,7 @@ class UserStoreRequest extends FormRequest
         return [
             ...$this->profileRules(),
             'password' => $this->passwordRules(),
+            'office_id' => ['nullable', 'integer', Rule::exists('offices', 'id')],
             'role_ids' => ['present', 'array'],
             'role_ids.*' => ['integer', Rule::exists('roles', 'id')],
         ];

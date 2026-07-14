@@ -29,5 +29,9 @@ class DatabaseSeeder extends Seeder
         // normalization ADR. Supersedes the old LookupSeeder/`lookups`
         // table, dropped in the ADR's Step 4 cleanup.
         $this->call(ReferenceDataSeeder::class);
+
+        // Every school and division-level office/unit, imported from the
+        // division's existing "offices" table.
+        $this->call(OfficeSeeder::class);
     }
 }
