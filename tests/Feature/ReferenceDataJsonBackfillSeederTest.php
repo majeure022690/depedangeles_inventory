@@ -19,11 +19,10 @@ use Tests\TestCase;
  * Proves ReferenceDataJsonBackfillSeeder's array-content migration logic
  * (value-strings -> reference-table ids) against realistic data, per the
  * lookup-normalization ADR's Question 4 / Step 1.5. Production
- * StakeholderProfile rows and the InternetConnectivitySurvey singleton are
- * currently blank and Personnel has 0 real rows, so there is genuinely
- * nothing to migrate in the real `inventory` database today — this test is
- * what proves the logic is correct before any future real data depends on
- * it.
+ * StakeholderProfile and InternetConnectivitySurvey rows are currently
+ * blank and Personnel has 0 real rows, so there is genuinely nothing to
+ * migrate in the real `inventory` database today — this test is what
+ * proves the logic is correct before any future real data depends on it.
  */
 class ReferenceDataJsonBackfillSeederTest extends TestCase
 {
@@ -89,6 +88,7 @@ class ReferenceDataJsonBackfillSeederTest extends TestCase
         $electricity = StakeholderLibrary::query()->active()->where('type', 'source_of_electricity')->first();
 
         $survey = InternetConnectivitySurvey::create([
+            'office_id' => Office::create(['office_name' => 'Test Connectivity Office'])->id,
             'available_isps' => [$provider->name],
             'subscribed_isps' => [$provider->name],
             'mobile_signal_types' => [$mobileSignal->value],

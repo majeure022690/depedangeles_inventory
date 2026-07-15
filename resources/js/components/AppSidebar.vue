@@ -15,7 +15,7 @@ import {
 import { usePermissions } from '@/composables/usePermissions';
 import { dashboard } from '@/routes';
 import equipment from '@/routes/equipment';
-import internetConnectivitySurvey from '@/routes/internet-connectivity-survey';
+import internetConnectivitySurveys from '@/routes/internet-connectivity-surveys';
 import ispAccounts from '@/routes/isp-accounts';
 import personnel from '@/routes/personnel';
 import referenceData from '@/routes/reference-data';
@@ -70,7 +70,7 @@ const mainNavItems = computed<NavItem[]>(() => {
             href: stakeholderProfiles.index(),
             icon: Building2,
         });
-    } else if (can('stakeholder_profile.view') && page.props.auth.user.office_id !== null) {
+    } else if (can('stakeholder_profile.view') && typeof page.props.auth.user.office_id === 'number') {
         items.push({
             title: 'Stakeholder Profile',
             href: stakeholderProfiles.edit(page.props.auth.user.office_id),
@@ -78,10 +78,20 @@ const mainNavItems = computed<NavItem[]>(() => {
         });
     }
 
-    if (can('internet_connectivity.view')) {
+    // Cross-office admins (view_all) get the all-offices list; a regular
+    // office-scoped user (view, own office_id) goes straight to their own
+    // office's survey — there's nothing else for them to browse. Hidden
+    // entirely for a view-holder with no office_id (nothing to show).
+    if (can('internet_connectivity.view_all')) {
         items.push({
             title: 'Internet Connectivity',
-            href: internetConnectivitySurvey.edit(),
+            href: internetConnectivitySurveys.index(),
+            icon: Signal,
+        });
+    } else if (can('internet_connectivity.view') && typeof page.props.auth.user.office_id === 'number') {
+        items.push({
+            title: 'Internet Connectivity',
+            href: internetConnectivitySurveys.edit(page.props.auth.user.office_id),
             icon: Signal,
         });
     }

@@ -4,7 +4,7 @@
 
 A profile describing a school or division-level office — governance level, location/address, contact persons (chief, admin staff, network administrator), community/access context. One edit form per office, shared by every user assigned to that office.
 
-Started (2026-07-10) as a true global singleton — one record for the whole application, following the pattern documented in [`docs/architecture.md`](../architecture.md#3-singleton-internet-connectivity-survey). Converted (2026-07-14) to **one row per `App\Models\Office`** once the app grew to track multiple schools under the division (the `offices` table) rather than a single division office — see [`docs/architecture.md`](../architecture.md#3b-one-row-per-tenant-stakeholder-profile) for the full pattern description and how it differs from a true singleton.
+Started (2026-07-10) as a true global singleton — one record for the whole application, following the same starting shape Internet Connectivity Survey used at the time. Converted (2026-07-14) to **one row per `App\Models\Office`** once the app grew to track multiple schools under the division (the `offices` table) rather than a single division office — see [`docs/architecture.md`](../architecture.md#3-one-row-per-tenant-stakeholder-profile-internet-connectivity-survey) for the full pattern description and how it differs from a true singleton. Internet Connectivity Survey went through the same conversion one day later (2026-07-15) — see [`docs/features/internet-connectivity-survey.md`](internet-connectivity-survey.md).
 
 ## Architecture
 
@@ -89,5 +89,4 @@ Note `school_district`/`school_name`/`school_id` are independent free-text field
 
 ## Future considerations
 
-- Internet Connectivity Survey remains a true global singleton (not converted alongside this) — revisit only if the same multi-school need arises there.
 - No trusted-device-style "recently viewed offices" shortcut for admins browsing many schools — the index list's search is the only navigation aid today.

@@ -36,8 +36,9 @@ use RuntimeException;
  * SAFETY — firstOrCreate keyed on office_id (unique on the table): if a
  * profile already exists for office 74, this is skipped entirely rather
  * than overwritten, to avoid clobbering real admin work — same
- * "don't guess which fields are safe to fill" caution
- * InternetConnectivitySurveySeeder uses for its own singleton-style row.
+ * "don't guess which fields are safe to fill" caution other
+ * reference-data seeders in this project follow for their own
+ * singleton-style rows.
  */
 class StakeholderProfileSeeder extends Seeder
 {

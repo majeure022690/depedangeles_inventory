@@ -7,29 +7,36 @@ use App\Models\InternetConnectivitySurvey;
 use App\Models\User;
 
 /**
- * SINGLETON resource (see App\Models\InternetConnectivitySurvey) —
- * exactly one row ever exists, fetched/created by Backend via
- * `InternetConnectivitySurvey::firstOrCreate([])`. There is no
- * create/delete action to authorize, so this Policy deliberately has only
- * `view`/`update`, unlike the multi-record Policies that also authorize
- * create/delete/restore/forceDelete.
- *
- * A separate small Policy rather than folding this into
- * StakeholderProfilePolicy: the two singletons are semantically distinct
- * resources (division profile/contact data vs. connectivity/ISP survey
- * data) with independently assignable permissions
- * (InternetConnectivityView/Edit vs. StakeholderProfileView/Edit) — a
- * shared Policy would blur which permission gates which model.
+ * One row per Office, mirroring StakeholderProfilePolicy. `.view`/`.edit`
+ * are scoped to the acting user's own office_id; `.view_all` bypasses that
+ * and gates the cross-office admin list (viewAny()).
  */
 class InternetConnectivitySurveyPolicy
 {
+    public function viewAny(User $user): bool
+    {
+        return $user->hasPermissionTo(Permission::InternetConnectivityViewAll);
+    }
+
     public function view(User $user, InternetConnectivitySurvey $internetConnectivitySurvey): bool
     {
-        return $user->hasPermissionTo(Permission::InternetConnectivityView);
+        if ($user->hasPermissionTo(Permission::InternetConnectivityViewAll)) {
+            return true;
+        }
+
+        return $user->hasPermissionTo(Permission::InternetConnectivityView)
+            && $user->office_id !== null
+            && $user->office_id === $internetConnectivitySurvey->office_id;
     }
 
     public function update(User $user, InternetConnectivitySurvey $internetConnectivitySurvey): bool
     {
-        return $user->hasPermissionTo(Permission::InternetConnectivityEdit);
+        if ($user->hasPermissionTo(Permission::InternetConnectivityViewAll)) {
+            return true;
+        }
+
+        return $user->hasPermissionTo(Permission::InternetConnectivityEdit)
+            && $user->office_id !== null
+            && $user->office_id === $internetConnectivitySurvey->office_id;
     }
 }

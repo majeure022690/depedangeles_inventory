@@ -75,4 +75,12 @@ class Office extends Model
     {
         return $this->hasOne(StakeholderProfile::class);
     }
+
+    /**
+     * @return HasOne<InternetConnectivitySurvey, $this>
+     */
+    public function internetConnectivitySurvey(): HasOne
+    {
+        return $this->hasOne(InternetConnectivitySurvey::class);
+    }
 }

@@ -67,11 +67,6 @@ class DatabaseSeeder extends Seeder
         $this->call(IspSpeedTestSeeder::class);
         $this->call(IspSubscriptionCostSeeder::class);
 
-        // Division's answers to the 27-question Internet Connectivity
-        // survey. Depends on ReferenceDataSeeder above (isp_providers,
-        // connectivity_libraries, stakeholder_libraries).
-        $this->call(InternetConnectivitySurveySeeder::class);
-
         // Division's answers to the Stakeholder Profile sheet, attached to
         // office_id 74 (OSDS-OFFICE OF THE SCHOOLS DIVISION SUPERINTENDENT
         // — see StakeholderProfileSeeder's doc-comment for why). Depends on

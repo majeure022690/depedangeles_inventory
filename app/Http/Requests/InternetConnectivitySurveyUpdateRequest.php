@@ -9,52 +9,27 @@ use App\Enums\StakeholderLibraryType;
 use App\Models\ConnectivityLibrary;
 use App\Models\InternetConnectivitySurvey;
 use App\Models\IspProvider;
+use App\Models\Office;
 use App\Models\StakeholderLibrary;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Validates the single InternetConnectivitySurvey singleton's editable
- * fields only. The "protected"/computed aggregate fields (Total ISPs,
- * Total Cost/month, Total Amount Spent, Total Projected Expenditure, Rooms
- * Covered Admin/Classroom, Total Access Points) are deliberately absent —
- * see InternetConnectivitySurvey's doc-comment. They are never columns on
- * this table and never part of this request's validated/writable data;
- * InternetConnectivitySurveyController computes them live from IspAccount/
- * IspSubscriptionCost and passes them as separate read-only display props.
- *
- * Every rule is nullable, same rationale as StakeholderProfileUpdateRequest
- * — a progressively-filled singleton record with no "required at insert"
- * set.
- *
- * TIER 1/TIER 2 CUTOVER (lookup-normalization ADR, Step 2+3): `available_isps`/
- * `subscribed_isps` are JSON arrays of `isp_providers` row ids (Tier 1 —
- * no type-scoping needed, it's a dedicated table, same pattern IspAccount
- * uses for its own `isp_provider_id`). `mobile_data_quality` moves to
- * ConnectivityLibrary/ConnectivityLibraryType::SignalQuality (already-live
- * table/enum, just repointed — IspAccount validates its own signal-quality
- * fields against the same type). `mobile_signal_types`/`coverage_areas`
- * are now arrays of `connectivity_libraries` row ids, type-scoped to
- * MobileNetworkSignal/CoverageArea respectively — the two
- * ConnectivityLibraryType cases IspAccount never touched; this is their
- * first real consumer. `electricity_sources` is an array of
- * `stakeholder_libraries` row ids, type-scoped to
- * StakeholderLibraryType::SourceOfElectricity — a deliberate cross-domain
- * read per the ADR (this survey shares that vocabulary with
- * StakeholderProfile, which doesn't itself consume it as a field but the
- * table is the steward). Every array element validates via Rule::exists(),
- * same shape as StakeholderProfileUpdateRequest's array fields.
+ * Validates one office's InternetConnectivitySurvey editable fields. The
+ * live-computed aggregate fields (Total ISPs, etc.) are deliberately absent
+ * — never columns on this table, never writable here.
  */
 class InternetConnectivitySurveyUpdateRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // Authorize against a transient (unsaved) instance rather than
-        // `firstOrCreate([])` — InternetConnectivitySurveyPolicy never
-        // inspects the model instance (only hasPermissionTo()), so this is
-        // authorization-equivalent, but doesn't create the singleton row
-        // as a side effect of an unauthorized request.
-        return $this->user()->can('update', new InternetConnectivitySurvey);
+        // Transient instance scoped to the route's office, so an
+        // unauthorized request never creates that office's row.
+        $office = $this->route('office');
+
+        return $this->user()->can('update', new InternetConnectivitySurvey([
+            'office_id' => $office instanceof Office ? $office->id : null,
+        ]));
     }
 
     /**

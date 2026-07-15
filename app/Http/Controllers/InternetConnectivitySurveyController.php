@@ -11,57 +11,75 @@ use App\Http\Requests\InternetConnectivitySurveyUpdateRequest;
 use App\Models\AuditLog;
 use App\Models\ConnectivityLibrary;
 use App\Models\InternetConnectivitySurvey;
-use App\Models\IspAccount;
 use App\Models\IspProvider;
-use App\Models\IspSubscriptionCost;
+use App\Models\Office;
 use App\Models\StakeholderLibrary;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * SINGLETON controller (see App\Models\InternetConnectivitySurvey) — same
- * treatment as StakeholderProfileController: only edit()/update(), one
- * row for the whole application via `firstOrCreate([])`, no index/create/
- * store/destroy.
- *
- * edit() additionally computes the survey's "protected"/derived aggregate
- * fields (Total ISPs, Total Cost/month, Total Amount Spent, Total
- * Projected Expenditure, Rooms Covered Admin/Classroom, Total Access
- * Points) live from IspAccount/IspSubscriptionCost and passes them as a
- * separate read-only `aggregates` prop — see
- * InternetConnectivitySurvey's doc-comment for why these are never
- * columns on this table and never part of the writable Form Request
- * payload.
+ * One row per Office (see docs/features/internet-connectivity-survey.md).
+ * index() is the cross-office admin list; edit()/update() are scoped to
+ * one {office}.
  */
 class InternetConnectivitySurveyController extends Controller
 {
     use HasLookupOptions;
 
-    public function edit(): Response
+    public function index(Request $request): Response
     {
-        // Authorize against a transient (unsaved) instance BEFORE touching
-        // the DB — InternetConnectivitySurveyPolicy never inspects the
-        // model instance (only hasPermissionTo()), so this is
-        // authorization-equivalent to the persisted row, but a
-        // `pending`-role user's GET no longer creates the singleton row
-        // before being 403'd.
-        $this->authorize('view', new InternetConnectivitySurvey);
+        $this->authorize('viewAny', InternetConnectivitySurvey::class);
 
-        $internetConnectivitySurvey = InternetConnectivitySurvey::firstOrCreate([]);
+        $search = $request->string('search')->toString() ?: null;
+
+        $offices = Office::query()
+            ->with('internetConnectivitySurvey:id,office_id,updated_at')
+            ->when($search, fn ($query) => $query->where('office_name', 'like', "%{$search}%"))
+            ->orderBy('office_name')
+            ->paginate(20)
+            ->withQueryString()
+            ->through(fn (Office $office) => [
+                'id' => $office->id,
+                'office_name' => $office->office_name,
+                'office_type' => $office->office_type,
+                'school_id' => $office->school_id,
+                'has_survey' => $office->internetConnectivitySurvey !== null,
+                'updated_at' => $office->internetConnectivitySurvey?->updated_at?->toIso8601String(),
+            ]);
+
+        return Inertia::render('internet-connectivity-survey/Index', [
+            'offices' => $offices,
+            'filters' => [
+                'search' => $search,
+            ],
+        ]);
+    }
+
+    public function edit(Office $office): Response
+    {
+        // Authorize a transient instance before firstOrCreate(), so a
+        // wrong-office GET 403s without creating that office's row.
+        $this->authorize('view', new InternetConnectivitySurvey(['office_id' => $office->id]));
+
+        $internetConnectivitySurvey = InternetConnectivitySurvey::firstOrCreate(['office_id' => $office->id]);
 
         return Inertia::render('internet-connectivity-survey/Edit', [
+            'office' => [
+                'id' => $office->id,
+                'office_name' => $office->office_name,
+            ],
             'internetConnectivitySurvey' => $this->surveyProps($internetConnectivitySurvey),
-            'aggregates' => $this->computeAggregates(),
             'options' => $this->formOptions(),
         ]);
     }
 
-    public function update(InternetConnectivitySurveyUpdateRequest $request): RedirectResponse
+    public function update(InternetConnectivitySurveyUpdateRequest $request, Office $office): RedirectResponse
     {
-        $this->authorize('update', new InternetConnectivitySurvey);
+        $this->authorize('update', new InternetConnectivitySurvey(['office_id' => $office->id]));
 
-        $internetConnectivitySurvey = InternetConnectivitySurvey::firstOrCreate([]);
+        $internetConnectivitySurvey = InternetConnectivitySurvey::firstOrCreate(['office_id' => $office->id]);
 
         $before = $internetConnectivitySurvey->getOriginal();
 
@@ -76,7 +94,7 @@ class InternetConnectivitySurveyController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Internet connectivity survey updated.')]);
 
-        return to_route('internet-connectivity-survey.edit');
+        return to_route('internet-connectivity-surveys.edit', $office);
     }
 
     /**
@@ -117,27 +135,6 @@ class InternetConnectivitySurveyController extends Controller
             'frequent_brownouts' => $internetConnectivitySurvey->frequent_brownouts,
 
             'rooms_other_use' => $internetConnectivitySurvey->rooms_other_use,
-        ];
-    }
-
-    /**
-     * Live-computed "protected" fields sourced from IspAccount /
-     * IspSubscriptionCost — never stored on internet_connectivity_surveys.
-     * IspAccount's default query already excludes soft-deleted rows, so
-     * these totals only ever reflect active accounts.
-     *
-     * @return array<string, int|float>
-     */
-    private function computeAggregates(): array
-    {
-        return [
-            'total_isps' => IspAccount::query()->count(),
-            'total_cost_per_month' => (float) IspAccount::query()->sum('cost_per_month'),
-            'total_amount_spent' => (float) IspSubscriptionCost::query()->sum('total_amount_spent'),
-            'total_projected_expenditure' => (float) IspSubscriptionCost::query()->sum('total_projected_expenditure'),
-            'rooms_covered_admin' => (int) IspAccount::query()->sum('number_admin_area_covered'),
-            'rooms_covered_classroom' => (int) IspAccount::query()->sum('number_classrooms_covered'),
-            'total_access_points' => (int) IspAccount::query()->sum('number_access_points_linked'),
         ];
     }
 

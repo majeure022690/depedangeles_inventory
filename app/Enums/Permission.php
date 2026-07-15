@@ -120,14 +120,14 @@ enum Permission: string
     // analogous to reference-data.manage. Only 'admin' is seeded with it.
     case StakeholderProfileViewAll = 'stakeholder_profile.view_all';
 
-    // Internet Connectivity Survey (SINGLETON — see
-    // App\Models\InternetConnectivitySurvey). Same reasoning as
-    // StakeholderProfile: no .create/.delete, and .view stays separate
-    // from .edit so 'viewer' keeps its existing read-only visibility into
-    // ISP/connectivity information (it already holds IspAccountsView)
-    // without also gaining edit rights over the survey.
+    // Internet Connectivity Survey (one row per office). .view/.edit are
+    // scoped to the acting user's own office_id (InternetConnectivitySurveyPolicy).
     case InternetConnectivityView = 'internet_connectivity.view';
     case InternetConnectivityEdit = 'internet_connectivity.edit';
+
+    // Cross-office oversight: bypasses the office scoping above and gates
+    // the admin list. Only 'admin' is seeded with it.
+    case InternetConnectivityViewAll = 'internet_connectivity.view_all';
 
     /**
      * Human-readable label for a future permission-management UI.

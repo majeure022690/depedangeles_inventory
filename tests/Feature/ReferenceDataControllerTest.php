@@ -10,6 +10,7 @@ use App\Models\EquipmentLibrary;
 use App\Models\InternetConnectivitySurvey;
 use App\Models\IspProvider;
 use App\Models\ItemType;
+use App\Models\Office;
 use App\Models\Personnel;
 use App\Models\PersonnelLibrary;
 use App\Models\User;
@@ -478,7 +479,8 @@ class ReferenceDataControllerTest extends TestCase
     public function test_isp_provider_delete_is_blocked_when_referenced_only_via_json_survey_columns(): void
     {
         $provider = IspProvider::create(['name' => 'PLDT', 'sort_order' => 0, 'is_active' => true]);
-        InternetConnectivitySurvey::create(['available_isps' => [$provider->id]]);
+        $office = Office::create(['office_name' => 'Test Elementary School']);
+        InternetConnectivitySurvey::create(['office_id' => $office->id, 'available_isps' => [$provider->id]]);
 
         $this->actingAs($this->admin())
             ->delete(route('reference-data.destroy', ['table' => 'isp-providers', 'id' => $provider->id]))

@@ -1,10 +1,20 @@
 import type { LookupOption, ReferenceOption } from '@/types/lookup';
 
-/**
- * Shape of the `internetConnectivitySurvey` Inertia prop from
- * InternetConnectivitySurveyController::edit()/update() — mirrors
- * InternetConnectivitySurvey's singleton row.
- */
+/** One row of the internet-connectivity-surveys.index admin list. */
+export type InternetConnectivitySurveyOfficeListItem = {
+    id: number;
+    office_name: string;
+    office_type: string | null;
+    school_id: number | null;
+    has_survey: boolean;
+    updated_at: string | null;
+};
+
+export type InternetConnectivitySurveyFilters = {
+    search: string | null;
+};
+
+/** Shape of the `internetConnectivitySurvey` Inertia prop. */
 export type InternetConnectivitySurveyFull = {
     id: number;
 
@@ -38,21 +48,6 @@ export type InternetConnectivitySurveyFull = {
     frequent_brownouts: boolean | null;
 
     rooms_other_use: number | null;
-};
-
-/**
- * Live-computed, read-only "Protected, source data from..." aggregates —
- * see InternetConnectivitySurvey's doc-comment. Never part of the
- * writable form; sourced from IspAccount/IspSubscriptionCost.
- */
-export type InternetConnectivitySurveyAggregates = {
-    total_isps: number;
-    total_cost_per_month: number;
-    total_amount_spent: number;
-    total_projected_expenditure: number;
-    rooms_covered_admin: number;
-    rooms_covered_classroom: number;
-    total_access_points: number;
 };
 
 /**

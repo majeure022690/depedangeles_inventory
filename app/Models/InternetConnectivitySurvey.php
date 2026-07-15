@@ -4,43 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Bare-bones structural model — fillable/casts only.
- *
- * SINGLETON MODEL: exactly one row should ever exist (one Division Office
- * connectivity survey for this whole application). Same singleton
- * treatment as StakeholderProfile — Backend must fetch/create it with an
- * `InternetConnectivitySurvey::firstOrCreate([])`-style pattern, never a
- * list/index. No factory is provided for the same reason.
- *
- * LIVE-COMPUTED "PROTECTED" FIELDS: the source survey displays several
- * fields marked "Protected, source data from..." — Total ISPs, Total
- * Cost/month, Total Amount Spent, Total Projected Expenditure, Rooms
- * Covered (Admin/Classroom), Total Access Points. None of these are
- * columns on this table by design (see the create_internet_connectivity_
- * surveys_table migration) — they must never be duplicated/cached here.
- * Backend needs to query App\Models\IspAccount and the isp_subscription_
- * costs table to compute them live wherever this survey is displayed:
- *   - Total ISPs: count of isp_accounts rows (distinct `isp` or row count,
- *     Backend's call based on what "Total ISPs" is meant to represent).
- *   - Total Cost/month: sum of isp_accounts.cost_per_month.
- *   - Total Amount Spent / Total Projected Expenditure: aggregated from
- *     isp_subscription_costs.
- *   - Rooms Covered (Admin/Classroom): sum of
- *     isp_accounts.number_admin_area_covered /
- *     isp_accounts.number_classrooms_covered.
- *   - Total Access Points: sum of
- *     isp_accounts.number_access_points_linked.
- * There is no FK from this table to isp_accounts / isp_subscription_costs
- * — it's a "query separately at render time" relationship, not a stored
- * one, and deliberately has no Eloquent relationship method here.
- *
- * rooms_other_use is the one exception: it's genuinely user-entered in the
- * source (not protected/derived), so it's a real column here.
+ * One row per Office (see docs/features/internet-connectivity-survey.md).
+ * No factory — surveys are lazily created per office, not seeded in bulk.
+ * The "protected" aggregate fields (Total ISPs, etc.) aren't columns here;
+ * they're computed live from IspAccount/isp_subscription_costs elsewhere.
  */
 #[Fillable([
-    'has_isp_in_area', 'available_isps', 'available_isps_other',
+    'office_id', 'has_isp_in_area', 'available_isps', 'available_isps_other',
     'mobile_signal_types', 'has_mobile_data_connectivity',
     'mobile_data_quality', 'subscribes_to_isp', 'subscribed_isps',
     'insufficient_bandwidth_explanation', 'coverage_areas',
@@ -52,6 +25,14 @@ use Illuminate\Database\Eloquent\Model;
 ])]
 class InternetConnectivitySurvey extends Model
 {
+    /**
+     * @return BelongsTo<Office, $this>
+     */
+    public function office(): BelongsTo
+    {
+        return $this->belongsTo(Office::class);
+    }
+
     protected function casts(): array
     {
         return [

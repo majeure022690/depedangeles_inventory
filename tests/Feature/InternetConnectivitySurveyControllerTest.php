@@ -7,9 +7,8 @@ use App\Enums\StakeholderLibraryType;
 use App\Models\AuditLog;
 use App\Models\ConnectivityLibrary;
 use App\Models\InternetConnectivitySurvey;
-use App\Models\IspAccount;
 use App\Models\IspProvider;
-use App\Models\IspSubscriptionCost;
+use App\Models\Office;
 use App\Models\StakeholderLibrary;
 use App\Models\User;
 use Database\Seeders\ReferenceDataSeeder;
@@ -19,19 +18,25 @@ use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
- * InternetConnectivitySurvey's fields (lookup-normalization ADR, Step 2+3)
- * are validated against the real seeded reference tables (via
- * ReferenceDataSeeder) rather than the old Lookup/LookupType system, which
- * this resource no longer consults. `available_isps`/`subscribed_isps` are
- * now arrays of `isp_providers` row ids (Tier 1). `mobile_signal_types`/
- * `coverage_areas` are arrays of `connectivity_libraries` row ids —
- * activating the MobileNetworkSignal/CoverageArea types for the first
- * time. `electricity_sources` is an array of `stakeholder_libraries` row
- * ids (a deliberate cross-domain read).
+ * InternetConnectivitySurvey is one row PER OFFICE (not a global singleton)
+ * — every test here creates its own Office row(s) and scopes users to one
+ * via `office_id`, mirroring StakeholderProfileControllerTest. Its fields
+ * (lookup-normalization ADR, Step 2+3) are validated against the real
+ * seeded reference tables (via ReferenceDataSeeder) rather than the old
+ * Lookup/LookupType system, which this resource no longer consults.
+ * `available_isps`/`subscribed_isps` are arrays of `isp_providers` row ids
+ * (Tier 1). `mobile_signal_types`/`coverage_areas` are arrays of
+ * `connectivity_libraries` row ids. `electricity_sources` is an array of
+ * `stakeholder_libraries` row ids (a deliberate cross-domain read).
  */
 class InternetConnectivitySurveyControllerTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function createOffice(array $overrides = []): Office
+    {
+        return Office::create(array_merge(['office_name' => 'Test Elementary School'], $overrides));
+    }
 
     /**
      * internet-connectivity-survey/Edit.vue doesn't exist yet (Frontend
@@ -56,91 +61,141 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         return json_decode($response->getContent(), true);
     }
 
-    /**
-     * IspAccountFactory's literal string values already match the real
-     * seeded ConnectivityLibrary/EquipmentLibrary rows without needing to
-     * query them (see IspAccountFactory's own doc-comment) and the Tier 1
-     * `isp_provider_id` FK defaults to null — none of that matters here
-     * anyway, since this helper only feeds InternetConnectivitySurvey's
-     * live-computed aggregate fields (cost/rooms/access-points), which
-     * don't depend on any lookup-backed column at all. No reference-data
-     * seeding is required to use this helper.
-     */
-    private function makeIspAccount(array $overrides = []): IspAccount
-    {
-        return IspAccount::factory()->create($overrides);
-    }
-
-    public function test_viewer_can_view_but_not_update(): void
+    public function test_viewer_can_view_own_office_but_not_update(): void
     {
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
+        $office = $this->createOffice();
+        $user = User::factory()->create(['office_id' => $office->id]);
         $user->assignRole('viewer');
 
         $page = $this->assertInertiaJson(
-            $this->actingAs($user)->inertiaGet(route('internet-connectivity-survey.edit'))
+            $this->actingAs($user)->inertiaGet(route('internet-connectivity-surveys.edit', $office))
         );
         $this->assertSame('internet-connectivity-survey/Edit', $page['component']);
 
         $this->actingAs($user)
-            ->put(route('internet-connectivity-survey.update'), [])
+            ->put(route('internet-connectivity-surveys.update', $office), [])
             ->assertForbidden();
     }
 
-    public function test_encoder_can_view_and_update(): void
+    public function test_encoder_can_view_and_update_own_office(): void
     {
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
+        $office = $this->createOffice();
+        $user = User::factory()->create(['office_id' => $office->id]);
         $user->assignRole('encoder');
 
-        $this->actingAs($user)->inertiaGet(route('internet-connectivity-survey.edit'))->assertOk();
+        $this->actingAs($user)->inertiaGet(route('internet-connectivity-surveys.edit', $office))->assertOk();
 
         $pldtId = IspProvider::where('name', 'PLDT')->value('id');
 
-        $response = $this->actingAs($user)->put(route('internet-connectivity-survey.update'), [
+        $response = $this->actingAs($user)->put(route('internet-connectivity-surveys.update', $office), [
             'has_isp_in_area' => true,
             'available_isps' => [$pldtId],
             'rooms_other_use' => 3,
         ]);
 
-        $response->assertRedirect(route('internet-connectivity-survey.edit'));
+        $response->assertRedirect(route('internet-connectivity-surveys.edit', $office));
         $response->assertSessionHasNoErrors();
 
-        $survey = InternetConnectivitySurvey::sole();
+        $survey = InternetConnectivitySurvey::where('office_id', $office->id)->sole();
         $this->assertTrue($survey->has_isp_in_area);
         $this->assertSame([$pldtId], $survey->available_isps);
         $this->assertSame(3, $survey->rooms_other_use);
     }
 
-    public function test_admin_can_view_and_update(): void
+    public function test_encoder_cannot_view_or_update_a_different_office(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $myOffice = $this->createOffice(['office_name' => 'My School']);
+        $otherOffice = $this->createOffice(['office_name' => 'Other School']);
+        $user = User::factory()->create(['office_id' => $myOffice->id]);
+        $user->assignRole('encoder');
+
+        $this->actingAs($user)->get(route('internet-connectivity-surveys.edit', $otherOffice))->assertForbidden();
+        $this->actingAs($user)
+            ->put(route('internet-connectivity-surveys.update', $otherOffice), ['rooms_other_use' => 3])
+            ->assertForbidden();
+
+        // No side effect: the other office's survey is never created by a
+        // forbidden request.
+        $this->assertSame(0, InternetConnectivitySurvey::where('office_id', $otherOffice->id)->count());
+    }
+
+    public function test_encoder_with_no_office_gets_403_on_any_office(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $office = $this->createOffice();
+        $user = User::factory()->create(['office_id' => null]);
+        $user->assignRole('encoder');
+
+        $this->actingAs($user)->get(route('internet-connectivity-surveys.edit', $office))->assertForbidden();
+    }
+
+    public function test_admin_can_view_and_update_any_office_via_view_all(): void
     {
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
+        $office = $this->createOffice();
+        // Deliberately no office_id on the admin -- view_all must not
+        // depend on the actor having one of their own.
+        $user = User::factory()->create(['office_id' => null]);
         $user->assignRole('admin');
 
-        $this->actingAs($user)->inertiaGet(route('internet-connectivity-survey.edit'))->assertOk();
+        $this->actingAs($user)->inertiaGet(route('internet-connectivity-surveys.edit', $office))->assertOk();
 
         $this->actingAs($user)
-            ->put(route('internet-connectivity-survey.update'), ['frequent_brownouts' => true])
-            ->assertRedirect(route('internet-connectivity-survey.edit'));
+            ->put(route('internet-connectivity-surveys.update', $office), ['frequent_brownouts' => true])
+            ->assertRedirect(route('internet-connectivity-surveys.edit', $office));
 
-        $this->assertTrue(InternetConnectivitySurvey::sole()->frequent_brownouts);
+        $this->assertTrue(InternetConnectivitySurvey::where('office_id', $office->id)->sole()->frequent_brownouts);
+    }
+
+    public function test_only_view_all_holder_can_access_the_index_list(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $office = $this->createOffice();
+
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $this->actingAs($admin)->inertiaGet(route('internet-connectivity-surveys.index'))->assertOk();
+
+        $encoder = User::factory()->create(['office_id' => $office->id]);
+        $encoder->assignRole('encoder');
+        $this->actingAs($encoder)->get(route('internet-connectivity-surveys.index'))->assertForbidden();
+    }
+
+    public function test_index_lists_offices_with_and_without_a_survey(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $withSurvey = $this->createOffice(['office_name' => 'Has Survey ES']);
+        $withoutSurvey = $this->createOffice(['office_name' => 'No Survey ES']);
+        InternetConnectivitySurvey::create(['office_id' => $withSurvey->id, 'rooms_other_use' => 2]);
+
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $page = $this->assertInertiaJson($this->actingAs($admin)->inertiaGet(route('internet-connectivity-surveys.index')));
+
+        $rows = collect($page['props']['offices']['data']);
+        $this->assertTrue($rows->firstWhere('id', $withSurvey->id)['has_survey']);
+        $this->assertFalse($rows->firstWhere('id', $withoutSurvey->id)['has_survey']);
     }
 
     public function test_pending_role_gets_403(): void
     {
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
+        $office = $this->createOffice();
+        $user = User::factory()->create(['office_id' => $office->id]);
         $user->assignRole('pending');
 
-        $this->actingAs($user)->get(route('internet-connectivity-survey.edit'))->assertForbidden();
-        $this->actingAs($user)->put(route('internet-connectivity-survey.update'), [])->assertForbidden();
+        $this->actingAs($user)->get(route('internet-connectivity-surveys.edit', $office))->assertForbidden();
+        $this->actingAs($user)->put(route('internet-connectivity-surveys.update', $office), [])->assertForbidden();
 
-        // Authorization must be checked BEFORE the singleton row is
-        // created — a zero-permission user's forbidden requests must not
-        // have any write side effect.
+        // Authorization must be checked BEFORE the row is created — a
+        // zero-permission user's forbidden requests must not have any
+        // write side effect.
         $this->assertSame(0, InternetConnectivitySurvey::count());
     }
 
@@ -148,10 +203,11 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     {
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
+        $office = $this->createOffice();
+        $user = User::factory()->create(['office_id' => $office->id]);
         $user->assignRole('encoder');
 
-        $this->actingAs($user)->put(route('internet-connectivity-survey.update'), [
+        $this->actingAs($user)->put(route('internet-connectivity-surveys.update', $office), [
             'rooms_other_use' => 3,
         ])->assertSessionHasNoErrors();
 
@@ -159,9 +215,10 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         // (see User::assignRole), so filter to the action under test
         // rather than assuming this is the only row.
         $log = AuditLog::where('action', 'internet_connectivity_survey.updated')->sole();
+        $survey = InternetConnectivitySurvey::where('office_id', $office->id)->sole();
         $this->assertSame('internet_connectivity_survey.updated', $log->action);
         $this->assertSame($user->id, $log->actor_id);
-        $this->assertSame(InternetConnectivitySurvey::sole()->id, $log->subject_id);
+        $this->assertSame($survey->id, $log->subject_id);
         $this->assertSame(InternetConnectivitySurvey::class, $log->subject_type);
         $this->assertSame(null, $log->properties['changes']['rooms_other_use']['old']);
         $this->assertSame(3, $log->properties['changes']['rooms_other_use']['new']);
@@ -172,7 +229,8 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     {
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
+        $office = $this->createOffice();
+        $user = User::factory()->create(['office_id' => $office->id]);
         $user->assignRole('encoder');
 
         // Deactivate every IspProvider row but one, so the field's max
@@ -183,7 +241,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         IspProvider::whereIn('id', $ids->slice(1))->update(['is_active' => false]);
 
         $this->actingAs($user)
-            ->put(route('internet-connectivity-survey.update'), [
+            ->put(route('internet-connectivity-surveys.update', $office), [
                 'available_isps' => $ids->take(2)->all(),
             ])
             ->assertSessionHasErrors(['available_isps']);
@@ -193,11 +251,12 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     {
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
+        $office = $this->createOffice();
+        $user = User::factory()->create(['office_id' => $office->id]);
         $user->assignRole('encoder');
 
         $this->actingAs($user)
-            ->put(route('internet-connectivity-survey.update'), [
+            ->put(route('internet-connectivity-surveys.update', $office), [
                 'available_isps' => [999999],
             ])
             ->assertSessionHasErrors(['available_isps.0']);
@@ -213,7 +272,8 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     {
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
+        $office = $this->createOffice();
+        $user = User::factory()->create(['office_id' => $office->id]);
         $user->assignRole('encoder');
 
         $wrongTypeId = ConnectivityLibrary::where('type', ConnectivityLibraryType::CoverageArea)
@@ -221,7 +281,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
             ->value('id');
 
         $this->actingAs($user)
-            ->put(route('internet-connectivity-survey.update'), [
+            ->put(route('internet-connectivity-surveys.update', $office), [
                 'mobile_signal_types' => [$wrongTypeId],
             ])
             ->assertSessionHasErrors(['mobile_signal_types.0']);
@@ -237,7 +297,8 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     {
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
+        $office = $this->createOffice();
+        $user = User::factory()->create(['office_id' => $office->id]);
         $user->assignRole('encoder');
 
         $sourceOfElectricityId = StakeholderLibrary::where('type', StakeholderLibraryType::SourceOfElectricity)
@@ -245,13 +306,13 @@ class InternetConnectivitySurveyControllerTest extends TestCase
             ->value('id');
 
         $this->actingAs($user)
-            ->put(route('internet-connectivity-survey.update'), [
+            ->put(route('internet-connectivity-surveys.update', $office), [
                 'electricity_sources' => [$sourceOfElectricityId],
             ])
             ->assertSessionHasNoErrors();
         $this->assertSame(
             [$sourceOfElectricityId],
-            InternetConnectivitySurvey::sole()->electricity_sources
+            InternetConnectivitySurvey::where('office_id', $office->id)->sole()->electricity_sources
         );
 
         $wrongTypeId = StakeholderLibrary::where('type', StakeholderLibraryType::GovernanceLevel)
@@ -259,70 +320,31 @@ class InternetConnectivitySurveyControllerTest extends TestCase
             ->value('id');
 
         $this->actingAs($user)
-            ->put(route('internet-connectivity-survey.update'), [
+            ->put(route('internet-connectivity-surveys.update', $office), [
                 'electricity_sources' => [$wrongTypeId],
             ])
             ->assertSessionHasErrors(['electricity_sources.0']);
     }
 
-    public function test_aggregate_fields_are_never_writable_and_are_computed_live_on_edit(): void
+    public function test_first_or_create_creates_once_per_office_and_reuses_the_same_row(): void
     {
+        $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('admin');
+        $office = $this->createOffice();
+        $user = User::factory()->create(['office_id' => $office->id]);
+        $user->assignRole('encoder');
 
-        $accountOne = $this->makeIspAccount([
-            'cost_per_month' => 5000,
-            'number_admin_area_covered' => 2,
-            'number_classrooms_covered' => 10,
-            'number_access_points_linked' => 4,
-        ]);
-        $accountTwo = $this->makeIspAccount([
-            'isp_billing_account_no' => 'BA-0002',
-            'cost_per_month' => 3000,
-            'number_admin_area_covered' => 1,
-            'number_classrooms_covered' => 5,
-            'number_access_points_linked' => 2,
-        ]);
+        $this->assertSame(0, InternetConnectivitySurvey::count());
 
-        IspSubscriptionCost::factory()->create([
-            'isp_account_id' => $accountOne->id,
-            'total_amount_spent' => 60000,
-            'total_projected_expenditure' => 65000,
-        ]);
-        IspSubscriptionCost::factory()->create([
-            'isp_account_id' => $accountTwo->id,
-            'total_amount_spent' => 36000,
-            'total_projected_expenditure' => 40000,
-        ]);
+        $this->actingAs($user)->inertiaGet(route('internet-connectivity-surveys.edit', $office))->assertOk();
+        $this->assertSame(1, InternetConnectivitySurvey::count());
+        $firstId = InternetConnectivitySurvey::where('office_id', $office->id)->sole()->id;
 
-        // Attempting to feed a "protected" aggregate field through the
-        // update payload must be silently ignored — it is not a column on
-        // internet_connectivity_surveys and not in the Form Request's
-        // validated() data at all, so it never reaches the database.
-        $this->actingAs($user)->put(route('internet-connectivity-survey.update'), [
-            'total_isps' => 999,
-        ])->assertSessionHasNoErrors();
-        $this->assertArrayNotHasKey('total_isps', InternetConnectivitySurvey::sole()->getAttributes());
+        $this->actingAs($user)->inertiaGet(route('internet-connectivity-surveys.edit', $office))->assertOk();
+        $this->assertSame(1, InternetConnectivitySurvey::count());
 
-        $page = $this->assertInertiaJson(
-            $this->actingAs($user)->inertiaGet(route('internet-connectivity-survey.edit'))
-        );
-
-        // Numeric aggregates are asserted with assertEquals rather than
-        // assertSame for the monetary totals: they round-trip through the
-        // Inertia JSON response, and PHP's json_encode renders a
-        // whole-number float (e.g. 8000.0) without a decimal point, so
-        // json_decode hands the test an int even though the controller
-        // cast the value to float — a JSON-transport artifact, not a
-        // controller bug.
-        $aggregates = $page['props']['aggregates'];
-        $this->assertSame(2, $aggregates['total_isps']);
-        $this->assertEquals(8000.0, $aggregates['total_cost_per_month']);
-        $this->assertEquals(96000.0, $aggregates['total_amount_spent']);
-        $this->assertEquals(105000.0, $aggregates['total_projected_expenditure']);
-        $this->assertSame(3, $aggregates['rooms_covered_admin']);
-        $this->assertSame(15, $aggregates['rooms_covered_classroom']);
-        $this->assertSame(6, $aggregates['total_access_points']);
+        $this->actingAs($user)->put(route('internet-connectivity-surveys.update', $office), ['rooms_other_use' => 4]);
+        $this->assertSame(1, InternetConnectivitySurvey::count());
+        $this->assertSame($firstId, InternetConnectivitySurvey::where('office_id', $office->id)->sole()->id);
     }
 }

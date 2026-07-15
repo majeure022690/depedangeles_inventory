@@ -5,27 +5,29 @@ import Heading from '@/components/Heading.vue';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { usePermissions } from '@/composables/usePermissions';
-import Aggregates from '@/pages/internet-connectivity-survey/Partials/Aggregates.vue';
 import InternetConnectivitySurveyForm from '@/pages/internet-connectivity-survey/Partials/Form.vue';
-import * as internetConnectivitySurveyRoutes from '@/routes/internet-connectivity-survey';
+import * as internetConnectivitySurveyRoutes from '@/routes/internet-connectivity-surveys';
 import type {
-    InternetConnectivitySurveyAggregates,
     InternetConnectivitySurveyFormData,
     InternetConnectivitySurveyFormOptions,
     InternetConnectivitySurveyFull,
 } from '@/types/internet-connectivity-survey';
 
 const props = defineProps<{
+    office: { id: number; office_name: string };
     internetConnectivitySurvey: InternetConnectivitySurveyFull;
-    aggregates: InternetConnectivitySurveyAggregates;
     options: InternetConnectivitySurveyFormOptions;
 }>();
 
 const { can } = usePermissions();
 
+// defineOptions() can't reference props, so both crumbs link to the index.
 defineOptions({
     layout: {
-        breadcrumbs: [{ title: 'Internet Connectivity Survey', href: internetConnectivitySurveyRoutes.edit() }],
+        breadcrumbs: [
+            { title: 'Internet Connectivity Survey', href: internetConnectivitySurveyRoutes.index() },
+            { title: 'Edit survey', href: internetConnectivitySurveyRoutes.index() },
+        ],
     },
 });
 
@@ -73,7 +75,7 @@ function submit() {
         return;
     }
 
-    form.put(internetConnectivitySurveyRoutes.update.url(), {
+    form.put(internetConnectivitySurveyRoutes.update.url(props.office.id), {
         onError: () => {
             toast.error('Unable to save changes. Please review the highlighted fields and try again.');
         },
@@ -89,8 +91,6 @@ function submit() {
             title="Internet Connectivity Survey"
             description="ISP availability, mobile connectivity, coverage, and electricity for the Division Office."
         />
-
-        <Aggregates :aggregates="props.aggregates" />
 
         <form class="space-y-8" @submit.prevent="submit">
             <InternetConnectivitySurveyForm :form="form" :options="props.options" :disabled="!can('internet_connectivity.edit')" />

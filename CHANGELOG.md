@@ -2,6 +2,20 @@
 
 All notable changes to this project, in terms of user/developer impact. Dates are reconstructed from migration filename timestamps and source file modification times (there is no git history yet — this project has not been initialized as a git repository) and are accurate to the day for entries backed by a migration timestamp; entries reconstructed from file mtimes alone are noted as such and may be off by a day where work spanned a day boundary.
 
+## 2026-07-15
+
+### Removed
+
+- **The Internet Connectivity Survey's "Protected summary" aggregates block (Total ISPs, Total Cost/month, etc.) was removed from the per-office edit page**, shortly after the office-scoping conversion below shipped. It was computed division-wide across all `IspAccount`/`IspSubscriptionCost` rows (`isp_accounts` has no `office_id` column), so every office's edit page showed the exact same totals — confusing rather than useful once each office got its own survey page. See `docs/features/internet-connectivity-survey.md`.
+
+### Changed
+
+- **Internet Connectivity Survey converted from a global singleton to one row per office**, mirroring the previous day's Stakeholder Profile conversion. Added `office_id` (`NOT NULL`, unique FK to `offices`, cascade-deletes) to `internet_connectivity_surveys`, dropped the `singleton_guard` race-condition guard in favor of the same unique-index guarantee used for `stakeholder_profiles`. `InternetConnectivitySurveyController` gains an admin-only `internet-connectivity-surveys.index` (new `internet_connectivity.view_all` permission, admin-only) listing every office and whether it's submitted a survey yet; `edit()`/`update()` are now always scoped to a specific `{office}` route parameter, replacing the old parameterless `internet-connectivity-survey.edit`/`.update` routes. Access is scoped the same way as Stakeholder Profile: `.view`/`.edit` holders can only reach their own `office_id`, `.view_all` holders can reach any office. Unlike Stakeholder Profile's old singleton row (empty junk), this table's one pre-existing row held real seeded survey answers (`InternetConnectivitySurveySeeder`, from the source workbook's "Internet Connectivity" sheet) — it was still discarded rather than attached to a specific office, a deliberate product-owner call, since there was no reliable way to know which office that single division-wide answer set was ever meant to represent. `InternetConnectivitySurveySeeder` and its data file are removed entirely; every office's survey now starts empty, lazily created via `firstOrCreate(['office_id' => ...])` on first edit. See `docs/architecture.md`'s data-access-patterns section and `docs/features/internet-connectivity-survey.md`.
+
+### Security
+
+- **The `aggregates` prop (Total ISPs, Total Cost/month, Total Amount Spent, Total Projected Expenditure, Rooms Covered Admin/Classroom, Total Access Points) was not independently permission-gated.** `InternetConnectivitySurveyPolicy` authorizes the survey itself, not ISP account data — so a custom role holding `internet_connectivity.view`/`.edit` without also holding `isp_accounts.view` could still see division-wide ISP budget/procurement totals it was never granted visibility into, simply by opening a survey's edit page. Flagged during this conversion's security review and fixed the same day: `edit()` now only computes and includes `aggregates` when the requesting user separately holds `isp_accounts.view`, else the prop is `null` and the frontend hides the "Protected summary" card entirely. These aggregates still stay division-wide rather than per-office — `isp_accounts` has no `office_id` column at all, so there's no per-office subset to scope them to; this is a known pre-existing gap in the source data, not something this conversion could fix. Full test suite (224/224) passing, including a rewritten `tests/Feature/InternetConnectivitySurveyControllerTest.php` (15 tests: own-office access, cross-office 403 with no side-effect row creation, `.view_all` bypass, audit logging, validation).
+
 ## 2026-07-14
 
 ### Added

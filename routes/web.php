@@ -100,15 +100,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('stakeholder-profiles/{office}', [StakeholderProfileController::class, 'update'])
         ->name('stakeholder-profiles.update');
 
-    // SINGLETON resource (see InternetConnectivitySurvey doc-comment) —
-    // exactly one row for the whole application, no {id} route parameter
-    // and no resource() call: only edit()/update() exist, there is no
-    // index/create/store/destroy for a record that's always fetched/
-    // created via firstOrCreate([]).
-    Route::get('internet-connectivity-survey', [InternetConnectivitySurveyController::class, 'edit'])
-        ->name('internet-connectivity-survey.edit');
-    Route::put('internet-connectivity-survey', [InternetConnectivitySurveyController::class, 'update'])
-        ->name('internet-connectivity-survey.update');
+    // InternetConnectivitySurvey: one row PER OFFICE (see its doc-comment),
+    // not a global singleton — edit()/update() are always scoped to a
+    // specific {office}, and index() is the cross-office admin list
+    // (internet_connectivity.view_all only). Still no create()/store()/
+    // destroy(): a survey is always firstOrCreate(['office_id' => ...])'d
+    // lazily, never explicitly created or deleted.
+    Route::get('internet-connectivity-surveys', [InternetConnectivitySurveyController::class, 'index'])
+        ->name('internet-connectivity-surveys.index');
+    Route::get('internet-connectivity-surveys/{office}', [InternetConnectivitySurveyController::class, 'edit'])
+        ->name('internet-connectivity-surveys.edit');
+    Route::put('internet-connectivity-surveys/{office}', [InternetConnectivitySurveyController::class, 'update'])
+        ->name('internet-connectivity-surveys.update');
 });
 
 require __DIR__.'/settings.php';
