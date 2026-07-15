@@ -90,7 +90,7 @@ Both `RolePermissionSeeder` and `ReferenceDataSeeder` are idempotent — re-runn
 
 ```
 Email:    keithvpolintan@gmail.com
-Password: password
+Password: D3pEd-Angeles!2026
 ```
 
 This account holds the `admin` role (full permissions, including user/role management at `/users`).
