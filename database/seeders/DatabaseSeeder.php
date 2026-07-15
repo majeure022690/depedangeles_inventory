@@ -19,9 +19,12 @@ class DatabaseSeeder extends Seeder
 
         $this->call(RolePermissionSeeder::class);
 
+        // firstOrCreate() merges $values over $attributes on key collision,
+        // so 'email' must be repeated here too — otherwise raw()'s random
+        // fake email silently wins over the fixed email below.
         $testUser = User::firstOrCreate(
-            ['email' => 'test@example.com'],
-            User::factory()->raw(['name' => 'Test User']),
+            ['email' => 'keithvpolintan@gmail.com'],
+            User::factory()->raw(['name' => 'Test User', 'email' => 'keithvpolintan@gmail.com']),
         );
         $testUser->assignRole('admin');
 

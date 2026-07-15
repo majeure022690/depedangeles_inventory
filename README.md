@@ -89,7 +89,7 @@ Both `RolePermissionSeeder` and `ReferenceDataSeeder` are idempotent — re-runn
 **Seeded login:**
 
 ```
-Email:    test@example.com
+Email:    keithvpolintan@gmail.com
 Password: password
 ```
 
