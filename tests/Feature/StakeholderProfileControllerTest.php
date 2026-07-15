@@ -204,6 +204,29 @@ class StakeholderProfileControllerTest extends TestCase
         $this->assertFalse($rows->firstWhere('id', $withoutProfile->id)['has_profile']);
     }
 
+    /**
+     * edit() firstOrCreate()s an empty row on first view — merely opening
+     * the "Start" link must not flip the index to "Submitted" until a real
+     * field is actually saved.
+     */
+    public function test_index_still_shows_not_started_after_edit_page_is_viewed_but_nothing_saved(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $office = $this->createOffice(['office_name' => 'Just Viewed ES']);
+
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $this->actingAs($admin)->inertiaGet(route('stakeholder-profiles.edit', $office))->assertOk();
+        $this->assertDatabaseHas('stakeholder_profiles', ['office_id' => $office->id]);
+
+        $page = $this->assertInertiaJson($this->actingAs($admin)->inertiaGet(route('stakeholder-profiles.index')));
+        $row = collect($page['props']['offices']['data'])->firstWhere('id', $office->id);
+
+        $this->assertFalse($row['has_profile']);
+        $this->assertNull($row['updated_at']);
+    }
+
     public function test_pending_role_gets_403(): void
     {
         $this->seed(RolePermissionSeeder::class);

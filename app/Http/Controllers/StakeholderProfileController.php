@@ -40,19 +40,23 @@ class StakeholderProfileController extends Controller
         $search = $request->string('search')->toString() ?: null;
 
         $offices = Office::query()
-            ->with('stakeholderProfile:id,office_id,governance_level,updated_at')
+            ->with('stakeholderProfile')
             ->when($search, fn ($query) => $query->where('office_name', 'like', "%{$search}%"))
             ->orderBy('office_name')
             ->paginate(20)
             ->withQueryString()
-            ->through(fn (Office $office) => [
-                'id' => $office->id,
-                'office_name' => $office->office_name,
-                'office_type' => $office->office_type,
-                'school_id' => $office->school_id,
-                'has_profile' => $office->stakeholderProfile !== null,
-                'updated_at' => $office->stakeholderProfile?->updated_at?->toIso8601String(),
-            ]);
+            ->through(function (Office $office) {
+                $hasProfile = $office->stakeholderProfile?->hasAnswers() ?? false;
+
+                return [
+                    'id' => $office->id,
+                    'office_name' => $office->office_name,
+                    'office_type' => $office->office_type,
+                    'school_id' => $office->school_id,
+                    'has_profile' => $hasProfile,
+                    'updated_at' => $hasProfile ? $office->stakeholderProfile->updated_at?->toIso8601String() : null,
+                ];
+            });
 
         return Inertia::render('stakeholder-profile/Index', [
             'offices' => $offices,

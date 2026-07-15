@@ -183,6 +183,29 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         $this->assertFalse($rows->firstWhere('id', $withoutSurvey->id)['has_survey']);
     }
 
+    /**
+     * edit() firstOrCreate()s an empty row on first view — merely opening
+     * the "Start" link must not flip the index to "Answered" until a real
+     * field is actually saved.
+     */
+    public function test_index_still_shows_not_started_after_edit_page_is_viewed_but_nothing_saved(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $office = $this->createOffice(['office_name' => 'Just Viewed ES']);
+
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $this->actingAs($admin)->inertiaGet(route('internet-connectivity-surveys.edit', $office))->assertOk();
+        $this->assertDatabaseHas('internet_connectivity_surveys', ['office_id' => $office->id]);
+
+        $page = $this->assertInertiaJson($this->actingAs($admin)->inertiaGet(route('internet-connectivity-surveys.index')));
+        $row = collect($page['props']['offices']['data'])->firstWhere('id', $office->id);
+
+        $this->assertFalse($row['has_survey']);
+        $this->assertNull($row['updated_at']);
+    }
+
     public function test_pending_role_gets_403(): void
     {
         $this->seed(RolePermissionSeeder::class);

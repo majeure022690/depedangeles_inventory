@@ -35,19 +35,23 @@ class InternetConnectivitySurveyController extends Controller
         $search = $request->string('search')->toString() ?: null;
 
         $offices = Office::query()
-            ->with('internetConnectivitySurvey:id,office_id,updated_at')
+            ->with('internetConnectivitySurvey')
             ->when($search, fn ($query) => $query->where('office_name', 'like', "%{$search}%"))
             ->orderBy('office_name')
             ->paginate(20)
             ->withQueryString()
-            ->through(fn (Office $office) => [
-                'id' => $office->id,
-                'office_name' => $office->office_name,
-                'office_type' => $office->office_type,
-                'school_id' => $office->school_id,
-                'has_survey' => $office->internetConnectivitySurvey !== null,
-                'updated_at' => $office->internetConnectivitySurvey?->updated_at?->toIso8601String(),
-            ]);
+            ->through(function (Office $office) {
+                $hasSurvey = $office->internetConnectivitySurvey?->hasAnswers() ?? false;
+
+                return [
+                    'id' => $office->id,
+                    'office_name' => $office->office_name,
+                    'office_type' => $office->office_type,
+                    'school_id' => $office->school_id,
+                    'has_survey' => $hasSurvey,
+                    'updated_at' => $hasSurvey ? $office->internetConnectivitySurvey->updated_at?->toIso8601String() : null,
+                ];
+            });
 
         return Inertia::render('internet-connectivity-survey/Index', [
             'offices' => $offices,

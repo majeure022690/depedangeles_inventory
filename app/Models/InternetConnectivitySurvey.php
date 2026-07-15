@@ -26,6 +26,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class InternetConnectivitySurvey extends Model
 {
     /**
+     * True once any field beyond office_id has actually been filled in —
+     * firstOrCreate() persists an empty row on first edit-page view, so
+     * row-existence alone can't tell "started" from "just opened".
+     */
+    public function hasAnswers(): bool
+    {
+        return collect($this->getAttributes())
+            ->except(['id', 'office_id', 'created_at', 'updated_at'])
+            ->contains(fn ($value) => $value !== null);
+    }
+
+    /**
      * @return BelongsTo<Office, $this>
      */
     public function office(): BelongsTo

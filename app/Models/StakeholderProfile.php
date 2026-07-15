@@ -51,6 +51,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class StakeholderProfile extends Model
 {
     /**
+     * True once any field beyond office_id has actually been filled in —
+     * firstOrCreate() persists an empty row on first edit-page view, so
+     * row-existence alone can't tell "started" from "just opened". The 4
+     * booleans below default to false (not null) at the DB level, so they
+     * can't count as "answered" on their own.
+     */
+    public function hasAnswers(): bool
+    {
+        return collect($this->getAttributes())
+            ->except(['id', 'office_id', 'created_at', 'updated_at', 'transportation_difficult', 'considered_very_remote', 'gidca', 'lms'])
+            ->contains(fn ($value) => $value !== null);
+    }
+
+    /**
      * @return BelongsTo<Office, $this>
      */
     public function office(): BelongsTo
