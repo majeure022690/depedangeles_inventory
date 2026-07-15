@@ -124,6 +124,10 @@
     --sidebar-border: hsl(0 0% 91%);
     --sidebar-ring: hsl(217.2 91.2% 59.8%);
     --sidebar: hsl(0 0% 98%);
+
+    /* Input.vue is bg-transparent in light mode, so plain --background
+       already matches it — see the autofill override below. */
+    --autofill-bg: var(--background);
 }
 
 .dark {
@@ -160,6 +164,12 @@
     --sidebar-border: hsl(0 0% 15.9%);
     --sidebar-ring: hsl(217.2 91.2% 59.8%);
     --sidebar: hsl(240 5.9% 10%);
+
+    /* Input.vue is dark:bg-input/30 — --input at 30% opacity over
+       --background. #111111 is the browser's own actually-composited
+       pixel value for that (verified via headless Chrome/Edge canvas
+       compositing, not hand-computed), not an approximation. */
+    --autofill-bg: #111111;
 }
 
 @layer base {
@@ -169,19 +179,25 @@
     body {
         @apply bg-background text-foreground;
     }
+}
 
-    /*
-      Browser autofill (e.g. Chrome remembering a previously-typed value)
-      paints its own opaque background via -webkit-autofill, ignoring our
-      bg-transparent input styling and breaking dark mode. Force it back
-      to the theme's input/foreground colors using the long-transition
-      trick, since `background-color` itself can't override autofill.
-    */
-    input:-webkit-autofill,
-    input:-webkit-autofill:hover,
-    input:-webkit-autofill:focus {
-        -webkit-text-fill-color: var(--foreground);
-        transition: background-color 600000s 0s;
-        caret-color: var(--foreground);
-    }
+/*
+  Browser autofill (e.g. Chrome remembering a previously-typed value)
+  paints its own opaque background via -webkit-autofill, ignoring our
+  bg-transparent input styling and breaking dark mode. Deliberately
+  UNLAYERED (not inside @layer base) — Tailwind's utility classes (e.g.
+  Input.vue's `shadow-xs`) live in the `utilities` layer, which always
+  outranks `base` regardless of selector specificity, so a base-layer
+  box-shadow override here would silently lose to `shadow-xs`'s
+  box-shadow the moment autofill fires. Unlayered CSS outranks every
+  layer, so this always wins.
+*/
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--foreground);
+    -webkit-box-shadow: 0 0 0 1000px var(--autofill-bg) inset;
+    box-shadow: 0 0 0 1000px var(--autofill-bg) inset;
+    transition: background-color 600000s 0s;
+    caret-color: var(--foreground);
 }
