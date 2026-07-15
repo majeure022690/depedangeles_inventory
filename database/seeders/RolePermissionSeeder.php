@@ -85,6 +85,23 @@ class RolePermissionSeeder extends Seeder
                     PermissionEnum::StakeholderProfileEdit,
                     PermissionEnum::InternetConnectivityView,
                     PermissionEnum::InternetConnectivityEdit,
+                    // Deliberately no Office::* here. Office is
+                    // admin-curated institutional data (95 real division
+                    // rows, imported once from a workbook, rarely added/
+                    // edited day-to-day) — closer to ReferenceDataManage
+                    // (admin-only) than to Equipment's day-to-day CRUD. No
+                    // existing encoder/viewer-facing screen displays an
+                    // Office picklist today either: the only current
+                    // consumers of Office data (UserController's
+                    // create/index, StakeholderProfile/
+                    // InternetConnectivitySurvey's cross-office index) are
+                    // all already gated behind admin-only permissions
+                    // (users.manage, stakeholder_profile.view_all,
+                    // internet_connectivity.view_all), so extending
+                    // OfficeView here would be speculative, not
+                    // precedent-based — see Permission's own doc-comment
+                    // ("no speculative permissions for unbuilt
+                    // functionality").
                 ],
             ],
             'viewer' => [

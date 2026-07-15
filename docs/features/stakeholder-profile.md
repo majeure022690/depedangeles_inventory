@@ -36,7 +36,7 @@ Requires `auth`+`verified`. Controller: `App\Http\Controllers\StakeholderProfile
 | Route | Page component | Key props |
 |---|---|---|
 | `GET /stakeholder-profiles` (`stakeholder-profiles.index`) | `stakeholder-profile/Index` | `offices` (paginated list: `id`, `office_name`, `office_type`, `school_id`, `has_profile`, `updated_at`), `filters` (`search`) |
-| `GET /stakeholder-profiles/{office}` (`stakeholder-profiles.edit`) | `stakeholder-profile/Edit` | `office` (`id`, `office_name`), `stakeholderProfile` (that office's record), `options` (governance level, nearby institution, access-road type, transportation, community engagement, transaction-type lookups, plus the full PSGC `province`/`municipality`/`barangay` hierarchy — see below) |
+| `GET /stakeholder-profiles/{office}` (`stakeholder-profiles.edit`) | `stakeholder-profile/Edit` | `office` (`id`, `office_name`, `school_id`), `stakeholderProfile` (that office's record), `options` (governance level, nearby institution, access-road type, transportation, community engagement, transaction-type lookups, plus the full PSGC `province`/`municipality`/`barangay` hierarchy — see below) |
 
 `stakeholderProfile` prop shape (every fillable column except `office_id` itself, plus one read-only derived field):
 
@@ -63,7 +63,7 @@ Requires `auth`+`verified`. Controller: `App\Http\Controllers\StakeholderProfile
 ]
 ```
 
-Note `school_district`/`school_name`/`school_id` are independent free-text fields users fill in on the form — not derived from the owning `Office` row, even though `Office` also has its own `office_name`/`school_id`. They can (and often will) match, but nothing keeps them in sync automatically.
+Note `school_district`/`school_name`/`school_id` are free-text fields, not FKs — `school_name`/`school_id` are pre-filled from the owning `Office` row's `office_name`/`school_id` when the form first loads (Edit.vue, since the office is already known from the URL), but remain editable, plain strings; nothing keeps them in sync after that first pre-fill.
 
 `options.province`/`.municipality`/`.barangay` (2026-07-14) are the full Region III PSGC hierarchy (~3,100 barangays), shipped in full on every edit-page load — `.municipality`/`.barangay` carry a `parent_id` so the form filters them client-side into cascading `<Select>`s (province → municipality → barangay) rather than round-tripping per selection. See `docs/architecture.md`'s PSGC section for why this is 3 dedicated tables, not 4 (no `psgc_regions`) or 1 flat table.
 

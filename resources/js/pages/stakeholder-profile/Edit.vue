@@ -12,7 +12,7 @@ import * as stakeholderProfilesRoutes from '@/routes/stakeholder-profiles';
 import type { StakeholderProfileFormData, StakeholderProfileFormOptions, StakeholderProfileFull } from '@/types/stakeholder-profile';
 
 const props = defineProps<{
-    office: { id: number; office_name: string };
+    office: { id: number; office_name: string; school_id: number | null };
     stakeholderProfile: StakeholderProfileFull;
     options: StakeholderProfileFormOptions;
 }>();
@@ -47,9 +47,12 @@ const form = useForm<StakeholderProfileFormData>({
     ro: props.stakeholderProfile.ro ?? '',
     sdo: props.stakeholderProfile.sdo ?? '',
 
+    // Pre-filled from the office this profile belongs to (it's already
+    // known — the URL is scoped to one {office}) rather than left blank,
+    // but still a plain editable string, not derived/read-only.
     school_district: props.stakeholderProfile.school_district ?? '',
-    school_name: props.stakeholderProfile.school_name ?? '',
-    school_id: props.stakeholderProfile.school_id ?? '',
+    school_name: props.stakeholderProfile.school_name ?? props.office.office_name,
+    school_id: props.stakeholderProfile.school_id ?? (props.office.school_id !== null ? String(props.office.school_id) : ''),
 
     province_id: props.stakeholderProfile.province_id,
     municipality_id: props.stakeholderProfile.municipality_id,

@@ -7,6 +7,7 @@ use App\Http\Controllers\InternetConnectivitySurveyController;
 use App\Http\Controllers\IspAccountController;
 use App\Http\Controllers\IspSpeedTestController;
 use App\Http\Controllers\IspSubscriptionCostController;
+use App\Http\Controllers\OfficeController;
 use App\Http\Controllers\PersonnelController;
 use App\Http\Controllers\ReferenceDataController;
 use App\Http\Controllers\RoleController;
@@ -61,6 +62,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // users.manage above) because a role genuinely is create/edit/delete-
     // able data, not a single fixed action against an existing record.
     Route::resource('roles', RoleController::class)->except('show');
+
+    // Full CRUD over schools/division offices — a dedicated resource
+    // (not folded into reference-data.manage below) per the architect's
+    // review: Office's column shape doesn't fit the generic Tier 1/Tier 2
+    // reference-data pattern. `Route::resource` derives the {office}
+    // wildcard here, which does NOT collide with stakeholder-profiles/
+    // {office} or internet-connectivity-surveys/{office} below — same
+    // parameter name, but distinct route names (offices.* vs
+    // stakeholder-profiles.*/internet-connectivity-surveys.*) and distinct
+    // URI prefixes (offices/... vs stakeholder-profiles/.../internet-
+    // connectivity-surveys/...), so no Wayfinder or route-table collision.
+    Route::resource('offices', OfficeController::class)->except('show');
 
     // reference-data.manage admin screen: covers the 13 tables from the
     // lookup-normalization ADR (docs/architecture-decisions/

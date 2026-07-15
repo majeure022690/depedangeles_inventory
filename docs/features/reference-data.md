@@ -59,7 +59,7 @@ Consuming controllers build their Create/Edit/Index dropdown options from the re
 
 | Route | Controller action | Page | Key props |
 |---|---|---|---|
-| `GET /reference-data` | `ReferenceDataController@index` | `reference-data/Index` | `tables: {key, label, tier, row_count}[]` |
+| `GET /reference-data` | `ReferenceDataController@index` | `reference-data/Index` | `tables: {key, label, tier, row_count}[]`, `officeCount` (row count for the "Institutional data" card — `App\Models\Office` is not one of the 13 tables, see below) |
 | `GET /reference-data/{table}` | `ReferenceDataController@show` | `reference-data/Show` | `table`, `label`, `tier`, `rows` (paginated), `types` (Tier 2 only — `{value, label}[]` from the type enum, `null` for Tier 1), `filters: {search, type}` |
 | `PATCH /reference-data/{table}/{id}` | `ReferenceDataController@update` | redirects to `reference-data.show` | — |
 
@@ -79,6 +79,7 @@ Consuming controllers build their Create/Edit/Index dropdown options from the re
 - **Tiered, not uniform.** Neither "35 dedicated tables" nor "one grouped table" was chosen — see the ADR's "Why not the two more extreme options" section for the full reasoning (row-count distribution across the old 35 lookup types was the deciding input).
 - **`school_level_coverage` moved domains** from its old "Organizational/stakeholder context" comment-grouping into `connectivity_libraries`, on actual-usage grounds (its only real consumer is `isp_accounts.school_area_coverage`).
 - **Cross-domain reads of a Tier 2 table are expected and fine.** `equipment_libraries` is read by `IspAccount` and `StakeholderProfile` as well as `Equipment`/`EquipmentTransaction` — the table name denotes primary steward/origin, not an access boundary.
+- **`Office` (2026-07-15) is deliberately NOT a 14th reference-data table.** Its column shape doesn't fit Tier 1 or Tier 2, and it's an FK backbone other tables depend on, not a closed lookup vocabulary — it has its own dedicated CRUD instead (`OfficeController`, admin-only permissions). `Index.vue` links to it from a separate "Institutional data" section, visually distinct from the Tier 1/Tier 2 grid; `officeCount` exists purely so that card shows a row count. See [`docs/features/offices.md`](offices.md).
 - **No pivot tables for the nine JSON-array multi-select columns.** `StakeholderProfile`/`InternetConnectivitySurvey` were singletons when this decision was made (a pivot's whole value proposition is moot when the "many" side is permanently one row) — both have since converted to one row per `Office` (see their feature docs), but neither conversion introduced a pivot, since there's still no evidenced many-to-many reporting need against these columns. `Personnel.fund_source`'s Tier 2 vocabulary is in the same position on its own merits — no evidence of a real "find all personnel funded by X" query need today (YAGNI — promote to a pivot if that need surfaces on evidence, not speculatively).
 
 ## Future considerations

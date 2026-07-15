@@ -8,6 +8,7 @@ use App\Enums\Permission;
 use App\Http\Requests\ReferenceDataStoreRequest;
 use App\Http\Requests\ReferenceDataUpdateRequest;
 use App\Models\AuditLog;
+use App\Models\Office;
 use App\Services\ReferenceDataResolver;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
@@ -110,6 +111,15 @@ class ReferenceDataController extends Controller
 
         return Inertia::render('reference-data/Index', [
             'tables' => $tables,
+            // Office isn't one of the 13 config-driven reference tables
+            // (it's a structural resource with its own dedicated CRUD, see
+            // OfficeController) but this page links out to it as a
+            // voluntary "Institutional data" section below the Tier 1/
+            // Tier 2 grid — the row count keeps that card visually
+            // consistent with the table cards above it. Visibility of the
+            // section itself is gated client-side via can('office.view'),
+            // same as every other permission check in this app.
+            'officeCount' => Office::query()->count(),
         ]);
     }
 

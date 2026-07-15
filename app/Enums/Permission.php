@@ -129,6 +129,17 @@ enum Permission: string
     // the admin list. Only 'admin' is seeded with it.
     case InternetConnectivityViewAll = 'internet_connectivity.view_all';
 
+    // Office (schools/division offices — the FK backbone for users,
+    // stakeholder_profiles, and internet_connectivity_surveys). Deliberately
+    // its own permission bundle, not folded into ReferenceDataManage: unlike
+    // the 13 low-stakes lookup tables under that umbrella, Office is a
+    // structural resource other records depend on (restrictOnDelete FKs),
+    // so it's authorized the same granular way as Equipment/Personnel.
+    case OfficeView = 'office.view';
+    case OfficeCreate = 'office.create';
+    case OfficeEdit = 'office.edit';
+    case OfficeDelete = 'office.delete';
+
     /**
      * Human-readable label for a future permission-management UI.
      */

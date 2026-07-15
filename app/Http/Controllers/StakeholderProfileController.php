@@ -82,6 +82,7 @@ class StakeholderProfileController extends Controller
             'office' => [
                 'id' => $office->id,
                 'office_name' => $office->office_name,
+                'school_id' => $office->school_id,
             ],
             'stakeholderProfile' => $this->stakeholderProfileProps($stakeholderProfile),
             'options' => $this->formOptions(),

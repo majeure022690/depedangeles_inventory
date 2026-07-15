@@ -126,6 +126,26 @@ class StakeholderProfileControllerTest extends TestCase
         $this->assertSame([$institutionId], $stakeholderProfile->nearby_institutions);
     }
 
+    /**
+     * `office.school_id` lets Edit.vue pre-fill the school_name/school_id
+     * fields from the already-known owning office, rather than leaving
+     * them blank on a first-time "Start".
+     */
+    public function test_edit_page_exposes_the_owning_offices_school_id(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $office = $this->createOffice(['office_name' => 'Angeles ES', 'school_id' => 107022]);
+
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $page = $this->assertInertiaJson($this->actingAs($admin)->inertiaGet(route('stakeholder-profiles.edit', $office)));
+
+        $this->assertSame($office->id, $page['props']['office']['id']);
+        $this->assertSame('Angeles ES', $page['props']['office']['office_name']);
+        $this->assertSame(107022, $page['props']['office']['school_id']);
+    }
+
     public function test_encoder_cannot_view_or_update_a_different_office(): void
     {
         $this->seed(RolePermissionSeeder::class);

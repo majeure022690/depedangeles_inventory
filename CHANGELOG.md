@@ -4,6 +4,10 @@ All notable changes to this project, in terms of user/developer impact. Dates ar
 
 ## 2026-07-15
 
+### Added
+
+- **Full CRUD for Offices** (`/offices` — index/create/edit/update/destroy, no `show`), a dedicated resource rather than a 14th reference-data table — `Office`'s column shape doesn't fit the Tier 1/Tier 2 pattern, and it's the FK backbone `users`/`stakeholder_profiles`/`internet_connectivity_surveys` all point at, not a closed lookup vocabulary. Reachable from the "Libraries" sidebar entry via a new "Institutional data" section on `/reference-data`, not a separate top-level nav item. Four new granular permissions (`office.view`/`.create`/`.edit`/`.delete`), seeded admin-only — no existing encoder/viewer screen shows an Office picklist. Deleting an office now fails with a friendly validation message instead of silently nulling/cascading dependent data: `users.office_id`/`stakeholder_profiles.office_id`/`internet_connectivity_surveys.office_id` switched from `nullOnDelete()`/`cascadeOnDelete()` to `restrictOnDelete()`, now that a delete UI actually exists. `office_name` uniqueness is enforced both in the Form Requests (friendly message) and via a real DB unique index (closes a TOCTOU race the app-layer check alone couldn't — caught by the same-day security review). See `docs/features/offices.md`.
+
 ### Removed
 
 - **The Internet Connectivity Survey's "Protected summary" aggregates block (Total ISPs, Total Cost/month, etc.) was removed from the per-office edit page**, shortly after the office-scoping conversion below shipped. It was computed division-wide across all `IspAccount`/`IspSubscriptionCost` rows (`isp_accounts` has no `office_id` column), so every office's edit page showed the exact same totals — confusing rather than useful once each office got its own survey page. See `docs/features/internet-connectivity-survey.md`.

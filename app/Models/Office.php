@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Database\Factories\OfficeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -21,6 +23,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 #[Fillable(['office_name', 'office_type', 'school_id', 'address', 'region', 'division', 'district', 'contact_number', 'email', 'is_active'])]
 class Office extends Model
 {
+    /** @use HasFactory<OfficeFactory> */
+    use HasFactory;
+
     protected function casts(): array
     {
         return [
@@ -35,6 +40,28 @@ class Office extends Model
     public function scopeActive(Builder $query): void
     {
         $query->where('is_active', true)->orderBy('office_name');
+    }
+
+    /**
+     * Free-text match against the identifiers people actually search the
+     * office list by — name, type ("Elementary School", "Division
+     * Office", etc.), and the DepEd-assigned School ID code. Blank/null
+     * terms are a no-op so this can be chained unconditionally, matching
+     * Equipment::scopeSearch()/IspAccount::scopeSearch()'s convention.
+     *
+     * @param  Builder<Office>  $query
+     */
+    public function scopeSearch(Builder $query, ?string $term): void
+    {
+        if (blank($term)) {
+            return;
+        }
+
+        $query->where(function (Builder $query) use ($term) {
+            $query->where('office_name', 'like', "%{$term}%")
+                ->orWhere('office_type', 'like', "%{$term}%")
+                ->orWhere('school_id', 'like', "%{$term}%");
+        });
     }
 
     /**
