@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\EquipmentTransactionController;
@@ -125,6 +126,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('internet-connectivity-surveys.edit');
     Route::put('internet-connectivity-surveys/{office}', [InternetConnectivitySurveyController::class, 'update'])
         ->name('internet-connectivity-surveys.update');
+
+    // audit_log.view admin screen: read-only browse of the append-only
+    // audit_logs table (see AuditLogController's doc-comment). One route,
+    // no resource — no create/store/edit/update/destroy exist for this
+    // resource, and none ever should.
+    Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
 });
 
 require __DIR__.'/settings.php';

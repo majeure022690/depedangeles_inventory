@@ -140,6 +140,19 @@ enum Permission: string
     case OfficeEdit = 'office.edit';
     case OfficeDelete = 'office.delete';
 
+    // Audit log (read-only, append-only trail of role/permission/record
+    // changes across the whole app, incl. authorization.denied entries).
+    // Admin-only, same shape as ReferenceDataManage: one flat permission,
+    // no Policy class (no single model instance to authorize against —
+    // AuditLogController::index() checks this permission string directly).
+    // Deliberately NOT paired with per-resource .view permissions: a role
+    // holding this alone would see other resources' PII inside `properties`
+    // diffs without holding e.g. personnel.view. Safe today since only
+    // 'admin' (which already holds every .view permission) can grant it —
+    // keep it that way if a custom-role feature ever changes who can seed
+    // roles/permissions.
+    case AuditLogView = 'audit_log.view';
+
     /**
      * Human-readable label for a future permission-management UI.
      */

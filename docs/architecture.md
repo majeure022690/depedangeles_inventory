@@ -67,6 +67,8 @@ It covers: CRUD on every resource (created/updated/deleted actions per controlle
 
 **Actor-identity survival:** `actor_id` is a nullable, `nullOnDelete` foreign key — so the audit trail isn't blocked by a user being removed. But that same `nullOnDelete` means a self-deleted account would otherwise erase its own attribution from every row it produced. To prevent that, `AuditLog::record()` snapshots the actor's name/email into `properties.actor_snapshot` at write time (while the FK is still guaranteed valid), so the row stays meaningful even after `actor_id` later nulls out.
 
+**Admin UI:** `/audit-log` (`audit_log.view`, `AuditLogController`) is a single read-only, filterable, paginated browse over this table — no create/store/edit/update/destroy. Seeded admin-only, deliberately not paired with per-resource `.view` permissions: holding it alone would expose other resources' PII inside `properties` diffs without holding that resource's own `.view` permission (see `Permission::AuditLogView`'s doc-comment). See [`docs/features/audit-log.md`](features/audit-log.md).
+
 ## Three data-access patterns
 
 This app uses three distinct shapes for how a feature's data is created, changed, and read back. Recognizing which one a feature uses is the fastest way to understand its controller/model/migration design.

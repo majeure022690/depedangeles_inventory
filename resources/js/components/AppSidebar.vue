@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { Building2, Database, HardDrive, KeySquare, LayoutGrid, ShieldCheck, Signal, Users, Wifi } from '@lucide/vue';
+import { Building2, Database, HardDrive, History, KeySquare, LayoutGrid, ShieldCheck, Signal, Users, Wifi } from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/sidebar';
 import { usePermissions } from '@/composables/usePermissions';
 import { dashboard } from '@/routes';
+import auditLog from '@/routes/audit-log';
 import equipment from '@/routes/equipment';
 import internetConnectivitySurveys from '@/routes/internet-connectivity-surveys';
 import ispAccounts from '@/routes/isp-accounts';
@@ -109,6 +110,14 @@ const mainNavItems = computed<NavItem[]>(() => {
             title: 'Roles',
             href: roles.index(),
             icon: KeySquare,
+        });
+    }
+
+    if (can('audit_log.view')) {
+        items.push({
+            title: 'Audit Log',
+            href: auditLog.index(),
+            icon: History,
         });
     }
 
