@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * Fillable/casts/relationships plus the small set of query scopes the
@@ -19,7 +21,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * TIER 1 FK CUTOVER (lookup-normalization ADR, Step 2+3 — IspAccount
  * only): `isp_provider_id` is the only write path (see
- * IspAccountStoreRequest/IspAccountUpdateRequest). The legacy `isp`
+ * StoreIspAccountRequest/UpdateIspAccountRequest). The legacy `isp`
  * string column it replaced was dropped outright in the ADR's Step 4
  * cleanup — it no longer exists in the schema or in $fillable.
  *
@@ -61,7 +63,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class IspAccount extends Model
 {
     /** @use HasFactory<IspAccountFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
 
     protected function casts(): array
     {
@@ -160,5 +162,14 @@ class IspAccount extends Model
         } elseif ($status === 'inactive') {
             $query->where('inactive_contract', true);
         }
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges()
+            ->setDescriptionForEvent(fn (string $event): string => "isp_account.{$event}");
     }
 }

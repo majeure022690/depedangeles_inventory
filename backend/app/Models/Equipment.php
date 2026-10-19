@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * Bare-bones structural model — fillable/casts/relationships only.
@@ -43,7 +45,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * TIER 1 FK CUTOVER (lookup-normalization ADR, Step 2 — Equipment only):
  * `item_type_id`/`brand_id`/`equipment_category_id`/
  * `equipment_classification_id`/`equipment_condition_id` are the only
- * write path (see EquipmentStoreRequest/EquipmentUpdateRequest). The
+ * write path (see StoreEquipmentRequest/UpdateEquipmentRequest). The
  * legacy string columns they replaced (`item`, `brand_manufacturer`,
  * `category`, `classification`, `equipment_condition`) were dropped
  * outright in the ADR's Step 4 cleanup — they no longer exist in the
@@ -96,7 +98,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Equipment extends Model
 {
     /** @use HasFactory<EquipmentFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
 
     protected function casts(): array
     {
@@ -278,5 +280,17 @@ class Equipment extends Model
         if (filled($status)) {
             $query->where('disposition_status', $status);
         }
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            // Accountability moves are audited as equipment.transaction.recorded
+            // by EquipmentAccountabilityService, not as a plain update.
+            ->logExcept(['current_accountable_officer_id', 'current_end_user_id'])
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges()
+            ->setDescriptionForEvent(fn (string $event): string => "equipment.{$event}");
     }
 }

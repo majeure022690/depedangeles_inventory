@@ -74,9 +74,9 @@ final class RoleService
      */
     public function update(User $actor, Role $role, array $attributes, array $permissionValues): void
     {
-        // Belt-and-suspenders: RoleUpdateRequest already blocks renaming/
+        // Belt-and-suspenders: UpdateRoleRequest already blocks renaming/
         // depriving 'pending' of its zero-permission set at the HTTP
-        // layer (where it can populate the Inertia form's error bag), but
+        // layer (where it surfaces as a field error), but
         // this Service is the one place the invariant must hold for every
         // caller, HTTP or otherwise — see Role::PENDING's doc-comment for
         // why this specific role can never be allowed to grant anything.
@@ -278,7 +278,7 @@ final class RoleService
             ->whereIn('name', $permissionValues)
             ->pluck('id', 'name');
 
-        // RoleUpdateRequest/RoleStoreRequest already validate each value
+        // UpdateRoleRequest/StoreRoleRequest already validate each value
         // against the Permission ENUM (App\Enums\Permission), so a request
         // can only ever submit a real permission NAME. But this table is a
         // separate, seeded materialization of that enum (RolePermissionSeeder)

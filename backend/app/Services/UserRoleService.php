@@ -192,9 +192,9 @@ final class UserRoleService
      */
     public function syncRoles(User $actor, User $target, array $roleIds): void
     {
-        // Belt-and-suspenders: UserUpdateRequest already blocks this
-        // at the HTTP layer (where it can populate the Inertia form's
-        // error bag), but this Service is the one place the invariant
+        // Belt-and-suspenders: UpdateUserRequest already blocks this
+        // at the HTTP layer (where it surfaces as a field error),
+        // but this Service is the one place the invariant
         // must hold for every caller, HTTP or otherwise.
         if ($actor->is($target)) {
             throw ValidationException::withMessages([

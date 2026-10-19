@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Concerns\HasActiveReferenceOptions;
+use App\Concerns\LogsReferenceDataActivity;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
@@ -19,7 +20,7 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable(['name', 'description', 'sort_order', 'is_active'])]
 class IspProvider extends Model
 {
-    use HasActiveReferenceOptions;
+    use HasActiveReferenceOptions, LogsReferenceDataActivity;
 
     protected function casts(): array
     {

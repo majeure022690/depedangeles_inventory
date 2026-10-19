@@ -25,10 +25,13 @@ class RolePolicy
      * controls who can grant/revoke every other permission), so every
      * denial — not just delete — is logged for the privilege-escalation
      * forensic trail, matching EquipmentPolicy::delete's shape.
+     *
+     * Reading roles is also open to users.manage holders, who assign them
+     * (read-only widening for the SPA's user editor, approved by auth).
      */
     public function viewAny(User $user): bool
     {
-        $allowed = $user->hasPermissionTo(Permission::RolesManage);
+        $allowed = $user->hasAnyPermission([Permission::RolesManage, Permission::UsersManage]);
 
         if (! $allowed) {
             activity()
@@ -43,7 +46,7 @@ class RolePolicy
 
     public function view(User $user, Role $role): bool
     {
-        $allowed = $user->hasPermissionTo(Permission::RolesManage);
+        $allowed = $user->hasAnyPermission([Permission::RolesManage, Permission::UsersManage]);
 
         if (! $allowed) {
             activity()

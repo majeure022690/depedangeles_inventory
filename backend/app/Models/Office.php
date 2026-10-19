@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * Every school and division-level office/unit under this division —
@@ -24,7 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Office extends Model
 {
     /** @use HasFactory<OfficeFactory> */
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected function casts(): array
     {
@@ -109,5 +111,14 @@ class Office extends Model
     public function internetConnectivitySurvey(): HasOne
     {
         return $this->hasOne(InternetConnectivitySurvey::class);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges()
+            ->setDescriptionForEvent(fn (string $event): string => "office.{$event}");
     }
 }

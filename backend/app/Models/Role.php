@@ -27,7 +27,7 @@ class Role extends SpatieRole
      * The one role with baked-in behavior tied to its identity: it must
      * always exist and always grant nothing, so an account parked in it
      * reaches nothing. RoleService enforces that it can't be deleted or
-     * renamed and that its permission set stays empty (RoleUpdateRequest
+     * renamed and that its permission set stays empty (UpdateRoleRequest
      * mirrors this at the HTTP layer). If a second role ever needs the
      * same protection, promote this into an `is_protected` column instead
      * of hardcoding a second name.

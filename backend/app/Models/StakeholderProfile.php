@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * Bare-bones structural model — fillable/casts/relations/accessor only.
@@ -50,6 +52,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class StakeholderProfile extends Model
 {
+    use LogsActivity;
+
+    /**
+     * The row is created lazily (firstOrCreate) on first view, which is
+     * not a user change; only saved answers are audited.
+     *
+     * @var list<string>
+     */
+    protected static array $recordEvents = ['updated'];
+
     /**
      * True once any field beyond office_id has actually been filled in —
      * firstOrCreate() persists an empty row on first edit-page view, so
@@ -129,5 +141,14 @@ class StakeholderProfile extends Model
             'travel_time_to_center_minutes' => 'integer',
             'submitted_at' => 'datetime',
         ];
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges()
+            ->setDescriptionForEvent(fn (string $event): string => "stakeholder_profile.{$event}");
     }
 }

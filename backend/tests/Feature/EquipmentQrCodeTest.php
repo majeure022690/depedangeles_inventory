@@ -17,7 +17,7 @@ use Tests\TestCase;
 
 /**
  * Coverage for App\Observers\EquipmentObserver and
- * EquipmentController::qrCode() — see both doc-comments for the full
+ * Api\Management\EquipmentController::qrCode() — see both doc-comments for the full
  * rationale (why a URL rather than a bare property_no, why it's populated
  * via an Observer rather than accepted as input, why the `updated` hook
  * exists at all given the value never needs to change once set).
@@ -56,7 +56,7 @@ class EquipmentQrCodeTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole('encoder');
 
-        $this->actingAs($user)->post(route('equipment.store'), $this->makeEquipmentPayload());
+        $this->actingAs($user)->postJson('/api/equipment', $this->makeEquipmentPayload())->assertCreated();
 
         $equipment = Equipment::where('property_no', 'AC-2026-IT-LT-000123')->firstOrFail();
 
@@ -71,9 +71,9 @@ class EquipmentQrCodeTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole('encoder');
 
-        $this->actingAs($user)->post(route('equipment.store'), $this->makeEquipmentPayload([
+        $this->actingAs($user)->postJson('/api/equipment', $this->makeEquipmentPayload([
             'qr_code' => 'http://attacker.example/not-a-real-record',
-        ]));
+        ]))->assertCreated();
 
         $equipment = Equipment::where('property_no', 'AC-2026-IT-LT-000123')->firstOrFail();
 
@@ -122,10 +122,10 @@ class EquipmentQrCodeTest extends TestCase
         $equipment = Equipment::findOrFail($id);
         $this->assertNull($equipment->qr_code);
 
-        $this->actingAs($user)->put(
-            route('equipment.update', $equipment),
+        $this->actingAs($user)->putJson(
+            "/api/equipment/{$equipment->id}",
             $this->makeEquipmentPayload(['property_no' => 'AC-2020-IT-LT-000001']),
-        )->assertRedirect(route('equipment.edit', $equipment));
+        )->assertOk();
 
         $this->assertSame(route('equipment.edit', $equipment), $equipment->fresh()->qr_code);
     }
@@ -140,7 +140,7 @@ class EquipmentQrCodeTest extends TestCase
             'disposition_status' => 'Normal',
         ]);
 
-        $response = $this->actingAs($user)->get(route('equipment.qr-code', $equipment));
+        $response = $this->actingAs($user)->get("/api/equipment/{$equipment->id}/qr-code");
 
         $response->assertOk();
         $response->assertHeader('Content-Type', 'image/png');
@@ -157,6 +157,6 @@ class EquipmentQrCodeTest extends TestCase
             'disposition_status' => 'Normal',
         ]);
 
-        $this->actingAs($user)->get(route('equipment.qr-code', $equipment))->assertForbidden();
+        $this->actingAs($user)->getJson("/api/equipment/{$equipment->id}/qr-code")->assertForbidden();
     }
 }

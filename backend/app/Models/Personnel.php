@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * Bare-bones structural model — fillable/casts/relationships only.
@@ -20,7 +22,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * TIER 1 FK CUTOVER (lookup-normalization ADR, Step 2 — Personnel only):
  * `position_id`/`ro_office_id`/`sdo_office_id` are the only write path
- * (see PersonnelStoreRequest/PersonnelUpdateRequest). The legacy string
+ * (see StorePersonnelRequest/UpdatePersonnelRequest). The legacy string
  * columns they replaced (`position`, `ro_division`, `division_unit`) were
  * dropped outright in the ADR's Step 4 cleanup — they no longer exist in
  * the schema or in $fillable.
@@ -61,7 +63,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Personnel extends Model
 {
     /** @use HasFactory<PersonnelFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
 
     protected $table = 'personnel';
 
@@ -184,5 +186,14 @@ class Personnel extends Model
                 ->orWhere('employee_id', 'like', "%{$term}%")
                 ->orWhere('deped_email', 'like', "%{$term}%");
         });
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges()
+            ->setDescriptionForEvent(fn (string $event): string => "personnel.{$event}");
     }
 }

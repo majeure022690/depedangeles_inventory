@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Enums\EquipmentLibraryType;
 use App\Enums\StakeholderLibraryType;
-use App\Models\AuditLog;
 use App\Models\EquipmentLibrary;
 use App\Models\Office;
 use App\Models\PsgcBarangay;
@@ -16,35 +15,42 @@ use App\Models\User;
 use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Testing\TestResponse;
+use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 /**
- * StakeholderProfile is one row PER OFFICE (not a global singleton) — every
- * test here creates its own Office row(s) and scopes users to one via
- * `office_id`. StakeholderProfile's Tier 2 fields (lookup-normalization
- * ADR, Step 2+3) are string-validated against the real seeded
- * StakeholderLibrary/EquipmentLibrary rows (via ReferenceDataSeeder) rather
- * than the old Lookup/LookupType system, which this resource no longer
- * consults. The four JSON-array fields (nearby_institutions, access_paths,
- * transportation_options, community_engagement) store `stakeholder_libraries`
- * row ids, not value strings.
+ * One profile PER OFFICE. `.view`/`.edit` reach only the user's own
+ * office; `.view_all` reaches every office and the cross-office list.
+ * Authorization runs against a transient model before firstOrCreate(),
+ * so a forbidden request never creates a row. The checkbox-group fields
+ * store stakeholder_libraries ids.
  */
 class StakeholderProfileControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(ReferenceDataSeeder::class);
+        $this->seed(RolePermissionSeeder::class);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
     private function createOffice(array $overrides = []): Office
     {
         return Office::create(array_merge(['office_name' => 'Test Elementary School'], $overrides));
     }
 
-    /**
-     * Minimal Region III PSGC hierarchy for a single test — real seed data
-     * (~3,100 barangays) isn't seeded here, same reasoning as
-     * PersonnelControllerTest using real RoOffice/Position rows rather than
-     * a factory: this is reference data, not a resource under test.
-     */
+    private function userAt(string $role, ?Office $office): User
+    {
+        return $this->userWithRole($role, ['office_id' => $office?->id]);
+    }
+
     private function createPsgcBarangay(): PsgcBarangay
     {
         $province = PsgcProvince::create(['code' => '030800000', 'name' => 'BATAAN']);
@@ -53,401 +59,283 @@ class StakeholderProfileControllerTest extends TestCase
         return PsgcBarangay::create(['code' => '030801001', 'municipality_id' => $municipality->id, 'name' => 'BANGKAL']);
     }
 
-    /**
-     * stakeholder-profile/Edit.vue doesn't exist yet (Frontend builds it
-     * against the prop contract this controller establishes) — same
-     * situation as IspAccountControllerTest/UserControllerTest. Sending
-     * X-Inertia makes the response pure JSON straight from the controller,
-     * never touching the root Blade view's `@vite(...)` call.
-     */
-    private function inertiaGet(string $url): TestResponse
-    {
-        $manifest = public_path('build/manifest.json');
-        $version = file_exists($manifest) ? hash_file('xxh128', $manifest) : null;
-
-        return $this->get($url, array_filter([
-            'X-Inertia' => 'true',
-            'X-Inertia-Version' => $version,
-        ]));
-    }
-
-    private function assertInertiaJson(TestResponse $response): array
-    {
-        $response->assertOk();
-
-        return json_decode($response->getContent(), true);
-    }
-
     public function test_viewer_can_view_own_office_but_not_update(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('viewer');
+        $user = $this->userAt('viewer', $office);
 
-        $page = $this->assertInertiaJson(
-            $this->actingAs($user)->inertiaGet(route('stakeholder-profiles.edit', $office))
-        );
-        $this->assertSame('stakeholder-profile/Edit', $page['component']);
+        $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")
+            ->assertOk()
+            ->assertJsonPath('data.office.id', $office->id)
+            ->assertJsonPath('data.profile.office_id', $office->id);
 
-        $this->actingAs($user)
-            ->put(route('stakeholder-profiles.update', $office), [])
-            ->assertForbidden();
+        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", [])->assertForbidden();
     }
 
     public function test_encoder_can_view_and_update_own_office(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
+        $user = $this->userAt('encoder', $office);
 
-        $this->actingAs($user)->inertiaGet(route('stakeholder-profiles.edit', $office))->assertOk();
+        $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk();
 
         $institutionId = StakeholderLibrary::where('type', StakeholderLibraryType::NearbyInstitution)
             ->where('value', 'Barangay Hall')
             ->value('id');
 
-        $response = $this->actingAs($user)->put(route('stakeholder-profiles.update', $office), [
+        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", [
             'sdo' => 'SDO Angeles City',
             'chief_name' => 'DOMINGO, EDGARD C',
             'gidca' => true,
             'nearby_institutions' => [$institutionId],
-        ]);
+        ])->assertOk()
+            ->assertJsonPath('data.profile.sdo', 'SDO Angeles City')
+            ->assertJsonPath('data.profile.gidca', true)
+            ->assertJsonPath('data.profile.nearby_institutions', [$institutionId]);
 
-        $response->assertRedirect(route('stakeholder-profiles.edit', $office));
-        $response->assertSessionHasNoErrors();
-
-        $stakeholderProfile = StakeholderProfile::where('office_id', $office->id)->sole();
-        $this->assertSame('SDO Angeles City', $stakeholderProfile->sdo);
-        $this->assertSame('DOMINGO, EDGARD C', $stakeholderProfile->chief_name);
-        $this->assertTrue($stakeholderProfile->gidca);
-        $this->assertSame([$institutionId], $stakeholderProfile->nearby_institutions);
+        $profile = StakeholderProfile::where('office_id', $office->id)->sole();
+        $this->assertSame('SDO Angeles City', $profile->sdo);
+        $this->assertSame('DOMINGO, EDGARD C', $profile->chief_name);
+        $this->assertTrue($profile->gidca);
+        $this->assertSame([$institutionId], $profile->nearby_institutions);
     }
 
-    /**
-     * `office.school_id` lets Edit.vue pre-fill the school_name/school_id
-     * fields from the already-known owning office, rather than leaving
-     * them blank on a first-time "Start".
-     */
-    public function test_edit_page_exposes_the_owning_offices_school_id(): void
+    public function test_show_exposes_the_owning_offices_school_id(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice(['office_name' => 'Angeles ES', 'school_id' => 107022]);
 
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
-
-        $page = $this->assertInertiaJson($this->actingAs($admin)->inertiaGet(route('stakeholder-profiles.edit', $office)));
-
-        $this->assertSame($office->id, $page['props']['office']['id']);
-        $this->assertSame('Angeles ES', $page['props']['office']['office_name']);
-        $this->assertSame(107022, $page['props']['office']['school_id']);
+        $this->actingAs($this->userWithRole('admin'))->getJson("/api/stakeholder-profiles/{$office->id}")
+            ->assertOk()
+            ->assertJsonPath('data.office', ['id' => $office->id, 'office_name' => 'Angeles ES', 'school_id' => 107022]);
     }
 
     public function test_encoder_cannot_view_or_update_a_different_office(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $myOffice = $this->createOffice(['office_name' => 'My School']);
         $otherOffice = $this->createOffice(['office_name' => 'Other School']);
-        $user = User::factory()->create(['office_id' => $myOffice->id]);
-        $user->assignRole('encoder');
+        $user = $this->userAt('encoder', $myOffice);
 
-        $this->actingAs($user)->get(route('stakeholder-profiles.edit', $otherOffice))->assertForbidden();
-        $this->actingAs($user)
-            ->put(route('stakeholder-profiles.update', $otherOffice), ['sdo' => 'Nope'])
-            ->assertForbidden();
+        $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$otherOffice->id}")->assertForbidden();
+        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$otherOffice->id}", ['sdo' => 'Nope'])->assertForbidden();
 
-        // No side effect: the other office's profile is never created by a
-        // forbidden request.
         $this->assertSame(0, StakeholderProfile::where('office_id', $otherOffice->id)->count());
     }
 
     public function test_encoder_with_no_office_gets_403_on_any_office(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => null]);
-        $user->assignRole('encoder');
 
-        $this->actingAs($user)->get(route('stakeholder-profiles.edit', $office))->assertForbidden();
+        $this->actingAs($this->userAt('encoder', null))->getJson("/api/stakeholder-profiles/{$office->id}")->assertForbidden();
     }
 
     public function test_admin_can_view_and_update_any_office_via_view_all(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        // Deliberately no office_id on the admin -- view_all must not
-        // depend on the actor having one of their own.
-        $user = User::factory()->create(['office_id' => null]);
-        $user->assignRole('admin');
+        // No office of their own: view_all must not depend on one.
+        $user = $this->userAt('admin', null);
 
-        $this->actingAs($user)->inertiaGet(route('stakeholder-profiles.edit', $office))->assertOk();
-
-        $this->actingAs($user)
-            ->put(route('stakeholder-profiles.update', $office), ['ro' => 'III'])
-            ->assertRedirect(route('stakeholder-profiles.edit', $office));
+        $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk();
+        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", ['ro' => 'III'])->assertOk();
 
         $this->assertSame('III', StakeholderProfile::where('office_id', $office->id)->sole()->ro);
     }
 
     public function test_only_view_all_holder_can_access_the_index_list(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
 
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
-        $this->actingAs($admin)->inertiaGet(route('stakeholder-profiles.index'))->assertOk();
-
-        $encoder = User::factory()->create(['office_id' => $office->id]);
-        $encoder->assignRole('encoder');
-        $this->actingAs($encoder)->get(route('stakeholder-profiles.index'))->assertForbidden();
+        $this->actingAs($this->userWithRole('admin'))->getJson('/api/stakeholder-profiles')->assertOk();
+        $this->actingAs($this->userAt('encoder', $office))->getJson('/api/stakeholder-profiles')->assertForbidden();
     }
 
     public function test_index_lists_offices_with_and_without_a_profile(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $withProfile = $this->createOffice(['office_name' => 'Has Profile ES']);
         $withoutProfile = $this->createOffice(['office_name' => 'No Profile ES']);
         StakeholderProfile::create(['office_id' => $withProfile->id, 'sdo' => 'SDO Angeles City']);
 
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $response = $this->actingAs($this->userWithRole('admin'))->getJson('/api/stakeholder-profiles')
+            ->assertOk()
+            ->assertJsonStructure(['data' => [['id', 'office_name', 'office_type', 'school_id', 'has_profile', 'updated_at']], 'meta', 'links']);
 
-        $page = $this->assertInertiaJson($this->actingAs($admin)->inertiaGet(route('stakeholder-profiles.index')));
-
-        $rows = collect($page['props']['offices']['data']);
+        $rows = collect($response->json('data'));
         $this->assertTrue($rows->firstWhere('id', $withProfile->id)['has_profile']);
+        $this->assertNotNull($rows->firstWhere('id', $withProfile->id)['updated_at']);
         $this->assertFalse($rows->firstWhere('id', $withoutProfile->id)['has_profile']);
+
+        $this->actingAs($this->userWithRole('admin'))->getJson('/api/stakeholder-profiles?search=No%20Profile')
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $withoutProfile->id);
     }
 
     /**
-     * edit() firstOrCreate()s an empty row on first view — merely opening
-     * the "Start" link must not flip the index to "Submitted" until a real
-     * field is actually saved.
+     * show() firstOrCreate()s an empty row; merely opening it must not
+     * flip the list to "submitted", nor write an audit row.
      */
-    public function test_index_still_shows_not_started_after_edit_page_is_viewed_but_nothing_saved(): void
+    public function test_index_still_shows_not_started_after_show_but_nothing_saved(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice(['office_name' => 'Just Viewed ES']);
+        $admin = $this->userWithRole('admin');
 
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
-
-        $this->actingAs($admin)->inertiaGet(route('stakeholder-profiles.edit', $office))->assertOk();
+        $this->actingAs($admin)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk();
         $this->assertDatabaseHas('stakeholder_profiles', ['office_id' => $office->id]);
+        $this->assertSame(0, Activity::query()->where('subject_type', StakeholderProfile::class)->count());
 
-        $page = $this->assertInertiaJson($this->actingAs($admin)->inertiaGet(route('stakeholder-profiles.index')));
-        $row = collect($page['props']['offices']['data'])->firstWhere('id', $office->id);
+        $row = collect($this->actingAs($admin)->getJson('/api/stakeholder-profiles')->json('data'))->firstWhere('id', $office->id);
 
         $this->assertFalse($row['has_profile']);
         $this->assertNull($row['updated_at']);
     }
 
-    public function test_pending_role_gets_403(): void
+    public function test_pending_role_gets_403_without_creating_a_row(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('pending');
+        $user = $this->userAt('pending', $office);
 
-        $this->actingAs($user)->get(route('stakeholder-profiles.edit', $office))->assertForbidden();
-        $this->actingAs($user)->put(route('stakeholder-profiles.update', $office), [])->assertForbidden();
+        $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")->assertForbidden();
+        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", [])->assertForbidden();
+        $this->actingAs($user)->getJson('/api/stakeholder-profiles/options')->assertForbidden();
 
-        // Authorization must be checked BEFORE the row is created — a
-        // zero-permission user's forbidden requests must not have any
-        // write side effect.
         $this->assertSame(0, StakeholderProfile::count());
     }
 
-    public function test_update_writes_an_audit_log_entry_with_diffed_changes(): void
+    public function test_update_writes_an_audit_entry_with_diffed_changes(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
+        $user = $this->userAt('encoder', $office);
 
-        $this->actingAs($user)->put(route('stakeholder-profiles.update', $office), [
-            'sdo' => 'SDO Angeles City',
-        ])->assertSessionHasNoErrors();
+        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", ['sdo' => 'SDO Angeles City'])->assertOk();
 
-        $log = AuditLog::where('action', 'stakeholder_profile.updated')->sole();
-        $stakeholderProfile = StakeholderProfile::where('office_id', $office->id)->sole();
-        $this->assertSame('stakeholder_profile.updated', $log->action);
-        $this->assertSame($user->id, $log->actor_id);
-        $this->assertSame($stakeholderProfile->id, $log->subject_id);
-        $this->assertSame(StakeholderProfile::class, $log->subject_type);
-        $this->assertSame(null, $log->properties['changes']['sdo']['old']);
-        $this->assertSame('SDO Angeles City', $log->properties['changes']['sdo']['new']);
-        $this->assertArrayNotHasKey('updated_at', $log->properties['changes']);
+        $profile = StakeholderProfile::where('office_id', $office->id)->sole();
+        $activity = Activity::query()->where('subject_type', StakeholderProfile::class)->sole();
+
+        $this->assertSame('updated', $activity->event);
+        $this->assertSame('stakeholder_profile.updated', $activity->description);
+        $this->assertSame($user->id, $activity->causer_id);
+        $this->assertSame($profile->id, $activity->subject_id);
+        $this->assertNull($activity->attribute_changes['old']['sdo']);
+        $this->assertSame('SDO Angeles City', $activity->attribute_changes['attributes']['sdo']);
+        $this->assertArrayNotHasKey('updated_at', $activity->attribute_changes['attributes']);
+    }
+
+    public function test_options_ship_library_lists_and_the_psgc_tree_with_parent_ids(): void
+    {
+        $barangay = $this->createPsgcBarangay();
+        $office = $this->createOffice();
+
+        $response = $this->actingAs($this->userAt('viewer', $office))->getJson('/api/stakeholder-profiles/options')
+            ->assertOk()
+            ->assertJsonStructure(['data' => [
+                'governance_level', 'transaction_type', 'nearby_institution', 'type_of_access_road',
+                'by_transportation', 'community_engagement', 'province', 'municipality', 'barangay',
+            ]])
+            ->assertJsonPath('data.barangay.0', ['value' => $barangay->id, 'label' => 'BANGKAL', 'parent_id' => $barangay->municipality_id])
+            ->assertJsonPath('data.municipality.0.parent_id', $barangay->municipality->province_id);
+
+        $this->assertIsInt($response->json('data.nearby_institution.0.value'));
+        $this->assertIsString($response->json('data.governance_level.0.value'));
     }
 
     public function test_update_rejects_oversized_array_field(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
 
-        // Deactivate every NearbyInstitution row but one, so the field's
-        // max drops to 1 — two distinct, otherwise-valid ids must then be
-        // rejected by the array size cap, not the per-element existence
-        // check.
-        $ids = StakeholderLibrary::where('type', StakeholderLibraryType::NearbyInstitution)
-            ->active()
-            ->pluck('id');
+        // Leave one active NearbyInstitution row so the max drops to 1.
+        $ids = StakeholderLibrary::where('type', StakeholderLibraryType::NearbyInstitution)->active()->pluck('id');
         StakeholderLibrary::whereIn('id', $ids->slice(1))->update(['is_active' => false]);
 
-        $this->actingAs($user)
-            ->put(route('stakeholder-profiles.update', $office), [
-                'nearby_institutions' => $ids->take(2)->all(),
-            ])
-            ->assertSessionHasErrors(['nearby_institutions']);
+        $this->actingAs($this->userAt('encoder', $office))
+            ->putJson("/api/stakeholder-profiles/{$office->id}", ['nearby_institutions' => $ids->take(2)->all()])
+            ->assertJsonValidationErrors(['nearby_institutions']);
     }
 
     public function test_validation_rejects_a_nonexistent_id_in_array_field(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
 
-        $this->actingAs($user)
-            ->put(route('stakeholder-profiles.update', $office), [
-                'nearby_institutions' => [999999],
-            ])
-            ->assertSessionHasErrors(['nearby_institutions.0']);
+        $this->actingAs($this->userAt('encoder', $office))
+            ->putJson("/api/stakeholder-profiles/{$office->id}", ['nearby_institutions' => [999999]])
+            ->assertJsonValidationErrors(['nearby_institutions.0']);
     }
 
-    /**
-     * Mirrors PersonnelControllerTest's equivalent test for fund_source —
-     * a real, active StakeholderLibrary row of the WRONG type
-     * (governance_level, not nearby_institution) must still be rejected
-     * for nearby_institutions, proving the Rule::exists() is scoped by
-     * `type`, not just by table membership.
-     */
     public function test_validation_rejects_a_stakeholder_library_id_of_the_wrong_type_in_array_field(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
+        $wrongTypeId = StakeholderLibrary::where('type', StakeholderLibraryType::GovernanceLevel)->active()->value('id');
 
-        $wrongTypeId = StakeholderLibrary::where('type', StakeholderLibraryType::GovernanceLevel)
-            ->active()
-            ->value('id');
-
-        $this->actingAs($user)
-            ->put(route('stakeholder-profiles.update', $office), [
-                'nearby_institutions' => [$wrongTypeId],
-            ])
-            ->assertSessionHasErrors(['nearby_institutions.0']);
+        $this->actingAs($this->userAt('encoder', $office))
+            ->putJson("/api/stakeholder-profiles/{$office->id}", ['nearby_institutions' => [$wrongTypeId]])
+            ->assertJsonValidationErrors(['nearby_institutions.0']);
     }
 
     /**
-     * `transaction_type` is DELIBERATELY validated against
-     * EquipmentLibrary/EquipmentLibraryType, not StakeholderLibraryType —
-     * it is not one of StakeholderLibraryType's 7 cases, it's one of
-     * EquipmentLibraryType's 9 (shared with Equipment/EquipmentTransaction)
-     * — see StakeholderProfileUpdateRequest's doc-comment. This proves
-     * both directions: a real EquipmentLibrary TransactionType value is
-     * accepted, and a real StakeholderLibrary value (wrong table entirely)
-     * is rejected.
+     * `transaction_type` is validated against Equipment's library on
+     * purpose (it is an EquipmentLibraryType, not a StakeholderLibraryType).
      */
     public function test_transaction_type_validates_against_the_shared_equipment_library_table(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
+        $user = $this->userAt('encoder', $office);
 
-        $this->assertContains(
-            'Beginning Inventory',
-            EquipmentLibrary::activeValues(EquipmentLibraryType::TransactionType)
-        );
+        $this->assertContains('Beginning Inventory', EquipmentLibrary::activeValues(EquipmentLibraryType::TransactionType));
 
-        $this->actingAs($user)
-            ->put(route('stakeholder-profiles.update', $office), ['transaction_type' => 'Beginning Inventory'])
-            ->assertSessionHasNoErrors();
+        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", ['transaction_type' => 'Beginning Inventory'])->assertOk();
         $this->assertSame('Beginning Inventory', StakeholderProfile::where('office_id', $office->id)->sole()->transaction_type);
 
-        // A real StakeholderLibrary value is not a valid TransactionType —
-        // it lives in a completely different table.
-        $this->actingAs($user)
-            ->put(route('stakeholder-profiles.update', $office), ['transaction_type' => 'Central Office'])
-            ->assertSessionHasErrors(['transaction_type']);
+        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", ['transaction_type' => 'Central Office'])
+            ->assertJsonValidationErrors(['transaction_type']);
     }
 
-    /**
-     * province_id/municipality_id/barangay_id are real FKs into the PSGC
-     * reference tables — saving valid ids persists them, and
-     * complete_address (a PHP accessor, no longer a stored generated
-     * column) reflects the resolved names via the relations.
-     */
     public function test_encoder_can_save_psgc_address_fields_and_complete_address_reflects_them(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
-
         $barangay = $this->createPsgcBarangay();
 
-        $response = $this->actingAs($user)->put(route('stakeholder-profiles.update', $office), [
+        $this->actingAs($this->userAt('encoder', $office))->putJson("/api/stakeholder-profiles/{$office->id}", [
             'province_id' => $barangay->municipality->province_id,
             'municipality_id' => $barangay->municipality_id,
             'barangay_id' => $barangay->id,
             'street' => '123 Rizal St.',
-        ]);
+        ])->assertOk()
+            ->assertJsonPath('data.profile.barangay_id', $barangay->id)
+            ->assertJsonPath('data.profile.complete_address', '123 Rizal St., BANGKAL, ABUCAY, BATAAN');
 
-        $response->assertSessionHasNoErrors();
-
-        $stakeholderProfile = StakeholderProfile::where('office_id', $office->id)->sole();
-        $this->assertSame($barangay->municipality->province_id, $stakeholderProfile->province_id);
-        $this->assertSame($barangay->municipality_id, $stakeholderProfile->municipality_id);
-        $this->assertSame($barangay->id, $stakeholderProfile->barangay_id);
-        $this->assertSame('123 Rizal St., BANGKAL, ABUCAY, BATAAN', $stakeholderProfile->complete_address);
+        $profile = StakeholderProfile::where('office_id', $office->id)->sole();
+        $this->assertSame($barangay->municipality_id, $profile->municipality_id);
+        $this->assertSame('123 Rizal St., BANGKAL, ABUCAY, BATAAN', $profile->complete_address);
     }
 
     public function test_validation_rejects_a_nonexistent_psgc_barangay_id(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
 
-        $this->actingAs($user)
-            ->put(route('stakeholder-profiles.update', $office), ['barangay_id' => 999999])
-            ->assertSessionHasErrors(['barangay_id']);
+        $this->actingAs($this->userAt('encoder', $office))
+            ->putJson("/api/stakeholder-profiles/{$office->id}", ['barangay_id' => 999999])
+            ->assertJsonValidationErrors(['barangay_id']);
     }
 
     public function test_first_or_create_creates_once_per_office_and_reuses_the_same_row(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
+        $user = $this->userAt('encoder', $office);
 
         $this->assertSame(0, StakeholderProfile::count());
 
-        $this->actingAs($user)->inertiaGet(route('stakeholder-profiles.edit', $office))->assertOk();
-        $this->assertSame(1, StakeholderProfile::count());
-        $firstId = StakeholderProfile::where('office_id', $office->id)->sole()->id;
-
-        $this->actingAs($user)->inertiaGet(route('stakeholder-profiles.edit', $office))->assertOk();
+        $firstId = $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk()->json('data.profile.id');
         $this->assertSame(1, StakeholderProfile::count());
 
-        $this->actingAs($user)->put(route('stakeholder-profiles.update', $office), ['ro' => 'III']);
+        $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk()->assertJsonPath('data.profile.id', $firstId);
+        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", ['ro' => 'III'])->assertOk()->assertJsonPath('data.profile.id', $firstId);
+
         $this->assertSame(1, StakeholderProfile::count());
-        $this->assertSame($firstId, StakeholderProfile::where('office_id', $office->id)->sole()->id);
+    }
+
+    public function test_there_is_no_create_or_delete_route(): void
+    {
+        $office = $this->createOffice();
+        $admin = $this->userWithRole('admin');
+
+        $this->actingAs($admin)->postJson('/api/stakeholder-profiles', ['office_id' => $office->id])->assertStatus(405);
+        $this->actingAs($admin)->deleteJson("/api/stakeholder-profiles/{$office->id}")->assertStatus(405);
     }
 }

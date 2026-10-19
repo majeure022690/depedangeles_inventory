@@ -17,59 +17,38 @@ use App\Models\User;
 use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Testing\TestResponse;
+use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 /**
- * IspAccount's Tier 1 field (isp_provider_id) is a real foreign key as of
- * the lookup-normalization ADR's Step 2+3 — fixtures here pull a real id
- * from isp_providers (seeded by ReferenceDataSeeder) rather than the old
- * Lookup/LookupType system, which IspAccount no longer consults for its
- * own fields. Tier 2 fields (school_area_coverage, subscription_type,
- * isp_connection_type, purpose_of_subscription, overall_signal_quality,
- * rate_connectivity_admin_areas, rate_connectivity_classroom) stay
- * string-validated, now against the real seeded ConnectivityLibrary rows;
- * mode_of_acquisition/source_of_acquisition/fund_source stay
- * string-validated against the real seeded EquipmentLibrary rows (reused
- * from Equipment, per the ADR).
- *
- * The nested IspSpeedTest child resource's `signal_quality` field is cut
- * over too — it validates against ConnectivityLibrary/
- * ConnectivityLibraryType::SignalQuality, the same table/type
- * overall_signal_quality above uses, both seeded by ReferenceDataSeeder.
- * database/factories/IspSpeedTestFactory.php pulls its value from the same
- * source, so no old-system fixture trait is needed anywhere in this file.
+ * `isp_provider_id` is a real FK (Tier 1); the remaining lookup-backed
+ * fields are validated strings against ConnectivityLibrary, or against
+ * EquipmentLibrary for the acquisition/fund fields shared with Equipment.
+ * Speed tests and subscription costs are append-only child logs
+ * authorized against `update` on the parent account.
  */
 class IspAccountControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(ReferenceDataSeeder::class);
+        $this->seed(RolePermissionSeeder::class);
+    }
+
+    private function encoder(): User
+    {
+        return $this->userWithRole('encoder');
+    }
 
     /**
-     * isp-accounts/Index.vue and isp-accounts/Edit.vue don't exist yet
-     * (Frontend builds them against the prop contract this controller
-     * establishes) — same situation UserControllerTest already solved.
-     * Sending X-Inertia makes the response pure JSON straight from the
-     * controller, never touching the root Blade view's `@vite(...)` call,
-     * which is the only place a missing compiled Vue chunk would blow up.
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
      */
-    private function inertiaGet(string $url): TestResponse
-    {
-        $manifest = public_path('build/manifest.json');
-        $version = file_exists($manifest) ? hash_file('xxh128', $manifest) : null;
-
-        return $this->get($url, array_filter([
-            'X-Inertia' => 'true',
-            'X-Inertia-Version' => $version,
-        ]));
-    }
-
-    private function assertInertiaJson(TestResponse $response): array
-    {
-        $response->assertOk();
-
-        return json_decode($response->getContent(), true);
-    }
-
     private function validPayload(array $overrides = []): array
     {
         return array_merge([
@@ -77,28 +56,21 @@ class IspAccountControllerTest extends TestCase
             'cost_per_month' => 5000,
             'isp_billing_account_no' => 'BA-0001',
             'package_purchased_inclusion' => 'Fiber 50Mbps plan',
-
             'school_area_coverage' => 'ES',
             'min_speed' => 25,
             'max_speed' => 50,
-
             'subscription_type' => 'Postpaid',
             'isp_connection_type' => 'Fiber',
-
             'purpose_of_subscription' => 'For administrative use',
-
             'mode_of_acquisition' => 'DepEd Purchase',
             'source_of_acquisition' => 'Central Office',
             'fund_source' => 'Maintenance and Other Operating Expenses (MOOE)',
-
             'overall_signal_quality' => 'Strong',
         ], $overrides);
     }
 
     /**
-     * Tier 1/Tier 2 fixtures pulled from the real seeded reference tables
-     * — mirrors EquipmentControllerTest::makeEquipment()'s override
-     * pattern. Callers must ensure ReferenceDataSeeder has run first.
+     * @param  array<string, mixed>  $overrides
      */
     private function makeIspAccount(array $overrides = []): IspAccount
     {
@@ -117,130 +89,84 @@ class IspAccountControllerTest extends TestCase
 
     public function test_store_validates_required_fields_and_creates_record(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
+        $user = $this->encoder();
 
-        $this->actingAs($user)->post(route('isp-accounts.store'), [])
-            ->assertSessionHasErrors(['isp_provider_id', 'cost_per_month', 'isp_billing_account_no', 'school_area_coverage']);
+        $this->actingAs($user)->postJson('/api/isp-accounts', [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['isp_provider_id', 'cost_per_month', 'isp_billing_account_no', 'school_area_coverage']);
 
-        $response = $this->actingAs($user)->post(route('isp-accounts.store'), $this->validPayload());
+        $response = $this->actingAs($user)->postJson('/api/isp-accounts', $this->validPayload())
+            ->assertCreated()
+            ->assertJsonPath('data.isp', 'PLDT')
+            ->assertJsonPath('data.isp_billing_account_no', 'BA-0001');
 
-        $ispAccount = IspAccount::where('isp_billing_account_no', 'BA-0001')->firstOrFail();
-        $response->assertRedirect(route('isp-accounts.edit', $ispAccount));
+        $ispAccount = IspAccount::findOrFail($response->json('data.id'));
         $this->assertSame(IspProvider::where('name', 'PLDT')->value('id'), $ispAccount->isp_provider_id);
-        $this->assertSame('PLDT', $ispAccount->ispProvider->name);
+
+        $this->assertDatabaseHas('activity_log', [
+            'subject_type' => IspAccount::class,
+            'subject_id' => $ispAccount->id,
+            'event' => 'created',
+            'description' => 'isp_account.created',
+            'causer_id' => $user->id,
+        ]);
     }
 
     public function test_store_rejects_a_nonexistent_isp_provider_id(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
-
-        $this->actingAs($user)
-            ->post(route('isp-accounts.store'), $this->validPayload(['isp_provider_id' => 999999]))
-            ->assertSessionHasErrors(['isp_provider_id']);
+        $this->actingAs($this->encoder())
+            ->postJson('/api/isp-accounts', $this->validPayload(['isp_provider_id' => 999999]))
+            ->assertJsonValidationErrors(['isp_provider_id']);
     }
 
-    /**
-     * Mirrors EquipmentControllerTest::test_store_rejects_an_item_type_id_that_has_been_deactivated()
-     * — same Tier 1 deactivation pattern, applied to IspAccount's own Tier 1
-     * foreign key (isp_provider_id -> isp_providers).
-     */
     public function test_store_rejects_an_isp_provider_id_that_has_been_deactivated(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
-
         $ispProvider = IspProvider::where('name', 'PLDT')->firstOrFail();
         $ispProvider->update(['is_active' => false]);
 
-        $this->actingAs($user)
-            ->post(route('isp-accounts.store'), $this->validPayload(['isp_provider_id' => $ispProvider->id]))
-            ->assertSessionHasErrors(['isp_provider_id']);
+        $this->actingAs($this->encoder())
+            ->postJson('/api/isp-accounts', $this->validPayload(['isp_provider_id' => $ispProvider->id]))
+            ->assertJsonValidationErrors(['isp_provider_id']);
 
         $this->assertDatabaseMissing('isp_accounts', ['isp_billing_account_no' => 'BA-0001']);
     }
 
-    /**
-     * Same deactivation guard, exercised on the update path — the Tier 1
-     * FK rule is identical between IspAccountStoreRequest and
-     * IspAccountUpdateRequest, but only the store side had a regression
-     * test before this addition.
-     */
     public function test_update_rejects_an_isp_provider_id_that_has_been_deactivated(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
-        // Account starts on GLOBE so the update attempt below (targeting a
-        // deactivated PLDT) has a genuinely different id to prove was left
-        // untouched by the rejected update.
         $globeId = IspProvider::where('name', 'GLOBE')->value('id');
         $ispAccount = $this->makeIspAccount(['isp_provider_id' => $globeId]);
 
         $ispProvider = IspProvider::where('name', 'PLDT')->firstOrFail();
         $ispProvider->update(['is_active' => false]);
 
-        $response = $this->actingAs($user)->put(
-            route('isp-accounts.update', $ispAccount),
-            $this->validPayload([
-                'isp_provider_id' => $ispProvider->id,
-                'isp_billing_account_no' => $ispAccount->isp_billing_account_no,
-            ])
-        );
+        $this->actingAs($this->encoder())->putJson("/api/isp-accounts/{$ispAccount->id}", $this->validPayload([
+            'isp_provider_id' => $ispProvider->id,
+            'isp_billing_account_no' => $ispAccount->isp_billing_account_no,
+        ]))->assertJsonValidationErrors(['isp_provider_id']);
 
-        $response->assertSessionHasErrors(['isp_provider_id']);
-        $ispAccount->refresh();
-        $this->assertSame($globeId, $ispAccount->isp_provider_id);
+        $this->assertSame($globeId, $ispAccount->fresh()->isp_provider_id);
     }
 
     /**
-     * The Tier 2 equipment_libraries table is shared: Equipment and
-     * IspAccount both validate mode_of_acquisition/source_of_acquisition/
-     * fund_source (Equipment: source_fund) against the exact same rows,
-     * not duplicated per-resource sets (lookup-normalization ADR). Manually
-     * verified during QA; this proves deactivating one shared row shrinks
-     * the valid-options set for BOTH resources simultaneously, exercised
-     * end-to-end through each resource's own store validation rather than
-     * only asserting on the model helper.
+     * equipment_libraries is shared: deactivating one row shrinks the
+     * valid set for Equipment and IspAccount at once.
      */
     public function test_deactivating_a_shared_equipment_library_row_is_rejected_by_both_equipment_and_isp_account_validation(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
+        $user = $this->encoder();
 
-        $sharedRow = EquipmentLibrary::where('type', EquipmentLibraryType::ModeOfAcquisition)
+        EquipmentLibrary::where('type', EquipmentLibraryType::ModeOfAcquisition)
             ->where('value', 'DepEd Purchase')
-            ->firstOrFail();
+            ->firstOrFail()
+            ->update(['is_active' => false]);
 
-        $this->assertContains(
-            'DepEd Purchase',
-            EquipmentLibrary::activeValues(EquipmentLibraryType::ModeOfAcquisition)
-        );
+        $this->assertNotContains('DepEd Purchase', EquipmentLibrary::activeValues(EquipmentLibraryType::ModeOfAcquisition));
 
-        $sharedRow->update(['is_active' => false]);
-
-        $this->assertNotContains(
-            'DepEd Purchase',
-            EquipmentLibrary::activeValues(EquipmentLibraryType::ModeOfAcquisition)
-        );
-
-        // Rejected via IspAccountStoreRequest.
         $this->actingAs($user)
-            ->post(route('isp-accounts.store'), $this->validPayload(['mode_of_acquisition' => 'DepEd Purchase']))
-            ->assertSessionHasErrors(['mode_of_acquisition']);
+            ->postJson('/api/isp-accounts', $this->validPayload(['mode_of_acquisition' => 'DepEd Purchase']))
+            ->assertJsonValidationErrors(['mode_of_acquisition']);
 
-        // Rejected via EquipmentStoreRequest — same shared row, different resource.
-        $this->actingAs($user)->post(route('equipment.store'), [
+        $this->actingAs($user)->postJson('/api/equipment', [
             'property_no' => 'AC-2026-IT-LT-SHARED',
             'item_type_id' => ItemType::where('name', 'Laptop')->value('id'),
             'uom' => 'Piece',
@@ -254,7 +180,7 @@ class IspAccountControllerTest extends TestCase
             'allotment_class' => 'Maintenance and Other Operating Expenses (MOOE)',
             'equipment_condition_id' => EquipmentCondition::where('name', 'Serviceable')->value('id'),
             'disposition_status' => 'Normal',
-        ])->assertSessionHasErrors(['mode_acquisition']);
+        ])->assertJsonValidationErrors(['mode_acquisition']);
 
         $this->assertDatabaseMissing('isp_accounts', ['isp_billing_account_no' => 'BA-0001']);
         $this->assertDatabaseMissing('equipment', ['property_no' => 'AC-2026-IT-LT-SHARED']);
@@ -262,184 +188,168 @@ class IspAccountControllerTest extends TestCase
 
     public function test_max_speed_must_be_greater_than_or_equal_to_min_speed(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
-
-        $this->actingAs($user)
-            ->post(route('isp-accounts.store'), $this->validPayload(['min_speed' => 50, 'max_speed' => 10]))
-            ->assertSessionHasErrors(['max_speed']);
+        $this->actingAs($this->encoder())
+            ->postJson('/api/isp-accounts', $this->validPayload(['min_speed' => 50, 'max_speed' => 10]))
+            ->assertJsonValidationErrors(['max_speed']);
     }
 
-    public function test_update_persists_changes(): void
+    public function test_update_persists_changes_and_is_audited(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
-        $ispAccount = $this->makeIspAccount();
+        $ispAccount = $this->makeIspAccount(['cost_per_month' => 5000]);
 
-        $response = $this->actingAs($user)->put(
-            route('isp-accounts.update', $ispAccount),
-            $this->validPayload(['cost_per_month' => 7500, 'isp_billing_account_no' => $ispAccount->isp_billing_account_no])
-        );
+        $response = $this->actingAs($this->encoder())->putJson("/api/isp-accounts/{$ispAccount->id}", $this->validPayload([
+            'cost_per_month' => 7500,
+            'isp_billing_account_no' => $ispAccount->isp_billing_account_no,
+        ]))->assertOk();
 
-        $response->assertRedirect(route('isp-accounts.edit', $ispAccount));
-        $ispAccount->refresh();
-        $this->assertEquals(7500, $ispAccount->cost_per_month);
+        $this->assertEquals(7500, $response->json('data.cost_per_month'));
+        $this->assertEquals(7500, $ispAccount->fresh()->cost_per_month);
+
+        $activity = Activity::query()->where('subject_id', $ispAccount->id)->where('event', 'updated')->sole();
+        $this->assertSame('isp_account.updated', $activity->description);
+        $this->assertArrayHasKey('cost_per_month', $activity->attribute_changes['attributes']);
     }
 
-    public function test_destroy_soft_deletes_the_record(): void
+    public function test_destroy_soft_deletes_the_record_and_is_audited(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('admin');
         $ispAccount = $this->makeIspAccount();
 
-        $response = $this->actingAs($user)->delete(route('isp-accounts.destroy', $ispAccount));
+        $this->actingAs($this->userWithRole('admin'))->deleteJson("/api/isp-accounts/{$ispAccount->id}")->assertNoContent();
 
-        $response->assertRedirect(route('isp-accounts.index'));
         $this->assertSoftDeleted($ispAccount);
-
-        $this->assertDatabaseHas('audit_logs', [
-            'action' => 'isp_account.deleted',
-        ]);
+        $this->assertDatabaseHas('activity_log', ['description' => 'isp_account.deleted', 'subject_id' => $ispAccount->id]);
     }
 
-    public function test_viewer_cannot_delete(): void
+    public function test_viewer_can_read_but_cannot_write_or_delete(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('viewer');
+        $viewer = $this->userWithRole('viewer');
         $ispAccount = $this->makeIspAccount();
 
-        $this->actingAs($user)->delete(route('isp-accounts.destroy', $ispAccount))
-            ->assertForbidden();
+        $this->actingAs($viewer)->getJson("/api/isp-accounts/{$ispAccount->id}")->assertOk();
+        $this->actingAs($viewer)->postJson('/api/isp-accounts', $this->validPayload())->assertForbidden();
+        $this->actingAs($viewer)->putJson("/api/isp-accounts/{$ispAccount->id}", $this->validPayload())->assertForbidden();
+        $this->actingAs($viewer)->deleteJson("/api/isp-accounts/{$ispAccount->id}")->assertForbidden();
 
-        $this->assertDatabaseHas('isp_accounts', ['id' => $ispAccount->id, 'deleted_at' => null]);
+        $this->assertNotSoftDeleted('isp_accounts', ['id' => $ispAccount->id]);
     }
 
     public function test_index_lists_accounts_and_supports_search_and_filters(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('viewer');
-
         $pldtId = IspProvider::where('name', 'PLDT')->value('id');
         $globeId = IspProvider::where('name', 'GLOBE')->value('id');
 
         $this->makeIspAccount(['isp_provider_id' => $pldtId, 'isp_billing_account_no' => 'BA-AAA', 'inactive_contract' => false]);
         $this->makeIspAccount(['isp_provider_id' => $globeId, 'isp_billing_account_no' => 'BA-BBB', 'inactive_contract' => true]);
 
-        $page = $this->assertInertiaJson(
-            $this->actingAs($user)->inertiaGet(route('isp-accounts.index', ['search' => 'AAA']))
-        );
-        $this->assertSame('isp-accounts/Index', $page['component']);
-        $this->assertCount(1, $page['props']['ispAccounts']['data']);
-        $this->assertSame('BA-AAA', $page['props']['ispAccounts']['data'][0]['isp_billing_account_no']);
-        // Prop reads the related IspProvider's name via the ispProvider()
-        // relationship, not the legacy (now-stale on new rows) `isp`
-        // string column — the exact "silent breakage" risk the
-        // lookup-normalization ADR flags for this seam.
-        $this->assertSame('PLDT', $page['props']['ispAccounts']['data'][0]['isp']);
+        $user = $this->userWithRole('viewer');
 
-        // Free-text search also matches by provider name (via
-        // whereHas('ispProvider', ...) — see IspAccount::scopeSearch()),
-        // not just isp_billing_account_no.
-        $searchByProviderName = $this->assertInertiaJson(
-            $this->actingAs($user)->inertiaGet(route('isp-accounts.index', ['search' => 'GLOBE']))
-        );
-        $this->assertCount(1, $searchByProviderName['props']['ispAccounts']['data']);
-        $this->assertSame('BA-BBB', $searchByProviderName['props']['ispAccounts']['data'][0]['isp_billing_account_no']);
+        $this->actingAs($user)->getJson('/api/isp-accounts?search=AAA')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.isp_billing_account_no', 'BA-AAA')
+            ->assertJsonPath('data.0.isp', 'PLDT')
+            ->assertJsonMissingPath('data.0.speed_tests');
 
-        $this->assertSame(1, IspAccount::provider($globeId)->count());
-        $this->assertSame(1, IspAccount::status('inactive')->count());
-        $this->assertSame(1, IspAccount::status('active')->count());
-        $this->assertSame(2, IspAccount::status(null)->count());
+        // Search also matches the provider's name.
+        $this->actingAs($user)->getJson('/api/isp-accounts?search=GLOBE')
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.isp_billing_account_no', 'BA-BBB');
+
+        $this->actingAs($user)->getJson("/api/isp-accounts?isp={$globeId}")->assertJsonPath('meta.total', 1);
+        $this->actingAs($user)->getJson('/api/isp-accounts?status=inactive')->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.isp_billing_account_no', 'BA-BBB');
+        $this->actingAs($user)->getJson('/api/isp-accounts?status=active')->assertJsonPath('meta.total', 1);
+        $this->actingAs($user)->getJson('/api/isp-accounts')->assertJsonPath('meta.total', 2);
+    }
+
+    public function test_options_ship_form_filter_and_speed_test_lists(): void
+    {
+        $response = $this->actingAs($this->userWithRole('viewer'))->getJson('/api/isp-accounts/options')
+            ->assertOk()
+            ->assertJsonStructure(['data' => [
+                'form' => ['isp_provider', 'school_level_coverage', 'subscription_type', 'isp_connection_type',
+                    'purpose_of_subscription', 'signal_quality', 'mode_of_acquisition', 'source_of_acquisition', 'source_of_funds'],
+                'filters' => ['isp_provider'],
+                'speed_test' => ['signal_quality'],
+            ]]);
+
+        $this->assertIsInt($response->json('data.form.isp_provider.0.value'));
+        $this->assertIsString($response->json('data.speed_test.signal_quality.0.value'));
     }
 
     public function test_speed_test_store_appends_to_history_and_authorizes_against_parent_account(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $encoder = User::factory()->create();
-        $encoder->assignRole('encoder');
-        $viewer = User::factory()->create();
-        $viewer->assignRole('viewer');
+        $encoder = $this->encoder();
         $ispAccount = $this->makeIspAccount();
-
-        $this->actingAs($viewer)->post(route('isp-accounts.speed-tests.store', $ispAccount), [
+        $payload = [
             'download_speed' => 40,
             'upload_speed' => 10,
             'tested_at' => now()->toDateTimeString(),
             'signal_quality' => 'Strong',
-        ])->assertForbidden();
+        ];
 
-        $response = $this->actingAs($encoder)->post(route('isp-accounts.speed-tests.store', $ispAccount), [
-            'download_speed' => 40,
-            'upload_speed' => 10,
-            'tested_at' => now()->toDateTimeString(),
-            'signal_quality' => 'Strong',
-        ]);
+        $this->actingAs($this->userWithRole('viewer'))
+            ->postJson("/api/isp-accounts/{$ispAccount->id}/speed-tests", $payload)->assertForbidden();
 
-        $response->assertRedirect(route('isp-accounts.edit', $ispAccount));
+        $this->actingAs($encoder)->postJson("/api/isp-accounts/{$ispAccount->id}/speed-tests", $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.signal_quality', 'Strong')
+            ->assertJsonPath('data.isp_account_id', $ispAccount->id);
+
         $speedTest = IspSpeedTest::where('isp_account_id', $ispAccount->id)->sole();
         $this->assertSame($encoder->id, $speedTest->recorded_by_user_id);
 
-        $this->assertDatabaseHas('audit_logs', [
-            'action' => 'isp_account.speed_test.recorded',
-            'subject_type' => $ispAccount->getMorphClass(),
-            'subject_id' => $ispAccount->id,
-        ]);
+        $activity = Activity::query()->where('event', 'isp_account.speed_test.recorded')->sole();
+        $this->assertSame(IspAccount::class, $activity->subject_type);
+        $this->assertSame($ispAccount->id, $activity->subject_id);
+        $this->assertSame($speedTest->id, $activity->properties['speed_test_id']);
     }
 
     public function test_subscription_cost_store_appends_to_history(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
+        $user = $this->encoder();
         $ispAccount = $this->makeIspAccount();
 
-        $response = $this->actingAs($user)->post(route('isp-accounts.subscription-costs.store', $ispAccount), [
+        $this->actingAs($user)->postJson("/api/isp-accounts/{$ispAccount->id}/subscription-costs", [
             'contract_start_date' => '2026-01-01',
             'contract_end_date' => '2026-12-31',
             'total_amount_spent' => 60000,
-        ]);
+        ])->assertCreated()
+            ->assertJsonPath('data.contract_start_date', '2026-01-01');
 
-        $response->assertRedirect(route('isp-accounts.edit', $ispAccount));
         $subscriptionCost = IspSubscriptionCost::where('isp_account_id', $ispAccount->id)->sole();
         $this->assertSame($user->id, $subscriptionCost->recorded_by_user_id);
 
-        $this->assertDatabaseHas('audit_logs', [
-            'action' => 'isp_account.subscription_cost.recorded',
-            'subject_type' => $ispAccount->getMorphClass(),
+        $this->assertDatabaseHas('activity_log', [
+            'event' => 'isp_account.subscription_cost.recorded',
+            'subject_type' => IspAccount::class,
             'subject_id' => $ispAccount->id,
+            'causer_id' => $user->id,
         ]);
     }
 
-    public function test_edit_page_eager_loads_speed_test_and_subscription_cost_history(): void
+    public function test_child_logs_are_append_only(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
+        $ispAccount = $this->makeIspAccount();
+        $speedTest = IspSpeedTest::factory()->create(['isp_account_id' => $ispAccount->id]);
+        $cost = IspSubscriptionCost::factory()->create(['isp_account_id' => $ispAccount->id]);
+        $admin = $this->userWithRole('admin');
+
+        $this->actingAs($admin)->putJson("/api/isp-accounts/{$ispAccount->id}/speed-tests/{$speedTest->id}", [])->assertNotFound();
+        $this->actingAs($admin)->deleteJson("/api/isp-accounts/{$ispAccount->id}/speed-tests/{$speedTest->id}")->assertNotFound();
+        $this->actingAs($admin)->putJson("/api/isp-accounts/{$ispAccount->id}/subscription-costs/{$cost->id}", [])->assertNotFound();
+        $this->actingAs($admin)->deleteJson("/api/isp-accounts/{$ispAccount->id}/subscription-costs/{$cost->id}")->assertNotFound();
+    }
+
+    public function test_show_includes_speed_test_and_subscription_cost_history(): void
+    {
         $ispAccount = $this->makeIspAccount();
         IspSpeedTest::factory()->count(2)->create(['isp_account_id' => $ispAccount->id]);
         IspSubscriptionCost::factory()->count(2)->create(['isp_account_id' => $ispAccount->id]);
 
-        $page = $this->assertInertiaJson(
-            $this->actingAs($user)->inertiaGet(route('isp-accounts.edit', $ispAccount))
-        );
-
-        $this->assertSame('isp-accounts/Edit', $page['component']);
-        $this->assertSame('PLDT', $page['props']['ispAccount']['isp']);
-        $this->assertSame($ispAccount->isp_provider_id, $page['props']['ispAccount']['isp_provider_id']);
-        $this->assertCount(2, $page['props']['ispAccount']['speed_tests']);
-        $this->assertCount(2, $page['props']['ispAccount']['subscription_costs']);
+        $this->actingAs($this->userWithRole('viewer'))->getJson("/api/isp-accounts/{$ispAccount->id}")
+            ->assertOk()
+            ->assertJsonPath('data.isp', 'PLDT')
+            ->assertJsonPath('data.isp_provider_id', $ispAccount->isp_provider_id)
+            ->assertJsonCount(2, 'data.speed_tests')
+            ->assertJsonCount(2, 'data.subscription_costs');
     }
 }

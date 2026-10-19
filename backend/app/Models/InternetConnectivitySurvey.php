@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * One row per Office (see docs/features/internet-connectivity-survey.md).
@@ -25,6 +27,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class InternetConnectivitySurvey extends Model
 {
+    use LogsActivity;
+
+    /**
+     * The row is created lazily (firstOrCreate) on first view, which is
+     * not a user change; only saved answers are audited.
+     *
+     * @var list<string>
+     */
+    protected static array $recordEvents = ['updated'];
+
     /**
      * True once any field beyond office_id has actually been filled in —
      * firstOrCreate() persists an empty row on first edit-page view, so
@@ -64,5 +76,14 @@ class InternetConnectivitySurvey extends Model
             'frequent_brownouts' => 'boolean',
             'rooms_other_use' => 'integer',
         ];
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges()
+            ->setDescriptionForEvent(fn (string $event): string => "internet_connectivity_survey.{$event}");
     }
 }

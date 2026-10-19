@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Enums\ConnectivityLibraryType;
 use App\Enums\StakeholderLibraryType;
-use App\Models\AuditLog;
 use App\Models\ConnectivityLibrary;
 use App\Models\InternetConnectivitySurvey;
 use App\Models\IspProvider;
@@ -14,90 +13,76 @@ use App\Models\User;
 use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Testing\TestResponse;
+use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 /**
- * InternetConnectivitySurvey is one row PER OFFICE (not a global singleton)
- * — every test here creates its own Office row(s) and scopes users to one
- * via `office_id`, mirroring StakeholderProfileControllerTest. Its fields
- * (lookup-normalization ADR, Step 2+3) are validated against the real
- * seeded reference tables (via ReferenceDataSeeder) rather than the old
- * Lookup/LookupType system, which this resource no longer consults.
- * `available_isps`/`subscribed_isps` are arrays of `isp_providers` row ids
- * (Tier 1). `mobile_signal_types`/`coverage_areas` are arrays of
- * `connectivity_libraries` row ids. `electricity_sources` is an array of
- * `stakeholder_libraries` row ids (a deliberate cross-domain read).
+ * One survey PER OFFICE, same office scoping and pre-create authorization
+ * as the Stakeholder Profile. `available_isps`/`subscribed_isps` store
+ * isp_providers ids; `mobile_signal_types`/`coverage_areas`
+ * connectivity_libraries ids; `electricity_sources` stakeholder_libraries ids.
  */
 class InternetConnectivitySurveyControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(ReferenceDataSeeder::class);
+        $this->seed(RolePermissionSeeder::class);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
     private function createOffice(array $overrides = []): Office
     {
         return Office::create(array_merge(['office_name' => 'Test Elementary School'], $overrides));
     }
 
-    /**
-     * internet-connectivity-survey/Edit.vue doesn't exist yet (Frontend
-     * builds it against the prop contract this controller establishes) —
-     * same situation as IspAccountControllerTest/StakeholderProfileControllerTest.
-     */
-    private function inertiaGet(string $url): TestResponse
+    private function userAt(string $role, ?Office $office): User
     {
-        $manifest = public_path('build/manifest.json');
-        $version = file_exists($manifest) ? hash_file('xxh128', $manifest) : null;
-
-        return $this->get($url, array_filter([
-            'X-Inertia' => 'true',
-            'X-Inertia-Version' => $version,
-        ]));
+        return $this->userWithRole($role, ['office_id' => $office?->id]);
     }
 
-    private function assertInertiaJson(TestResponse $response): array
+    private function url(Office $office): string
     {
-        $response->assertOk();
-
-        return json_decode($response->getContent(), true);
+        return "/api/internet-connectivity-surveys/{$office->id}";
     }
 
     public function test_viewer_can_view_own_office_but_not_update(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('viewer');
+        $user = $this->userAt('viewer', $office);
 
-        $page = $this->assertInertiaJson(
-            $this->actingAs($user)->inertiaGet(route('internet-connectivity-surveys.edit', $office))
-        );
-        $this->assertSame('internet-connectivity-survey/Edit', $page['component']);
+        $this->actingAs($user)->getJson($this->url($office))
+            ->assertOk()
+            ->assertJsonPath('data.office.id', $office->id)
+            ->assertJsonPath('data.survey.office_id', $office->id)
+            ->assertJsonMissingPath('data.aggregates');
 
-        $this->actingAs($user)
-            ->put(route('internet-connectivity-surveys.update', $office), [])
-            ->assertForbidden();
+        $this->actingAs($user)->putJson($this->url($office), [])->assertForbidden();
     }
 
     public function test_encoder_can_view_and_update_own_office(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
-
-        $this->actingAs($user)->inertiaGet(route('internet-connectivity-surveys.edit', $office))->assertOk();
-
+        $user = $this->userAt('encoder', $office);
         $pldtId = IspProvider::where('name', 'PLDT')->value('id');
 
-        $response = $this->actingAs($user)->put(route('internet-connectivity-surveys.update', $office), [
+        $this->actingAs($user)->getJson($this->url($office))->assertOk();
+
+        $this->actingAs($user)->putJson($this->url($office), [
             'has_isp_in_area' => true,
             'available_isps' => [$pldtId],
             'rooms_other_use' => 3,
-        ]);
-
-        $response->assertRedirect(route('internet-connectivity-surveys.edit', $office));
-        $response->assertSessionHasNoErrors();
+        ])->assertOk()
+            ->assertJsonPath('data.survey.has_isp_in_area', true)
+            ->assertJsonPath('data.survey.available_isps', [$pldtId])
+            ->assertJsonPath('data.survey.rooms_other_use', 3);
 
         $survey = InternetConnectivitySurvey::where('office_id', $office->id)->sole();
         $this->assertTrue($survey->has_isp_in_area);
@@ -107,264 +92,167 @@ class InternetConnectivitySurveyControllerTest extends TestCase
 
     public function test_encoder_cannot_view_or_update_a_different_office(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $myOffice = $this->createOffice(['office_name' => 'My School']);
         $otherOffice = $this->createOffice(['office_name' => 'Other School']);
-        $user = User::factory()->create(['office_id' => $myOffice->id]);
-        $user->assignRole('encoder');
+        $user = $this->userAt('encoder', $myOffice);
 
-        $this->actingAs($user)->get(route('internet-connectivity-surveys.edit', $otherOffice))->assertForbidden();
-        $this->actingAs($user)
-            ->put(route('internet-connectivity-surveys.update', $otherOffice), ['rooms_other_use' => 3])
-            ->assertForbidden();
+        $this->actingAs($user)->getJson($this->url($otherOffice))->assertForbidden();
+        $this->actingAs($user)->putJson($this->url($otherOffice), ['rooms_other_use' => 1])->assertForbidden();
 
-        // No side effect: the other office's survey is never created by a
-        // forbidden request.
         $this->assertSame(0, InternetConnectivitySurvey::where('office_id', $otherOffice->id)->count());
     }
 
     public function test_encoder_with_no_office_gets_403_on_any_office(): void
     {
-        $this->seed(RolePermissionSeeder::class);
-        $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => null]);
-        $user->assignRole('encoder');
-
-        $this->actingAs($user)->get(route('internet-connectivity-surveys.edit', $office))->assertForbidden();
+        $this->actingAs($this->userAt('encoder', null))->getJson($this->url($this->createOffice()))->assertForbidden();
     }
 
     public function test_admin_can_view_and_update_any_office_via_view_all(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        // Deliberately no office_id on the admin -- view_all must not
-        // depend on the actor having one of their own.
-        $user = User::factory()->create(['office_id' => null]);
-        $user->assignRole('admin');
+        $user = $this->userAt('admin', null);
 
-        $this->actingAs($user)->inertiaGet(route('internet-connectivity-surveys.edit', $office))->assertOk();
+        $this->actingAs($user)->getJson($this->url($office))->assertOk();
+        $this->actingAs($user)->putJson($this->url($office), ['rooms_other_use' => 2])->assertOk();
 
-        $this->actingAs($user)
-            ->put(route('internet-connectivity-surveys.update', $office), ['frequent_brownouts' => true])
-            ->assertRedirect(route('internet-connectivity-surveys.edit', $office));
-
-        $this->assertTrue(InternetConnectivitySurvey::where('office_id', $office->id)->sole()->frequent_brownouts);
+        $this->assertSame(2, InternetConnectivitySurvey::where('office_id', $office->id)->sole()->rooms_other_use);
     }
 
     public function test_only_view_all_holder_can_access_the_index_list(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
 
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
-        $this->actingAs($admin)->inertiaGet(route('internet-connectivity-surveys.index'))->assertOk();
-
-        $encoder = User::factory()->create(['office_id' => $office->id]);
-        $encoder->assignRole('encoder');
-        $this->actingAs($encoder)->get(route('internet-connectivity-surveys.index'))->assertForbidden();
+        $this->actingAs($this->userWithRole('admin'))->getJson('/api/internet-connectivity-surveys')->assertOk();
+        $this->actingAs($this->userAt('encoder', $office))->getJson('/api/internet-connectivity-surveys')->assertForbidden();
     }
 
     public function test_index_lists_offices_with_and_without_a_survey(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $withSurvey = $this->createOffice(['office_name' => 'Has Survey ES']);
         $withoutSurvey = $this->createOffice(['office_name' => 'No Survey ES']);
-        InternetConnectivitySurvey::create(['office_id' => $withSurvey->id, 'rooms_other_use' => 2]);
+        InternetConnectivitySurvey::create(['office_id' => $withSurvey->id, 'rooms_other_use' => 1]);
 
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $response = $this->actingAs($this->userWithRole('admin'))->getJson('/api/internet-connectivity-surveys')
+            ->assertOk()
+            ->assertJsonStructure(['data' => [['id', 'office_name', 'office_type', 'school_id', 'has_survey', 'updated_at']], 'meta', 'links']);
 
-        $page = $this->assertInertiaJson($this->actingAs($admin)->inertiaGet(route('internet-connectivity-surveys.index')));
-
-        $rows = collect($page['props']['offices']['data']);
+        $rows = collect($response->json('data'));
         $this->assertTrue($rows->firstWhere('id', $withSurvey->id)['has_survey']);
         $this->assertFalse($rows->firstWhere('id', $withoutSurvey->id)['has_survey']);
     }
 
-    /**
-     * edit() firstOrCreate()s an empty row on first view — merely opening
-     * the "Start" link must not flip the index to "Answered" until a real
-     * field is actually saved.
-     */
-    public function test_index_still_shows_not_started_after_edit_page_is_viewed_but_nothing_saved(): void
+    public function test_index_still_shows_not_started_after_show_but_nothing_saved(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice(['office_name' => 'Just Viewed ES']);
+        $admin = $this->userWithRole('admin');
 
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
-
-        $this->actingAs($admin)->inertiaGet(route('internet-connectivity-surveys.edit', $office))->assertOk();
+        $this->actingAs($admin)->getJson($this->url($office))->assertOk();
         $this->assertDatabaseHas('internet_connectivity_surveys', ['office_id' => $office->id]);
+        $this->assertSame(0, Activity::query()->where('subject_type', InternetConnectivitySurvey::class)->count());
 
-        $page = $this->assertInertiaJson($this->actingAs($admin)->inertiaGet(route('internet-connectivity-surveys.index')));
-        $row = collect($page['props']['offices']['data'])->firstWhere('id', $office->id);
-
+        $row = collect($this->actingAs($admin)->getJson('/api/internet-connectivity-surveys')->json('data'))->firstWhere('id', $office->id);
         $this->assertFalse($row['has_survey']);
         $this->assertNull($row['updated_at']);
     }
 
-    public function test_pending_role_gets_403(): void
+    public function test_pending_role_gets_403_without_creating_a_row(): void
     {
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('pending');
+        $user = $this->userAt('pending', $office);
 
-        $this->actingAs($user)->get(route('internet-connectivity-surveys.edit', $office))->assertForbidden();
-        $this->actingAs($user)->put(route('internet-connectivity-surveys.update', $office), [])->assertForbidden();
+        $this->actingAs($user)->getJson($this->url($office))->assertForbidden();
+        $this->actingAs($user)->putJson($this->url($office), [])->assertForbidden();
+        $this->actingAs($user)->getJson('/api/internet-connectivity-surveys/options')->assertForbidden();
 
-        // Authorization must be checked BEFORE the row is created — a
-        // zero-permission user's forbidden requests must not have any
-        // write side effect.
         $this->assertSame(0, InternetConnectivitySurvey::count());
     }
 
-    public function test_update_writes_an_audit_log_entry_with_diffed_changes(): void
+    public function test_update_writes_an_audit_entry_with_diffed_changes(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
+        $user = $this->userAt('encoder', $office);
 
-        $this->actingAs($user)->put(route('internet-connectivity-surveys.update', $office), [
-            'rooms_other_use' => 3,
-        ])->assertSessionHasNoErrors();
+        $this->actingAs($user)->putJson($this->url($office), ['rooms_other_use' => 3])->assertOk();
 
-        $log = AuditLog::where('action', 'internet_connectivity_survey.updated')->sole();
         $survey = InternetConnectivitySurvey::where('office_id', $office->id)->sole();
-        $this->assertSame('internet_connectivity_survey.updated', $log->action);
-        $this->assertSame($user->id, $log->actor_id);
-        $this->assertSame($survey->id, $log->subject_id);
-        $this->assertSame(InternetConnectivitySurvey::class, $log->subject_type);
-        $this->assertSame(null, $log->properties['changes']['rooms_other_use']['old']);
-        $this->assertSame(3, $log->properties['changes']['rooms_other_use']['new']);
-        $this->assertArrayNotHasKey('updated_at', $log->properties['changes']);
+        $activity = Activity::query()->where('subject_type', InternetConnectivitySurvey::class)->sole();
+
+        $this->assertSame('internet_connectivity_survey.updated', $activity->description);
+        $this->assertSame($user->id, $activity->causer_id);
+        $this->assertSame($survey->id, $activity->subject_id);
+        $this->assertNull($activity->attribute_changes['old']['rooms_other_use']);
+        $this->assertSame(3, $activity->attribute_changes['attributes']['rooms_other_use']);
+        $this->assertArrayNotHasKey('updated_at', $activity->attribute_changes['attributes']);
+    }
+
+    public function test_options_ship_id_valued_checkbox_lists(): void
+    {
+        $office = $this->createOffice();
+
+        $response = $this->actingAs($this->userAt('viewer', $office))->getJson('/api/internet-connectivity-surveys/options')
+            ->assertOk()
+            ->assertJsonStructure(['data' => ['isp_provider', 'signal_quality', 'mobile_network_signal', 'coverage_area', 'source_of_electricity']]);
+
+        $this->assertIsInt($response->json('data.isp_provider.0.value'));
+        $this->assertIsInt($response->json('data.coverage_area.0.value'));
+        $this->assertIsString($response->json('data.signal_quality.0.value'));
     }
 
     public function test_update_rejects_oversized_array_field(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
-
-        // Deactivate every IspProvider row but one, so the field's max
-        // drops to 1 — two distinct, otherwise-valid ids must then be
-        // rejected by the array size cap, not the per-element existence
-        // check.
         $ids = IspProvider::query()->active()->pluck('id');
         IspProvider::whereIn('id', $ids->slice(1))->update(['is_active' => false]);
 
-        $this->actingAs($user)
-            ->put(route('internet-connectivity-surveys.update', $office), [
-                'available_isps' => $ids->take(2)->all(),
-            ])
-            ->assertSessionHasErrors(['available_isps']);
+        $this->actingAs($this->userAt('encoder', $office))
+            ->putJson($this->url($office), ['available_isps' => $ids->take(2)->all()])
+            ->assertJsonValidationErrors(['available_isps']);
     }
 
     public function test_validation_rejects_a_nonexistent_isp_provider_id_in_array_field(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
 
-        $this->actingAs($user)
-            ->put(route('internet-connectivity-surveys.update', $office), [
-                'available_isps' => [999999],
-            ])
-            ->assertSessionHasErrors(['available_isps.0']);
+        $this->actingAs($this->userAt('encoder', $office))
+            ->putJson($this->url($office), ['available_isps' => [999999]])
+            ->assertJsonValidationErrors(['available_isps.0']);
     }
 
-    /**
-     * mobile_signal_types/coverage_areas are both connectivity_libraries
-     * ids, but scoped to different types (MobileNetworkSignal vs
-     * CoverageArea respectively) — a real, active row of the wrong type
-     * must be rejected, proving the Rule::exists() is scoped by `type`.
-     */
     public function test_validation_rejects_a_connectivity_library_id_of_the_wrong_type_in_array_field(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
+        $wrongTypeId = ConnectivityLibrary::where('type', ConnectivityLibraryType::CoverageArea)->active()->value('id');
 
-        $wrongTypeId = ConnectivityLibrary::where('type', ConnectivityLibraryType::CoverageArea)
-            ->active()
-            ->value('id');
-
-        $this->actingAs($user)
-            ->put(route('internet-connectivity-surveys.update', $office), [
-                'mobile_signal_types' => [$wrongTypeId],
-            ])
-            ->assertSessionHasErrors(['mobile_signal_types.0']);
+        $this->actingAs($this->userAt('encoder', $office))
+            ->putJson($this->url($office), ['mobile_signal_types' => [$wrongTypeId]])
+            ->assertJsonValidationErrors(['mobile_signal_types.0']);
     }
 
-    /**
-     * `electricity_sources` is a deliberate cross-domain read of
-     * `stakeholder_libraries` (StakeholderLibraryType::SourceOfElectricity)
-     * — proves a real, active row of that type is accepted, and a real row
-     * of a different StakeholderLibraryType is rejected.
-     */
     public function test_electricity_sources_validates_against_the_shared_stakeholder_library_table(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
+        $user = $this->userAt('encoder', $office);
 
-        $sourceOfElectricityId = StakeholderLibrary::where('type', StakeholderLibraryType::SourceOfElectricity)
-            ->where('value', 'Grid')
-            ->value('id');
+        $gridId = StakeholderLibrary::where('type', StakeholderLibraryType::SourceOfElectricity)->where('value', 'Grid')->value('id');
 
-        $this->actingAs($user)
-            ->put(route('internet-connectivity-surveys.update', $office), [
-                'electricity_sources' => [$sourceOfElectricityId],
-            ])
-            ->assertSessionHasNoErrors();
-        $this->assertSame(
-            [$sourceOfElectricityId],
-            InternetConnectivitySurvey::where('office_id', $office->id)->sole()->electricity_sources
-        );
+        $this->actingAs($user)->putJson($this->url($office), ['electricity_sources' => [$gridId]])->assertOk();
+        $this->assertSame([$gridId], InternetConnectivitySurvey::where('office_id', $office->id)->sole()->electricity_sources);
 
-        $wrongTypeId = StakeholderLibrary::where('type', StakeholderLibraryType::GovernanceLevel)
-            ->active()
-            ->value('id');
+        $wrongTypeId = StakeholderLibrary::where('type', StakeholderLibraryType::GovernanceLevel)->active()->value('id');
 
-        $this->actingAs($user)
-            ->put(route('internet-connectivity-surveys.update', $office), [
-                'electricity_sources' => [$wrongTypeId],
-            ])
-            ->assertSessionHasErrors(['electricity_sources.0']);
+        $this->actingAs($user)->putJson($this->url($office), ['electricity_sources' => [$wrongTypeId]])
+            ->assertJsonValidationErrors(['electricity_sources.0']);
     }
 
     public function test_first_or_create_creates_once_per_office_and_reuses_the_same_row(): void
     {
-        $this->seed(ReferenceDataSeeder::class);
-        $this->seed(RolePermissionSeeder::class);
         $office = $this->createOffice();
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('encoder');
+        $user = $this->userAt('encoder', $office);
 
-        $this->assertSame(0, InternetConnectivitySurvey::count());
+        $firstId = $this->actingAs($user)->getJson($this->url($office))->assertOk()->json('data.survey.id');
+        $this->actingAs($user)->getJson($this->url($office))->assertJsonPath('data.survey.id', $firstId);
+        $this->actingAs($user)->putJson($this->url($office), ['rooms_other_use' => 4])->assertJsonPath('data.survey.id', $firstId);
 
-        $this->actingAs($user)->inertiaGet(route('internet-connectivity-surveys.edit', $office))->assertOk();
         $this->assertSame(1, InternetConnectivitySurvey::count());
-        $firstId = InternetConnectivitySurvey::where('office_id', $office->id)->sole()->id;
-
-        $this->actingAs($user)->inertiaGet(route('internet-connectivity-surveys.edit', $office))->assertOk();
-        $this->assertSame(1, InternetConnectivitySurvey::count());
-
-        $this->actingAs($user)->put(route('internet-connectivity-surveys.update', $office), ['rooms_other_use' => 4]);
-        $this->assertSame(1, InternetConnectivitySurvey::count());
-        $this->assertSame($firstId, InternetConnectivitySurvey::where('office_id', $office->id)->sole()->id);
     }
 }

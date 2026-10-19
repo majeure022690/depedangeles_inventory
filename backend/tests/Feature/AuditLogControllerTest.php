@@ -2,28 +2,23 @@
 
 namespace Tests\Feature;
 
-use App\Models\AuditLog;
 use App\Models\Office;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Route;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 /**
- * Coverage for the audit_log.view admin screen: a single-action, read-only,
- * paginated browse of the append-only `audit_logs` table (see
- * AuditLogController's own doc-comment — no create/store/edit/update/
- * destroy routes exist or should exist for this resource).
- *
- * Role assignment (Spatie's assignRole()) writes no audit_logs row, so
- * the table holds only the rows each test records itself.
+ * Read-only browse of the activity log (audit_log.view, admin only).
  */
 class AuditLogControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -34,256 +29,186 @@ class AuditLogControllerTest extends TestCase
 
     private function admin(): User
     {
-        $user = User::factory()->create();
-        $user->assignRole('admin');
-
-        return $user;
+        return $this->userWithRole('admin');
     }
 
-    private function encoder(): User
+    private function record(string $description, ?Model $subject = null, ?User $causer = null, ?Carbon $createdAt = null, ?string $event = null): Activity
     {
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
+        $logger = activity()->event($event ?? $description);
 
-        return $user;
-    }
+        if ($subject !== null) {
+            $logger->performedOn($subject);
+        }
 
-    private function viewer(): User
-    {
-        $user = User::factory()->create();
-        $user->assignRole('viewer');
+        if ($causer !== null) {
+            $logger->causedBy($causer);
+        }
 
-        return $user;
-    }
+        if ($createdAt !== null) {
+            $logger->createdAt($createdAt);
+        }
 
-    private function pending(): User
-    {
-        $user = User::factory()->create();
-        $user->assignRole('pending');
+        $activity = $logger->log($description);
+        $this->assertInstanceOf(Activity::class, $activity);
 
-        return $user;
+        return $activity;
     }
 
     /**
-     * Thin wrapper over AuditLog::record() that additionally lets a test
-     * backdate/forward-date the row (record() always hardcodes
-     * `created_at` to `now()`), needed for pagination-order and
-     * date-range-filter coverage.
-     *
-     * @param  array<string, mixed>  $properties
+     * @return list<int>
      */
-    private function recordAt(
-        string $action,
-        ?Model $subject = null,
-        array $properties = [],
-        ?int $actorId = null,
-        ?Carbon $createdAt = null,
-    ): AuditLog {
-        $log = AuditLog::record($action, $subject, $properties, $actorId);
-
-        if ($createdAt !== null) {
-            $log->created_at = $createdAt;
-            $log->save();
-        }
-
-        return $log;
+    private function idsFor(string $query): array
+    {
+        return collect($this->actingAs($this->admin())->getJson('/api/audit-log'.$query)->assertOk()->json('data'))->pluck('id')->all();
     }
-
-    // ------------------------------------------------------------------
-    // 1. Authorization
-    // ------------------------------------------------------------------
 
     public function test_admin_can_view_the_audit_log(): void
     {
-        $response = $this->actingAs($this->admin())->get(route('audit-log.index'));
-
-        $response->assertOk();
-        $this->assertSame('audit-log/Index', $response->inertiaPage()['component']);
+        $this->actingAs($this->admin())->getJson('/api/audit-log')
+            ->assertOk()
+            ->assertJsonStructure(['data', 'meta', 'links', 'message']);
     }
 
-    public function test_encoder_is_forbidden(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function nonAdminRoles(): array
     {
-        $this->actingAs($this->encoder())
-            ->get(route('audit-log.index'))
-            ->assertForbidden();
+        return ['encoder' => ['encoder'], 'viewer' => ['viewer'], 'pending' => ['pending']];
     }
 
-    public function test_viewer_is_forbidden(): void
+    #[DataProvider('nonAdminRoles')]
+    public function test_non_admin_roles_are_forbidden(string $role): void
     {
-        $this->actingAs($this->viewer())
-            ->get(route('audit-log.index'))
-            ->assertForbidden();
-    }
+        $user = $this->userWithRole($role);
 
-    public function test_pending_is_forbidden(): void
-    {
-        $this->actingAs($this->pending())
-            ->get(route('audit-log.index'))
-            ->assertForbidden();
+        $this->actingAs($user)->getJson('/api/audit-log')->assertForbidden();
+        $this->actingAs($user)->getJson('/api/audit-log/options')->assertForbidden();
     }
 
     public function test_guest_is_rejected(): void
     {
-        $this->get(route('audit-log.index'))->assertUnauthorized();
+        $this->getJson('/api/audit-log')->assertUnauthorized();
     }
-
-    // ------------------------------------------------------------------
-    // 2. Listing / pagination
-    // ------------------------------------------------------------------
 
     public function test_index_paginates_20_per_page_ordered_newest_first(): void
     {
-        $admin = $this->admin();
-
         $base = Carbon::now();
         for ($i = 0; $i < 25; $i++) {
-            $this->recordAt("pagination.test.{$i}", createdAt: $base->copy()->addMinutes($i + 1));
+            $this->record("pagination.test.{$i}", createdAt: $base->copy()->addMinutes($i + 1));
         }
 
-        $page = $this->actingAs($admin)->get(route('audit-log.index'))->inertiaPage();
+        $response = $this->actingAs($this->admin())->getJson('/api/audit-log?search=pagination.test')
+            ->assertJsonPath('meta.total', 25)
+            ->assertJsonCount(20, 'data')
+            ->assertJsonPath('data.0.description', 'pagination.test.24')
+            ->assertJsonPath('data.19.description', 'pagination.test.5');
 
-        $this->assertSame(25, $page['props']['logs']['total']);
-        $this->assertCount(20, $page['props']['logs']['data']);
-
-        // Newest first: pagination.test.24 (created latest) leads page 1;
-        // pagination.test.5 is the 20th (oldest of the top 20).
-        $this->assertSame('pagination.test.24', $page['props']['logs']['data'][0]['action']);
-        $this->assertSame('pagination.test.5', $page['props']['logs']['data'][19]['action']);
-
-        $ids = collect($page['props']['logs']['data'])->pluck('action')->all();
-        $this->assertNotContains('pagination.test.4', $ids);
+        $this->assertNotContains('pagination.test.4', collect($response->json('data'))->pluck('description')->all());
     }
 
-    // ------------------------------------------------------------------
-    // 3. `search` filter
-    // ------------------------------------------------------------------
-
-    public function test_search_matches_the_action_substring(): void
+    public function test_row_shape_includes_changes_properties_and_subject_basename(): void
     {
-        $admin = $this->admin();
-        $this->recordAt('equipment.created');
-        $this->recordAt('personnel.updated');
+        $office = Office::create(['office_name' => 'Old Name']);
+        $office->update(['office_name' => 'New Name']);
+        $activity = Activity::query()->where('subject_type', Office::class)->where('event', 'updated')->sole();
 
-        $page = $this->actingAs($admin)
-            ->get(route('audit-log.index', ['search' => 'equipm']))
-            ->inertiaPage();
+        $row = collect($this->actingAs($this->admin())->getJson('/api/audit-log')->json('data'))->firstWhere('id', $activity->id);
 
-        $actions = collect($page['props']['logs']['data'])->pluck('action')->all();
-        $this->assertContains('equipment.created', $actions);
-        $this->assertNotContains('personnel.updated', $actions);
+        $this->assertSame('office.updated', $row['description']);
+        $this->assertSame('updated', $row['event']);
+        $this->assertSame('Office', $row['subject_type']);
+        $this->assertSame($office->id, $row['subject_id']);
+        $this->assertSame('Old Name', $row['changes']['old']['office_name']);
+        $this->assertSame('New Name', $row['changes']['attributes']['office_name']);
+        $this->assertArrayHasKey('properties', $row);
+        $this->assertArrayHasKey('created_at', $row);
+    }
+
+    public function test_search_matches_the_description_substring(): void
+    {
+        $equipment = $this->record('equipment.created');
+        $personnel = $this->record('personnel.updated');
+
+        $ids = $this->idsFor('?search=equipm');
+        $this->assertContains($equipment->id, $ids);
+        $this->assertNotContains($personnel->id, $ids);
     }
 
     public function test_search_matches_a_live_actors_name_or_email(): void
     {
-        $admin = $this->admin();
         $alice = User::factory()->create(['name' => 'Alice Smith', 'email' => 'alice@example.com']);
-        $log = $this->recordAt('alice.action', actorId: $alice->id);
+        $log = $this->record('alice.action', causer: $alice);
 
-        $byName = $this->actingAs($admin)
-            ->get(route('audit-log.index', ['search' => 'Alice Smith']))
-            ->inertiaPage();
-        $this->assertContains($log->id, collect($byName['props']['logs']['data'])->pluck('id')->all());
-
-        $byEmail = $this->actingAs($admin)
-            ->get(route('audit-log.index', ['search' => 'alice@example.com']))
-            ->inertiaPage();
-        $this->assertContains($log->id, collect($byEmail['props']['logs']['data'])->pluck('id')->all());
+        $this->assertContains($log->id, $this->idsFor('?search='.urlencode('Alice Smith')));
+        $this->assertContains($log->id, $this->idsFor('?search=alice@example.com'));
     }
 
-    /**
-     * The trickiest case: a search for the NAME/EMAIL of an actor whose
-     * User account has since been hard-deleted must still find the row,
-     * matched via the properties->actor_snapshot JSON path rather than the
-     * (now nulled-out, via nullOnDelete) live actor relation.
-     */
-    public function test_search_matches_the_actor_snapshot_when_the_actor_account_was_deleted(): void
+    public function test_the_actor_snapshot_survives_the_actor_account_being_deleted(): void
     {
-        $admin = $this->admin();
         $bob = User::factory()->create(['name' => 'Bob Jones', 'email' => 'bob@example.com']);
-        $log = $this->recordAt('deleted.actor.action', actorId: $bob->id);
+        $log = $this->record('deleted.actor.action', causer: $bob);
+        $bobId = $bob->id;
 
         $bob->delete();
 
-        // Confirm the premise: actor_id genuinely nulled out via the FK's
-        // nullOnDelete, so any match below can only be coming from the
-        // JSON snapshot, not the live relation.
-        $this->assertNull($log->fresh()->actor_id);
+        $response = $this->actingAs($this->admin())->getJson('/api/audit-log?search='.urlencode('Bob Jones'))->assertOk();
+        $row = collect($response->json('data'))->firstWhere('id', $log->id);
 
-        $byName = $this->actingAs($admin)
-            ->get(route('audit-log.index', ['search' => 'Bob Jones']))
-            ->inertiaPage();
-        $rowByName = collect($byName['props']['logs']['data'])->firstWhere('id', $log->id);
-        $this->assertNotNull($rowByName, 'search by the deleted actor\'s snapshotted name should still find the row');
-        $this->assertSame(['id' => null, 'name' => 'Bob Jones', 'email' => 'bob@example.com'], $rowByName['actor']);
-
-        $byEmail = $this->actingAs($admin)
-            ->get(route('audit-log.index', ['search' => 'bob@example.com']))
-            ->inertiaPage();
-        $this->assertNotNull(collect($byEmail['props']['logs']['data'])->firstWhere('id', $log->id));
+        $this->assertNotNull($row, 'search by the deleted actor\'s snapshotted name should still find the row');
+        $this->assertSame(['id' => $bobId, 'name' => 'Bob Jones', 'email' => 'bob@example.com'], $row['actor']);
+        $this->assertContains($log->id, $this->idsFor('?search=bob@example.com'));
     }
 
-    // ------------------------------------------------------------------
-    // 4. `action` / `subject_type` filters
-    // ------------------------------------------------------------------
-
-    public function test_action_filter_is_an_exact_match(): void
+    public function test_actor_resolves_to_the_live_user_when_the_account_still_exists(): void
     {
-        $admin = $this->admin();
-        $this->recordAt('equipment.created');
-        $this->recordAt('equipment.created.extra');
+        $alice = User::factory()->create(['name' => 'Alice Smith', 'email' => 'alice@example.com']);
+        $log = $this->record('actor.live.action', causer: $alice);
+        $alice->update(['name' => 'Alice Renamed']);
 
-        $page = $this->actingAs($admin)
-            ->get(route('audit-log.index', ['action' => 'equipment.created']))
-            ->inertiaPage();
+        $row = collect($this->actingAs($this->admin())->getJson('/api/audit-log?search=actor.live.action')->json('data'))->firstWhere('id', $log->id);
 
-        $actions = collect($page['props']['logs']['data'])->pluck('action')->all();
-        $this->assertContains('equipment.created', $actions);
-        $this->assertNotContains('equipment.created.extra', $actions);
+        $this->assertSame(['id' => $alice->id, 'name' => 'Alice Renamed', 'email' => 'alice@example.com'], $row['actor']);
     }
 
-    public function test_subject_type_filter_requires_the_full_class_name(): void
+    public function test_actor_is_null_when_there_is_no_actor_and_no_snapshot(): void
     {
-        $admin = $this->admin();
+        $log = $this->record('system.console.action');
+
+        $row = collect($this->actingAs($this->admin())->getJson('/api/audit-log?search=system.console.action')->json('data'))->firstWhere('id', $log->id);
+
+        $this->assertNotNull($row);
+        $this->assertNull($row['actor']);
+    }
+
+    public function test_event_subject_type_and_causer_filters_are_exact_matches(): void
+    {
         $office = Office::create(['office_name' => 'Test Elementary School']);
-        $log = $this->recordAt('office.created', $office);
+        $alice = User::factory()->create();
+        $exact = $this->record('equipment.created', causer: $alice);
+        $longer = $this->record('equipment.created.extra');
+        $officeLog = $this->record('office.probe', $office);
 
-        $fqcnPage = $this->actingAs($admin)
-            ->get(route('audit-log.index', ['subject_type' => Office::class]))
-            ->inertiaPage();
-        $this->assertContains($log->id, collect($fqcnPage['props']['logs']['data'])->pluck('id')->all());
+        $ids = $this->idsFor('?event=equipment.created');
+        $this->assertContains($exact->id, $ids);
+        $this->assertNotContains($longer->id, $ids);
 
-        $row = collect($fqcnPage['props']['logs']['data'])->firstWhere('id', $log->id);
-        $this->assertSame('Office', $row['subject_type']);
+        $this->assertContains($officeLog->id, $this->idsFor('?subject_type='.urlencode(Office::class)));
+        $this->assertNotContains($officeLog->id, $this->idsFor('?subject_type=Office'));
 
-        // The short class basename alone must NOT match — the controller
-        // filters on the raw `subject_type` column, which stores the full
-        // FQCN, not the basename used for display.
-        $basenamePage = $this->actingAs($admin)
-            ->get(route('audit-log.index', ['subject_type' => 'Office']))
-            ->inertiaPage();
-        $this->assertNotContains($log->id, collect($basenamePage['props']['logs']['data'])->pluck('id')->all());
+        $this->assertSame([$exact->id], $this->idsFor("?causer_id={$alice->id}"));
     }
 
-    // ------------------------------------------------------------------
-    // 5. `from` / `to` date range
-    // ------------------------------------------------------------------
-
-    public function test_from_to_date_range_is_inclusive_on_both_boundaries(): void
+    public function test_date_range_is_inclusive_on_both_boundaries(): void
     {
-        $admin = $this->admin();
+        $before = $this->record('range.before', createdAt: Carbon::parse('2026-01-01 10:00:00'));
+        $fromBoundary = $this->record('range.from-boundary', createdAt: Carbon::parse('2026-01-05 00:00:00'));
+        $middle = $this->record('range.middle', createdAt: Carbon::parse('2026-01-10 12:00:00'));
+        $toBoundary = $this->record('range.to-boundary', createdAt: Carbon::parse('2026-01-15 23:59:59'));
+        $after = $this->record('range.after', createdAt: Carbon::parse('2026-01-20 00:00:00'));
 
-        $before = $this->recordAt('range.before', createdAt: Carbon::parse('2026-01-01 10:00:00'));
-        $fromBoundary = $this->recordAt('range.from-boundary', createdAt: Carbon::parse('2026-01-05 00:00:00'));
-        $middle = $this->recordAt('range.middle', createdAt: Carbon::parse('2026-01-10 12:00:00'));
-        $toBoundary = $this->recordAt('range.to-boundary', createdAt: Carbon::parse('2026-01-15 23:59:59'));
-        $after = $this->recordAt('range.after', createdAt: Carbon::parse('2026-01-20 00:00:00'));
+        $ids = $this->idsFor('?date_from=2026-01-05&date_to=2026-01-15');
 
-        $page = $this->actingAs($admin)->get(route('audit-log.index', [
-            'from' => '2026-01-05',
-            'to' => '2026-01-15',
-        ]))->inertiaPage();
-
-        $ids = collect($page['props']['logs']['data'])->pluck('id')->all();
         $this->assertContains($fromBoundary->id, $ids);
         $this->assertContains($middle->id, $ids);
         $this->assertContains($toBoundary->id, $ids);
@@ -291,105 +216,38 @@ class AuditLogControllerTest extends TestCase
         $this->assertNotContains($after->id, $ids);
     }
 
-    // ------------------------------------------------------------------
-    // 6. `actor` resolution correctness
-    // ------------------------------------------------------------------
-
-    public function test_actor_resolves_to_the_live_user_when_the_account_still_exists(): void
+    public function test_options_reflect_the_distinct_events_and_subject_types_present(): void
     {
         $admin = $this->admin();
-        $alice = User::factory()->create(['name' => 'Alice Smith', 'email' => 'alice@example.com']);
-        $log = $this->recordAt('actor.live.action', actorId: $alice->id);
-
-        $page = $this->actingAs($admin)
-            ->get(route('audit-log.index', ['search' => 'actor.live.action']))
-            ->inertiaPage();
-        $row = collect($page['props']['logs']['data'])->firstWhere('id', $log->id);
-
-        $this->assertSame(
-            ['id' => $alice->id, 'name' => 'Alice Smith', 'email' => 'alice@example.com'],
-            $row['actor']
-        );
-    }
-
-    // The snapshot-fallback case is exercised end-to-end by
-    // test_search_matches_the_actor_snapshot_when_the_actor_account_was_deleted()
-    // above, which already asserts the resolved `actor` shape
-    // (`{id: null, name, email}`) for a deleted actor.
-
-    public function test_actor_is_null_when_there_is_no_actor_and_no_snapshot(): void
-    {
-        // No authenticated user in this test at the point of recording, and
-        // no explicit actorId passed — genuinely system/console-initiated.
-        $log = AuditLog::record('system.console.action');
-        $this->assertNull($log->actor_id);
-        $this->assertArrayNotHasKey('actor_snapshot', $log->properties ?? []);
-
-        $admin = $this->admin();
-        $page = $this->actingAs($admin)
-            ->get(route('audit-log.index', ['search' => 'system.console.action']))
-            ->inertiaPage();
-        $row = collect($page['props']['logs']['data'])->firstWhere('id', $log->id);
-
-        $this->assertNotNull($row);
-        $this->assertNull($row['actor']);
-    }
-
-    // ------------------------------------------------------------------
-    // 7. `filterOptions`
-    // ------------------------------------------------------------------
-
-    public function test_filter_options_reflect_the_distinct_actions_and_subject_types_present(): void
-    {
-        $admin = $this->admin();
-        $this->recordAt('user.probe', $admin);
-
         $office = Office::create(['office_name' => 'Test Elementary School']);
-        $this->recordAt('zzz.last.action');
-        $this->recordAt('aaa.first.action', $office);
+        $this->record('user.probe', $admin);
+        $this->record('zzz.last.action');
+        $this->record('aaa.first.action', $office);
 
-        $page = $this->actingAs($admin)->get(route('audit-log.index'))->inertiaPage();
+        $response = $this->actingAs($admin)->getJson('/api/audit-log/options')->assertOk();
 
-        $actions = $page['props']['filterOptions']['actions'];
-        $this->assertContains('zzz.last.action', $actions);
-        $this->assertContains('aaa.first.action', $actions);
-        $this->assertContains('user.probe', $actions);
-        $sortedActions = $actions;
-        sort($sortedActions);
-        $this->assertSame($sortedActions, $actions);
+        $events = $response->json('data.events');
+        $this->assertContains('zzz.last.action', $events);
+        $this->assertContains('aaa.first.action', $events);
+        $this->assertContains('created', $events);
+        $sorted = $events;
+        sort($sorted);
+        $this->assertSame($sorted, $events);
 
-        $subjectTypes = $page['props']['filterOptions']['subjectTypes'];
-        $values = collect($subjectTypes)->pluck('value')->all();
-        $this->assertContains(Office::class, $values);
-        $this->assertContains(User::class, $values);
-
-        $officeOption = collect($subjectTypes)->firstWhere('value', Office::class);
-        $this->assertSame('Office', $officeOption['label']);
-
-        $sortedValues = $values;
-        sort($sortedValues);
-        $this->assertSame($sortedValues, $values);
+        $subjectTypes = collect($response->json('data.subject_types'));
+        $this->assertSame(['value' => Office::class, 'label' => 'Office'], $subjectTypes->firstWhere('value', Office::class));
+        $this->assertContains(User::class, $subjectTypes->pluck('value')->all());
     }
 
-    // ------------------------------------------------------------------
-    // 8. No mutation routes exist for this resource
-    // ------------------------------------------------------------------
-
-    public function test_only_the_index_route_is_registered_for_audit_log(): void
+    public function test_the_audit_log_cannot_be_written_through_the_api(): void
     {
-        $this->assertTrue(Route::has('audit-log.index'));
-        $this->assertFalse(Route::has('audit-log.store'));
-        $this->assertFalse(Route::has('audit-log.create'));
-        $this->assertFalse(Route::has('audit-log.edit'));
-        $this->assertFalse(Route::has('audit-log.update'));
-        $this->assertFalse(Route::has('audit-log.destroy'));
-        $this->assertFalse(Route::has('audit-log.show'));
-    }
+        $admin = $this->admin();
+        $log = $this->record('immutable.row');
 
-    public function test_posting_to_the_audit_log_uri_is_not_allowed(): void
-    {
-        $this->actingAs($this->admin())
-            ->post('/audit-log')
-            ->assertStatus(405);
+        $this->actingAs($admin)->postJson('/api/audit-log', [])->assertStatus(405);
+        $this->actingAs($admin)->putJson("/api/audit-log/{$log->id}", [])->assertNotFound();
+        $this->actingAs($admin)->deleteJson("/api/audit-log/{$log->id}")->assertNotFound();
+
+        $this->assertNotNull(Activity::find($log->id));
     }
 }

@@ -2,29 +2,25 @@
 
 namespace Tests\Feature;
 
-use App\Models\AuditLog;
 use App\Models\InternetConnectivitySurvey;
 use App\Models\Office;
 use App\Models\StakeholderProfile;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 /**
- * Office CRUD is architecturally identical to Equipment/Personnel (plain
- * resource, no per-user scoping) except that all four permissions
- * (office.view/.create/.edit/.delete) are admin-only per
- * RolePermissionSeeder — encoder/viewer hold none of them, unlike their
- * broad access to Equipment/Personnel/ISP accounts. The destroy() guard
- * (restrictOnDelete FKs on users/stakeholder_profiles/
- * internet_connectivity_surveys, caught and rethrown as a 'delete'
- * validation error — see OfficeController::destroy()'s doc-comment) is
- * this feature's highest-risk path and gets dedicated coverage per FK.
+ * Office CRUD is admin-only (encoder/viewer hold no office.* permission).
+ * Users, stakeholder profiles and connectivity surveys reference an
+ * office through restrictOnDelete FKs, so deleting one in use is a 409.
  */
 class OfficeControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -35,36 +31,13 @@ class OfficeControllerTest extends TestCase
 
     private function admin(): User
     {
-        $user = User::factory()->create();
-        $user->assignRole('admin');
-
-        return $user;
+        return $this->userWithRole('admin');
     }
 
-    private function encoder(): User
-    {
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
-
-        return $user;
-    }
-
-    private function viewer(): User
-    {
-        $user = User::factory()->create();
-        $user->assignRole('viewer');
-
-        return $user;
-    }
-
-    private function pending(): User
-    {
-        $user = User::factory()->create();
-        $user->assignRole('pending');
-
-        return $user;
-    }
-
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
     private function validPayload(array $overrides = []): array
     {
         return array_merge([
@@ -81,85 +54,55 @@ class OfficeControllerTest extends TestCase
         ], $overrides);
     }
 
-    // ------------------------------------------------------------------
-    // Authorization
-    // ------------------------------------------------------------------
-
     public function test_admin_can_reach_every_office_action(): void
     {
         $admin = $this->admin();
         $office = Office::factory()->create();
 
-        $this->actingAs($admin)->get(route('offices.index'))->assertOk();
-        $this->actingAs($admin)->get(route('offices.create'))->assertOk();
+        $this->actingAs($admin)->getJson('/api/offices')->assertOk();
 
-        $response = $this->actingAs($admin)->post(route('offices.store'), $this->validPayload([
-            'office_name' => 'Brand New Office',
-        ]));
-        $created = Office::where('office_name', 'Brand New Office')->firstOrFail();
-        $response->assertRedirect(route('offices.edit', $created));
+        $this->actingAs($admin)->postJson('/api/offices', $this->validPayload(['office_name' => 'Brand New Office']))
+            ->assertCreated()
+            ->assertJsonPath('data.office_name', 'Brand New Office');
 
-        $this->actingAs($admin)->get(route('offices.edit', $office))->assertOk();
+        $this->actingAs($admin)->getJson("/api/offices/{$office->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $office->id)
+            ->assertJsonStructure(['data' => ['id', 'office_name', 'office_type', 'school_id', 'address', 'region',
+                'district', 'division', 'contact_number', 'email', 'is_active']]);
 
-        $this->actingAs($admin)->put(route('offices.update', $office), $this->validPayload([
-            'office_name' => $office->office_name,
-        ]))->assertRedirect(route('offices.edit', $office));
+        $this->actingAs($admin)->putJson("/api/offices/{$office->id}", $this->validPayload(['office_name' => $office->office_name]))
+            ->assertOk();
 
-        $this->actingAs($admin)->delete(route('offices.destroy', $office))
-            ->assertRedirect(route('offices.index'));
+        $this->actingAs($admin)->deleteJson("/api/offices/{$office->id}")->assertNoContent();
         $this->assertDatabaseMissing('offices', ['id' => $office->id]);
     }
 
-    public function test_encoder_is_forbidden_on_every_office_action(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function nonAdminRoles(): array
     {
-        $encoder = $this->encoder();
+        return ['encoder' => ['encoder'], 'viewer' => ['viewer'], 'pending' => ['pending']];
+    }
+
+    #[DataProvider('nonAdminRoles')]
+    public function test_non_admin_roles_are_forbidden_on_every_office_action(string $role): void
+    {
+        $user = $this->userWithRole($role);
         $office = Office::factory()->create();
 
-        $this->actingAs($encoder)->get(route('offices.index'))->assertForbidden();
-        $this->actingAs($encoder)->get(route('offices.create'))->assertForbidden();
-        $this->actingAs($encoder)->post(route('offices.store'), $this->validPayload())->assertForbidden();
-        $this->actingAs($encoder)->get(route('offices.edit', $office))->assertForbidden();
-        $this->actingAs($encoder)->put(route('offices.update', $office), $this->validPayload())->assertForbidden();
-        $this->actingAs($encoder)->delete(route('offices.destroy', $office))->assertForbidden();
+        $this->actingAs($user)->getJson('/api/offices')->assertForbidden();
+        $this->actingAs($user)->postJson('/api/offices', $this->validPayload())->assertForbidden();
+        $this->actingAs($user)->getJson("/api/offices/{$office->id}")->assertForbidden();
+        $this->actingAs($user)->putJson("/api/offices/{$office->id}", $this->validPayload())->assertForbidden();
+        $this->actingAs($user)->deleteJson("/api/offices/{$office->id}")->assertForbidden();
 
+        $this->assertSame(1, Office::count());
         $this->assertDatabaseHas('offices', ['id' => $office->id, 'office_name' => $office->office_name]);
-        $this->assertSame(1, Office::count());
     }
 
-    public function test_viewer_is_forbidden_on_every_office_action(): void
-    {
-        $viewer = $this->viewer();
-        $office = Office::factory()->create();
-
-        $this->actingAs($viewer)->get(route('offices.index'))->assertForbidden();
-        $this->actingAs($viewer)->get(route('offices.create'))->assertForbidden();
-        $this->actingAs($viewer)->post(route('offices.store'), $this->validPayload())->assertForbidden();
-        $this->actingAs($viewer)->get(route('offices.edit', $office))->assertForbidden();
-        $this->actingAs($viewer)->put(route('offices.update', $office), $this->validPayload())->assertForbidden();
-        $this->actingAs($viewer)->delete(route('offices.destroy', $office))->assertForbidden();
-    }
-
-    public function test_pending_role_is_forbidden_on_every_office_action(): void
-    {
-        $pending = $this->pending();
-        $office = Office::factory()->create();
-
-        $this->actingAs($pending)->get(route('offices.index'))->assertForbidden();
-        $this->actingAs($pending)->get(route('offices.create'))->assertForbidden();
-        $this->actingAs($pending)->post(route('offices.store'), $this->validPayload())->assertForbidden();
-        $this->actingAs($pending)->get(route('offices.edit', $office))->assertForbidden();
-        $this->actingAs($pending)->put(route('offices.update', $office), $this->validPayload())->assertForbidden();
-        $this->actingAs($pending)->delete(route('offices.destroy', $office))->assertForbidden();
-
-        // No write side effects from any forbidden request.
-        $this->assertSame(1, Office::count());
-    }
-
-    // ------------------------------------------------------------------
-    // Index
-    // ------------------------------------------------------------------
-
-    public function test_index_is_paginated_and_searchable_by_name_type_and_school_id(): void
+    public function test_index_is_searchable_by_name_type_and_school_id(): void
     {
         $admin = $this->admin();
 
@@ -167,232 +110,154 @@ class OfficeControllerTest extends TestCase
         Office::factory()->create(['office_name' => 'Balibago High School', 'office_type' => 'High School', 'school_id' => 107099]);
         Office::factory()->create(['office_name' => 'Division Office', 'office_type' => 'Division Office', 'school_id' => null]);
 
-        // Search by name.
-        $response = $this->actingAs($admin)->get(route('offices.index', ['search' => 'Angeles']));
-        $response->assertOk();
-        $response->assertInertia(fn ($page) => $page
-            ->where('offices.data', fn ($data) => collect($data)->pluck('office_name')->all() === ['Angeles Elementary School'])
-        );
+        $names = fn (string $search) => collect($this->actingAs($admin)->getJson('/api/offices?search='.urlencode($search))->assertOk()->json('data'))
+            ->pluck('office_name')->all();
 
-        // Search by office_type.
-        $this->actingAs($admin)->get(route('offices.index', ['search' => 'High School']))
-            ->assertInertia(fn ($page) => $page
-                ->where('offices.data', fn ($data) => collect($data)->pluck('office_name')->all() === ['Balibago High School'])
-            );
-
-        // Search by school_id.
-        $this->actingAs($admin)->get(route('offices.index', ['search' => '107099']))
-            ->assertInertia(fn ($page) => $page
-                ->where('offices.data', fn ($data) => collect($data)->pluck('office_name')->all() === ['Balibago High School'])
-            );
-
-        // No matches for a nonsense term.
-        $this->actingAs($admin)->get(route('offices.index', ['search' => 'Nonexistent Place']))
-            ->assertInertia(fn ($page) => $page->where('offices.data', []));
+        $this->assertSame(['Angeles Elementary School'], $names('Angeles'));
+        $this->assertSame(['Balibago High School'], $names('High School'));
+        $this->assertSame(['Balibago High School'], $names('107099'));
+        $this->assertSame([], $names('Nonexistent Place'));
     }
 
-    public function test_index_paginates_at_fifteen_per_page(): void
+    public function test_index_paginates_at_twenty_per_page_by_default(): void
     {
-        $admin = $this->admin();
-        Office::factory()->count(20)->create();
+        Office::factory()->count(25)->create();
 
-        $response = $this->actingAs($admin)->get(route('offices.index'));
-
-        $response->assertInertia(fn ($page) => $page
-            ->where('offices.data', fn ($data) => count($data) === 15)
-            ->where('offices.total', 20)
-        );
+        $this->actingAs($this->admin())->getJson('/api/offices')
+            ->assertJsonCount(20, 'data')
+            ->assertJsonPath('meta.total', 25)
+            ->assertJsonPath('meta.per_page', 20)
+            ->assertJsonPath('meta.last_page', 2)
+            ->assertJsonStructure(['data', 'meta' => ['current_page', 'last_page', 'per_page', 'total', 'from', 'to'], 'links' => ['first', 'last', 'prev', 'next'], 'message']);
     }
 
-    // ------------------------------------------------------------------
-    // Store
-    // ------------------------------------------------------------------
-
-    public function test_store_creates_a_record_redirects_and_writes_an_audit_log_entry(): void
+    public function test_store_creates_a_record_and_is_audited(): void
     {
         $admin = $this->admin();
 
-        $response = $this->actingAs($admin)->post(route('offices.store'), $this->validPayload());
+        $response = $this->actingAs($admin)->postJson('/api/offices', $this->validPayload())
+            ->assertCreated()
+            ->assertJsonPath('data.office_type', 'Elementary School')
+            ->assertJsonPath('data.school_id', 107022)
+            ->assertJsonPath('data.is_active', true);
 
-        $office = Office::where('office_name', 'Angeles Elementary School')->firstOrFail();
-        $response->assertRedirect(route('offices.edit', $office));
-
-        $this->assertSame('Elementary School', $office->office_type);
-        $this->assertSame(107022, $office->school_id);
-        $this->assertTrue($office->is_active);
-
-        $log = AuditLog::where('action', 'office.created')->where('subject_id', $office->id)->sole();
-        $this->assertSame(Office::class, $log->subject_type);
-        $this->assertSame($admin->id, $log->actor_id);
+        $activity = Activity::query()->where('subject_type', Office::class)->where('subject_id', $response->json('data.id'))->sole();
+        $this->assertSame('created', $activity->event);
+        $this->assertSame('office.created', $activity->description);
+        $this->assertSame($admin->id, $activity->causer_id);
+        $this->assertSame($admin->email, $activity->properties['actor_snapshot']['email']);
     }
 
     public function test_store_defaults_is_active_to_true_when_omitted(): void
     {
-        $admin = $this->admin();
         $payload = $this->validPayload();
         unset($payload['is_active']);
 
-        $this->actingAs($admin)->post(route('offices.store'), $payload)->assertSessionHasNoErrors();
-
-        $office = Office::where('office_name', 'Angeles Elementary School')->firstOrFail();
-        $this->assertTrue($office->is_active);
+        $this->actingAs($this->admin())->postJson('/api/offices', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.is_active', true);
     }
 
     public function test_store_rejects_a_duplicate_office_name(): void
     {
-        $admin = $this->admin();
         Office::factory()->create(['office_name' => 'Angeles Elementary School']);
 
-        $this->actingAs($admin)->post(route('offices.store'), $this->validPayload())
-            ->assertSessionHasErrors(['office_name']);
+        $this->actingAs($this->admin())->postJson('/api/offices', $this->validPayload())
+            ->assertJsonValidationErrors(['office_name']);
 
         $this->assertSame(1, Office::where('office_name', 'Angeles Elementary School')->count());
     }
 
-    public function test_store_rejects_a_malformed_email(): void
+    public function test_store_validates_email_school_id_and_office_name(): void
     {
         $admin = $this->admin();
 
-        $this->actingAs($admin)->post(route('offices.store'), $this->validPayload(['email' => 'not-an-email']))
-            ->assertSessionHasErrors(['email']);
+        $this->actingAs($admin)->postJson('/api/offices', $this->validPayload(['email' => 'not-an-email']))
+            ->assertJsonValidationErrors(['email']);
+        $this->actingAs($admin)->postJson('/api/offices', $this->validPayload(['school_id' => 'not-a-number']))
+            ->assertJsonValidationErrors(['school_id']);
+        $this->actingAs($admin)->postJson('/api/offices', $this->validPayload(['office_name' => null]))
+            ->assertJsonValidationErrors(['office_name']);
 
-        $this->assertDatabaseMissing('offices', ['office_name' => 'Angeles Elementary School']);
+        $this->assertSame(0, Office::count());
     }
 
-    public function test_store_rejects_a_non_integer_school_id(): void
+    public function test_update_updates_the_record_and_audits_the_diff(): void
     {
-        $admin = $this->admin();
-
-        $this->actingAs($admin)->post(route('offices.store'), $this->validPayload(['school_id' => 'not-a-number']))
-            ->assertSessionHasErrors(['school_id']);
-
-        $this->assertDatabaseMissing('offices', ['office_name' => 'Angeles Elementary School']);
-    }
-
-    public function test_store_requires_office_name(): void
-    {
-        $admin = $this->admin();
-        $payload = $this->validPayload();
-        unset($payload['office_name']);
-
-        $this->actingAs($admin)->post(route('offices.store'), $payload)
-            ->assertSessionHasErrors(['office_name']);
-    }
-
-    // ------------------------------------------------------------------
-    // Update
-    // ------------------------------------------------------------------
-
-    public function test_update_updates_the_record_and_writes_a_diffed_audit_log_entry(): void
-    {
-        $admin = $this->admin();
         $office = Office::factory()->create(['office_name' => 'Old Name', 'is_active' => true]);
 
-        $this->actingAs($admin)->put(route('offices.update', $office), $this->validPayload([
-            'office_name' => 'New Name',
-        ]))->assertRedirect(route('offices.edit', $office));
+        $this->actingAs($this->admin())->putJson("/api/offices/{$office->id}", $this->validPayload(['office_name' => 'New Name']))
+            ->assertOk()
+            ->assertJsonPath('data.office_name', 'New Name');
 
-        $office->refresh();
-        $this->assertSame('New Name', $office->office_name);
-
-        $log = AuditLog::where('action', 'office.updated')->where('subject_id', $office->id)->sole();
-        $this->assertSame('Old Name', $log->properties['changes']['office_name']['old']);
-        $this->assertSame('New Name', $log->properties['changes']['office_name']['new']);
-        $this->assertArrayNotHasKey('updated_at', $log->properties['changes']);
+        $activity = Activity::query()->where('subject_id', $office->id)->where('event', 'updated')->sole();
+        $this->assertSame('Old Name', $activity->attribute_changes['old']['office_name']);
+        $this->assertSame('New Name', $activity->attribute_changes['attributes']['office_name']);
+        $this->assertArrayNotHasKey('updated_at', $activity->attribute_changes['attributes']);
     }
 
     public function test_update_allows_saving_a_record_with_its_own_unchanged_name(): void
     {
-        $admin = $this->admin();
         $office = Office::factory()->create(['office_name' => 'Angeles Elementary School']);
 
-        $this->actingAs($admin)->put(route('offices.update', $office), $this->validPayload([
-            'office_name' => 'Angeles Elementary School',
+        $this->actingAs($this->admin())->putJson("/api/offices/{$office->id}", $this->validPayload([
             'district' => 'Updated District',
-        ]))->assertSessionHasNoErrors();
+        ]))->assertOk();
 
-        $office->refresh();
-        $this->assertSame('Updated District', $office->district);
+        $this->assertSame('Updated District', $office->fresh()->district);
     }
 
     public function test_update_rejects_a_name_duplicating_a_different_office(): void
     {
-        $admin = $this->admin();
         Office::factory()->create(['office_name' => 'Taken Name']);
         $office = Office::factory()->create(['office_name' => 'Original Name']);
 
-        $this->actingAs($admin)->put(route('offices.update', $office), $this->validPayload([
-            'office_name' => 'Taken Name',
-        ]))->assertSessionHasErrors(['office_name']);
+        $this->actingAs($this->admin())->putJson("/api/offices/{$office->id}", $this->validPayload(['office_name' => 'Taken Name']))
+            ->assertJsonValidationErrors(['office_name']);
 
-        $office->refresh();
-        $this->assertSame('Original Name', $office->office_name);
+        $this->assertSame('Original Name', $office->fresh()->office_name);
     }
 
-    // ------------------------------------------------------------------
-    // Destroy
-    // ------------------------------------------------------------------
-
-    public function test_destroy_deletes_an_unreferenced_office_and_writes_an_audit_log_entry(): void
+    public function test_destroy_deletes_an_unreferenced_office_and_is_audited(): void
     {
         $admin = $this->admin();
         $office = Office::factory()->create();
 
-        $response = $this->actingAs($admin)->delete(route('offices.destroy', $office));
+        $this->actingAs($admin)->deleteJson("/api/offices/{$office->id}")->assertNoContent();
 
-        $response->assertRedirect(route('offices.index'));
         $this->assertDatabaseMissing('offices', ['id' => $office->id]);
-
-        $log = AuditLog::where('action', 'office.deleted')->where('subject_id', $office->id)->sole();
-        $this->assertSame($admin->id, $log->actor_id);
+        $this->assertDatabaseHas('activity_log', [
+            'subject_type' => Office::class,
+            'subject_id' => $office->id,
+            'event' => 'deleted',
+            'causer_id' => $admin->id,
+        ]);
     }
 
-    public function test_destroy_is_blocked_when_a_user_references_the_office(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function dependents(): array
     {
-        $admin = $this->admin();
-        $office = Office::factory()->create();
-        User::factory()->create(['office_id' => $office->id]);
+        return ['user' => ['user'], 'stakeholder profile' => ['profile'], 'connectivity survey' => ['survey']];
+    }
 
-        $this->actingAs($admin)->delete(route('offices.destroy', $office))
-            ->assertSessionHasErrors(['delete']);
+    #[DataProvider('dependents')]
+    public function test_destroy_is_a_409_when_something_still_references_the_office(string $dependent): void
+    {
+        $office = Office::factory()->create();
+
+        match ($dependent) {
+            'user' => User::factory()->create(['office_id' => $office->id]),
+            'profile' => StakeholderProfile::create(['office_id' => $office->id]),
+            'survey' => InternetConnectivitySurvey::create(['office_id' => $office->id]),
+        };
+
+        $this->actingAs($this->admin())->deleteJson("/api/offices/{$office->id}")
+            ->assertConflict()
+            ->assertJsonPath('message', 'This office is still in use and cannot be deleted — deactivate it instead.');
 
         $this->assertDatabaseHas('offices', ['id' => $office->id]);
-    }
-
-    public function test_destroy_is_blocked_when_a_stakeholder_profile_references_the_office(): void
-    {
-        $admin = $this->admin();
-        $office = Office::factory()->create();
-        StakeholderProfile::create(['office_id' => $office->id]);
-
-        $this->actingAs($admin)->delete(route('offices.destroy', $office))
-            ->assertSessionHasErrors(['delete']);
-
-        $this->assertDatabaseHas('offices', ['id' => $office->id]);
-        $this->assertDatabaseHas('stakeholder_profiles', ['office_id' => $office->id]);
-    }
-
-    public function test_destroy_is_blocked_when_an_internet_connectivity_survey_references_the_office(): void
-    {
-        $admin = $this->admin();
-        $office = Office::factory()->create();
-        InternetConnectivitySurvey::create(['office_id' => $office->id]);
-
-        $this->actingAs($admin)->delete(route('offices.destroy', $office))
-            ->assertSessionHasErrors(['delete']);
-
-        $this->assertDatabaseHas('offices', ['id' => $office->id]);
-        $this->assertDatabaseHas('internet_connectivity_surveys', ['office_id' => $office->id]);
-    }
-
-    public function test_destroy_does_not_write_an_audit_log_when_blocked_by_the_fk_guard(): void
-    {
-        $admin = $this->admin();
-        $office = Office::factory()->create();
-        User::factory()->create(['office_id' => $office->id]);
-
-        $this->actingAs($admin)->delete(route('offices.destroy', $office));
-
-        $this->assertDatabaseMissing('audit_logs', ['action' => 'office.deleted', 'subject_id' => $office->id]);
+        $this->assertDatabaseMissing('activity_log', ['subject_type' => Office::class, 'subject_id' => $office->id, 'event' => 'deleted']);
     }
 }

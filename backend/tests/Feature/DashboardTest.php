@@ -2,98 +2,66 @@
 
 namespace Tests\Feature;
 
-use App\Enums\Permission as PermissionEnum;
+use App\Enums\Permission;
 use App\Models\Equipment;
 use App\Models\IspAccount;
 use App\Models\Personnel;
-use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Inertia\Testing\AssertableInertia;
-use Spatie\Permission\Models\Permission;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 /**
- * Dashboard has no dedicated permission of its own — it's a personalized
- * summary of whatever the requesting user already has view access to (see
- * DashboardController's doc-comment) — so the core thing this suite
- * verifies is per-section prop *omission*, not a 403: a zero-permission
- * 'pending' user gets a mostly-empty page, never an error, and each
- * section only appears once its corresponding view permission is granted,
- * independently of the others.
+ * The dashboard has no permission of its own: each section is present
+ * only when the user holds that resource's `.view` permission, and a
+ * missing permission omits the section rather than 403ing.
  */
 class DashboardTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
-    public function test_guests_are_rejected()
+    protected function setUp(): void
     {
-        $this->get(route('dashboard'))->assertUnauthorized();
+        parent::setUp();
+
+        $this->seed(RolePermissionSeeder::class);
     }
 
-    public function test_authenticated_users_can_visit_the_dashboard()
+    public function test_guests_are_rejected(): void
     {
-        $this->seed(RolePermissionSeeder::class);
-
-        $user = User::factory()->create();
-        $this->actingAs($user);
-
-        $response = $this->get(route('dashboard'));
-        $response->assertOk();
+        $this->getJson('/api/dashboard/summary')->assertUnauthorized();
     }
 
-    public function test_pending_user_with_no_permissions_gets_every_section_omitted(): void
+    public function test_a_user_with_no_role_gets_an_empty_summary(): void
     {
-        $this->seed(RolePermissionSeeder::class);
+        $this->actingAs(User::factory()->create())
+            ->getJson('/api/dashboard/summary')
+            ->assertOk()
+            ->assertExactJson(['data' => [], 'message' => 'Success']);
+    }
 
-        $user = User::factory()->create();
-        $user->assignRole('pending');
+    public function test_pending_user_gets_every_section_omitted(): void
+    {
+        $response = $this->actingAs($this->userWithRole('pending'))
+            ->getJson('/api/dashboard/summary')
+            ->assertOk();
 
-        $response = $this->actingAs($user)->get(route('dashboard'));
-
-        $response->assertInertia(fn (AssertableInertia $page) => $page
-            ->component('Dashboard')
-            ->missing('equipment')
-            ->missing('personnel')
-            ->missing('ispAccounts')
-            ->missing('recentActivity')
-        );
+        $this->assertSame([], $response->json('data'));
+        $this->assertDatabaseMissing('activity_log', ['event' => 'authorization.denied']);
     }
 
     public function test_sections_are_gated_independently_by_their_own_permission(): void
     {
-        $this->seed(RolePermissionSeeder::class);
+        $user = $this->userWithPermissions([Permission::EquipmentView]);
 
-        $equipmentOnly = Role::create(['name' => 'equipment-view-only', 'label' => 'Equipment View Only']);
-        $equipmentOnly->givePermissionTo(
-            Permission::where('name', PermissionEnum::EquipmentView->value)->firstOrFail(),
-        );
+        $response = $this->actingAs($user)->getJson('/api/dashboard/summary')->assertOk();
 
-        $user = User::factory()->create();
-        $user->assignRole($equipmentOnly);
-
-        $response = $this->actingAs($user)->get(route('dashboard'));
-
-        // equipment.view grants both 'equipment' and the equipment-backed
-        // 'recentActivity' feed, but personnel/isp_accounts stay omitted
-        // since this role holds neither of those permissions.
-        $response->assertInertia(fn (AssertableInertia $page) => $page
-            ->component('Dashboard')
-            ->has('equipment')
-            ->has('recentActivity')
-            ->missing('personnel')
-            ->missing('ispAccounts')
-        );
+        $this->assertEqualsCanonicalizing(['equipment', 'recent_transactions'], array_keys($response->json('data')));
     }
 
     public function test_admin_dashboard_reports_accurate_summaries_for_every_section(): void
     {
-        $this->seed(RolePermissionSeeder::class);
-
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
-
         $serviceable = Equipment::factory()->create([
             'disposition_status' => 'Normal',
             'non_functional' => false,
@@ -121,7 +89,7 @@ class DashboardTest extends TestCase
             'current_accountable_officer_id' => null,
             'current_end_user_id' => null,
         ]);
-        // Outside the 30-day window — must NOT count as expiring soon.
+        // Outside the 30-day window: not "expiring soon".
         Equipment::factory()->create([
             'disposition_status' => 'Normal',
             'non_functional' => false,
@@ -138,43 +106,27 @@ class DashboardTest extends TestCase
         Personnel::factory()->create(['inactive' => false, 'oic' => false]);
         Personnel::factory()->create(['inactive' => true, 'oic' => false]);
 
-        IspAccount::factory()->create([
-            'inactive_contract' => false,
-            'cost_per_month' => 2000,
-            'contract_end_date' => now()->addDays(5)->toDateString(),
-        ]);
-        IspAccount::factory()->create([
-            'inactive_contract' => false,
-            'cost_per_month' => 3000,
-            'contract_end_date' => now()->addDays(90)->toDateString(),
-        ]);
-        // Inactive contracts must not count toward monthly cost or the
-        // expiring-soon alert.
-        IspAccount::factory()->create([
-            'inactive_contract' => true,
-            'cost_per_month' => 999999,
-            'contract_end_date' => now()->addDays(1)->toDateString(),
-        ]);
+        IspAccount::factory()->create(['inactive_contract' => false, 'cost_per_month' => 2000, 'contract_end_date' => now()->addDays(5)->toDateString()]);
+        IspAccount::factory()->create(['inactive_contract' => false, 'cost_per_month' => 3000, 'contract_end_date' => now()->addDays(90)->toDateString()]);
+        // Inactive contracts count toward neither the cost nor the alert.
+        IspAccount::factory()->create(['inactive_contract' => true, 'cost_per_month' => 999999, 'contract_end_date' => now()->addDays(1)->toDateString()]);
 
-        $response = $this->actingAs($admin)->get(route('dashboard'));
+        $response = $this->actingAs($this->userWithRole('admin'))
+            ->getJson('/api/dashboard/summary')
+            ->assertOk()
+            ->assertJsonPath('data.equipment.total', 4)
+            ->assertJsonPath('data.equipment.non_functional_count', 1)
+            ->assertJsonPath('data.equipment.warranty_expiring_soon_count', 1)
+            ->assertJsonPath('data.personnel.active_count', 2)
+            ->assertJsonPath('data.personnel.inactive_count', 1)
+            ->assertJsonPath('data.personnel.oic_count', 1)
+            ->assertJsonPath('data.isp_accounts.contracts_expiring_soon_count', 1)
+            ->assertJsonCount(1, 'data.recent_transactions')
+            ->assertJsonPath('data.recent_transactions.0.transaction_type', 'Beginning Inventory')
+            ->assertJsonPath('data.recent_transactions.0.equipment.id', $serviceable->id);
 
-        $response->assertInertia(fn (AssertableInertia $page) => $page
-            ->component('Dashboard')
-            ->where('equipment.total', 4)
-            ->where('equipment.non_functional_count', 1)
-            ->where('equipment.warranty_expiring_soon_count', 1)
-            // Compared via closure, not a bare float literal: a whole-
-            // number float (3750.0) round-trips through JSON as `3750`,
-            // which json_decode()s back as an int — a strict === against
-            // a float literal would fail on the type, not the value.
-            ->where('equipment.total_acquisition_cost', fn ($value) => (float) $value === 3750.0)
-            ->where('personnel.active_count', 2)
-            ->where('personnel.inactive_count', 1)
-            ->where('personnel.oic_count', 1)
-            ->where('ispAccounts.total_monthly_cost', fn ($value) => (float) $value === 5000.0)
-            ->where('ispAccounts.contracts_expiring_soon_count', 1)
-            ->has('recentActivity', 1)
-            ->where('recentActivity.0.transaction_type', 'Beginning Inventory')
-        );
+        // Whole-number floats come back from JSON as ints.
+        $this->assertEquals(3750, $response->json('data.equipment.total_acquisition_cost'));
+        $this->assertEquals(5000, $response->json('data.isp_accounts.total_monthly_cost'));
     }
 }

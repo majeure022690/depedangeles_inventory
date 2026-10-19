@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Models\AuditLog;
 use App\Models\Equipment;
 use App\Models\EquipmentTransaction;
 use Illuminate\Contracts\Auth\Guard;
@@ -49,13 +48,17 @@ final class EquipmentAccountabilityService
                 ]);
             });
 
-            AuditLog::record('equipment.transaction.recorded', $equipment, [
-                'transaction_id' => $transaction->id,
-                'transaction_type' => $transaction->transaction_type,
-                'accountable_officer_id' => $transaction->accountable_officer_id,
-                'end_user_id' => $transaction->end_user_id,
-                'received_by_id' => $transaction->received_by_id,
-            ]);
+            activity()
+                ->performedOn($equipment)
+                ->event('equipment.transaction.recorded')
+                ->withProperties([
+                    'transaction_id' => $transaction->id,
+                    'transaction_type' => $transaction->transaction_type,
+                    'accountable_officer_id' => $transaction->accountable_officer_id,
+                    'end_user_id' => $transaction->end_user_id,
+                    'received_by_id' => $transaction->received_by_id,
+                ])
+                ->log('equipment.transaction.recorded');
 
             return $transaction;
         });

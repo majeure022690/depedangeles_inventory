@@ -25,13 +25,13 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * Resolves a `config/reference-data.php` registry key (the `{table}` URL
- * segment used by ReferenceDataController/ReferenceDataUpdateRequest —
+ * segment used by ReferenceDataController/UpdateReferenceDataRequest —
  * see the lookup-normalization ADR's Question 3, docs/architecture-
  * decisions/lookup-normalization.md) into its registry entry or an actual
  * model row.
  *
  * Extracted here, rather than duplicated as a protected method on
- * ReferenceDataController, because ReferenceDataUpdateRequest::authorize()
+ * ReferenceDataController, because UpdateReferenceDataRequest::authorize()
  * needs the exact same resolution independently — FormRequest::authorize()
  * runs before the controller method body, so it cannot simply call back
  * into the controller for the row it needs to check `can('update', $row)`

@@ -1,16 +1,15 @@
 <?php
 
-use App\Http\Middleware\HandleAppearance;
-use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Exceptions\UnauthorizedException;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
@@ -31,27 +30,31 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'permission' => PermissionMiddleware::class,
         ]);
-
-        // Interim, until Phase 3 replaces the Inertia pages: their web
-        // routes still need these. Delete with HandleInertiaRequests.
-        $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
-        $middleware->web(append: [
-            HandleAppearance::class,
-            HandleInertiaRequests::class,
-            AddLinkHeadersForPreloadedAssets::class,
-        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        // rwatch renders JSON for everything. The Inertia web routes that
-        // Phase 3 removes still rely on redirect-back validation errors, so
-        // until then: JSON for the API, and a 401 (never a redirect to the
-        // removed Fortify login page) for any unauthenticated request.
-        // Phase 3: replace with `fn () => true`.
-        $exceptions->shouldRenderJsonWhen(
-            fn (Request $request, Throwable $e) => $request->is('api/*')
-                || $request->expectsJson()
-                || $e instanceof AuthenticationException,
-        );
+        $exceptions->shouldRenderJsonWhen(fn () => true);
+
+        // A write refused by the route-level `permission:` fast fail never
+        // reaches the Policy that would otherwise audit the denial.
+        $exceptions->render(function (UnauthorizedException $e, Request $request) {
+            $user = $request->user();
+
+            if ($user !== null && ! $request->isMethodSafe()) {
+                $subject = collect($request->route()?->parameters() ?? [])->first(fn ($value) => $value instanceof Model);
+
+                activity()
+                    ->causedBy($user)
+                    ->when($subject instanceof Model, fn ($logger) => $logger->performedOn($subject))
+                    ->event('authorization.denied')
+                    ->withProperties([
+                        'permission' => implode('|', $e->getRequiredPermissions()),
+                        'route' => $request->method().' '.$request->path(),
+                    ])
+                    ->log('authorization.denied');
+            }
+
+            return null;
+        });
 
         $exceptions->render(function (Throwable $e) {
             if ($e instanceof ValidationException || $e instanceof AuthenticationException || $e instanceof TokenMismatchException) {

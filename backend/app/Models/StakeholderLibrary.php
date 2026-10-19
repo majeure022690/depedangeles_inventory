@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Concerns\HasActiveLibraryOptions;
+use App\Concerns\LogsReferenceDataActivity;
 use App\Enums\StakeholderLibraryType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable(['type', 'value', 'description', 'sort_order', 'is_active'])]
 class StakeholderLibrary extends Model
 {
-    use HasActiveLibraryOptions;
+    use HasActiveLibraryOptions, LogsReferenceDataActivity;
 
     protected function casts(): array
     {

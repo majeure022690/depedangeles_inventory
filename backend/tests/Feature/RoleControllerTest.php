@@ -7,22 +7,20 @@ use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Testing\TestResponse;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Permission;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 /**
- * Coverage for the roles.manage admin screen — genuine RBAC where roles
- * (not just role assignment) are admin-configurable. See RoleController/
- * RoleService doc-comments for the Policy/Service authorization split and
- * Role::PENDING's doc-comment for why 'pending' specifically is protected
- * from deletion/renaming/permission-grants while 'viewer'/'encoder'/
- * 'admin' are ordinary editable/deletable seeded data.
+ * Roles are readable by roles.manage or users.manage holders (the latter
+ * assign them), writable only with roles.manage. RoleService enforces the
+ * protected `pending` role, the assigned-role delete block and the
+ * roles.manage/users.manage lockout guards.
  */
 class RoleControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -33,210 +31,151 @@ class RoleControllerTest extends TestCase
 
     private function rolesManageUser(): User
     {
-        $user = User::factory()->create();
-        $user->assignRole('admin');
-
-        return $user;
+        return $this->userWithRole('admin');
     }
 
     private function usersManageOnlyUser(): User
     {
-        // encoder/viewer never hold users.manage or roles.manage — use a
-        // custom role granting ONLY users.manage, to prove roles.manage
-        // is checked as a genuinely distinct permission (the whole point
-        // of this feature per Permission::RolesManage's doc-comment).
-        $role = Role::create(['name' => 'user-admin-only', 'label' => 'User Admin Only']);
-        $role->syncPermissions(
-            Permission::where('name', PermissionEnum::UsersManage->value)->pluck('id'),
-        );
-
-        $user = User::factory()->create();
-        $user->assignRole($role);
-
-        return $user;
+        return $this->userWithPermissions([PermissionEnum::UsersManage]);
     }
 
-    private function roleId(string $name): int
+    private function deniedFor(User $actor, ?Role $subject = null): ?Activity
     {
-        return Role::where('name', $name)->firstOrFail()->id;
+        return Activity::query()
+            ->where('event', 'authorization.denied')
+            ->where('causer_id', $actor->id)
+            ->where('subject_type', $subject?->getMorphClass())
+            ->where('subject_id', $subject?->id)
+            ->latest('id')
+            ->first();
     }
 
-    private function inertiaGet(string $url): TestResponse
-    {
-        $manifest = public_path('build/manifest.json');
-        $version = file_exists($manifest) ? hash_file('xxh128', $manifest) : null;
+    // Reading
 
-        return $this->get($url, array_filter([
-            'X-Inertia' => 'true',
-            'X-Inertia-Version' => $version,
-        ]));
-    }
-
-    private function assertInertiaJson(TestResponse $response): array
-    {
-        $response->assertOk();
-
-        return json_decode($response->getContent(), true);
-    }
-
-    // --- Authorization: roles.manage is required, users.manage is not sufficient ---
-
-    public function test_index_is_forbidden_without_roles_manage(): void
+    public function test_users_manage_holders_can_read_roles_and_the_permission_catalog(): void
     {
         $actor = $this->usersManageOnlyUser();
-        $this->actingAs($actor);
-        $this->inertiaGet(route('roles.index'))->assertForbidden();
-
-        $log = Activity::where('event', 'authorization.denied')->where('subject_type', null)->latest('id')->first();
-        $this->assertNotNull($log);
-        $this->assertSame($actor->id, $log->causer_id);
-        $this->assertSame(PermissionEnum::RolesManage->value, $log->properties['permission']);
-    }
-
-    public function test_create_page_is_forbidden_without_roles_manage_and_is_audited(): void
-    {
-        $actor = $this->usersManageOnlyUser();
-        $this->actingAs($actor);
-        $this->inertiaGet(route('roles.create'))->assertForbidden();
-
-        $log = Activity::where('event', 'authorization.denied')->where('subject_type', null)->latest('id')->first();
-        $this->assertNotNull($log);
-        $this->assertSame($actor->id, $log->causer_id);
-        $this->assertSame(PermissionEnum::RolesManage->value, $log->properties['permission']);
-    }
-
-    public function test_store_is_forbidden_without_roles_manage(): void
-    {
-        $actor = $this->usersManageOnlyUser();
-        $this->actingAs($actor);
-
-        $this->post(route('roles.store'), [
-            'name' => 'new-role', 'label' => 'New Role', 'permissions' => [],
-        ])->assertForbidden();
-
-        $this->assertNull(Role::where('name', 'new-role')->first());
-
-        $log = Activity::where('event', 'authorization.denied')->where('subject_type', null)->latest('id')->first();
-        $this->assertNotNull($log);
-        $this->assertSame($actor->id, $log->causer_id);
-    }
-
-    public function test_update_is_forbidden_without_roles_manage(): void
-    {
-        $actor = $this->usersManageOnlyUser();
-        $this->actingAs($actor);
-
         $viewer = Role::where('name', 'viewer')->firstOrFail();
 
-        $this->patch(route('roles.update', $viewer), [
-            'name' => 'viewer', 'label' => 'Hacked', 'permissions' => [],
-        ])->assertForbidden();
-
-        $this->assertSame('Viewer', $viewer->fresh()->label);
-
-        $log = Activity::where('event', 'authorization.denied')
-            ->where('subject_type', $viewer->getMorphClass())
-            ->where('subject_id', $viewer->id)
-            ->latest('id')->first();
-        $this->assertNotNull($log);
-        $this->assertSame($actor->id, $log->causer_id);
+        $this->actingAs($actor)->getJson('/api/roles')->assertOk();
+        $this->actingAs($actor)->getJson("/api/roles/{$viewer->id}")->assertOk();
+        $this->actingAs($actor)->getJson('/api/permissions')->assertOk();
     }
 
-    public function test_destroy_is_forbidden_without_roles_manage(): void
+    public function test_reading_roles_is_forbidden_without_roles_or_users_manage_and_the_policy_audits_it(): void
     {
-        $actor = $this->usersManageOnlyUser();
-        $this->actingAs($actor);
-
-        $custom = Role::create(['name' => 'unused-role', 'label' => 'Unused Role']);
-
-        $this->delete(route('roles.destroy', $custom))->assertForbidden();
-
-        $this->assertNotNull($custom->fresh());
-
-        $log = Activity::where('event', 'authorization.denied')
-            ->where('subject_type', $custom->getMorphClass())
-            ->where('subject_id', $custom->id)
-            ->latest('id')->first();
-        $this->assertNotNull($log);
-        $this->assertSame($actor->id, $log->causer_id);
-    }
-
-    public function test_view_ability_denial_is_audited(): void
-    {
-        // Not wired to any route (Route::resource excludes 'show'), but
-        // the Policy method is still a reachable authorization surface
-        // (e.g. `$user->can('view', $role)`) and must log denials like
-        // its siblings.
-        $actor = $this->usersManageOnlyUser();
-        $this->actingAs($actor);
+        $actor = $this->userWithRole('encoder');
         $viewer = Role::where('name', 'viewer')->firstOrFail();
+
+        $this->actingAs($actor)->getJson('/api/roles')->assertForbidden();
+        $this->actingAs($actor)->getJson("/api/roles/{$viewer->id}")->assertForbidden();
+        $this->actingAs($actor)->getJson('/api/permissions')->assertForbidden();
 
         $this->assertFalse($actor->can('view', $viewer));
-
-        $log = Activity::where('event', 'authorization.denied')
-            ->where('subject_type', $viewer->getMorphClass())
-            ->where('subject_id', $viewer->id)
-            ->latest('id')->first();
+        $log = $this->deniedFor($actor, $viewer);
         $this->assertNotNull($log);
-        $this->assertSame($actor->id, $log->causer_id);
         $this->assertSame(PermissionEnum::RolesManage->value, $log->properties['permission']);
     }
-
-    // --- index/create/edit props ---
 
     public function test_index_lists_roles_with_counts_and_protected_flag(): void
     {
-        $admin = $this->rolesManageUser();
+        $this->userWithRole('viewer');
 
-        $viewerUser = User::factory()->create();
-        $viewerUser->assignRole('viewer');
+        $response = $this->actingAs($this->rolesManageUser())->getJson('/api/roles')->assertOk();
 
-        $this->actingAs($admin);
-        $page = $this->assertInertiaJson($this->inertiaGet(route('roles.index')));
-
-        $roles = collect($page['props']['roles']);
+        $roles = collect($response->json('data'));
         $pending = $roles->firstWhere('name', 'pending');
         $viewer = $roles->firstWhere('name', 'viewer');
 
         $this->assertTrue($pending['is_protected']);
         $this->assertSame(0, $pending['permission_count']);
         $this->assertFalse($viewer['is_protected']);
-        $this->assertGreaterThanOrEqual(1, $viewer['user_count']);
+        $this->assertSame(1, $viewer['user_count']);
+        $this->assertArrayHasKey('label', $viewer);
+        $this->assertArrayHasKey('description', $viewer);
+        $this->assertArrayNotHasKey('permissions', $viewer);
     }
 
-    public function test_create_form_exposes_the_full_permission_catalog(): void
+    public function test_show_includes_permission_names_and_counts(): void
     {
-        $admin = $this->rolesManageUser();
+        $viewer = Role::where('name', 'viewer')->firstOrFail();
 
-        $this->actingAs($admin);
-        $page = $this->assertInertiaJson($this->inertiaGet(route('roles.create')));
+        $response = $this->actingAs($this->rolesManageUser())->getJson("/api/roles/{$viewer->id}")
+            ->assertOk()
+            ->assertJsonPath('data.name', 'viewer')
+            ->assertJsonPath('data.user_count', 0);
 
-        $this->assertCount(count(PermissionEnum::cases()), $page['props']['permissions']);
-        $this->assertContains(
-            ['value' => PermissionEnum::RolesManage->value, 'label' => PermissionEnum::RolesManage->label()],
-            $page['props']['permissions'],
-        );
+        $this->assertContains(PermissionEnum::EquipmentView->value, $response->json('data.permissions'));
+        $this->assertSame(count($response->json('data.permissions')), $response->json('data.permission_count'));
     }
 
-    // --- store ---
+    public function test_permission_catalog_is_labelled_and_grouped_by_the_enum_in_declaration_order(): void
+    {
+        $response = $this->actingAs($this->rolesManageUser())->getJson('/api/permissions')
+            ->assertOk()
+            ->assertJsonCount(count(PermissionEnum::cases()), 'data');
+
+        $this->assertSame(array_map(fn ($c) => $c->value, PermissionEnum::cases()), collect($response->json('data'))->pluck('name')->all());
+
+        $rolesManage = collect($response->json('data'))->firstWhere('name', PermissionEnum::RolesManage->value);
+        $this->assertSame(PermissionEnum::RolesManage->label(), $rolesManage['label']);
+        $this->assertSame('Administration', $rolesManage['group']);
+    }
+
+    // Writing: forbidden without roles.manage, and the denial is audited
+
+    public function test_store_is_forbidden_without_roles_manage_and_audited(): void
+    {
+        $actor = $this->usersManageOnlyUser();
+
+        $this->actingAs($actor)->postJson('/api/roles', ['name' => 'new-role', 'label' => 'New Role', 'permissions' => []])->assertForbidden();
+
+        $this->assertNull(Role::where('name', 'new-role')->first());
+        $log = $this->deniedFor($actor);
+        $this->assertNotNull($log);
+        $this->assertSame(PermissionEnum::RolesManage->value, $log->properties['permission']);
+    }
+
+    public function test_update_is_forbidden_without_roles_manage_and_audited(): void
+    {
+        $actor = $this->usersManageOnlyUser();
+        $viewer = Role::where('name', 'viewer')->firstOrFail();
+
+        $this->actingAs($actor)->putJson("/api/roles/{$viewer->id}", ['name' => 'viewer', 'label' => 'Hacked', 'permissions' => []])->assertForbidden();
+
+        $this->assertSame('Viewer', $viewer->fresh()->label);
+        $this->assertNotNull($this->deniedFor($actor, $viewer));
+    }
+
+    public function test_destroy_is_forbidden_without_roles_manage_and_audited(): void
+    {
+        $actor = $this->usersManageOnlyUser();
+        $custom = Role::create(['name' => 'unused-role', 'label' => 'Unused Role']);
+
+        $this->actingAs($actor)->deleteJson("/api/roles/{$custom->id}")->assertForbidden();
+
+        $this->assertNotNull($custom->fresh());
+        $this->assertNotNull($this->deniedFor($actor, $custom));
+    }
+
+    // Create
 
     public function test_admin_can_create_a_role_with_a_permission_subset_and_it_is_audited(): void
     {
         $admin = $this->rolesManageUser();
 
-        $response = $this->actingAs($admin)->post(route('roles.store'), [
+        $this->actingAs($admin)->postJson('/api/roles', [
             'name' => 'auditor',
             'label' => 'Auditor',
             'description' => 'Read-only cross-cutting auditor role.',
-            'permissions' => [
-                PermissionEnum::EquipmentView->value,
-                PermissionEnum::PersonnelView->value,
-            ],
-        ]);
+            'permissions' => [PermissionEnum::EquipmentView->value, PermissionEnum::PersonnelView->value],
+        ])->assertCreated()
+            ->assertJsonPath('data.name', 'auditor')
+            ->assertJsonPath('data.label', 'Auditor')
+            ->assertJsonPath('data.user_count', 0)
+            ->assertJsonPath('data.permission_count', 2);
 
         $role = Role::where('name', 'auditor')->firstOrFail();
-        $response->assertRedirect(route('roles.edit', $role));
-
         $this->assertSame(
             [PermissionEnum::EquipmentView->value, PermissionEnum::PersonnelView->value],
             $role->permissions()->pluck('name')->sort()->values()->all(),
@@ -247,235 +186,137 @@ class RoleControllerTest extends TestCase
         $this->assertSame($admin->id, $log->causer_id);
     }
 
-    public function test_store_rejects_duplicate_role_name(): void
+    public function test_store_validates_name_and_permissions(): void
     {
         $admin = $this->rolesManageUser();
 
-        $this->actingAs($admin)->post(route('roles.store'), [
-            'name' => 'viewer', 'label' => 'Duplicate', 'permissions' => [],
-        ])->assertSessionHasErrors(['name']);
-    }
-
-    public function test_store_rejects_an_invalid_permission_value(): void
-    {
-        $admin = $this->rolesManageUser();
-
-        $this->actingAs($admin)->post(route('roles.store'), [
-            'name' => 'bad-role', 'label' => 'Bad Role', 'permissions' => ['not.a.real.permission'],
-        ])->assertSessionHasErrors(['permissions.0']);
-    }
-
-    public function test_store_rejects_an_uppercase_role_name(): void
-    {
-        // 'alpha_dash' alone permits uppercase; the form's help text
-        // promises lowercase-only, so an explicit regex rule enforces
-        // it — consistent with the seeded pending/viewer/encoder/
-        // admin names, which are all lowercase.
-        $admin = $this->rolesManageUser();
-
-        $this->actingAs($admin)->post(route('roles.store'), [
-            'name' => 'Bad-Role', 'label' => 'Bad Role', 'permissions' => [],
-        ])->assertSessionHasErrors(['name']);
+        $this->actingAs($admin)->postJson('/api/roles', ['name' => 'viewer', 'label' => 'Duplicate', 'permissions' => []])
+            ->assertJsonValidationErrors(['name']);
+        $this->actingAs($admin)->postJson('/api/roles', ['name' => 'bad-role', 'label' => 'Bad Role', 'permissions' => ['not.a.real.permission']])
+            ->assertJsonValidationErrors(['permissions.0']);
+        $this->actingAs($admin)->postJson('/api/roles', ['name' => 'Bad-Role', 'label' => 'Bad Role', 'permissions' => []])
+            ->assertJsonValidationErrors(['name']);
 
         $this->assertNull(Role::where('name', 'Bad-Role')->first());
     }
 
-    // --- update ---
+    // Update
 
     public function test_admin_can_update_a_roles_label_description_and_permissions_and_it_is_audited(): void
     {
-        $admin = $this->rolesManageUser();
         $role = Role::create(['name' => 'custom', 'label' => 'Custom', 'description' => 'Old']);
         $role->syncPermissions(Permission::where('name', PermissionEnum::EquipmentView->value)->pluck('id'));
 
-        $response = $this->actingAs($admin)->patch(route('roles.update', $role), [
+        $response = $this->actingAs($this->rolesManageUser())->putJson("/api/roles/{$role->id}", [
             'name' => 'custom',
             'label' => 'Custom Renamed',
             'description' => 'New',
             'permissions' => [PermissionEnum::EquipmentView->value, PermissionEnum::EquipmentEdit->value],
-        ]);
+        ])->assertOk()->assertJsonPath('data.label', 'Custom Renamed');
 
-        $response->assertRedirect(route('roles.edit', $role));
-
-        $role->refresh();
-        $this->assertSame('Custom Renamed', $role->label);
-        $this->assertSame(
-            [PermissionEnum::EquipmentEdit->value, PermissionEnum::EquipmentView->value],
-            $role->permissions()->pluck('name')->sort()->values()->all(),
-        );
-
+        $this->assertEqualsCanonicalizing([PermissionEnum::EquipmentView->value, PermissionEnum::EquipmentEdit->value], $response->json('data.permissions'));
         $this->assertNotNull(Activity::where('event', 'role.updated')->where('subject_id', $role->id)->first());
     }
 
-    /**
-     * Regression test: a permission NAME that passes RoleUpdateRequest's
-     * enum validation (App\Enums\Permission) but has no matching row in
-     * the `permissions` table (e.g. a new enum case added without
-     * re-running RolePermissionSeeder) must fail loudly, not silently
-     * resolve to fewer ids than submitted and attach a truncated set with
-     * no error surfaced — that exact silent-drop bug shipped once already.
-     */
     public function test_update_fails_loudly_when_a_submitted_permission_is_not_yet_seeded(): void
     {
-        $admin = $this->rolesManageUser();
         $role = Role::create(['name' => 'custom', 'label' => 'Custom', 'description' => null]);
         $role->syncPermissions(Permission::where('name', PermissionEnum::EquipmentView->value)->pluck('id'));
-
-        // Simulate "enum case exists in code but its row was never
-        // seeded" without needing a second real unseeded enum case.
         Permission::where('name', PermissionEnum::EquipmentEdit->value)->delete();
 
-        $response = $this->actingAs($admin)->patch(route('roles.update', $role), [
+        $this->actingAs($this->rolesManageUser())->putJson("/api/roles/{$role->id}", [
             'name' => 'custom',
             'label' => 'Custom',
             'permissions' => [PermissionEnum::EquipmentView->value, PermissionEnum::EquipmentEdit->value],
-        ]);
+        ])->assertJsonValidationErrors(['permissions']);
 
-        $response->assertSessionHasErrors(['permissions']);
-
-        // Nothing was silently attached or changed — the whole update was
-        // rejected, not partially applied.
-        $this->assertSame(
-            [PermissionEnum::EquipmentView->value],
-            $role->fresh()->permissions()->pluck('name')->all(),
-        );
+        $this->assertSame([PermissionEnum::EquipmentView->value], $role->fresh()->permissions()->pluck('name')->all());
     }
 
     public function test_update_rejects_an_uppercase_role_name(): void
     {
-        $admin = $this->rolesManageUser();
         $role = Role::create(['name' => 'custom', 'label' => 'Custom']);
 
-        $this->actingAs($admin)->patch(route('roles.update', $role), [
-            'name' => 'Custom', 'label' => 'Custom', 'permissions' => [],
-        ])->assertSessionHasErrors(['name']);
+        $this->actingAs($this->rolesManageUser())->putJson("/api/roles/{$role->id}", ['name' => 'Custom', 'label' => 'Custom', 'permissions' => []])
+            ->assertJsonValidationErrors(['name']);
 
         $this->assertSame('custom', $role->fresh()->name);
     }
 
-    public function test_pending_role_name_cannot_be_changed(): void
+    public function test_pending_role_name_and_permissions_are_fixed_but_label_is_editable(): void
     {
         $admin = $this->rolesManageUser();
         $pending = Role::where('name', Role::PENDING)->firstOrFail();
 
-        $this->actingAs($admin)->patch(route('roles.update', $pending), [
-            'name' => 'renamed-pending', 'label' => 'Pending Approval', 'permissions' => [],
-        ])->assertSessionHasErrors(['name']);
+        $this->actingAs($admin)->putJson("/api/roles/{$pending->id}", ['name' => 'renamed-pending', 'label' => 'Pending', 'permissions' => []])
+            ->assertJsonValidationErrors(['name']);
+        $this->actingAs($admin)->putJson("/api/roles/{$pending->id}", ['name' => Role::PENDING, 'label' => 'Pending', 'permissions' => [PermissionEnum::EquipmentView->value]])
+            ->assertJsonValidationErrors(['permissions']);
 
         $this->assertSame(Role::PENDING, $pending->fresh()->name);
-    }
-
-    public function test_pending_role_permissions_must_stay_empty(): void
-    {
-        $admin = $this->rolesManageUser();
-        $pending = Role::where('name', Role::PENDING)->firstOrFail();
-
-        $this->actingAs($admin)->patch(route('roles.update', $pending), [
-            'name' => Role::PENDING,
-            'label' => 'Pending Approval',
-            'permissions' => [PermissionEnum::EquipmentView->value],
-        ])->assertSessionHasErrors(['permissions']);
-
         $this->assertSame([], $pending->fresh()->permissions()->pluck('name')->all());
-    }
 
-    public function test_pending_role_label_and_description_remain_editable(): void
-    {
-        $admin = $this->rolesManageUser();
-        $pending = Role::where('name', Role::PENDING)->firstOrFail();
-
-        $this->actingAs($admin)->patch(route('roles.update', $pending), [
-            'name' => Role::PENDING,
-            'label' => 'Awaiting Review',
-            'description' => 'Updated copy.',
-            'permissions' => [],
-        ])->assertRedirect(route('roles.edit', $pending));
+        $this->actingAs($admin)->putJson("/api/roles/{$pending->id}", [
+            'name' => Role::PENDING, 'label' => 'Awaiting Review', 'description' => 'Updated copy.', 'permissions' => [],
+        ])->assertOk();
 
         $this->assertSame('Awaiting Review', $pending->fresh()->label);
     }
 
-    // --- destroy ---
+    // Destroy
 
-    public function test_destroy_blocks_deleting_the_pending_role(): void
+    public function test_destroy_is_a_409_for_the_pending_role_and_for_an_assigned_role(): void
     {
         $admin = $this->rolesManageUser();
         $pending = Role::where('name', Role::PENDING)->firstOrFail();
+        $viewer = Role::where('name', 'viewer')->firstOrFail();
+        $this->userWithRole('viewer');
 
-        $this->actingAs($admin)->delete(route('roles.destroy', $pending))
-            ->assertSessionHasErrors(['role']);
+        $this->actingAs($admin)->deleteJson("/api/roles/{$pending->id}")->assertConflict()->assertJsonStructure(['message']);
+        $this->actingAs($admin)->deleteJson("/api/roles/{$viewer->id}")
+            ->assertConflict()
+            ->assertJsonPath('message', fn (string $message) => str_contains($message, 'assigned to 1 user'));
 
         $this->assertNotNull($pending->fresh());
-    }
-
-    public function test_destroy_blocks_deleting_a_role_assigned_to_users(): void
-    {
-        $admin = $this->rolesManageUser();
-        $viewer = Role::where('name', 'viewer')->firstOrFail();
-        $viewerUser = User::factory()->create();
-        $viewerUser->assignRole($viewer);
-
-        $this->actingAs($admin)->delete(route('roles.destroy', $viewer))
-            ->assertSessionHasErrors(['role']);
-
         $this->assertNotNull($viewer->fresh());
     }
 
     public function test_destroy_succeeds_for_an_unused_role_and_is_audited(): void
     {
-        $admin = $this->rolesManageUser();
         $unused = Role::create(['name' => 'unused-role', 'label' => 'Unused Role']);
 
-        $this->actingAs($admin)->delete(route('roles.destroy', $unused))
-            ->assertRedirect(route('roles.index'));
+        $this->actingAs($this->rolesManageUser())->deleteJson("/api/roles/{$unused->id}")->assertNoContent();
 
         $this->assertNull(Role::find($unused->id));
         $this->assertNotNull(Activity::where('event', 'role.deleted')->where('subject_id', $unused->id)->first());
     }
 
-    // --- sensitive-permission lockout guards ---
+    // Lockout guards
 
     public function test_update_blocks_removing_roles_manage_when_no_other_role_grants_it(): void
     {
-        $actor = $this->rolesManageUser();
         $adminRole = Role::where('name', 'admin')->firstOrFail();
+        $remaining = $adminRole->permissions()->pluck('name')->reject(fn ($name) => $name === PermissionEnum::RolesManage->value)->values()->all();
 
-        // No custom role exists granting roles.manage — admin
-        // is the only one (seeded default). Stripping it here would leave
-        // nobody in the system able to manage roles at all.
-        $remainingPermissions = $adminRole->permissions()->pluck('name')
-            ->reject(fn ($name) => $name === PermissionEnum::RolesManage->value)
-            ->values()->all();
-
-        $this->actingAs($actor)->patch(route('roles.update', $adminRole), [
-            'name' => 'admin',
-            'label' => $adminRole->label,
-            'permissions' => $remainingPermissions,
-        ])->assertSessionHasErrors(['permissions']);
+        $this->actingAs($this->rolesManageUser())->putJson("/api/roles/{$adminRole->id}", [
+            'name' => 'admin', 'label' => $adminRole->label, 'permissions' => $remaining,
+        ])->assertJsonValidationErrors(['permissions']);
 
         $this->assertTrue($adminRole->fresh()->permissions()->where('name', PermissionEnum::RolesManage->value)->exists());
     }
 
     public function test_update_blocks_self_lockout_when_actor_holds_the_only_granting_role(): void
     {
-        // Another user holds roles.manage+users.manage via a different
-        // role, so the SYSTEM-WIDE check passes — but the actor, who
-        // holds ONLY 'role-editor', would personally lose roles.manage
-        // with no other role of their own granting it back.
         $superAdminRole = Role::create(['name' => 'super-admin', 'label' => 'Super Admin']);
-        $superAdminRole->syncPermissions(
-            Permission::whereIn('name', [PermissionEnum::RolesManage->value, PermissionEnum::UsersManage->value])->pluck('id'),
-        );
-        $otherHolder = User::factory()->create();
-        $otherHolder->assignRole($superAdminRole);
+        $superAdminRole->syncPermissions(Permission::whereIn('name', [PermissionEnum::RolesManage->value, PermissionEnum::UsersManage->value])->pluck('id'));
+        User::factory()->create()->assignRole($superAdminRole);
 
         $roleEditor = Role::create(['name' => 'role-editor', 'label' => 'Role Editor']);
         $roleEditor->syncPermissions(Permission::where('name', PermissionEnum::RolesManage->value)->pluck('id'));
-        $actor = User::factory()->create();
-        $actor->assignRole($roleEditor);
+        $actor = $this->userWithRole('role-editor');
 
-        $this->actingAs($actor)->patch(route('roles.update', $roleEditor), [
-            'name' => 'role-editor', 'label' => 'Role Editor', 'permissions' => [],
-        ])->assertSessionHasErrors(['permissions']);
+        $this->actingAs($actor)->putJson("/api/roles/{$roleEditor->id}", ['name' => 'role-editor', 'label' => 'Role Editor', 'permissions' => []])
+            ->assertJsonValidationErrors(['permissions']);
 
         $this->assertTrue($roleEditor->fresh()->permissions()->where('name', PermissionEnum::RolesManage->value)->exists());
     }
@@ -484,41 +325,30 @@ class RoleControllerTest extends TestCase
     {
         $roleEditor = Role::create(['name' => 'role-editor', 'label' => 'Role Editor']);
         $roleEditor->syncPermissions(Permission::where('name', PermissionEnum::RolesManage->value)->pluck('id'));
-
         $superAdminRole = Role::create(['name' => 'super-admin', 'label' => 'Super Admin']);
-        $superAdminRole->syncPermissions(
-            Permission::whereIn('name', [PermissionEnum::RolesManage->value, PermissionEnum::UsersManage->value])->pluck('id'),
-        );
+        $superAdminRole->syncPermissions(Permission::whereIn('name', [PermissionEnum::RolesManage->value, PermissionEnum::UsersManage->value])->pluck('id'));
 
-        // Actor holds BOTH roles — losing roles.manage from role-editor
-        // is fine because super-admin still grants it to them personally.
         $actor = User::factory()->create();
         $actor->assignRole($roleEditor);
         $actor->assignRole($superAdminRole);
 
-        $this->actingAs($actor)->patch(route('roles.update', $roleEditor), [
-            'name' => 'role-editor', 'label' => 'Role Editor', 'permissions' => [],
-        ])->assertRedirect(route('roles.edit', $roleEditor));
+        $this->actingAs($actor)->putJson("/api/roles/{$roleEditor->id}", ['name' => 'role-editor', 'label' => 'Role Editor', 'permissions' => []])
+            ->assertOk()
+            ->assertJsonPath('data.permissions', []);
 
-        $this->assertSame([], $roleEditor->fresh()->permissions()->pluck('name')->all());
         $this->assertTrue($actor->fresh()->hasPermissionTo(PermissionEnum::RolesManage));
     }
 
-    public function test_admin_can_edit_permissions_of_a_role_they_hold_when_not_touching_sensitive_permissions(): void
+    public function test_admin_can_edit_a_role_they_hold_when_not_touching_sensitive_permissions(): void
     {
-        // Sanity check: unlike UserRoleService's absolute "never touch
-        // your own role assignment" rule, editing a role definition you
-        // happen to hold is fine as long as roles.manage/users.manage
-        // isn't the thing being stripped away.
-        $admin = $this->rolesManageUser();
         $adminRole = Role::where('name', 'admin')->firstOrFail();
 
-        $this->actingAs($admin)->patch(route('roles.update', $adminRole), [
+        $this->actingAs($this->rolesManageUser())->putJson("/api/roles/{$adminRole->id}", [
             'name' => 'admin',
             'label' => 'Administrator',
             'description' => 'Updated description.',
             'permissions' => collect(PermissionEnum::cases())->map->value->all(),
-        ])->assertRedirect(route('roles.edit', $adminRole));
+        ])->assertOk();
 
         $this->assertSame('Updated description.', $adminRole->fresh()->description);
     }
