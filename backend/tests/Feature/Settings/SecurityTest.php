@@ -21,10 +21,7 @@ class SecurityTest extends TestCase
             'confirm' => true,
             'confirmPassword' => true,
         ]);
-        Features::passkeys([
-            'confirmPassword' => true,
-        ]);
-
+        // Passkeys are no longer enabled: their table is dropped (decoupled-spa-stack plan, Phase 1 #9).
         $user = User::factory()->create();
 
         $this->actingAs($user)
@@ -32,7 +29,7 @@ class SecurityTest extends TestCase
             ->get(route('security.edit'))
             ->assertInertia(fn (Assert $page) => $page
                 ->component('settings/Security')
-                ->where('canManagePasskeys', true)
+                ->where('canManagePasskeys', false)
                 ->where('passkeys', [])
                 ->where('canManageTwoFactor', true)
                 ->where('twoFactorEnabled', false),

@@ -10,8 +10,8 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -24,7 +24,9 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int $id
  * @property string $name
  * @property string $email
+ * @property string|null $avatar_path
  * @property string|null $avatar
+ * @property bool $is_active
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
@@ -35,12 +37,27 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password', 'office_id', 'avatar'])]
+#[Fillable(['name', 'email', 'password', 'office_id', 'avatar', 'avatar_path'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+
+    /**
+     * @var list<string>
+     */
+    protected $appends = ['avatar'];
+
+    /**
+     * model_has_roles has no FK to users (Spatie's schema), so the cascade
+     * role_user used to get from the database happens here until Phase 2's
+     * HasRoles trait takes it over.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(fn (User $user) => $user->roles()->detach());
+    }
 
     /**
      * Get the attributes that should be cast.
@@ -53,22 +70,26 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'is_active' => 'boolean',
         ];
     }
 
     /**
-     * The `avatar` column stores a relative path on the `public` disk
-     * (e.g. "avatars/3.jpg"), never a URL — this resolves it to a full,
-     * directly-usable storage URL on read. Use getRawOriginal('avatar')
-     * to get the stored path back (e.g. to delete the old file on
-     * replace), since this accessor only transforms reads, not writes.
+     * Interim alias over the `avatar_path` column until Phase 2 of the
+     * decoupled-spa-stack plan moves consumers to it: reads resolve the
+     * stored relative path to a public URL, writes store the path.
+     * getRawOriginal('avatar') no longer returns anything; use
+     * getRawOriginal('avatar_path').
      *
      * @return Attribute<string|null, string|null>
      */
     protected function avatar(): Attribute
     {
         return Attribute::make(
-            get: fn (?string $value) => $value ? Storage::disk('public')->url($value) : null,
+            get: fn ($value, array $attributes) => ($attributes['avatar_path'] ?? null)
+                ? Storage::disk('public')->url($attributes['avatar_path'])
+                : null,
+            set: fn (?string $value) => ['avatar_path' => $value],
         );
     }
 
@@ -82,11 +103,11 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     private ?array $cachedPermissionNames = null;
 
     /**
-     * @return BelongsToMany<Role, $this>
+     * @return MorphToMany<Role, $this>
      */
-    public function roles(): BelongsToMany
+    public function roles(): MorphToMany
     {
-        return $this->belongsToMany(Role::class);
+        return $this->morphToMany(Role::class, 'model', 'model_has_roles', 'model_id', 'role_id');
     }
 
     /**

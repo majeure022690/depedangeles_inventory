@@ -17,6 +17,12 @@ class TwoFactorTrustedDevice extends Model
 
     public const COOKIE_NAME = 'two_factor_remember';
 
+    /**
+     * Interim: the old table was replaced by rwatch's `trusted_devices`
+     * (whose extra columns are nullable). This model is deleted in Phase 2.
+     */
+    protected $table = 'trusted_devices';
+
     protected $fillable = [
         'user_id',
         'token_hash',

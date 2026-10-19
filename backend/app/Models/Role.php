@@ -3,8 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Spatie\Permission\Models\Role as SpatieRole;
 
 /**
  * A role is a named, admin-configurable bundle of permissions — never a
@@ -16,10 +15,31 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * App\Enums\Permission for the fixed catalog of granular strings roles
  * are composed from — that catalog stays code-defined; only the
  * role-to-permission bundling is dynamic.
+ *
+ * @property int $id
+ * @property string $label
+ * @property string|null $description
  */
-#[Fillable(['name', 'label', 'description'])]
-class Role extends Model
+#[Fillable(['name', 'guard_name', 'label', 'description'])]
+class Role extends SpatieRole
 {
+    /**
+     * Spatie declares RoleContract as the return type; narrowed so callers
+     * get this model back.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public static function create(array $attributes = []): static
+    {
+        $role = parent::create($attributes);
+
+        if (! $role instanceof static) {
+            throw new \LogicException('Spatie Role::create() returned an unexpected model class.');
+        }
+
+        return $role;
+    }
+
     /**
      * The one role this application cannot function without a specific
      * identity for: Laravel\Fortify's CreateNewUser action hardcodes
@@ -48,22 +68,6 @@ class Role extends Model
      *      they sign up, defeating deny-by-default.
      */
     public const PENDING = 'pending';
-
-    /**
-     * @return BelongsToMany<Permission, $this>
-     */
-    public function permissions(): BelongsToMany
-    {
-        return $this->belongsToMany(Permission::class);
-    }
-
-    /**
-     * @return BelongsToMany<User, $this>
-     */
-    public function users(): BelongsToMany
-    {
-        return $this->belongsToMany(User::class);
-    }
 
     /**
      * Whether this role is the protected 'pending' role — see

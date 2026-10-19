@@ -3,9 +3,10 @@
 namespace Database\Seeders;
 
 use App\Enums\Permission as PermissionEnum;
-use App\Models\Permission;
 use App\Models\Role;
 use Illuminate\Database\Seeder;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 
 /**
  * Seeds the `permissions` table from App\Enums\Permission (the actual
@@ -13,8 +14,9 @@ use Illuminate\Database\Seeder;
  * default roles from them. Roles are named bundles of permissions; the
  * bundle is data assembled here, never a branch in application code.
  *
- * Idempotent: safe to re-run without truncating first (updateOrCreate +
- * sync rather than insert).
+ * Idempotent: safe to re-run without truncating first (findOrCreate/
+ * updateOrCreate + syncPermissions rather than insert). Runs on
+ * spatie/laravel-permission's tables, guard `web`.
  */
 class RolePermissionSeeder extends Seeder
 {
@@ -127,33 +129,34 @@ class RolePermissionSeeder extends Seeder
 
     public function run(): void
     {
-        // 1. Materialize every enum case into a `permissions` row.
-        $permissionModelsByName = collect(PermissionEnum::cases())
-            ->mapWithKeys(function (PermissionEnum $permission) {
-                $model = Permission::query()->updateOrCreate(['name' => $permission->value]);
+        $registrar = app(PermissionRegistrar::class);
+        $registrar->forgetCachedPermissions();
 
-                return [$permission->value => $model];
-            });
+        // 1. Materialize every enum case into a `permissions` row.
+        foreach (PermissionEnum::cases() as $permission) {
+            Permission::findOrCreate($permission->value, 'web');
+        }
 
         $roles = self::roleDefinitions();
 
         // 2. Create/update each role and sync its permission set.
         foreach ($roles as $name => $definition) {
             $role = Role::query()->updateOrCreate(
-                ['name' => $name],
+                ['name' => $name, 'guard_name' => 'web'],
                 ['label' => $definition['label'], 'description' => $definition['description']],
             );
 
-            $permissionIds = collect($definition['permissions'])
-                ->map(fn (PermissionEnum $permission) => $permissionModelsByName[$permission->value]->id)
-                ->all();
-
-            $role->permissions()->sync($permissionIds);
+            $role->syncPermissions(array_map(
+                fn (PermissionEnum $permission) => $permission->value,
+                $definition['permissions'],
+            ));
         }
+
+        $registrar->forgetCachedPermissions();
 
         $this->command?->info(sprintf(
             'Seeded %d permissions and %d roles.',
-            $permissionModelsByName->count(),
+            count(PermissionEnum::cases()),
             count($roles),
         ));
     }

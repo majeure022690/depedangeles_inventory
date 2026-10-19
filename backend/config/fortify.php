@@ -169,9 +169,7 @@ return [
             'confirmPassword' => true,
             // 'window' => 0
         ]),
-        Features::passkeys([
-            'confirmPassword' => true,
-        ]),
+        // Passkeys removed: the `passkeys` table is dropped (decoupled-spa-stack plan, Phase 1 #9).
     ],
 
 ];
