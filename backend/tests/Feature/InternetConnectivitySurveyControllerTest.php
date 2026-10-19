@@ -234,9 +234,6 @@ class InternetConnectivitySurveyControllerTest extends TestCase
             'rooms_other_use' => 3,
         ])->assertSessionHasNoErrors();
 
-        // assignRole() itself writes a 'role.assigned' AuditLog entry
-        // (see User::assignRole), so filter to the action under test
-        // rather than assuming this is the only row.
         $log = AuditLog::where('action', 'internet_connectivity_survey.updated')->sole();
         $survey = InternetConnectivitySurvey::where('office_id', $office->id)->sole();
         $this->assertSame('internet_connectivity_survey.updated', $log->action);

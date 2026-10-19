@@ -3,7 +3,6 @@
 namespace App\Policies;
 
 use App\Enums\Permission;
-use App\Models\AuditLog;
 use App\Models\Role;
 use App\Models\User;
 
@@ -32,10 +31,11 @@ class RolePolicy
         $allowed = $user->hasPermissionTo(Permission::RolesManage);
 
         if (! $allowed) {
-            AuditLog::record('authorization.denied', null, [
-                'permission' => Permission::RolesManage->value,
-                'user_id' => $user->id,
-            ]);
+            activity()
+                ->causedBy($user)
+                ->event('authorization.denied')
+                ->withProperties(['permission' => Permission::RolesManage->value])
+                ->log('authorization.denied');
         }
 
         return $allowed;
@@ -46,10 +46,12 @@ class RolePolicy
         $allowed = $user->hasPermissionTo(Permission::RolesManage);
 
         if (! $allowed) {
-            AuditLog::record('authorization.denied', $role, [
-                'permission' => Permission::RolesManage->value,
-                'user_id' => $user->id,
-            ]);
+            activity()
+                ->causedBy($user)
+                ->performedOn($role)
+                ->event('authorization.denied')
+                ->withProperties(['permission' => Permission::RolesManage->value])
+                ->log('authorization.denied');
         }
 
         return $allowed;
@@ -60,10 +62,11 @@ class RolePolicy
         $allowed = $user->hasPermissionTo(Permission::RolesManage);
 
         if (! $allowed) {
-            AuditLog::record('authorization.denied', null, [
-                'permission' => Permission::RolesManage->value,
-                'user_id' => $user->id,
-            ]);
+            activity()
+                ->causedBy($user)
+                ->event('authorization.denied')
+                ->withProperties(['permission' => Permission::RolesManage->value])
+                ->log('authorization.denied');
         }
 
         return $allowed;
@@ -74,10 +77,12 @@ class RolePolicy
         $allowed = $user->hasPermissionTo(Permission::RolesManage);
 
         if (! $allowed) {
-            AuditLog::record('authorization.denied', $role, [
-                'permission' => Permission::RolesManage->value,
-                'user_id' => $user->id,
-            ]);
+            activity()
+                ->causedBy($user)
+                ->performedOn($role)
+                ->event('authorization.denied')
+                ->withProperties(['permission' => Permission::RolesManage->value])
+                ->log('authorization.denied');
         }
 
         return $allowed;
@@ -88,10 +93,12 @@ class RolePolicy
         $allowed = $user->hasPermissionTo(Permission::RolesManage);
 
         if (! $allowed) {
-            AuditLog::record('authorization.denied', $role, [
-                'permission' => Permission::RolesManage->value,
-                'user_id' => $user->id,
-            ]);
+            activity()
+                ->causedBy($user)
+                ->performedOn($role)
+                ->event('authorization.denied')
+                ->withProperties(['permission' => Permission::RolesManage->value])
+                ->log('authorization.denied');
         }
 
         return $allowed;

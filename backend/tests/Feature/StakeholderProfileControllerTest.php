@@ -275,9 +275,6 @@ class StakeholderProfileControllerTest extends TestCase
             'sdo' => 'SDO Angeles City',
         ])->assertSessionHasNoErrors();
 
-        // assignRole() itself writes a 'role.assigned' AuditLog entry
-        // (see User::assignRole), so filter to the action under test
-        // rather than assuming this is the only row.
         $log = AuditLog::where('action', 'stakeholder_profile.updated')->sole();
         $stakeholderProfile = StakeholderProfile::where('office_id', $office->id)->sole();
         $this->assertSame('stakeholder_profile.updated', $log->action);

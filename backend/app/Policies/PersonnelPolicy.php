@@ -3,7 +3,6 @@
 namespace App\Policies;
 
 use App\Enums\Permission;
-use App\Models\AuditLog;
 use App\Models\Personnel;
 use App\Models\User;
 
@@ -39,10 +38,12 @@ class PersonnelPolicy
         $allowed = $user->hasPermissionTo(Permission::PersonnelDelete);
 
         if (! $allowed) {
-            AuditLog::record('authorization.denied', $personnel, [
-                'permission' => Permission::PersonnelDelete->value,
-                'user_id' => $user->id,
-            ]);
+            activity()
+                ->causedBy($user)
+                ->performedOn($personnel)
+                ->event('authorization.denied')
+                ->withProperties(['permission' => Permission::PersonnelDelete->value])
+                ->log('authorization.denied');
         }
 
         return $allowed;

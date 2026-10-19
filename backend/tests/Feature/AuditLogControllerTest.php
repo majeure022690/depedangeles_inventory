@@ -18,12 +18,8 @@ use Tests\TestCase;
  * AuditLogController's own doc-comment — no create/store/edit/update/
  * destroy routes exist or should exist for this resource).
  *
- * Note: User::assignRole() itself writes a 'role.assigned' AuditLog row
- * (see User::assignRole()'s doc-comment), so every helper below that
- * assigns a role to a freshly-created test user (admin()/encoder()/etc.)
- * incidentally adds one row to the table. Tests that care about exact
- * counts/ordering account for that row explicitly rather than assuming an
- * empty table.
+ * Role assignment (Spatie's assignRole()) writes no audit_logs row, so
+ * the table holds only the rows each test records itself.
  */
 class AuditLogControllerTest extends TestCase
 {
@@ -126,9 +122,9 @@ class AuditLogControllerTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_guest_is_redirected_to_login(): void
+    public function test_guest_is_rejected(): void
     {
-        $this->get(route('audit-log.index'))->assertRedirect(route('login'));
+        $this->get(route('audit-log.index'))->assertUnauthorized();
     }
 
     // ------------------------------------------------------------------
@@ -137,11 +133,6 @@ class AuditLogControllerTest extends TestCase
 
     public function test_index_paginates_20_per_page_ordered_newest_first(): void
     {
-        // Creating the admin itself writes one 'role.assigned' row (actor
-        // null — nobody is authenticated yet at this point in the test),
-        // timestamped at real "now". Every explicitly-seeded row below is
-        // deliberately timestamped strictly after that, so it doesn't
-        // interfere with the "top 20 are my newest 20" assertion.
         $admin = $this->admin();
 
         $base = Carbon::now();
@@ -151,7 +142,7 @@ class AuditLogControllerTest extends TestCase
 
         $page = $this->actingAs($admin)->get(route('audit-log.index'))->inertiaPage();
 
-        $this->assertSame(26, $page['props']['logs']['total']);
+        $this->assertSame(25, $page['props']['logs']['total']);
         $this->assertCount(20, $page['props']['logs']['data']);
 
         // Newest first: pagination.test.24 (created latest) leads page 1;
@@ -161,7 +152,6 @@ class AuditLogControllerTest extends TestCase
 
         $ids = collect($page['props']['logs']['data'])->pluck('action')->all();
         $this->assertNotContains('pagination.test.4', $ids);
-        $this->assertNotContains('role.assigned', $ids);
     }
 
     // ------------------------------------------------------------------
@@ -351,7 +341,8 @@ class AuditLogControllerTest extends TestCase
 
     public function test_filter_options_reflect_the_distinct_actions_and_subject_types_present(): void
     {
-        $admin = $this->admin(); // also contributes 'role.assigned' / App\Models\User
+        $admin = $this->admin();
+        $this->recordAt('user.probe', $admin);
 
         $office = Office::create(['office_name' => 'Test Elementary School']);
         $this->recordAt('zzz.last.action');
@@ -362,7 +353,7 @@ class AuditLogControllerTest extends TestCase
         $actions = $page['props']['filterOptions']['actions'];
         $this->assertContains('zzz.last.action', $actions);
         $this->assertContains('aaa.first.action', $actions);
-        $this->assertContains('role.assigned', $actions);
+        $this->assertContains('user.probe', $actions);
         $sortedActions = $actions;
         sort($sortedActions);
         $this->assertSame($sortedActions, $actions);

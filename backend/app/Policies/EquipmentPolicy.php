@@ -3,7 +3,6 @@
 namespace App\Policies;
 
 use App\Enums\Permission;
-use App\Models\AuditLog;
 use App\Models\Equipment;
 use App\Models\User;
 
@@ -38,10 +37,12 @@ class EquipmentPolicy
         $allowed = $user->hasPermissionTo(Permission::EquipmentDelete);
 
         if (! $allowed) {
-            AuditLog::record('authorization.denied', $equipment, [
-                'permission' => Permission::EquipmentDelete->value,
-                'user_id' => $user->id,
-            ]);
+            activity()
+                ->causedBy($user)
+                ->performedOn($equipment)
+                ->event('authorization.denied')
+                ->withProperties(['permission' => Permission::EquipmentDelete->value])
+                ->log('authorization.denied');
         }
 
         return $allowed;
@@ -70,10 +71,12 @@ class EquipmentPolicy
         $allowed = $user->hasPermissionTo(Permission::EquipmentTransactionsCreate);
 
         if (! $allowed) {
-            AuditLog::record('authorization.denied', $equipment, [
-                'permission' => Permission::EquipmentTransactionsCreate->value,
-                'user_id' => $user->id,
-            ]);
+            activity()
+                ->causedBy($user)
+                ->performedOn($equipment)
+                ->event('authorization.denied')
+                ->withProperties(['permission' => Permission::EquipmentTransactionsCreate->value])
+                ->log('authorization.denied');
         }
 
         return $allowed;

@@ -3,7 +3,6 @@
 namespace App\Policies;
 
 use App\Enums\Permission;
-use App\Models\AuditLog;
 use App\Models\Office;
 use App\Models\User;
 
@@ -39,10 +38,12 @@ class OfficePolicy
         $allowed = $user->hasPermissionTo(Permission::OfficeDelete);
 
         if (! $allowed) {
-            AuditLog::record('authorization.denied', $office, [
-                'permission' => Permission::OfficeDelete->value,
-                'user_id' => $user->id,
-            ]);
+            activity()
+                ->causedBy($user)
+                ->performedOn($office)
+                ->event('authorization.denied')
+                ->withProperties(['permission' => Permission::OfficeDelete->value])
+                ->log('authorization.denied');
         }
 
         return $allowed;

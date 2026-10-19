@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\Permission as PermissionEnum;
-use App\Models\AuditLog;
-use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Spatie\Activitylog\Support\CauserResolver;
+use Spatie\Permission\Models\Permission;
 
 /**
  * The only sanctioned entry point for the users.manage admin screen's
@@ -19,12 +19,13 @@ use Illuminate\Validation\ValidationException;
  * updating profile + role set together (updateUser()), removing
  * accounts (deleteUser()), and changing just the role set (syncRoles(),
  * still called on its own by updateUser() and directly by earlier
- * callers). role_user is a genuine many-to-many pivot — a user commonly
- * needs more than one permission bundle (e.g. Encoder plus some future
- * cross-cutting role) — so syncRoles() replaces a user's entire role set
- * in one call, the same way Eloquent's BelongsToMany::sync() itself
- * works, rather than the older single-role changeRole() this method
- * replaces.
+ * callers). A user can hold several roles (Spatie's model_has_roles), so
+ * syncRoles() replaces a user's entire role set in one call.
+ *
+ * Audit: account CRUD rows come from User's LogsActivity (attributed to
+ * the actor via CauserResolver::withCauser()); every role-set change,
+ * including the initial set on creation and the removal on deletion, is
+ * a `user.roles_changed` activity.
  *
  * Enforces the following requirements from the 2026-07 security review,
  * generalized to multi-role semantics (and extended to createUser()/
@@ -68,7 +69,7 @@ final class UserRoleService
      */
     public function assignableRolesFor(User $actor): EloquentCollection
     {
-        $actorPermissionNames = $actor->permissionNames();
+        $actorPermissionNames = $this->permissionNamesOf($actor);
 
         return Role::query()
             ->orderBy('label')
@@ -81,37 +82,31 @@ final class UserRoleService
     }
 
     /**
-     * Creates a brand-new user account (the admin-provisioning counterpart
-     * to Fortify self-registration — see CreateNewUser) and assigns its
-     * initial role set in one step. Subject to the same permission-tier
-     * guard as syncRoles(): an actor can only hand out roles whose entire
-     * permission set is already a subset of their own.
+     * Creates a new account (accounts are admin-created; there is no
+     * self-registration) and assigns its initial role set in one step.
+     * Subject to the same permission-tier guard as syncRoles(): an actor
+     * can only hand out roles whose entire permission set is already a
+     * subset of their own.
      *
-     * @param  array{name: string, email: string, password: string, office_id?: int|null}  $attributes
+     * @param  array{name: string, email: string, password: string, office_id?: int|null, is_active?: bool}  $attributes
      * @param  array<int, int>  $roleIds
      */
     public function createUser(User $actor, array $attributes, array $roleIds): User
     {
         $this->guardAgainstPermissionTierViolation($actor, $roleIds);
 
-        return DB::transaction(function () use ($actor, $attributes, $roleIds) {
+        $roleIds = $this->normalizeRoleIds($roleIds);
+
+        return DB::transaction(fn () => app(CauserResolver::class)->withCauser($actor, function () use ($actor, $attributes, $roleIds) {
             $user = User::create($attributes);
 
             if ($roleIds !== []) {
-                $user->roles()->sync($roleIds);
-                $user->forgetCachedPermissions();
+                $user->syncRoles($roleIds);
+                $this->recordRolesChanged($actor, $user, [], $roleIds);
             }
 
-            AuditLog::record('user.created', $user, [
-                'name' => $user->name,
-                'email' => $user->email,
-                'office_id' => $user->office_id,
-                'role_ids' => $roleIds,
-                'roles' => Role::query()->whereIn('id', $roleIds)->orderBy('name')->pluck('name')->all(),
-            ], $actor->id);
-
             return $user;
-        });
+        }));
     }
 
     /**
@@ -120,35 +115,20 @@ final class UserRoleService
      * uses. An actor can never edit their own account through this path
      * (mirrors syncRoles()'s self-escalation guard, and the Index.vue UI
      * never even offers the action against the acting user's own row) —
-     * self-service name/email changes go through Settings instead.
+     * self-service name/email changes go through POST /api/profile instead.
      *
-     * @param  array{name: string, email: string, office_id?: int|null}  $attributes
+     * @param  array{name: string, email: string, office_id?: int|null, is_active?: bool}  $attributes
      * @param  array<int, int>  $roleIds
      */
     public function updateUser(User $actor, User $target, array $attributes, array $roleIds): void
     {
         if ($actor->is($target)) {
             throw ValidationException::withMessages([
-                'name' => __('You cannot edit your own account here — use Settings instead.'),
+                'name' => __('You cannot edit your own account here — use your profile instead.'),
             ]);
         }
 
-        $target->fill($attributes);
-
-        if ($target->isDirty(['name', 'email', 'office_id'])) {
-            $previous = [
-                'name' => $target->getOriginal('name'),
-                'email' => $target->getOriginal('email'),
-                'office_id' => $target->getOriginal('office_id'),
-            ];
-
-            $target->save();
-
-            AuditLog::record('user.profile_updated', $target, [
-                'previous' => $previous,
-                'new' => ['name' => $target->name, 'email' => $target->email, 'office_id' => $target->office_id],
-            ], $actor->id);
-        }
+        app(CauserResolver::class)->withCauser($actor, fn () => $target->fill($attributes)->save());
 
         $this->syncRoles($actor, $target, $roleIds);
     }
@@ -163,11 +143,11 @@ final class UserRoleService
      * TOCTOU race between two concurrent removals.
      *
      * Every FK referencing `users.id` elsewhere in the schema
-     * (audit_logs.actor_id, equipment_transactions.recorded_by_user_id,
+     * (equipment_transactions.recorded_by_user_id,
      * isp_speed_tests/isp_subscription_costs.recorded_by_user_id) is
-     * nullable + nullOnDelete by design specifically so this is always
-     * schema-safe — deleting an account never cascades away the business
-     * records or audit history it was once attached to.
+     * nullable + nullOnDelete, and activity_log.causer_id has no FK at all
+     * (plus the actor_snapshot), so deleting an account never cascades
+     * away the business records or audit history it was attached to.
      */
     public function deleteUser(User $actor, User $target): void
     {
@@ -197,13 +177,13 @@ final class UserRoleService
                 }
             }
 
-            AuditLog::record('user.deleted', $target, [
-                'name' => $target->name,
-                'email' => $target->email,
-                'roles' => $target->roles()->pluck('name')->sort()->values()->all(),
-            ], $actor->id);
+            $previousRoleIds = $this->normalizeRoleIds($target->roles()->pluck('roles.id')->all());
 
-            $target->delete();
+            if ($previousRoleIds !== []) {
+                $this->recordRolesChanged($actor, $target, $previousRoleIds, []);
+            }
+
+            app(CauserResolver::class)->withCauser($actor, fn () => $target->delete());
         });
     }
 
@@ -222,9 +202,9 @@ final class UserRoleService
             ]);
         }
 
-        $roleIds = collect($roleIds)->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
+        $roleIds = $this->normalizeRoleIds($roleIds);
 
-        $previousRoleIds = $target->roles()->pluck('roles.id')->sort()->values()->all();
+        $previousRoleIds = $this->normalizeRoleIds($target->roles()->pluck('roles.id')->all());
 
         if ($previousRoleIds === $roleIds) {
             return; // No actual change — nothing to enforce, sync, or audit.
@@ -232,7 +212,7 @@ final class UserRoleService
 
         $this->guardAgainstPermissionTierViolation($actor, $roleIds);
 
-        DB::transaction(function () use ($target, $roleIds, $previousRoleIds) {
+        DB::transaction(function () use ($actor, $target, $roleIds, $previousRoleIds) {
             // Chokepoint lock (MEDIUM, 2026-07 follow-up review: TOCTOU
             // race). The "would this leave zero users.manage holders"
             // count below used to run as a plain unlocked SELECT BEFORE
@@ -274,24 +254,57 @@ final class UserRoleService
                 }
             }
 
-            $target->roles()->sync($roleIds);
-            $target->forgetCachedPermissions();
+            $target->syncRoles($roleIds);
 
-            $roleNames = fn (array $ids) => Role::query()
-                ->whereIn('id', $ids)
-                ->orderBy('name')
-                ->pluck('name')
-                ->all();
+            $this->recordRolesChanged($actor, $target, $previousRoleIds, $roleIds);
+        });
+    }
 
-            AuditLog::record('user.roles_changed', $target, [
+    /**
+     * @param  array<int, int>  $previousRoleIds
+     * @param  array<int, int>  $newRoleIds
+     */
+    private function recordRolesChanged(User $actor, User $target, array $previousRoleIds, array $newRoleIds): void
+    {
+        $roleNames = fn (array $ids) => Role::query()
+            ->whereIn('id', $ids)
+            ->orderBy('name')
+            ->pluck('name')
+            ->all();
+
+        activity()
+            ->causedBy($actor)
+            ->performedOn($target)
+            ->event('user.roles_changed')
+            ->withProperties([
                 'target_user_id' => $target->id,
                 'target_user_email' => $target->email,
                 'previous_role_ids' => $previousRoleIds,
-                'new_role_ids' => $roleIds,
+                'new_role_ids' => $newRoleIds,
                 'previous_roles' => $roleNames($previousRoleIds),
-                'new_roles' => $roleNames($roleIds),
-            ]);
-        });
+                'new_roles' => $roleNames($newRoleIds),
+            ])
+            ->log('user.roles_changed');
+    }
+
+    /**
+     * @param  array<int, int|string>  $roleIds
+     * @return array<int, int>
+     */
+    private function normalizeRoleIds(array $roleIds): array
+    {
+        return collect($roleIds)->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
+    }
+
+    /**
+     * The actor's effective permission names, via roles (and any direct
+     * grant, though inventory never makes one).
+     *
+     * @return array<int, string>
+     */
+    private function permissionNamesOf(User $user): array
+    {
+        return $user->getAllPermissions()->pluck('name')->all();
     }
 
     /**
@@ -320,7 +333,7 @@ final class UserRoleService
             return; // Stripping every role can never grant anything.
         }
 
-        $actorPermissionNames = $actor->permissionNames();
+        $actorPermissionNames = $this->permissionNamesOf($actor);
 
         $exceedingRoles = Role::query()
             ->whereIn('id', $roleIds)

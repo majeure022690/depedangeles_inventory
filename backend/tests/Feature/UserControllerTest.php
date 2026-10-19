@@ -3,8 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\Permission as PermissionEnum;
-use App\Models\AuditLog;
-use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\UserRoleService;
@@ -13,6 +11,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Testing\TestResponse;
 use Illuminate\Validation\ValidationException;
+use Spatie\Activitylog\Models\Activity;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 /**
@@ -95,7 +95,7 @@ class UserControllerTest extends TestCase
     private function actorHoldingAllPermissionsExceptRolesManage(): User
     {
         $role = Role::create(['name' => 'ops-admin', 'label' => 'Ops Admin']);
-        $role->permissions()->sync(
+        $role->syncPermissions(
             Permission::whereIn('name', collect(PermissionEnum::cases())
                 ->reject(fn (PermissionEnum $case) => $case === PermissionEnum::RolesManage)
                 ->map(fn (PermissionEnum $case) => $case->value)
@@ -226,14 +226,14 @@ class UserControllerTest extends TestCase
             'isp_accounts.view', 'isp_accounts.create', 'isp_accounts.edit',
             'stakeholder_profile.view', 'stakeholder_profile.edit',
             'internet_connectivity.view', 'internet_connectivity.edit',
-        ], $pendingUser->permissionNames());
+        ], $pendingUser->getAllPermissions()->pluck('name')->all());
 
-        $log = AuditLog::where('action', 'user.roles_changed')
+        $log = Activity::where('event', 'user.roles_changed')
             ->where('subject_id', $pendingUser->id)
             ->first();
 
         $this->assertNotNull($log);
-        $this->assertSame($admin->id, $log->actor_id);
+        $this->assertSame($admin->id, $log->causer_id);
         $this->assertSame(['pending'], $log->properties['previous_roles']);
         $this->assertSame(['encoder'], $log->properties['new_roles']);
     }
@@ -256,7 +256,7 @@ class UserControllerTest extends TestCase
         // Effective permissions are the UNION of both roles — e.g.
         // equipment.delete is in neither, but equipment.create is only
         // on encoder and equipment.view is on both (deduplicated).
-        $permissions = $target->permissionNames();
+        $permissions = $target->getAllPermissions()->pluck('name')->all();
         $this->assertContains('equipment.view', $permissions);
         $this->assertContains('equipment.create', $permissions);
         $this->assertContains('personnel.view', $permissions);
@@ -301,7 +301,7 @@ class UserControllerTest extends TestCase
 
         $response->assertSessionHasErrors(['role_ids']);
         $this->assertSame(['admin'], $admin->fresh()->roles()->pluck('name')->all());
-        $this->assertNull(AuditLog::where('action', 'user.roles_changed')->first());
+        $this->assertNull(Activity::where('event', 'user.roles_changed')->first());
     }
 
     public function test_demoting_an_admin_succeeds_when_another_admin_remains(): void
@@ -337,7 +337,7 @@ class UserControllerTest extends TestCase
                 ['admin'],
                 $soleAdmin->fresh()->roles()->pluck('name')->all(),
             );
-            $this->assertNull(AuditLog::where('action', 'user.roles_changed')->first());
+            $this->assertNull(Activity::where('event', 'user.roles_changed')->first());
         }
     }
 
@@ -349,7 +349,7 @@ class UserControllerTest extends TestCase
 
         app(UserRoleService::class)->syncRoles($admin, $target, [$this->roleId('viewer')]);
 
-        $this->assertNull(AuditLog::where('action', 'user.roles_changed')->first());
+        $this->assertNull(Activity::where('event', 'user.roles_changed')->first());
     }
 
     public function test_demoting_sole_admin_succeeds_when_new_role_set_still_grants_users_manage(): void
@@ -389,7 +389,7 @@ class UserControllerTest extends TestCase
 
         $response->assertSessionHasErrors(['role_ids']);
         $this->assertSame(['viewer'], $target->fresh()->roles()->pluck('name')->all());
-        $this->assertNull(AuditLog::where('action', 'user.roles_changed')->first());
+        $this->assertNull(Activity::where('event', 'user.roles_changed')->first());
     }
 
     public function test_service_blocks_permission_tier_violation_naming_the_role_and_permission(): void
@@ -521,13 +521,20 @@ class UserControllerTest extends TestCase
         $this->assertSame(['encoder'], $created->roles()->pluck('name')->all());
         $this->assertTrue(Hash::check('Password123!', $created->password));
 
-        $log = AuditLog::where('action', 'user.created')
+        $log = Activity::where('event', 'created')
+            ->where('subject_type', $created->getMorphClass())
             ->where('subject_id', $created->id)
             ->first();
 
         $this->assertNotNull($log);
-        $this->assertSame($admin->id, $log->actor_id);
-        $this->assertSame(['encoder'], $log->properties['roles']);
+        $this->assertSame($admin->id, $log->causer_id);
+        $this->assertSame('new-person@example.com', $log->attribute_changes['attributes']['email']);
+        $this->assertArrayNotHasKey('password', $log->attribute_changes['attributes']);
+
+        $rolesLog = Activity::where('event', 'user.roles_changed')->where('subject_id', $created->id)->sole();
+        $this->assertSame($admin->id, $rolesLog->causer_id);
+        $this->assertSame([], $rolesLog->properties['previous_roles']);
+        $this->assertSame(['encoder'], $rolesLog->properties['new_roles']);
     }
 
     public function test_store_requires_a_unique_email(): void
@@ -592,14 +599,15 @@ class UserControllerTest extends TestCase
         $this->assertSame('New Name', $target->name);
         $this->assertSame('new@example.com', $target->email);
 
-        $log = AuditLog::where('action', 'user.profile_updated')
+        $log = Activity::where('event', 'updated')
+            ->where('subject_type', $target->getMorphClass())
             ->where('subject_id', $target->id)
             ->first();
 
         $this->assertNotNull($log);
-        $this->assertSame($admin->id, $log->actor_id);
-        $this->assertSame('Old Name', $log->properties['previous']['name']);
-        $this->assertSame('New Name', $log->properties['new']['name']);
+        $this->assertSame($admin->id, $log->causer_id);
+        $this->assertSame('Old Name', $log->attribute_changes['old']['name']);
+        $this->assertSame('New Name', $log->attribute_changes['attributes']['name']);
     }
 
     public function test_update_email_must_be_unique_excluding_the_target_themselves(): void
@@ -653,13 +661,18 @@ class UserControllerTest extends TestCase
 
         $this->assertNull(User::find($targetId));
 
-        $log = AuditLog::where('action', 'user.deleted')
+        $log = Activity::where('event', 'deleted')
+            ->where('subject_type', (new User)->getMorphClass())
             ->where('subject_id', $targetId)
             ->first();
 
         $this->assertNotNull($log);
-        $this->assertSame($admin->id, $log->actor_id);
-        $this->assertSame('doomed@example.com', $log->properties['email']);
+        $this->assertSame($admin->id, $log->causer_id);
+        $this->assertSame('doomed@example.com', $log->attribute_changes['old']['email']);
+
+        $rolesLog = Activity::where('event', 'user.roles_changed')->where('subject_id', $targetId)->sole();
+        $this->assertSame(['viewer'], $rolesLog->properties['previous_roles']);
+        $this->assertSame([], $rolesLog->properties['new_roles']);
     }
 
     public function test_admin_cannot_delete_their_own_account(): void
@@ -689,7 +702,7 @@ class UserControllerTest extends TestCase
             app(UserRoleService::class)->deleteUser($actor, $soleAdmin);
         } finally {
             $this->assertNotNull($soleAdmin->fresh());
-            $this->assertNull(AuditLog::where('action', 'user.deleted')->first());
+            $this->assertNull(Activity::where('event', 'deleted')->where('subject_id', $soleAdmin->id)->first());
         }
     }
 
@@ -715,13 +728,13 @@ class UserControllerTest extends TestCase
         $target->assignRole('viewer');
 
         app(UserRoleService::class)->syncRoles($admin, $target, [$this->roleId('encoder')]);
-        $priorLog = AuditLog::where('action', 'user.roles_changed')
+        $priorLog = Activity::where('event', 'user.roles_changed')
             ->where('subject_id', $target->id)
             ->firstOrFail();
 
         $this->actingAs($admin)->delete(route('users.destroy', $target))
             ->assertRedirect(route('users.index'));
 
-        $this->assertNotNull(AuditLog::find($priorLog->id));
+        $this->assertNotNull(Activity::find($priorLog->id));
     }
 }

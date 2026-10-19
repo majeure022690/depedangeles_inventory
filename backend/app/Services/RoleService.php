@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\Permission as PermissionEnum;
-use App\Models\AuditLog;
-use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Permission;
 
 /**
  * The only sanctioned entry point for creating, editing, or deleting
@@ -57,10 +56,13 @@ final class RoleService
 
             $this->syncPermissions($role, $permissionValues);
 
-            AuditLog::record('role.created', $role, [
-                'attributes' => $attributes,
-                'permissions' => $permissionValues,
-            ], $actor->id);
+            activity()
+                ->causedBy($actor)
+                ->performedOn($role)
+                ->event('role.created')
+                ->withChanges(['attributes' => $attributes])
+                ->withProperties(['permissions' => $permissionValues])
+                ->log('role.created');
 
             return $role;
         });
@@ -89,7 +91,7 @@ final class RoleService
                 throw ValidationException::withMessages([
                     'permissions' => __(
                         'The :label role must always have zero permissions — it is the deny-by-default '.
-                        'holding pen for new self-registrations.',
+                        'role for accounts that have not been given access yet.',
                         ['label' => $role->label],
                     ),
                 ]);
@@ -112,23 +114,19 @@ final class RoleService
             $role->update($attributes);
             $this->syncPermissions($role, $permissionValues);
 
-            AuditLog::record('role.updated', $role, [
-                'before' => $before,
-                'after' => [
-                    'attributes' => $role->only(['name', 'label', 'description']),
-                    'permissions' => collect($permissionValues)->sort()->values()->all(),
-                ],
-            ], $actor->id);
-
-            // Every user holding this role just had their effective
-            // permission set potentially change; nothing in this request
-            // re-reads it afterward today, but clearing here keeps the
-            // invariant "cached permissions are never stale after a role
-            // mutation" true regardless of what future callers do.
-            User::query()
-                ->whereHas('roles', fn ($query) => $query->whereKey($role->id))
-                ->get()
-                ->each(fn (User $user) => $user->forgetCachedPermissions());
+            // Same {old, attributes} shape the copied audit_logs rows use.
+            activity()
+                ->causedBy($actor)
+                ->performedOn($role)
+                ->event('role.updated')
+                ->withChanges([
+                    'old' => $before,
+                    'attributes' => [
+                        'attributes' => $role->only(['name', 'label', 'description']),
+                        'permissions' => collect($permissionValues)->sort()->values()->all(),
+                    ],
+                ])
+                ->log('role.updated');
         });
     }
 
@@ -137,7 +135,7 @@ final class RoleService
         if ($role->isProtected()) {
             throw ValidationException::withMessages([
                 'role' => __(
-                    'The :label role cannot be deleted — it is required by the self-registration flow.',
+                    'The :label role cannot be deleted — it is the deny-by-default role for accounts that have not been given access yet.',
                     ['label' => $role->label],
                 ),
             ]);
@@ -156,11 +154,16 @@ final class RoleService
         }
 
         DB::transaction(function () use ($actor, $role): void {
-            AuditLog::record('role.deleted', $role, [
-                'name' => $role->name,
-                'label' => $role->label,
-                'permissions' => $role->permissions()->pluck('name')->sort()->values()->all(),
-            ], $actor->id);
+            activity()
+                ->causedBy($actor)
+                ->performedOn($role)
+                ->event('role.deleted')
+                ->withProperties([
+                    'name' => $role->name,
+                    'label' => $role->label,
+                    'permissions' => $role->permissions()->pluck('name')->sort()->values()->all(),
+                ])
+                ->log('role.deleted');
 
             $role->delete();
         });
@@ -297,6 +300,8 @@ final class RoleService
             ]);
         }
 
-        $role->permissions()->sync($permissions->values()->all());
+        // Spatie's syncPermissions() (not a raw pivot sync) so its
+        // permission cache is flushed for every holder of this role.
+        $role->syncPermissions($permissions->values()->all());
     }
 }

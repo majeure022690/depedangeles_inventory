@@ -85,17 +85,4 @@ class UserFactory extends Factory
             $user->setRawAttributes(array_merge($user->getAttributes(), $columns), true);
         });
     }
-
-    /**
-     * Fortify-encoded 2FA, used only by the Fortify tests Phase 2 deletes.
-     * Remove with them; new tests use twoFactorConfirmed().
-     */
-    public function withTwoFactor(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'two_factor_secret' => encrypt('secret'),
-            'two_factor_recovery_codes' => encrypt(json_encode(['recovery-code-1'])),
-            'two_factor_confirmed_at' => now(),
-        ]);
-    }
 }

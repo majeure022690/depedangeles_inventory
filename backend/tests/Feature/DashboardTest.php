@@ -5,13 +5,13 @@ namespace Tests\Feature;
 use App\Enums\Permission as PermissionEnum;
 use App\Models\Equipment;
 use App\Models\IspAccount;
-use App\Models\Permission;
 use App\Models\Personnel;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 /**
@@ -27,14 +27,15 @@ class DashboardTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guests_are_redirected_to_the_login_page()
+    public function test_guests_are_rejected()
     {
-        $response = $this->get(route('dashboard'));
-        $response->assertRedirect(route('login'));
+        $this->get(route('dashboard'))->assertUnauthorized();
     }
 
     public function test_authenticated_users_can_visit_the_dashboard()
     {
+        $this->seed(RolePermissionSeeder::class);
+
         $user = User::factory()->create();
         $this->actingAs($user);
 
@@ -65,7 +66,7 @@ class DashboardTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
 
         $equipmentOnly = Role::create(['name' => 'equipment-view-only', 'label' => 'Equipment View Only']);
-        $equipmentOnly->permissions()->attach(
+        $equipmentOnly->givePermissionTo(
             Permission::where('name', PermissionEnum::EquipmentView->value)->firstOrFail(),
         );
 

@@ -3,20 +3,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role as SpatieRole;
 
 /**
- * A role is a named, admin-configurable bundle of permissions — never a
+ * A role is a named, admin-configurable bundle of permissions, never a
  * branch in application code. RolePermissionSeeder seeds four starting
- * roles (pending / viewer / encoder / admin), but roles are
- * genuine RBAC data from here on: RoleController/RoleService let a
- * roles.manage holder create new roles, edit which permissions any role
- * grants, and delete roles that are no longer in use. See
- * App\Enums\Permission for the fixed catalog of granular strings roles
- * are composed from — that catalog stays code-defined; only the
- * role-to-permission bundling is dynamic.
+ * roles (pending / viewer / encoder / admin); RoleService lets a
+ * roles.manage holder create, edit and delete roles from there. The
+ * permission catalog itself stays code-defined in App\Enums\Permission.
  *
  * @property int $id
+ * @property string $name
+ * @property string $guard_name
  * @property string $label
  * @property string|null $description
  */
@@ -24,13 +24,31 @@ use Spatie\Permission\Models\Role as SpatieRole;
 class Role extends SpatieRole
 {
     /**
+     * The one role with baked-in behavior tied to its identity: it must
+     * always exist and always grant nothing, so an account parked in it
+     * reaches nothing. RoleService enforces that it can't be deleted or
+     * renamed and that its permission set stays empty (RoleUpdateRequest
+     * mirrors this at the HTTP layer). If a second role ever needs the
+     * same protection, promote this into an `is_protected` column instead
+     * of hardcoding a second name.
+     */
+    public const PENDING = 'pending';
+
+    /**
      * Spatie declares RoleContract as the return type; narrowed so callers
      * get this model back.
+     *
+     * The guard is pinned to `web`: Spatie otherwise falls back to the
+     * current default guard, which `auth:sanctum` switches to `sanctum`
+     * for the rest of an API request, and a `sanctum` role would match no
+     * permission.
      *
      * @param  array<string, mixed>  $attributes
      */
     public static function create(array $attributes = []): static
     {
+        $attributes['guard_name'] ??= 'web';
+
         $role = parent::create($attributes);
 
         if (! $role instanceof static) {
@@ -40,41 +58,26 @@ class Role extends SpatieRole
         return $role;
     }
 
-    /**
-     * The one role this application cannot function without a specific
-     * identity for: Laravel\Fortify's CreateNewUser action hardcodes
-     * `Role::where('name', self::PENDING)` as the zero-permission default
-     * for every self-registration (deny-by-default — see that action's
-     * doc-comment), and the account-approval workflow assumes this role
-     * always exists and always grants nothing.
-     *
-     * Deliberately a single named-constant check, not a generic
-     * `is_system` column: exactly one role has baked-in application
-     * behavior tied to its identity today. 'viewer'/'encoder'/
-     * 'admin' are ordinary seeded starting data — editable
-     * and deletable like any admin-created role once no user still holds
-     * them (see RoleService::delete's "in use" guard, which applies to
-     * every role uniformly, seeded or custom). If a second role ever
-     * needs this same protection, that's the signal to promote this into
-     * a real `is_protected` column instead of hardcoding a second name —
-     * not before.
-     *
-     * RoleService enforces two invariants keyed off this constant:
-     *   1. This role can never be deleted (RoleService::delete).
-     *   2. This role's `name` can never be changed and its permission set
-     *      can never become non-empty (RoleService::update /
-     *      RoleUpdateRequest) — granting it any permission would silently
-     *      hand every pending self-registration real access the moment
-     *      they sign up, defeating deny-by-default.
-     */
-    public const PENDING = 'pending';
-
-    /**
-     * Whether this role is the protected 'pending' role — see
-     * self::PENDING's doc-comment for exactly what that protects against.
-     */
     public function isProtected(): bool
     {
         return $this->name === self::PENDING;
+    }
+
+    public function assignedUsersCount(): int
+    {
+        return (int) static::assignedUsersCountByRoleId([$this->id])->get($this->id, 0);
+    }
+
+    /**
+     * @param  iterable<int>  $roleIds
+     * @return Collection<int, int>
+     */
+    public static function assignedUsersCountByRoleId(iterable $roleIds): Collection
+    {
+        return DB::table('model_has_roles')
+            ->select('role_id', DB::raw('COUNT(*) as aggregate'))
+            ->whereIn('role_id', collect($roleIds)->all())
+            ->groupBy('role_id')
+            ->pluck('aggregate', 'role_id');
     }
 }

@@ -44,7 +44,7 @@ class HandleInertiaRequests extends Middleware
                 // Frontend can build a usePermissions() composable
                 // (can('equipment.delete') etc.) without ever re-deriving
                 // authorization logic client-side. Empty array for guests.
-                'permissions' => $request->user()?->permissionNames() ?? [],
+                'permissions' => $request->user()?->getAllPermissions()->pluck('name')->all() ?? [],
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

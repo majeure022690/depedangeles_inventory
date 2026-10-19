@@ -3,14 +3,29 @@
 namespace Tests;
 
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
-use Laravel\Fortify\Features;
+use Illuminate\Support\Facades\Cache;
+use Spatie\Permission\PermissionRegistrar;
 
 abstract class TestCase extends BaseTestCase
 {
-    protected function skipUnlessFortifyHas(string $feature, ?string $message = null): void
+    /**
+     * Sanctum only starts a session for API requests that come from a
+     * stateful frontend origin, as the SPA's do.
+     *
+     * @var array<string, string>
+     */
+    protected $defaultHeaders = [
+        'Referer' => 'http://localhost:5173/',
+    ];
+
+    protected function setUp(): void
     {
-        if (! Features::enabled($feature)) {
-            $this->markTestSkipped($message ?? "Fortify feature [{$feature}] is not enabled.");
-        }
+        parent::setUp();
+
+        // The array cache store lives for the whole PHPUnit process, not
+        // per test: SystemSetting values, 2FA tokens and Spatie's
+        // permission cache would otherwise leak between tests.
+        Cache::flush();
+        $this->app->make(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

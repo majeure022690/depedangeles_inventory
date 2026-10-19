@@ -3,93 +3,104 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
-use Illuminate\Auth\Notifications\ResetPassword;
+use App\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
-use Laravel\Fortify\Features;
+use Illuminate\Support\Facades\Password;
 use Tests\TestCase;
 
 class PasswordResetTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
+    public function test_forgot_password_sends_branded_reset_email_without_changing_password(): void
     {
-        parent::setUp();
+        Notification::fake();
+        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')]);
 
-        $this->skipUnlessFortifyHas(Features::resetPasswords());
+        $this->postJson('/api/forgot-password', ['email' => $user->email])->assertOk();
+
+        Notification::assertSentTo($user, ResetPasswordNotification::class);
+        $this->assertTrue(Hash::check('CorrectHorse123!', $user->fresh()->password));
     }
 
-    public function test_reset_password_link_screen_can_be_rendered()
-    {
-        $response = $this->get(route('password.request'));
-
-        $response->assertOk();
-    }
-
-    public function test_reset_password_link_can_be_requested()
+    public function test_forgot_password_does_not_reveal_whether_account_exists(): void
     {
         Notification::fake();
 
-        $user = User::factory()->create();
+        $this->postJson('/api/forgot-password', ['email' => 'nobody@example.com'])
+            ->assertOk()
+            ->assertJsonPath('message', 'If that account exists, a password reset link has been sent.');
 
-        $this->post(route('password.email'), ['email' => $user->email]);
-
-        Notification::assertSentTo($user, ResetPassword::class);
+        Notification::assertNothingSent();
     }
 
-    public function test_reset_password_screen_can_be_rendered()
+    public function test_reset_email_links_to_frontend_and_carries_division_branding(): void
     {
-        Notification::fake();
+        config(['app.frontend_url' => 'https://dictis.test']);
+        $user = User::factory()->create(['name' => 'Juan Dela Cruz', 'email' => 'staff@example.com']);
 
-        $user = User::factory()->create();
+        $html = (new ResetPasswordNotification('test-token'))->toMail($user)->render();
 
-        $this->post(route('password.email'), ['email' => $user->email]);
-
-        Notification::assertSentTo($user, ResetPassword::class, function ($notification) {
-            $response = $this->get(route('password.reset', $notification->token));
-
-            $response->assertOk();
-
-            return true;
-        });
+        $this->assertStringContainsString('https://dictis.test/portal/reset-password?token=test-token&amp;email=staff%40example.com', $html);
+        $this->assertStringContainsString('Schools Division Office', $html);
+        $this->assertStringContainsString('Hello Juan Dela Cruz', $html);
     }
 
-    public function test_password_can_be_reset_with_valid_token()
+    public function test_reset_email_is_delivered_with_inline_seal(): void
     {
-        Notification::fake();
-
+        config(['mail.default' => 'array']);
         $user = User::factory()->create();
 
-        $this->post(route('password.email'), ['email' => $user->email]);
+        $user->sendPasswordResetNotification('test-token');
 
-        Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user) {
-            $response = $this->post(route('password.update'), [
-                'token' => $notification->token,
-                'email' => $user->email,
-                'password' => 'password',
-                'password_confirmation' => 'password',
-            ]);
-
-            $response
-                ->assertSessionHasNoErrors()
-                ->assertRedirect(route('login'));
-
-            return true;
-        });
+        $sent = app('mailer')->getSymfonyTransport()->messages()->first()->getOriginalMessage();
+        $this->assertSame('Reset your password', $sent->getSubject());
+        $this->assertCount(1, $sent->getAttachments());
+        $this->assertStringContainsString('cid:', $sent->getHtmlBody());
+        $this->assertStringContainsString('test-token', $sent->getTextBody());
     }
 
-    public function test_password_cannot_be_reset_with_invalid_token(): void
+    public function test_password_can_be_reset_with_a_valid_token_and_sessions_are_revoked(): void
     {
         $user = User::factory()->create();
-
-        $response = $this->post(route('password.update'), [
-            'token' => 'invalid-token',
-            'email' => $user->email,
-            'password' => 'newpassword123',
-            'password_confirmation' => 'newpassword123',
+        $token = Password::createToken($user);
+        DB::table('sessions')->insert([
+            'id' => 'stale-session', 'user_id' => $user->id, 'ip_address' => null,
+            'user_agent' => null, 'payload' => '', 'last_activity' => now()->timestamp,
         ]);
 
-        $response->assertSessionHasErrors('email');
+        $this->postJson('/api/reset-password', [
+            'token' => $token,
+            'email' => $user->email,
+            'password' => 'BrandNewHorse123!',
+            'password_confirmation' => 'BrandNewHorse123!',
+        ])->assertOk();
+
+        $this->assertTrue(Hash::check('BrandNewHorse123!', $user->fresh()->password));
+        $this->assertDatabaseMissing('sessions', ['id' => 'stale-session']);
+    }
+
+    public function test_reset_rejects_an_invalid_token_and_a_weak_password(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')]);
+
+        $this->postJson('/api/reset-password', [
+            'token' => 'not-a-real-token',
+            'email' => $user->email,
+            'password' => 'BrandNewHorse123!',
+            'password_confirmation' => 'BrandNewHorse123!',
+        ])->assertUnprocessable()->assertJsonValidationErrors('email');
+
+        $this->postJson('/api/reset-password', [
+            'token' => Password::createToken($user),
+            'email' => $user->email,
+            'password' => 'short',
+            'password_confirmation' => 'short',
+        ])->assertUnprocessable()->assertJsonValidationErrors('password');
+
+        $this->assertTrue(Hash::check('CorrectHorse123!', $user->fresh()->password));
     }
 }

@@ -153,11 +153,36 @@ enum Permission: string
     // roles/permissions.
     case AuditLogView = 'audit_log.view';
 
+    // Rate limits, trusted-device days and idle sign-out (SecuritySettings,
+    // GET/PUT /api/settings/security). Admin-only.
+    case SecuritySettingsManage = 'security_settings.manage';
+
     /**
-     * Human-readable label for a future permission-management UI.
+     * Human-readable label for the permission picker.
      */
     public function label(): string
     {
         return Str::of($this->value)->replace('.', ' ')->replace('_', ' ')->title()->toString();
+    }
+
+    /**
+     * Section heading the role editor's permission picker groups this
+     * permission under (GET /api/permissions), so the grouping comes from
+     * the server instead of a duplicated frontend list.
+     */
+    public function group(): string
+    {
+        return match ($this) {
+            self::PersonnelView, self::PersonnelCreate, self::PersonnelEdit, self::PersonnelDelete => 'Personnel',
+            self::EquipmentView, self::EquipmentCreate, self::EquipmentEdit, self::EquipmentDelete,
+            self::EquipmentTransactionsCreate => 'Equipment',
+            self::IspAccountsView, self::IspAccountsCreate, self::IspAccountsEdit, self::IspAccountsDelete => 'ISP Accounts',
+            self::OfficeView, self::OfficeCreate, self::OfficeEdit, self::OfficeDelete => 'Offices',
+            self::StakeholderProfileView, self::StakeholderProfileEdit, self::StakeholderProfileViewAll => 'Stakeholder Profile',
+            self::InternetConnectivityView, self::InternetConnectivityEdit,
+            self::InternetConnectivityViewAll => 'Internet Connectivity',
+            self::ReferenceDataManage, self::UsersManage, self::RolesManage, self::AuditLogView,
+            self::SecuritySettingsManage => 'Administration',
+        };
     }
 }

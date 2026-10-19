@@ -2,164 +2,242 @@
 
 namespace Tests\Feature\Settings;
 
-use App\Models\AuditLog;
-use App\Models\Role;
 use App\Models\User;
-use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
+/**
+ * POST /api/profile replaces the old settings profile/password/avatar
+ * routes (plan §2c).
+ */
 class ProfileUpdateTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_profile_page_is_displayed()
+    private const PASSWORD = 'OldPassword123!';
+
+    protected function setUp(): void
     {
-        $user = User::factory()->create();
-
-        $response = $this
-            ->actingAs($user)
-            ->get(route('profile.edit'));
-
-        $response->assertOk();
+        parent::setUp();
+        Storage::fake('public');
     }
 
-    public function test_profile_information_can_be_updated()
+    private function user(array $attributes = []): User
     {
-        $user = User::factory()->create();
-
-        $response = $this
-            ->actingAs($user)
-            ->patch(route('profile.update'), [
-                'name' => 'Test User',
-                'email' => 'test@example.com',
-            ]);
-
-        $response
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('profile.edit'));
-
-        $user->refresh();
-
-        $this->assertSame('Test User', $user->name);
-        $this->assertSame('test@example.com', $user->email);
-        $this->assertNull($user->email_verified_at);
+        return User::factory()->create(['password' => Hash::make(self::PASSWORD), ...$attributes]);
     }
 
-    public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged()
+    public function test_name_can_be_changed_without_the_current_password(): void
     {
-        $user = User::factory()->create();
+        $user = $this->user(['name' => 'Old Name']);
 
-        $response = $this
-            ->actingAs($user)
-            ->patch(route('profile.update'), [
-                'name' => 'Test User',
-                'email' => $user->email,
-            ]);
+        $this->actingAs($user)->postJson('/api/profile', [
+            'name' => 'New Name',
+            'email' => $user->email,
+        ])->assertOk()->assertJsonPath('data.name', 'New Name');
 
-        $response
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('profile.edit'));
-
-        $this->assertNotNull($user->refresh()->email_verified_at);
+        $this->assertSame('New Name', $user->fresh()->name);
     }
 
-    public function test_user_can_delete_their_account()
+    public function test_email_change_requires_the_correct_current_password(): void
     {
-        $user = User::factory()->create();
+        $user = $this->user(['email' => 'old@example.com']);
 
-        $response = $this
-            ->actingAs($user)
-            ->delete(route('profile.destroy'), [
-                'password' => 'password',
-            ]);
+        $this->actingAs($user)->postJson('/api/profile', [
+            'name' => $user->name,
+            'email' => 'new@example.com',
+        ])->assertUnprocessable()->assertJsonValidationErrors('current_password');
 
-        $response
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('home'));
+        $this->actingAs($user)->postJson('/api/profile', [
+            'name' => $user->name,
+            'email' => 'new@example.com',
+            'current_password' => 'wrong-password',
+        ])->assertUnprocessable()->assertJsonValidationErrors('current_password');
 
-        $this->assertGuest();
-        $this->assertNull($user->fresh());
+        $this->assertSame('old@example.com', $user->fresh()->email);
+
+        $this->actingAs($user)->postJson('/api/profile', [
+            'name' => $user->name,
+            'email' => 'new@example.com',
+            'current_password' => self::PASSWORD,
+        ])->assertOk()->assertJsonPath('data.email', 'new@example.com');
     }
 
-    public function test_correct_password_must_be_provided_to_delete_account()
+    public function test_password_change_requires_the_correct_current_password(): void
     {
-        $user = User::factory()->create();
+        $user = $this->user();
 
-        $response = $this
-            ->actingAs($user)
-            ->from(route('profile.edit'))
-            ->delete(route('profile.destroy'), [
-                'password' => 'wrong-password',
-            ]);
+        $this->actingAs($user)->postJson('/api/profile', [
+            'name' => $user->name,
+            'email' => $user->email,
+            'password' => 'NewPassword123!',
+            'password_confirmation' => 'NewPassword123!',
+        ])->assertUnprocessable()->assertJsonValidationErrors('current_password');
 
-        $response
-            ->assertSessionHasErrors('password')
-            ->assertRedirect(route('profile.edit'));
+        $this->actingAs($user)->postJson('/api/profile', [
+            'name' => $user->name,
+            'email' => $user->email,
+            'current_password' => 'wrong-password',
+            'password' => 'NewPassword123!',
+            'password_confirmation' => 'NewPassword123!',
+        ])->assertUnprocessable()->assertJsonValidationErrors('current_password');
 
-        $this->assertNotNull($user->fresh());
+        $this->assertTrue(Hash::check(self::PASSWORD, $user->fresh()->password));
+
+        $this->actingAs($user)->postJson('/api/profile', [
+            'name' => $user->name,
+            'email' => $user->email,
+            'current_password' => self::PASSWORD,
+            'password' => 'NewPassword123!',
+            'password_confirmation' => 'NewPassword123!',
+        ])->assertOk();
+
+        $this->assertTrue(Hash::check('NewPassword123!', $user->fresh()->password));
+    }
+
+    public function test_new_password_must_meet_the_password_policy(): void
+    {
+        $user = $this->user();
+
+        $this->actingAs($user)->postJson('/api/profile', [
+            'name' => $user->name,
+            'email' => $user->email,
+            'current_password' => self::PASSWORD,
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ])->assertUnprocessable()->assertJsonValidationErrors('password');
+    }
+
+    public function test_email_must_be_unique(): void
+    {
+        $other = User::factory()->create(['email' => 'taken@example.com']);
+        $user = $this->user();
+
+        $this->actingAs($user)->postJson('/api/profile', [
+            'name' => $user->name,
+            'email' => $other->email,
+            'current_password' => self::PASSWORD,
+        ])->assertUnprocessable()->assertJsonValidationErrors('email');
+    }
+
+    public function test_avatar_can_be_uploaded_and_replaced(): void
+    {
+        $user = $this->user();
+
+        $this->actingAs($user)->post('/api/profile', [
+            'name' => $user->name,
+            'email' => $user->email,
+            'avatar' => UploadedFile::fake()->image('first.png', 200, 200),
+        ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonPath('data.avatar_url', fn (string $url) => str_contains($url, '/storage/avatars/'));
+
+        $first = $user->fresh()->avatar_path;
+        $this->assertMatchesRegularExpression('/^avatars\/[0-9a-f-]{36}\.png$/', $first);
+        Storage::disk('public')->assertExists($first);
+
+        $this->actingAs($user)->post('/api/profile', [
+            'name' => $user->name,
+            'email' => $user->email,
+            'avatar' => UploadedFile::fake()->image('second.jpg', 200, 200),
+        ], ['Accept' => 'application/json'])->assertOk();
+
+        Storage::disk('public')->assertMissing($first);
+        Storage::disk('public')->assertExists($user->fresh()->avatar_path);
+    }
+
+    public function test_avatar_can_be_removed(): void
+    {
+        $user = $this->user(['avatar_path' => 'avatars/old.png']);
+        Storage::disk('public')->put('avatars/old.png', 'image');
+
+        $this->actingAs($user)->postJson('/api/profile', [
+            'name' => $user->name,
+            'email' => $user->email,
+            'remove_avatar' => true,
+        ])->assertOk()->assertJsonPath('data.avatar_url', null);
+
+        Storage::disk('public')->assertMissing('avatars/old.png');
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'avatar_path' => null]);
     }
 
     /**
-     * Regression coverage for the 2026-07 security review's Finding #2:
-     * an account holding `users.manage` (e.g. an Administrator) could
-     * self-delete via this same page with no admin review, which is
-     * exactly the account whose disappearance can leave the system
-     * unadministered. ProfileDeleteRequest now denies self-deletion for
-     * any such account; non-privileged accounts are unaffected (see
-     * test_user_can_delete_their_account above).
+     * @return array<string, array{string, string, string}>
      */
-    public function test_users_manage_permission_holder_cannot_delete_their_own_account(): void
+    public static function maliciousFiles(): array
     {
-        $this->seed(RolePermissionSeeder::class);
-
-        $admin = User::factory()->create();
-        $admin->assignRole(Role::where('name', 'admin')->firstOrFail());
-
-        $response = $this
-            ->actingAs($admin)
-            ->delete(route('profile.destroy'), [
-                'password' => 'password',
-            ]);
-
-        $response->assertForbidden();
-        $this->assertNotNull($admin->fresh());
-
-        $this->assertDatabaseHas('audit_logs', [
-            'action' => 'account.self_delete_blocked',
-            'actor_id' => $admin->id,
-        ]);
+        return [
+            'php script' => ['shell.php', '<?php system($_GET["c"]); ?>', 'application/x-php'],
+            'php disguised as jpg' => ['shell.jpg', '<?php system($_GET["c"]); ?>', 'image/jpeg'],
+            'html page' => ['page.html', '<script>alert(1)</script>', 'text/html'],
+            'svg with script' => ['logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>', 'image/svg+xml'],
+            'double extension' => ['photo.jpg.php', '<?php echo 1; ?>', 'application/x-php'],
+        ];
     }
 
-    /**
-     * Regression coverage for Finding #2's audit-integrity fix:
-     * `audit_logs.actor_id` is nullOnDelete, so a self-deleted account
-     * would otherwise erase its own attribution from every row it
-     * produced. AuditLog::record() now snapshots the actor's name/email
-     * into `properties.actor_snapshot` at write time, so the row stays
-     * meaningful even after `actor_id` nulls out.
-     */
-    public function test_deleting_account_preserves_actor_identity_in_audit_log_snapshot(): void
+    #[DataProvider('maliciousFiles')]
+    public function test_avatar_rejects_scripts_and_fake_images(string $name, string $content, string $mime): void
     {
-        $user = User::factory()->create(['name' => 'Audit Trail Test', 'email' => 'audit-trail@example.com']);
+        $user = $this->user();
+        $file = UploadedFile::fake()->createWithContent($name, $content)->mimeType($mime);
 
-        // Any authenticated action that writes an audit row with this
-        // user as actor — role self-management is the simplest one
-        // available without a fixture Personnel/Equipment record.
-        $this->actingAs($user)->get(route('profile.edit'));
-        AuditLog::record('test.actor_snapshot_probe', $user);
+        $this->actingAs($user)->post('/api/profile', ['name' => $user->name, 'email' => $user->email, 'avatar' => $file], ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('avatar');
 
-        $this
-            ->actingAs($user)
-            ->delete(route('profile.destroy'), ['password' => 'password']);
+        $this->assertNull($user->fresh()->avatar_path);
+    }
 
-        $this->assertGuest();
-        $this->assertNull($user->fresh());
+    public function test_avatar_is_re_encoded_so_hidden_payloads_are_dropped(): void
+    {
+        $user = $this->user();
+        $image = imagecreatetruecolor(400, 400);
+        ob_start();
+        imagejpeg($image);
+        $jpeg = ob_get_clean();
+        $file = UploadedFile::fake()->createWithContent('photo.jpg', $jpeg.'<?php system($_GET["c"]); ?><script>alert(1)</script>');
 
-        $row = AuditLog::where('action', 'test.actor_snapshot_probe')->firstOrFail();
+        $this->actingAs($user)->post('/api/profile', ['name' => $user->name, 'email' => $user->email, 'avatar' => $file], ['Accept' => 'application/json'])
+            ->assertOk();
 
-        $this->assertNull($row->actor_id);
-        $this->assertSame('Audit Trail Test', $row->properties['actor_snapshot']['name']);
-        $this->assertSame('audit-trail@example.com', $row->properties['actor_snapshot']['email']);
+        $stored = Storage::disk('public')->get($user->fresh()->avatar_path);
+        $this->assertStringNotContainsString('<?php', $stored);
+        $this->assertStringNotContainsString('<script', $stored);
+    }
+
+    public function test_profile_changes_are_audited_without_secrets_and_keep_the_actor_snapshot(): void
+    {
+        $user = $this->user(['name' => 'Old Name', 'email' => 'me@example.com']);
+
+        $this->actingAs($user)->postJson('/api/profile', [
+            'name' => 'New Name',
+            'email' => 'me@example.com',
+            'current_password' => self::PASSWORD,
+            'password' => 'NewPassword123!',
+            'password_confirmation' => 'NewPassword123!',
+        ])->assertOk();
+
+        $log = Activity::where('event', 'updated')
+            ->where('subject_type', $user->getMorphClass())
+            ->where('subject_id', $user->id)
+            ->sole();
+
+        $this->assertSame($user->id, $log->causer_id);
+        $this->assertSame(['name' => 'New Name'], $log->attribute_changes['attributes']);
+        $this->assertSame(['name' => 'New Name', 'email' => 'me@example.com'], $log->properties['actor_snapshot']);
+
+        // The snapshot outlives the account; causer_id has no FK.
+        $user->delete();
+        $this->assertSame('me@example.com', $log->fresh()->properties['actor_snapshot']['email']);
+    }
+
+    public function test_guests_cannot_update_a_profile(): void
+    {
+        $this->postJson('/api/profile', ['name' => 'X', 'email' => 'x@example.com'])->assertUnauthorized();
     }
 }

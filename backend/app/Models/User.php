@@ -2,61 +2,57 @@
 
 namespace App\Models;
 
-use App\Enums\Permission as PermissionEnum;
+use App\Notifications\ResetPasswordNotification;
+use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
-use Laravel\Fortify\Contracts\PasskeyUser;
-use Laravel\Fortify\PasskeyAuthenticatable;
-use Laravel\Fortify\TwoFactorAuthenticatable;
+use Laravel\Sanctum\HasApiTokens;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
+use Spatie\Permission\Traits\HasRoles;
 
 /**
  * @property int $id
  * @property string $name
  * @property string $email
  * @property string|null $avatar_path
- * @property string|null $avatar
  * @property bool $is_active
- * @property Carbon|null $email_verified_at
+ * @property CarbonImmutable|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
- * @property string|null $two_factor_recovery_codes
- * @property Carbon|null $two_factor_confirmed_at
+ * @property list<string>|null $two_factor_recovery_codes
+ * @property CarbonImmutable|null $two_factor_confirmed_at
  * @property string|null $remember_token
  * @property int|null $office_id
- * @property Carbon|null $created_at
- * @property Carbon|null $updated_at
+ * @property CarbonImmutable|null $created_at
+ * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['name', 'email', 'password', 'office_id', 'avatar', 'avatar_path'])]
+#[Fillable(['name', 'email', 'password', 'office_id', 'avatar_path', 'is_active'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
+class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+    use HasApiTokens, HasFactory, HasRoles, LogsActivity, Notifiable;
 
     /**
-     * @var list<string>
+     * Spatie guard for roles/permissions. Pinned because `auth:sanctum`
+     * makes `sanctum` the default guard mid-request.
      */
-    protected $appends = ['avatar'];
+    protected string $guard_name = 'web';
 
-    /**
-     * model_has_roles has no FK to users (Spatie's schema), so the cascade
-     * role_user used to get from the database happens here until Phase 2's
-     * HasRoles trait takes it over.
-     */
     protected static function booted(): void
     {
-        static::deleting(fn (User $user) => $user->roles()->detach());
+        static::saved(function (User $user) {
+            if ($user->wasChanged(['password', 'two_factor_secret']) || ($user->wasChanged('is_active') && ! $user->is_active)) {
+                $user->trustedDevices()->delete();
+            }
+        });
     }
 
     /**
@@ -69,53 +65,11 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'two_factor_confirmed_at' => 'datetime',
             'is_active' => 'boolean',
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
         ];
-    }
-
-    /**
-     * Interim alias over the `avatar_path` column until Phase 2 of the
-     * decoupled-spa-stack plan moves consumers to it: reads resolve the
-     * stored relative path to a public URL, writes store the path.
-     * getRawOriginal('avatar') no longer returns anything; use
-     * getRawOriginal('avatar_path').
-     *
-     * @return Attribute<string|null, string|null>
-     */
-    protected function avatar(): Attribute
-    {
-        return Attribute::make(
-            get: fn ($value, array $attributes) => ($attributes['avatar_path'] ?? null)
-                ? Storage::disk('public')->url($attributes['avatar_path'])
-                : null,
-            set: fn (?string $value) => ['avatar_path' => $value],
-        );
-    }
-
-    /**
-     * Per-request memoized flat permission list. Never read directly —
-     * go through permissionNames()/hasPermissionTo() so every caller
-     * benefits from the cache regardless of entry point.
-     *
-     * @var array<int, string>|null
-     */
-    private ?array $cachedPermissionNames = null;
-
-    /**
-     * @return MorphToMany<Role, $this>
-     */
-    public function roles(): MorphToMany
-    {
-        return $this->morphToMany(Role::class, 'model', 'model_has_roles', 'model_id', 'role_id');
-    }
-
-    /**
-     * @return HasMany<TwoFactorTrustedDevice, $this>
-     */
-    public function twoFactorTrustedDevices(): HasMany
-    {
-        return $this->hasMany(TwoFactorTrustedDevice::class);
     }
 
     /**
@@ -127,82 +81,28 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
-     * Flat, de-duplicated list of permission strings granted by every
-     * role this user holds. Memoized per-request/instance so repeated
-     * `$user->can(...)`/`hasPermissionTo(...)` calls in the same request
-     * don't re-run the join.
-     *
-     * @return array<int, string>
+     * @return HasMany<TrustedDevice, $this>
      */
-    public function permissionNames(): array
+    public function trustedDevices(): HasMany
     {
-        return $this->cachedPermissionNames ??= $this->roles()
-            ->with('permissions:id,name')
-            ->get(['roles.id'])
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('name')
-            ->unique()
-            ->values()
-            ->all();
+        return $this->hasMany(TrustedDevice::class);
     }
 
-    /**
-     * The one true authorization check in this application: does this
-     * user hold a role granting this granular permission? Every Policy
-     * method and Gate::before ultimately bottoms out here — never a role
-     * name comparison.
-     */
-    public function hasPermissionTo(PermissionEnum|string $permission): bool
+    public function hasTwoFactorEnabled(): bool
     {
-        $name = $permission instanceof PermissionEnum ? $permission->value : $permission;
-
-        return in_array($name, $this->permissionNames(), true);
+        return $this->two_factor_confirmed_at !== null;
     }
 
-    /**
-     * Grant this user a role. Idempotent (attaching an already-held role
-     * is a no-op) and always audited — every privilege change is a
-     * logged event, per this application's authorization decision rules.
-     */
-    public function assignRole(Role|string $role): void
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
     {
-        $role = $role instanceof Role ? $role : Role::where('name', $role)->firstOrFail();
-
-        if ($this->roles()->where('roles.id', $role->id)->exists()) {
-            return;
-        }
-
-        $this->roles()->attach($role);
-        $this->forgetCachedPermissions();
-
-        AuditLog::record('role.assigned', $this, ['role' => $role->name]);
+        $this->notify(new ResetPasswordNotification($token));
     }
 
-    /**
-     * Revoke a role from this user. Always audited, mirroring
-     * assignRole().
-     */
-    public function removeRole(Role|string $role): void
+    public function getActivitylogOptions(): LogOptions
     {
-        $role = $role instanceof Role ? $role : Role::where('name', $role)->firstOrFail();
-
-        $this->roles()->detach($role);
-        $this->forgetCachedPermissions();
-
-        AuditLog::record('role.revoked', $this, ['role' => $role->name]);
-    }
-
-    /**
-     * Clears the per-request memoized permission list so the next
-     * permissionNames()/hasPermissionTo() call re-derives it from the
-     * roles table. Needed by any code path that mutates this user's
-     * role_user rows on an already-loaded instance — assignRole()/
-     * removeRole() above, and UserRoleService::syncRoles(), which
-     * replaces the whole role set in one call rather than attach/detach.
-     */
-    public function forgetCachedPermissions(): void
-    {
-        $this->cachedPermissionNames = null;
+        return LogOptions::defaults()
+            ->logOnly(['name', 'email', 'avatar_path', 'office_id', 'is_active'])
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges();
     }
 }

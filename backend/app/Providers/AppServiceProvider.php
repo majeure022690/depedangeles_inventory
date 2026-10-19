@@ -2,8 +2,7 @@
 
 namespace App\Providers;
 
-use App\Enums\Permission;
-use App\Models\AuditLog;
+use App\Http\Controllers\Api\Auth\TwoFactorController;
 use App\Models\Brand;
 use App\Models\ConnectivityLibrary;
 use App\Models\Equipment;
@@ -15,18 +14,27 @@ use App\Models\IspProvider;
 use App\Models\ItemType;
 use App\Models\PersonnelLibrary;
 use App\Models\Position;
+use App\Models\Role;
 use App\Models\RoOffice;
 use App\Models\SdoOffice;
 use App\Models\StakeholderLibrary;
 use App\Models\User;
 use App\Observers\EquipmentObserver;
 use App\Policies\ReferenceDataPolicy;
+use App\Policies\RolePolicy;
+use App\Services\SecuritySettings;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Middleware\TrustProxies;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Spatie\Activitylog\Models\Activity;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -44,7 +52,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->configureRateLimiting();
         $this->configureAuthorization();
+        $this->configureAuditTrail();
         $this->configureObservers();
     }
 
@@ -59,44 +69,74 @@ class AppServiceProvider extends ServiceProvider
             app()->isProduction(),
         );
 
-        Password::defaults(fn (): ?Password => app()->isProduction()
-            ? Password::min(12)
-                ->mixedCase()
-                ->letters()
-                ->numbers()
-                ->symbols()
-                ->uncompromised()
-            : null,
-        );
+        if ($proxies = config('app.trusted_proxies')) {
+            TrustProxies::at($proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
+        }
+
+        Password::defaults(fn () => Password::min(12)->mixedCase()->numbers()->symbols());
+
+        ResetPassword::createUrlUsing(function ($notifiable, string $token) {
+            $query = http_build_query(['token' => $token, 'email' => $notifiable->getEmailForPasswordReset()]);
+
+            return rtrim(config('app.frontend_url'), '/')."/portal/reset-password?{$query}";
+        });
+    }
+
+    protected function configureRateLimiting(): void
+    {
+        RateLimiter::for('login', function (Request $request) {
+            $perAccount = SecuritySettings::get('login_rate_limit_per_minute');
+
+            return [
+                Limit::perMinute($perAccount)->by('account:'.strtolower((string) $request->input('email')).'|'.$request->ip()),
+                Limit::perMinute(max(10, $perAccount * 4))->by('ip:'.$request->ip()),
+            ];
+        });
+
+        RateLimiter::for('password-reset', function (Request $request) {
+            $perAccount = SecuritySettings::get('password_reset_rate_limit_per_hour');
+
+            return [
+                Limit::perHour($perAccount)->by('account:'.strtolower((string) $request->input('email')).'|'.$request->ip()),
+                Limit::perHour(max(10, $perAccount * 4))->by('ip:'.$request->ip()),
+            ];
+        });
+
+        RateLimiter::for('password-confirm', function (Request $request) {
+            return Limit::perMinute(6)->by('user:'.($request->user()?->id ?: $request->ip()));
+        });
+
+        RateLimiter::for('authenticated-api', function (Request $request) {
+            return Limit::perMinute(600)->by('user:'.($request->user()?->id ?: $request->ip()));
+        });
+
+        RateLimiter::for('export', function (Request $request) {
+            return Limit::perMinute(SecuritySettings::get('export_rate_limit_per_minute'))
+                ->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('two-factor-verify', function (Request $request) {
+            $token = $request->input('two_fa_token') ?? $request->input('setup_token');
+            $userId = TwoFactorController::pendingUserIdForToken(is_string($token) ? $token : null);
+
+            return Limit::perMinute(SecuritySettings::get('two_factor_verify_rate_limit_per_minute'))
+                ->by($userId ? "user:{$userId}" : 'ip:'.$request->ip());
+        });
     }
 
     /**
-     * Wires App\Enums\Permission into the Gate so `$user->can(...)` works
-     * for permission-string abilities that don't map to a single Policy
-     * method (e.g. the cross-cutting `reference-data.manage` /
-     * `users.manage` Gates, and `equipment.transactions.create`). Model-scoped abilities
-     * ('view', 'update', 'delete', ...) are untouched here — those are
-     * resolved by the model's Policy exactly as normal, which in turn
-     * calls User::hasPermissionTo() itself. Either path bottoms out at
-     * the same granular permission check — never a role-name comparison.
+     * Permission-string abilities (`$user->can('equipment.view')`, the
+     * `permission:` route middleware) resolve through Spatie's own Gate
+     * hook (`permission.register_permission_check_method`). Model
+     * abilities resolve through each model's Policy, which checks a
+     * permission itself. Either way it bottoms out at a granular
+     * permission, never a role name.
      */
     protected function configureAuthorization(): void
     {
-        Gate::before(function (User $user, string $ability) {
-            $permission = Permission::tryFrom($ability);
-
-            if ($permission === null) {
-                return null; // Not a permission-string ability — fall through to normal Policy/Gate resolution.
-            }
-
-            $allowed = $user->hasPermissionTo($permission);
-
-            if (! $allowed) {
-                AuditLog::record('authorization.denied', $user, ['permission' => $permission->value]);
-            }
-
-            return $allowed;
-        });
+        // Role extends Spatie's model, so policy auto-discovery can't be
+        // relied on; register it explicitly.
+        Gate::policy(Role::class, RolePolicy::class);
 
         $this->registerReferenceDataPolicies();
     }
@@ -105,11 +145,8 @@ class AppServiceProvider extends ServiceProvider
      * Binds ReferenceDataPolicy (one shared Policy, see its own
      * doc-comment for why) to all 13 reference-data model classes from
      * the lookup-normalization ADR. Explicit registration is required
-     * here — Laravel's naming-convention auto-discovery only resolves a
-     * Policy named `{Model}Policy` (which is how Equipment/Personnel/
-     * IspAccount/StakeholderProfile/InternetConnectivitySurvey already
-     * work, unregistered), and a single shared class
-     * deliberately doesn't follow that per-model naming.
+     * because a single shared class doesn't follow the per-model
+     * `{Model}Policy` naming auto-discovery relies on.
      */
     protected function registerReferenceDataPolicies(): void
     {
@@ -132,6 +169,35 @@ class AppServiceProvider extends ServiceProvider
         ] as $modelClass) {
             Gate::policy($modelClass, ReferenceDataPolicy::class);
         }
+    }
+
+    /**
+     * Every activity row carries the actor's name/email as written, so
+     * attribution survives the account being deleted later
+     * (activity_log.causer_id has no FK). This is the one place it's set.
+     */
+    protected function configureAuditTrail(): void
+    {
+        Activity::creating(function (Activity $activity) {
+            if ($activity->causer_id === null || $activity->causer_type !== (new User)->getMorphClass()) {
+                return;
+            }
+
+            $properties = collect($activity->properties);
+
+            if ($properties->has('actor_snapshot')) {
+                return;
+            }
+
+            $causer = $activity->causer;
+
+            if ($causer instanceof User) {
+                $activity->properties = $properties->put('actor_snapshot', [
+                    'name' => $causer->name,
+                    'email' => $causer->email,
+                ]);
+            }
+        });
     }
 
     /**

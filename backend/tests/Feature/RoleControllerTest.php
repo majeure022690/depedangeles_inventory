@@ -3,13 +3,13 @@
 namespace Tests\Feature;
 
 use App\Enums\Permission as PermissionEnum;
-use App\Models\AuditLog;
-use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
+use Spatie\Activitylog\Models\Activity;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 /**
@@ -46,7 +46,7 @@ class RoleControllerTest extends TestCase
         // is checked as a genuinely distinct permission (the whole point
         // of this feature per Permission::RolesManage's doc-comment).
         $role = Role::create(['name' => 'user-admin-only', 'label' => 'User Admin Only']);
-        $role->permissions()->sync(
+        $role->syncPermissions(
             Permission::where('name', PermissionEnum::UsersManage->value)->pluck('id'),
         );
 
@@ -87,9 +87,9 @@ class RoleControllerTest extends TestCase
         $this->actingAs($actor);
         $this->inertiaGet(route('roles.index'))->assertForbidden();
 
-        $log = AuditLog::where('action', 'authorization.denied')->where('subject_type', null)->latest('id')->first();
+        $log = Activity::where('event', 'authorization.denied')->where('subject_type', null)->latest('id')->first();
         $this->assertNotNull($log);
-        $this->assertSame($actor->id, $log->actor_id);
+        $this->assertSame($actor->id, $log->causer_id);
         $this->assertSame(PermissionEnum::RolesManage->value, $log->properties['permission']);
     }
 
@@ -99,9 +99,9 @@ class RoleControllerTest extends TestCase
         $this->actingAs($actor);
         $this->inertiaGet(route('roles.create'))->assertForbidden();
 
-        $log = AuditLog::where('action', 'authorization.denied')->where('subject_type', null)->latest('id')->first();
+        $log = Activity::where('event', 'authorization.denied')->where('subject_type', null)->latest('id')->first();
         $this->assertNotNull($log);
-        $this->assertSame($actor->id, $log->actor_id);
+        $this->assertSame($actor->id, $log->causer_id);
         $this->assertSame(PermissionEnum::RolesManage->value, $log->properties['permission']);
     }
 
@@ -116,9 +116,9 @@ class RoleControllerTest extends TestCase
 
         $this->assertNull(Role::where('name', 'new-role')->first());
 
-        $log = AuditLog::where('action', 'authorization.denied')->where('subject_type', null)->latest('id')->first();
+        $log = Activity::where('event', 'authorization.denied')->where('subject_type', null)->latest('id')->first();
         $this->assertNotNull($log);
-        $this->assertSame($actor->id, $log->actor_id);
+        $this->assertSame($actor->id, $log->causer_id);
     }
 
     public function test_update_is_forbidden_without_roles_manage(): void
@@ -134,12 +134,12 @@ class RoleControllerTest extends TestCase
 
         $this->assertSame('Viewer', $viewer->fresh()->label);
 
-        $log = AuditLog::where('action', 'authorization.denied')
+        $log = Activity::where('event', 'authorization.denied')
             ->where('subject_type', $viewer->getMorphClass())
             ->where('subject_id', $viewer->id)
             ->latest('id')->first();
         $this->assertNotNull($log);
-        $this->assertSame($actor->id, $log->actor_id);
+        $this->assertSame($actor->id, $log->causer_id);
     }
 
     public function test_destroy_is_forbidden_without_roles_manage(): void
@@ -153,12 +153,12 @@ class RoleControllerTest extends TestCase
 
         $this->assertNotNull($custom->fresh());
 
-        $log = AuditLog::where('action', 'authorization.denied')
+        $log = Activity::where('event', 'authorization.denied')
             ->where('subject_type', $custom->getMorphClass())
             ->where('subject_id', $custom->id)
             ->latest('id')->first();
         $this->assertNotNull($log);
-        $this->assertSame($actor->id, $log->actor_id);
+        $this->assertSame($actor->id, $log->causer_id);
     }
 
     public function test_view_ability_denial_is_audited(): void
@@ -173,12 +173,12 @@ class RoleControllerTest extends TestCase
 
         $this->assertFalse($actor->can('view', $viewer));
 
-        $log = AuditLog::where('action', 'authorization.denied')
+        $log = Activity::where('event', 'authorization.denied')
             ->where('subject_type', $viewer->getMorphClass())
             ->where('subject_id', $viewer->id)
             ->latest('id')->first();
         $this->assertNotNull($log);
-        $this->assertSame($actor->id, $log->actor_id);
+        $this->assertSame($actor->id, $log->causer_id);
         $this->assertSame(PermissionEnum::RolesManage->value, $log->properties['permission']);
     }
 
@@ -242,9 +242,9 @@ class RoleControllerTest extends TestCase
             $role->permissions()->pluck('name')->sort()->values()->all(),
         );
 
-        $log = AuditLog::where('action', 'role.created')->where('subject_id', $role->id)->first();
+        $log = Activity::where('event', 'role.created')->where('subject_id', $role->id)->first();
         $this->assertNotNull($log);
-        $this->assertSame($admin->id, $log->actor_id);
+        $this->assertSame($admin->id, $log->causer_id);
     }
 
     public function test_store_rejects_duplicate_role_name(): void
@@ -286,7 +286,7 @@ class RoleControllerTest extends TestCase
     {
         $admin = $this->rolesManageUser();
         $role = Role::create(['name' => 'custom', 'label' => 'Custom', 'description' => 'Old']);
-        $role->permissions()->sync(Permission::where('name', PermissionEnum::EquipmentView->value)->pluck('id'));
+        $role->syncPermissions(Permission::where('name', PermissionEnum::EquipmentView->value)->pluck('id'));
 
         $response = $this->actingAs($admin)->patch(route('roles.update', $role), [
             'name' => 'custom',
@@ -304,7 +304,7 @@ class RoleControllerTest extends TestCase
             $role->permissions()->pluck('name')->sort()->values()->all(),
         );
 
-        $this->assertNotNull(AuditLog::where('action', 'role.updated')->where('subject_id', $role->id)->first());
+        $this->assertNotNull(Activity::where('event', 'role.updated')->where('subject_id', $role->id)->first());
     }
 
     /**
@@ -319,7 +319,7 @@ class RoleControllerTest extends TestCase
     {
         $admin = $this->rolesManageUser();
         $role = Role::create(['name' => 'custom', 'label' => 'Custom', 'description' => null]);
-        $role->permissions()->sync(Permission::where('name', PermissionEnum::EquipmentView->value)->pluck('id'));
+        $role->syncPermissions(Permission::where('name', PermissionEnum::EquipmentView->value)->pluck('id'));
 
         // Simulate "enum case exists in code but its row was never
         // seeded" without needing a second real unseeded enum case.
@@ -429,7 +429,7 @@ class RoleControllerTest extends TestCase
             ->assertRedirect(route('roles.index'));
 
         $this->assertNull(Role::find($unused->id));
-        $this->assertNotNull(AuditLog::where('action', 'role.deleted')->where('subject_id', $unused->id)->first());
+        $this->assertNotNull(Activity::where('event', 'role.deleted')->where('subject_id', $unused->id)->first());
     }
 
     // --- sensitive-permission lockout guards ---
@@ -462,14 +462,14 @@ class RoleControllerTest extends TestCase
         // holds ONLY 'role-editor', would personally lose roles.manage
         // with no other role of their own granting it back.
         $superAdminRole = Role::create(['name' => 'super-admin', 'label' => 'Super Admin']);
-        $superAdminRole->permissions()->sync(
+        $superAdminRole->syncPermissions(
             Permission::whereIn('name', [PermissionEnum::RolesManage->value, PermissionEnum::UsersManage->value])->pluck('id'),
         );
         $otherHolder = User::factory()->create();
         $otherHolder->assignRole($superAdminRole);
 
         $roleEditor = Role::create(['name' => 'role-editor', 'label' => 'Role Editor']);
-        $roleEditor->permissions()->sync(Permission::where('name', PermissionEnum::RolesManage->value)->pluck('id'));
+        $roleEditor->syncPermissions(Permission::where('name', PermissionEnum::RolesManage->value)->pluck('id'));
         $actor = User::factory()->create();
         $actor->assignRole($roleEditor);
 
@@ -483,10 +483,10 @@ class RoleControllerTest extends TestCase
     public function test_update_allows_removing_roles_manage_when_actor_retains_it_via_another_role(): void
     {
         $roleEditor = Role::create(['name' => 'role-editor', 'label' => 'Role Editor']);
-        $roleEditor->permissions()->sync(Permission::where('name', PermissionEnum::RolesManage->value)->pluck('id'));
+        $roleEditor->syncPermissions(Permission::where('name', PermissionEnum::RolesManage->value)->pluck('id'));
 
         $superAdminRole = Role::create(['name' => 'super-admin', 'label' => 'Super Admin']);
-        $superAdminRole->permissions()->sync(
+        $superAdminRole->syncPermissions(
             Permission::whereIn('name', [PermissionEnum::RolesManage->value, PermissionEnum::UsersManage->value])->pluck('id'),
         );
 

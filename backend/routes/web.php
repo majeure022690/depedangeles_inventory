@@ -133,5 +133,3 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // resource, and none ever should.
     Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
 });
-
-require __DIR__.'/settings.php';

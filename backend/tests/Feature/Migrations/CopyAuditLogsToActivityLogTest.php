@@ -56,7 +56,9 @@ class CopyAuditLogsToActivityLogTest extends TestCase
 
     public function test_rows_are_mapped_per_the_plan(): void
     {
-        $actor = User::factory()->create(['name' => 'Ana Admin', 'email' => 'ana@example.test']);
+        // User logs its own `created` activity; keep activity_log holding
+        // only the copied rows.
+        $actor = activity()->withoutLogging(fn () => User::factory()->create(['name' => 'Ana Admin', 'email' => 'ana@example.test']));
         $snapshot = ['name' => 'Ana Admin', 'email' => 'ana@example.test'];
         $goneSnapshot = ['name' => 'Deleted User', 'email' => 'gone@example.test'];
 

@@ -2,91 +2,163 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Office;
 use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\RateLimiter;
-use Laravel\Fortify\Features;
+use Illuminate\Support\Facades\Hash;
+use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_login_screen_can_be_rendered()
+    protected function setUp(): void
     {
-        $response = $this->get(route('login'));
+        parent::setUp();
+        $this->seed(RolePermissionSeeder::class);
+    }
+
+    public function test_user_can_login_with_valid_credentials(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')]);
+
+        $response = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'CorrectHorse123!',
+        ]);
 
         $response->assertOk();
-    }
-
-    public function test_users_can_authenticate_using_the_login_screen()
-    {
-        $user = User::factory()->create();
-
-        $response = $this->post(route('login.store'), [
-            'email' => $user->email,
-            'password' => 'password',
-        ]);
-
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
-    }
-
-    public function test_users_with_two_factor_enabled_are_redirected_to_two_factor_challenge()
-    {
-        $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
-
-        Features::twoFactorAuthentication([
-            'confirm' => true,
-            'confirmPassword' => true,
-        ]);
-
-        $user = User::factory()->withTwoFactor()->create();
-
-        $response = $this->post(route('login'), [
-            'email' => $user->email,
-            'password' => 'password',
-        ]);
-
-        $response->assertRedirect(route('two-factor.login'));
-        $response->assertSessionHas('login.id', $user->id);
+        $response->assertJsonPath('requires_2fa_setup', true);
+        $response->assertJsonStructure(['setup_token']);
         $this->assertGuest();
     }
 
-    public function test_users_can_not_authenticate_with_invalid_password()
+    public function test_user_cannot_login_with_invalid_credentials(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')]);
 
-        $this->post(route('login.store'), [
+        $response = $this->postJson('/api/login', [
             'email' => $user->email,
             'password' => 'wrong-password',
         ]);
 
+        $response->assertStatus(422);
+        $response->assertJsonPath('errors.email.0', 'Invalid credentials.');
         $this->assertGuest();
     }
 
-    public function test_users_can_logout()
+    public function test_login_does_not_reveal_whether_account_exists(): void
     {
-        $user = User::factory()->create();
-
-        $response = $this->actingAs($user)->post(route('logout'));
-
-        $response->assertRedirect(route('home'));
-
-        $this->assertGuest();
-    }
-
-    public function test_users_are_rate_limited()
-    {
-        $user = User::factory()->create();
-
-        RateLimiter::increment(md5('login'.implode('|', [$user->email, '127.0.0.1'])), amount: 5);
-
-        $response = $this->post(route('login.store'), [
-            'email' => $user->email,
-            'password' => 'wrong-password',
+        $response = $this->postJson('/api/login', [
+            'email' => 'nobody@example.com',
+            'password' => 'whatever-password',
         ]);
 
-        $response->assertTooManyRequests();
+        $response->assertStatus(422);
+        $response->assertJsonPath('errors.email.0', 'Invalid credentials.');
+    }
+
+    public function test_inactive_user_cannot_login(): void
+    {
+        $user = User::factory()->inactive()->create(['password' => Hash::make('CorrectHorse123!')]);
+
+        $response = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'CorrectHorse123!',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('errors.email.0', 'Invalid credentials.');
+        $this->assertGuest();
+    }
+
+    public function test_authenticated_user_can_fetch_profile_with_roles_permissions_and_office(): void
+    {
+        $office = Office::factory()->create(['office_name' => 'Angeles City National High School']);
+        $user = User::factory()->create(['office_id' => $office->id]);
+        $user->assignRole('viewer');
+
+        $response = $this->actingAs($user)->getJson('/api/user');
+
+        $response->assertOk()
+            ->assertJsonPath('data.id', $user->id)
+            ->assertJsonPath('data.office_id', $office->id)
+            ->assertJsonPath('data.office.office_name', 'Angeles City National High School')
+            ->assertJsonPath('data.office.school_id', $office->fresh()->school_id)
+            ->assertJsonPath('data.roles', ['viewer'])
+            ->assertJsonPath('data.role_ids', [$user->roles->first()->id])
+            ->assertJsonPath('data.is_self', true)
+            ->assertJsonPath('data.is_active', true)
+            ->assertJsonPath('data.two_factor_enabled', false)
+            ->assertJsonPath('data.avatar_url', null)
+            ->assertJsonMissingPath('data.password')
+            ->assertJsonMissingPath('data.two_factor_secret')
+            ->assertJsonMissingPath('data.two_factor_recovery_codes');
+
+        $this->assertEqualsCanonicalizing(
+            ['personnel.view', 'equipment.view', 'isp_accounts.view', 'stakeholder_profile.view', 'internet_connectivity.view'],
+            $response->json('data.permissions'),
+        );
+    }
+
+    public function test_pending_user_gets_an_empty_permission_list(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('pending');
+
+        $this->actingAs($user)->getJson('/api/user')
+            ->assertOk()
+            ->assertJsonPath('data.permissions', []);
+    }
+
+    public function test_unauthenticated_user_cannot_fetch_profile(): void
+    {
+        $this->getJson('/api/user')->assertStatus(401);
+    }
+
+    public function test_user_can_logout(): void
+    {
+        // Each request below stands in for a separate browser request
+        // sharing a session cookie; forgetGuards() makes the 'web' guard
+        // re-read each new request's session instead of reusing the
+        // instance bound to the first one.
+        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')]);
+
+        $setupToken = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'CorrectHorse123!',
+        ])->assertOk()->json('setup_token');
+
+        $secret = $this->postJson('/api/2fa/setup', ['setup_token' => $setupToken])
+            ->assertOk()->json('data.secret');
+
+        $confirmResponse = $this->postJson('/api/2fa/setup/confirm', [
+            'setup_token' => $setupToken,
+            'code' => (new Google2FA)->getCurrentOtp($secret),
+        ])->assertOk();
+
+        $sessionCookie = $confirmResponse->getCookie(config('session.cookie'), false);
+        $this->assertNotNull($sessionCookie, 'Login response did not set a session cookie.');
+
+        $this->app['auth']->forgetGuards();
+        $this->withUnencryptedCookie(config('session.cookie'), $sessionCookie->getValue())
+            ->postJson('/api/logout')
+            ->assertOk();
+
+        $this->app['auth']->forgetGuards();
+        $this->withUnencryptedCookie(config('session.cookie'), $sessionCookie->getValue())
+            ->getJson('/api/user')
+            ->assertStatus(401);
+    }
+
+    public function test_api_responses_carry_security_headers(): void
+    {
+        $this->getJson('/api/user')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('X-Frame-Options', 'DENY')
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
     }
 }

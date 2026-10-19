@@ -26,20 +26,14 @@ class RolePermissionSeeder extends Seeder
     private static function roleDefinitions(): array
     {
         return [
-            // Deny-by-default holding pen for self-registered accounts.
-            // Zero permissions, deliberately — this is not "least
-            // privilege", it's NO privilege, until an Administrator
-            // reviews the account and assigns a real role. See
-            // CreateNewUser, which grants this role (never 'viewer') to
-            // every new self-registration. A user whose only role is this
-            // one has an empty permissionNames() list, so every Policy/
-            // Gate check bottoms out at User::hasPermissionTo() returning
-            // false — verified end-to-end in
-            // tests/Feature/Auth/RegistrationApprovalTest.php.
+            // Zero permissions, deliberately (protected by Role::PENDING /
+            // RoleService). Self-registration is gone (accounts are
+            // admin-created), but an account parked here still reaches
+            // nothing: every Policy check bottoms out at a permission it
+            // doesn't hold.
             'pending' => [
                 'label' => 'Pending Approval',
-                'description' => 'No permissions. Automatically assigned to every new self-registration; '.
-                    'grants access to nothing until an Administrator reviews the account and assigns a '.
+                'description' => 'No permissions. Grants access to nothing until an Administrator assigns a '.
                     'real role.',
                 'permissions' => [],
             ],
@@ -109,8 +103,7 @@ class RolePermissionSeeder extends Seeder
             'viewer' => [
                 'label' => 'Viewer',
                 'description' => 'Read-only access to Personnel, Equipment, ISP account, Stakeholder Profile, and '.
-                    'Internet Connectivity Survey records. Assigned manually by an Administrator once an '.
-                    'account is approved — never granted automatically to new self-registrations (see \'pending\').',
+                    'Internet Connectivity Survey records.',
                 'permissions' => [
                     PermissionEnum::PersonnelView,
                     PermissionEnum::EquipmentView,
