@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/DataGrid'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/Dialog'
 import { FilterChips, FilterSearch, FilterSelect, filterFieldClass, type FilterChip } from '@/components/ui/FilterControls'
+import { SelectPicker } from '@/components/ui/SelectPicker'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useServerTable } from '@/hooks/useServerTable'
 import { extractError } from '@/lib/errors'
@@ -113,7 +114,7 @@ export function AuditLog() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
-  // Name shown on the "By" chip; the causer filter is set from an entry's actor, not from a user list.
+  // Fallback name for the "By" chip/picker when the shortcut's actor isn't in `options.actors`.
   const [causerName, setCauserName] = useState('')
 
   const { items: entries, meta, loading, error, page, setPage, perPage, setPerPage } = useServerTable(
@@ -121,7 +122,7 @@ export function AuditLog() {
     { filters: appliedFilters, waitForPerPage: true },
   )
 
-  const [options, setOptions] = useState<AuditLogOptions>({ events: [], subject_types: [] })
+  const [options, setOptions] = useState<AuditLogOptions>({ events: [], subject_types: [], actors: [] })
   const [optionsError, setOptionsError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -171,11 +172,19 @@ export function AuditLog() {
 
   const subjectLabel = (fqcn: string) => options.subject_types.find((s) => s.value === fqcn)?.label ?? fqcn
 
+  const actorPickerOptions = useMemo(() => {
+    const list = options.actors.map((a) => ({ label: a.label, value: String(a.value) }))
+    if (causerId && causerName && !list.some((o) => o.value === causerId)) list.push({ label: causerName, value: causerId })
+    return list
+  }, [options.actors, causerId, causerName])
+
+  const actorLabel = (id: string) => options.actors.find((a) => String(a.value) === id)?.label ?? (causerName || `user #${id}`)
+
   const activeChips: FilterChip<FilterKey>[] = [
     { key: 'search' as const, label: `Search: ${appliedFilters.search}`, removable: true },
     { key: 'event' as const, label: humanize(appliedFilters.event), removable: true },
     { key: 'subject_type' as const, label: subjectLabel(appliedFilters.subject_type), removable: true },
-    { key: 'causer_id' as const, label: `By ${causerName || `user #${appliedFilters.causer_id}`}`, removable: true },
+    { key: 'causer_id' as const, label: `By ${actorLabel(appliedFilters.causer_id)}`, removable: true },
     { key: 'date_from' as const, label: `From ${appliedFilters.date_from}`, removable: true },
     { key: 'date_to' as const, label: `Until ${appliedFilters.date_to}`, removable: true },
   ].filter((chip) => appliedFilters[chip.key] !== '')
@@ -315,6 +324,15 @@ export function AuditLog() {
               className={filterFieldClass}
             />
           </label>
+          <div className="sm:col-span-2 lg:col-span-6">
+            <SelectPicker
+              aria-label="Performed by"
+              placeholder="Anyone"
+              options={actorPickerOptions}
+              selectedValue={causerId || null}
+              onSelect={(option) => setCauserId(option ? option.value : '')}
+            />
+          </div>
         </div>
 
         <div className="mt-3 flex flex-col-reverse gap-2 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">

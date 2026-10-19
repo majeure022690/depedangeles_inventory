@@ -16,8 +16,12 @@ export interface AuditLogEntry {
   created_at: string
 }
 
-/** `GET /api/audit-log/options`. `subject_types[].value` is the FQCN the `subject_type` filter expects. */
+/**
+ * `GET /api/audit-log/options`. `subject_types[].value` is the FQCN the `subject_type` filter expects;
+ * `actors[].value` is the user id the `causer_id` filter expects (deleted accounts are labelled "<name> (deleted)").
+ */
 export interface AuditLogOptions {
   events: string[]
   subject_types: { value: string; label: string }[]
+  actors: { value: number; label: string }[]
 }

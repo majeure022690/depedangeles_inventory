@@ -33,7 +33,7 @@ export function toDatetimeLocal(value: string | null): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-/** `datetime-local` (browser time) -> ISO-8601 UTC, which is what the API stores (app timezone is UTC). */
+/** `datetime-local` (browser time) -> ISO-8601 UTC; the API converts it to its own timezone. */
 function fromDatetimeLocal(value: string): string | null {
   if (!value) return null
   const date = new Date(value)
