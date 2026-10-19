@@ -1,6 +1,6 @@
 # DepEd Division ICT Inventory System
 
-A server-driven Laravel + Inertia + Vue application for a DepEd (Department of Education) **Division Office** to track ICT equipment, personnel, ISP/connectivity accounts, and internet-connectivity survey data in one place — replacing the spreadsheet workbook the office previously maintained by hand.
+A Laravel API + React SPA for a DepEd (Department of Education) **Division Office** to track ICT equipment, personnel, ISP/connectivity accounts, and internet-connectivity survey data in one place — replacing the spreadsheet workbook the office previously maintained by hand.
 
 Built for the ICT unit of a single division office: encoders enter and maintain records day-to-day, viewers get read-only access for reporting/auditing, and an Administrator manages user roles and full CRUD across every module.
 
@@ -17,147 +17,83 @@ Built for the ICT unit of a single division office: encoders enter and maintain 
 
 ## Tech stack
 
-Built on the official [Laravel Vue Starter Kit](https://github.com/laravel/vue-starter-kit) — extended, not forked or replaced.
+Two apps in one repo, mirroring the sibling project rwatch (see [`docs/architecture-decisions/decoupled-spa-stack.md`](docs/architecture-decisions/decoupled-spa-stack.md)):
 
-- **Backend:** Laravel 13, PHP 8.4
-- **Frontend rendering:** Inertia.js v3 (`inertiajs/inertia-laravel` + `@inertiajs/vue3`) — this is a server-driven monolith. Pages are returned via `Inertia::render()` from `routes/web.php`; there is no separate REST API.
-- **Frontend:** Vue 3 + Composition API + `<script setup>`, strict TypeScript
-- **Auth:** Laravel Fortify (session-based), extended with a hand-rolled roles/permissions layer (not spatie/laravel-permission)
-- **Styling:** Tailwind CSS + shadcn-vue (reka-ui), White/Blue Poppins government-enterprise visual language, dark/light/system theme toggle
-- **Routing helpers:** Laravel Wayfinder (typed route/controller helpers for the frontend)
-- **Build:** Vite
-- **Database:** MySQL (via XAMPP in local dev — see below; Laravel's default sqlite is not what this project actually runs on)
+- **`backend/`** — Laravel 13 / PHP 8.4 JSON API under `/api`, Sanctum SPA cookie auth, spatie/laravel-permission (granular permissions, never role-name checks), spatie/laravel-activitylog, Google2FA.
+- **`frontend/`** — React 19 + TypeScript SPA (Vite, Tailwind CSS, React Router), served under `/portal`.
+- **Database:** MySQL via XAMPP in local dev. Tests use in-memory SQLite.
 
 ## Local setup
 
 ### Prerequisites
 
-- [XAMPP](https://www.apachefriends.org/) (or a standalone MySQL/MariaDB server) — **this project uses MySQL, not the Laravel default SQLite.** Start Apache and MySQL from the XAMPP control panel before proceeding.
-- PHP 8.4+ with the extensions Laravel 13 requires (bundled with XAMPP)
-- [Composer](https://getcomposer.org/)
-- Node.js 18+ and npm
+- [XAMPP](https://www.apachefriends.org/) (or any MySQL/MariaDB server). Start MySQL and create an empty `inventory` database (phpMyAdmin, or `mysql -u root -e "CREATE DATABASE inventory"`).
+- PHP 8.4+ and [Composer](https://getcomposer.org/)
+- Node.js 20.19+ and npm
 
-### 1. Install dependencies
+### First-time setup
 
 ```bash
+cd backend
 composer install
+cp .env.example .env          # already points at MySQL: inventory / root / no password
+php artisan key:generate
+php artisan migrate --seed
+php artisan storage:link      # serves uploaded profile photos from public/storage
+
+cd ../frontend
+cp .env.example .env
 npm install
 ```
 
-### 2. Configure the environment
+`DatabaseSeeder` seeds roles/permissions, reference data, and an admin account. Seeding is idempotent, so re-running `php artisan db:seed` is safe; use `php artisan migrate:fresh --seed` for a clean database.
 
-Copy the example env file and generate an app key:
-
-```bash
-cp .env.example .env
-php artisan key:generate
-```
-
-**Important:** `.env.example` ships with Laravel's stock `DB_CONNECTION=sqlite` default. This project actually runs on **MySQL via XAMPP**. After copying, edit `.env` and set:
-
-```
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=inventory
-DB_USERNAME=root
-DB_PASSWORD=
-```
-
-Then create the `inventory` database in MySQL (e.g. via phpMyAdmin at `http://localhost/phpmyadmin`, or `mysql -u root -e "CREATE DATABASE inventory"`).
-
-### 3. Migrate and seed
-
-Seeding must run in this order — `DatabaseSeeder` already does this for you, so a plain `db:seed` is sufficient:
-
-```bash
-php artisan migrate
-php artisan db:seed
-php artisan storage:link
-```
-
-`storage:link` symlinks `public/storage` to `storage/app/public` — required for uploaded profile photos (Settings > Profile) to actually be viewable; without it, avatar uploads succeed but the image 404s.
-
-This runs, in order (see `database/seeders/DatabaseSeeder.php`):
-
-1. **`RolePermissionSeeder`** — seeds the `permissions` table from `App\Enums\Permission` (20 cases) and composes the four starting roles (`pending`, `admin`, `encoder`, `viewer`). Must run before any user is assigned a role. Roles are admin-configurable from here on (see `/roles`, below) — this seeder just establishes the starting set.
-2. Creates the seeded test user and assigns it the `admin` role.
-3. **`ReferenceDataSeeder`** — seeds the 13 Tier 1/Tier 2 reference-data tables (item types, brands, equipment categories/classifications/conditions, positions, RO/SDO offices, ISP providers, plus 4 domain-grouped "library" tables) from `database/seeders/data/*.json` — the 677 real reference-data values originally sourced from the Excel workbook, split one JSON file per table. This replaced an earlier single `lookups` table/`LookupSeeder`, since removed — see [`docs/architecture-decisions/lookup-normalization.md`](docs/architecture-decisions/lookup-normalization.md).
-
-Both `RolePermissionSeeder` and `ReferenceDataSeeder` are idempotent — re-running `php artisan db:seed` is always safe (`RolePermissionSeeder` upserts; `ReferenceDataSeeder` uses `insertOrIgnore`, so it never reverts an admin edit made through `/reference-data` back to seed data).
-
-**Seeded login:**
+**Seeded admin login:**
 
 ```
 Email:    keithvpolintan@gmail.com
 Password: D3pEd-Angeles!2026
 ```
 
-This account holds the `admin` role (full permissions, including user/role management at `/users`).
+### Daily development
 
-If you need a completely fresh database instead of migrating onto an existing one:
-
-```bash
-php artisan migrate:fresh --seed
-```
-
-### 4. Run the dev server
+Run the two servers in separate terminals:
 
 ```bash
-composer run dev
+cd backend && php artisan serve    # API on http://localhost:8000
+cd frontend && npm run dev         # SPA on http://localhost:5173
 ```
 
-This runs Laravel 13's built-in `php artisan dev` command, which starts the PHP dev server, the queue listener, `pail` (log tailing), and the Vite dev server concurrently. Visit `http://localhost:8000` (or whatever `APP_URL`/port `artisan serve` reports).
+Then browse **http://localhost:5173/portal**.
 
-Alternatively, run pieces separately:
+Gotchas:
 
-```bash
-php artisan serve   # PHP server
-npm run dev          # Vite dev server only
-```
+- **Use `localhost`, not `127.0.0.1`.** Sanctum's session and XSRF cookies are tied to `localhost`; on `127.0.0.1` they are not sent and every request is unauthenticated. `FRONTEND_URL`, `SANCTUM_STATEFUL_DOMAINS` and `SESSION_DOMAIN` in `backend/.env` must agree with the URL you browse.
+- **First login forces 2FA enrollment.** Have an authenticator app ready.
+- **After editing roles/permissions directly in the database**, run `php artisan permission:cache-reset`.
+- `php artisan dev` / `pail` need the `pcntl` extension, which Windows PHP lacks; run the two servers separately as above.
+- reCAPTCHA uses Google's test keys locally. Production needs real keys in both `backend/.env` (`RECAPTCHA_SECRET_KEY`) and `frontend/.env.production` (`VITE_RECAPTCHA_SITE_KEY`); the test secret is rejected when `APP_ENV=production`.
 
-**Gotcha — `public/hot`:** when Vite's dev server (`npm run dev` / `artisan dev`) is running, Laravel writes a `public/hot` file so the backend knows to load assets from the Vite dev server instead of the compiled `public/build` assets. If that dev server is ever killed uncleanly (e.g. terminal closed, process killed rather than `Ctrl+C`'d), `public/hot` can be left behind, and the app will try to fetch assets from a Vite server that's no longer running — pages fail to load JS/CSS. If you see this, delete the stale file and rebuild:
+### Production build
 
-```bash
-rm public/hot
-npm run build
-```
-
-As of this writing `public/hot` is not present in this checkout (a production `public/build` exists instead), so this is not a live problem — just a known failure mode to check for if pages suddenly stop rendering after a Vite dev session.
-
-### 5. Build for production
-
-```bash
-npm run build
-```
+`cd frontend && npm run build` produces `frontend/dist/`. Vite bakes `VITE_*` values in at build time, so fill in `frontend/.env.production` (from `.env.production.example`) first. Backend production values are templated in `backend/.env.production.example`. The web server serves `dist/` and proxies `/api`, `/sanctum` and `/equipment/*/edit` (QR-code links) to the backend.
 
 ## Running tests
 
-Tests run against an in-memory SQLite database (configured in `phpunit.xml`), independent of the MySQL connection used for local development — no MySQL setup is required to run the test suite.
-
 ```bash
-php artisan test
-```
+cd backend
+php artisan test --compact     # in-memory SQLite, no MySQL needed
+composer test                  # Pint check + PHPStan + tests
+composer lint                  # Pint, auto-fix
 
-Or the full CI check (lint, format check, TypeScript type check, PHPStan via `types:check`, then tests):
-
-```bash
-composer run ci:check
-```
-
-Other useful scripts:
-
-```bash
-composer run lint        # Pint, auto-fix
-composer run lint:check  # Pint, check only
-npm run lint             # ESLint, auto-fix
-npm run format            # Prettier, auto-fix
-npm run types:check       # vue-tsc --noEmit
+cd ../frontend
+npm run build                  # TypeScript check + production build
 ```
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — agent collaboration model, project structure decision, authorization model, audit logging, and the three data-access patterns used across features (accountability-transfer, append-only child log, singleton).
-- [`docs/features/`](docs/features) — one doc per module: purpose, Inertia routes/prop contracts, key files, design decisions, and open follow-ups.
-- [`CHANGELOG.md`](CHANGELOG.md) — build history reconstructed from migration sequence.
-- [`CLAUDE.md`](CLAUDE.md) — the project's own agent-routing and standards reference (source of truth for the 11-agent workflow and the flat-structure decision).
+- [`docs/architecture.md`](docs/architecture.md) — architecture, authorization model, audit logging, and data-access patterns.
+- [`docs/architecture-decisions/`](docs/architecture-decisions) — ADRs, including the decoupled SPA stack and lookup normalization.
+- [`docs/features/`](docs/features) — one doc per module.
+- [`CHANGELOG.md`](CHANGELOG.md) — build history.
+- [`CLAUDE.md`](CLAUDE.md) — agent-routing and project standards.
