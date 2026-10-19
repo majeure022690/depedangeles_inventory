@@ -37,7 +37,7 @@ class OfficeSeeder extends Seeder
             $inserted += Office::insertOrIgnore($chunk);
         }
 
-        $this->command?->info(sprintf(
+        $this->command->info(sprintf(
             'offices: %d row(s) inserted, %d already present and left untouched (of %d total).',
             $inserted,
             count($rows) - $inserted,

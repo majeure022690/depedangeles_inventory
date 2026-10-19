@@ -20,6 +20,14 @@ class ShiftSystemTimestampsToManilaTest extends TestCase
 
     private const MANILA = '2026-07-15 12:17:51';
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // audit_logs is dropped by 2026_10_19_000012; its down() restores the schema.
+        (require database_path('migrations/2026_10_19_000012_drop_audit_logs_table.php'))->down();
+    }
+
     private function migration(): object
     {
         return require database_path('migrations/2026_10_19_000011_shift_system_timestamps_from_utc_to_manila.php');

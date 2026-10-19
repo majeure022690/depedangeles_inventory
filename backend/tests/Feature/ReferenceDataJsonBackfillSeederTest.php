@@ -12,7 +12,11 @@ use App\Models\StakeholderLibrary;
 use App\Models\StakeholderProfile;
 use Database\Seeders\ReferenceDataJsonBackfillSeeder;
 use Database\Seeders\ReferenceDataSeeder;
+use Illuminate\Console\Command;
+use Illuminate\Console\OutputStyle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\NullOutput;
 use Tests\TestCase;
 
 /**
@@ -35,6 +39,18 @@ class ReferenceDataJsonBackfillSeederTest extends TestCase
         $this->seed(ReferenceDataSeeder::class);
     }
 
+    /**
+     * Seeders always run with a console command bound (db:seed); mirror
+     * that so the seeder's progress output has somewhere to go.
+     */
+    private function backfillSeeder(): ReferenceDataJsonBackfillSeeder
+    {
+        $command = new Command;
+        $command->setOutput(new OutputStyle(new ArrayInput([]), new NullOutput));
+
+        return (new ReferenceDataJsonBackfillSeeder)->setContainer($this->app)->setCommand($command);
+    }
+
     public function test_migrates_personnel_fund_source_values_to_personnel_library_ids(): void
     {
         $fund = PersonnelLibrary::query()->active()->where('type', 'teachers_funding_source')->first();
@@ -43,7 +59,7 @@ class ReferenceDataJsonBackfillSeederTest extends TestCase
             'fund_source' => [$fund->value, 'A Typo Not In The Seeded List'],
         ]);
 
-        $result = (new ReferenceDataJsonBackfillSeeder)->backfillJsonColumn(
+        $result = $this->backfillSeeder()->backfillJsonColumn(
             'personnel', 'fund_source', 'personnel_libraries', 'teachers_funding_source'
         );
 
@@ -70,7 +86,7 @@ class ReferenceDataJsonBackfillSeederTest extends TestCase
             'community_engagement' => [$engagement->value],
         ]);
 
-        (new ReferenceDataJsonBackfillSeeder)->run();
+        $this->backfillSeeder()->run();
 
         $profile->refresh();
 
@@ -96,7 +112,7 @@ class ReferenceDataJsonBackfillSeederTest extends TestCase
             'electricity_sources' => [$electricity->value],
         ]);
 
-        (new ReferenceDataJsonBackfillSeeder)->run();
+        $this->backfillSeeder()->run();
 
         $survey->refresh();
 
@@ -115,14 +131,14 @@ class ReferenceDataJsonBackfillSeederTest extends TestCase
 
         $personnel = Personnel::factory()->create(['fund_source' => [$fund->value]]);
 
-        (new ReferenceDataJsonBackfillSeeder)->run();
+        $this->backfillSeeder()->run();
         $this->assertSame([$fund->id], $personnel->refresh()->fund_source);
 
         // Simulate an admin manually editing the array to point at a
         // different reference row after migration.
         $personnel->update(['fund_source' => [$otherFund->id]]);
 
-        $result = (new ReferenceDataJsonBackfillSeeder)->backfillJsonColumn(
+        $result = $this->backfillSeeder()->backfillJsonColumn(
             'personnel', 'fund_source', 'personnel_libraries', 'teachers_funding_source'
         );
 
@@ -136,7 +152,7 @@ class ReferenceDataJsonBackfillSeederTest extends TestCase
     {
         Personnel::factory()->create(['fund_source' => null]);
 
-        $result = (new ReferenceDataJsonBackfillSeeder)->backfillJsonColumn(
+        $result = $this->backfillSeeder()->backfillJsonColumn(
             'personnel', 'fund_source', 'personnel_libraries', 'teachers_funding_source'
         );
 

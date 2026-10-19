@@ -15,6 +15,14 @@ class CopyAuditLogsToActivityLogTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // audit_logs is dropped by 2026_10_19_000012; its down() restores the schema.
+        (require database_path('migrations/2026_10_19_000012_drop_audit_logs_table.php'))->down();
+    }
+
     private function migration(): object
     {
         return require database_path('migrations/2026_10_19_000004_copy_audit_logs_into_activity_log.php');

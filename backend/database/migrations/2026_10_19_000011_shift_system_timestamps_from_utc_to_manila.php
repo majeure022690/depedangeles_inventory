@@ -75,6 +75,9 @@ return new class extends Migration
         $this->shift(-self::HOURS);
     }
 
+    /**
+     * @param  8|-8  $hours
+     */
     private function shift(int $hours): void
     {
         $isMysql = in_array(DB::getDriverName(), ['mysql', 'mariadb'], true);
@@ -113,14 +116,22 @@ return new class extends Migration
         }
     }
 
+    /**
+     * Quotes by hand, as the grammar's wrap() would, so the SQL stays a
+     * literal-string built only from COLUMNS and the fixed offset.
+     *
+     * @param  literal-string  $column
+     * @param  8|-8  $hours
+     * @return literal-string
+     */
     private function shiftExpression(string $column, int $hours, bool $isMysql): string
     {
-        $wrapped = DB::getQueryGrammar()->wrap($column);
+        $sign = $hours >= 0 ? '+' : '';
 
         // NULL in -> NULL out on both drivers.
         return $isMysql
-            ? "DATE_ADD({$wrapped}, INTERVAL {$hours} HOUR)"
-            : sprintf("datetime(%s, '%+d hours')", $wrapped, $hours);
+            ? "DATE_ADD(`{$column}`, INTERVAL {$hours} HOUR)"
+            : "datetime(\"{$column}\", '{$sign}{$hours} hours')";
     }
 
     /**

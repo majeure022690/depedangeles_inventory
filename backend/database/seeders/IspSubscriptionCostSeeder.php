@@ -69,7 +69,7 @@ class IspSubscriptionCostSeeder extends Seeder
             $subscriptionCost->wasRecentlyCreated ? $inserted++ : $skipped++;
         }
 
-        $this->command?->info(sprintf(
+        $this->command->info(sprintf(
             'isp_subscription_costs: %d row(s) inserted, %d already present and left untouched (of %d total).',
             $inserted,
             $skipped,

@@ -10,6 +10,7 @@ use App\Models\EquipmentCondition;
 use App\Models\ItemType;
 use App\Models\Personnel;
 use App\Services\EquipmentAccountabilityService;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\File;
 use RuntimeException;
@@ -81,6 +82,12 @@ use RuntimeException;
 class EquipmentSeeder extends Seeder
 {
     public function run(): void
+    {
+        // Seeding is not a user action; keep it out of the audit trail.
+        activity()->withoutLogging(fn () => $this->seedRows());
+    }
+
+    private function seedRows(): void
     {
         $path = database_path('seeders/data/equipment.json');
 
@@ -173,7 +180,7 @@ class EquipmentSeeder extends Seeder
             }
         }
 
-        $this->command?->info(sprintf(
+        $this->command->info(sprintf(
             'equipment: %d row(s) inserted, %d already present and left untouched (of %d total).',
             $inserted,
             $skipped,
@@ -182,7 +189,7 @@ class EquipmentSeeder extends Seeder
     }
 
     /**
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  class-string<Model>  $modelClass
      * @param  array<string, mixed>  $row
      */
     private function resolveId(string $modelClass, string $table, string $name, array $row): int
@@ -258,7 +265,7 @@ class EquipmentSeeder extends Seeder
             }
         }
 
-        $this->command?->warn(sprintf(
+        $this->command->warn(sprintf(
             'equipment seed row [source_row=%s, property_no=%s]: accountable_officer [%s] not found in personnel table (by full_name or employee_id) — leaving accountable_officer_id null.',
             $row['source_row'],
             $row['property_no'] ?? 'null',

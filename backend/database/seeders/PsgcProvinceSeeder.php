@@ -31,7 +31,7 @@ class PsgcProvinceSeeder extends Seeder
 
         $inserted = PsgcProvince::insertOrIgnore($rows);
 
-        $this->command?->info(sprintf(
+        $this->command->info(sprintf(
             'psgc_provinces: %d row(s) inserted, %d already present and left untouched (of %d total).',
             $inserted,
             count($rows) - $inserted,

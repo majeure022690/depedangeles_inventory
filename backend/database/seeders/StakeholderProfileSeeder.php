@@ -44,6 +44,12 @@ class StakeholderProfileSeeder extends Seeder
 {
     public function run(): void
     {
+        // Seeding is not a user action; keep it out of the audit trail.
+        activity()->withoutLogging(fn () => $this->seedRows());
+    }
+
+    private function seedRows(): void
+    {
         $path = database_path('seeders/data/stakeholder_profile.json');
 
         if (! File::exists($path)) {
@@ -56,7 +62,7 @@ class StakeholderProfileSeeder extends Seeder
         $existing = StakeholderProfile::where('office_id', $data['office_id'])->exists();
 
         if ($existing) {
-            $this->command?->info(sprintf(
+            $this->command->info(sprintf(
                 'stakeholder_profiles: a profile for office_id=%d already exists — left untouched.',
                 $data['office_id']
             ));
@@ -126,7 +132,7 @@ class StakeholderProfileSeeder extends Seeder
             'transaction_type' => $data['transaction_type'],
         ]);
 
-        $this->command?->info('stakeholder_profiles: profile seeded for office_id='.$data['office_id'].' from source workbook.');
+        $this->command->info('stakeholder_profiles: profile seeded for office_id='.$data['office_id'].' from source workbook.');
     }
 
     /**

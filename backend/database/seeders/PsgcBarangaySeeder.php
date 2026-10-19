@@ -47,7 +47,7 @@ class PsgcBarangaySeeder extends Seeder
             $inserted += PsgcBarangay::insertOrIgnore($chunk);
         }
 
-        $this->command?->info(sprintf(
+        $this->command->info(sprintf(
             'psgc_barangays: %d row(s) inserted, %d already present and left untouched (of %d total).',
             $inserted,
             count($mapped) - $inserted,

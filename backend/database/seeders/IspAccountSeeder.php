@@ -41,6 +41,12 @@ class IspAccountSeeder extends Seeder
 {
     public function run(): void
     {
+        // Seeding is not a user action; keep it out of the audit trail.
+        activity()->withoutLogging(fn () => $this->seedRows());
+    }
+
+    private function seedRows(): void
+    {
         $path = database_path('seeders/data/isp_accounts.json');
 
         if (! File::exists($path)) {
@@ -99,7 +105,7 @@ class IspAccountSeeder extends Seeder
             $ispAccount->wasRecentlyCreated ? $inserted++ : $skipped++;
         }
 
-        $this->command?->info(sprintf(
+        $this->command->info(sprintf(
             'isp_accounts: %d row(s) inserted, %d already present and left untouched (of %d total).',
             $inserted,
             $skipped,

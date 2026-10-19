@@ -146,7 +146,7 @@ class ReferenceDataJsonBackfillSeeder extends Seeder
         array $unmatched,
         int $rowsUpdated
     ): void {
-        $this->command?->info(sprintf(
+        $this->command->info(sprintf(
             '%s.%s -> %s ids: %d element(s) matched across %d row(s) updated.',
             $table, $jsonColumn, $refTable, $matched, $rowsUpdated
         ));
@@ -155,13 +155,13 @@ class ReferenceDataJsonBackfillSeeder extends Seeder
             return;
         }
 
-        $this->command?->warn(sprintf(
+        $this->command->warn(sprintf(
             '%s.%s -> %s: %d distinct unmatched value(s), left as strings — needs manual review:',
             $table, $jsonColumn, $refTable, count($unmatched)
         ));
 
         foreach ($unmatched as $value => $count) {
-            $this->command?->warn(sprintf('    "%s" (%d occurrence(s))', $value, $count));
+            $this->command->warn(sprintf('    "%s" (%d occurrence(s))', $value, $count));
         }
     }
 }

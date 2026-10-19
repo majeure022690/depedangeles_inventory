@@ -63,7 +63,7 @@ class IspSpeedTestSeeder extends Seeder
             $speedTest->wasRecentlyCreated ? $inserted++ : $skipped++;
         }
 
-        $this->command?->info(sprintf(
+        $this->command->info(sprintf(
             'isp_speed_tests: %d row(s) inserted, %d already present and left untouched (of %d total).',
             $inserted,
             $skipped,

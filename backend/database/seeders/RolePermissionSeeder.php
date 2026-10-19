@@ -147,7 +147,7 @@ class RolePermissionSeeder extends Seeder
 
         $registrar->forgetCachedPermissions();
 
-        $this->command?->info(sprintf(
+        $this->command->info(sprintf(
             'Seeded %d permissions and %d roles.',
             count(PermissionEnum::cases()),
             count($roles),

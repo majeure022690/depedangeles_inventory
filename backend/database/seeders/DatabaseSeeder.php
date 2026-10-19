@@ -16,6 +16,12 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Seeding is not a user action; keep it out of the audit trail.
+        activity()->withoutLogging(fn () => $this->seedRows());
+    }
+
+    private function seedRows(): void
+    {
         // User::factory(10)->create();
 
         $this->call(RolePermissionSeeder::class);
@@ -28,7 +34,7 @@ class DatabaseSeeder extends Seeder
         // the weak literal 'password' every test-created user has.
         $testUser = User::firstOrCreate(
             ['email' => 'keithvpolintan@gmail.com'],
-            User::factory()->raw([
+            fn () => User::factory()->raw([
                 'name' => 'Test User',
                 'email' => 'keithvpolintan@gmail.com',
                 'password' => Hash::make('D3pEd-Angeles!2026'),

@@ -146,7 +146,7 @@ class ReferenceDataSeeder extends Seeder
             $inserted += $modelClass::insertOrIgnore($chunk);
         }
 
-        $this->command?->info(sprintf(
+        $this->command->info(sprintf(
             '%s: %d row(s) inserted, %d already present and left untouched (of %d total).',
             $jsonFile,
             $inserted,

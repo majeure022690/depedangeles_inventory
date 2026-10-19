@@ -47,7 +47,7 @@ class PsgcMunicipalitySeeder extends Seeder
             $inserted += PsgcMunicipality::insertOrIgnore($chunk);
         }
 
-        $this->command?->info(sprintf(
+        $this->command->info(sprintf(
             'psgc_municipalities: %d row(s) inserted, %d already present and left untouched (of %d total).',
             $inserted,
             count($mapped) - $inserted,

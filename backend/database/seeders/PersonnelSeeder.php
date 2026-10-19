@@ -36,6 +36,12 @@ class PersonnelSeeder extends Seeder
 {
     public function run(): void
     {
+        // Seeding is not a user action; keep it out of the audit trail.
+        activity()->withoutLogging(fn () => $this->seedRows());
+    }
+
+    private function seedRows(): void
+    {
         $path = database_path('seeders/data/personnel.json');
 
         if (! File::exists($path)) {
@@ -89,7 +95,7 @@ class PersonnelSeeder extends Seeder
             $personnel->wasRecentlyCreated ? $inserted++ : $skipped++;
         }
 
-        $this->command?->info(sprintf(
+        $this->command->info(sprintf(
             'personnel: %d row(s) inserted, %d already present and left untouched (of %d total).',
             $inserted,
             $skipped,
