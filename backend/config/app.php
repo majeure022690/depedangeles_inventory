@@ -54,6 +54,13 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
+
+    // Reverse proxies or load balancers allowed to report the visitor's real IP
+    // (comma-separated IPs/CIDRs, or * when only the proxy can reach the app).
+    // Leave empty when PHP is reached directly, or per-IP rate limits can be spoofed.
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
