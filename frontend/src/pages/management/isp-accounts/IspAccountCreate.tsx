@@ -2,12 +2,12 @@ import { ArrowLeft, Wifi } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { IspAccountFields, fieldErrorsFrom, type FieldErrors } from '@/components/isp-accounts/IspAccountFields'
+import { IspAccountFields } from '@/components/isp-accounts/IspAccountFields'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, isValidationError, type FieldErrors } from '@/lib/errors'
 import { emptyIspAccountForm, ispAccountService } from '@/services/ispAccountService'
 import type { IspAccountFormData, IspAccountOptions } from '@/types/isp-account'
 
@@ -42,7 +42,7 @@ export function IspAccountCreate() {
       const response = await ispAccountService.create(form)
       navigate(`/portal/isp-accounts/${response.data.id}/edit`, { state: { flash: response.message } })
     } catch (error) {
-      const fieldErrors = fieldErrorsFrom(error)
+      const fieldErrors = isValidationError(error) ? extractFieldErrors(error) : null
       if (fieldErrors) setErrors(fieldErrors)
       setErrorMessage(fieldErrors ? 'Unable to save the ISP account. Please review the highlighted fields and try again.' : extractError(error))
       window.scrollTo({ top: 0, behavior: 'smooth' })

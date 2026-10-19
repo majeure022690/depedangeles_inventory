@@ -1,24 +1,11 @@
-import { isAxiosError } from 'axios'
-import { useId, type ReactNode } from 'react'
-
-import { FieldHint } from '@/components/forms/FieldHint'
-import { Card, CardContent, CardHeader } from '@/components/ui/Card'
-import { Checkbox } from '@/components/ui/Checkbox'
-import { FieldLabelText } from '@/components/ui/FieldLabelText'
+import { CheckboxField, FormField } from '@/components/forms/FormField'
+import { FormSection } from '@/components/forms/FormSection'
 import { Input } from '@/components/ui/Input'
 import { Select, type SelectOption } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
-import { cn } from '@/lib/utils'
-import type { ApiValidationError } from '@/types/api'
+import type { FieldErrors } from '@/lib/errors'
+import { withCurrentOption } from '@/lib/options'
 import type { Equipment, EquipmentFormData, EquipmentFormOptions } from '@/types/equipment'
-
-export type FieldErrors = Partial<Record<string, string>>
-
-/** First 422 message per field, keyed by request field name; empty for any other error. */
-export function fieldErrorsFrom(error: unknown): FieldErrors {
-  if (!isAxiosError<ApiValidationError>(error) || error.response?.status !== 422) return {}
-  return Object.fromEntries(Object.entries(error.response.data.errors ?? {}).map(([key, messages]) => [key, messages[0]]))
-}
 
 export function emptyEquipmentForm(): EquipmentFormData {
   return {
@@ -94,104 +81,6 @@ export function equipmentToForm(equipment: Equipment): EquipmentFormData {
   }
 }
 
-/**
- * Keeps a stored value visible when it's no longer an active option
- * (e.g. a deactivated brand), instead of the select silently showing its
- * placeholder. The server still decides whether the value is accepted.
- */
-function withCurrent(options: readonly SelectOption[] | undefined, value: string | number | null, label?: string | null): SelectOption[] {
-  const list = [...(options ?? [])]
-  if (value === null || value === '' || list.some((option) => option.value === value)) return list
-  return [...list, { value, label: `${label ?? value} (inactive)` }]
-}
-
-export function FormSection({ title, className, children }: { title: string; className?: string; children: ReactNode }) {
-  const headingId = useId()
-  return (
-    <Card role="group" aria-labelledby={headingId} className={cn('overflow-visible', className)}>
-      <CardHeader className="py-3">
-        <h2 id={headingId} className="text-sm font-semibold uppercase tracking-wide text-gray-600">
-          {title}
-        </h2>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-4 sm:grid-cols-2">{children}</div>
-      </CardContent>
-    </Card>
-  )
-}
-
-/** Label (+ optional hint) above a control, with the error linked through `aria-describedby`. */
-export function FormField({
-  id,
-  label,
-  hint,
-  error,
-  className,
-  children,
-}: {
-  id: string
-  label: string
-  hint?: string
-  error?: string
-  className?: string
-  children: (aria: { 'aria-describedby'?: string; 'aria-invalid'?: true }) => ReactNode
-}) {
-  const plainLabel = label.replace(/\s*\(optional\)$/i, '')
-  const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') || undefined
-  return (
-    <div className={cn('min-w-0', className)}>
-      <div className="mb-1 flex items-center gap-1.5">
-        <label htmlFor={id} className="text-sm font-medium text-gray-700">
-          <FieldLabelText label={label} />
-        </label>
-        {hint && <FieldHint htmlFor={id} label={plainLabel} text={hint} />}
-      </div>
-      {children({ 'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined })}
-      {error && (
-        <p id={`${id}-error`} className="mt-1 text-xs text-error-600">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
-
-export function CheckboxField({
-  id,
-  label,
-  hint,
-  checked,
-  onChange,
-  disabled,
-  error,
-}: {
-  id: string
-  label: string
-  hint?: string
-  checked: boolean
-  onChange: (checked: boolean) => void
-  disabled?: boolean
-  error?: string
-}) {
-  const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') || undefined
-  return (
-    <div className="self-end pb-2">
-      <div className="flex items-center gap-1.5">
-        <Checkbox id={id} label={label} checked={checked} disabled={disabled} aria-describedby={describedBy} onChange={(e) => onChange(e.target.checked)} />
-        {hint && <FieldHint htmlFor={id} label={label} text={hint} />}
-      </div>
-      {error && (
-        <p id={`${id}-error`} className="mt-1 text-xs text-error-600">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
-
-const errorClass = 'border-error-400 focus:border-error-500 focus:ring-error-500/20'
-
 type TextKey = { [K in keyof EquipmentFormData]: EquipmentFormData[K] extends string ? K : never }[keyof EquipmentFormData]
 type IdKey = { [K in keyof EquipmentFormData]: EquipmentFormData[K] extends number | null ? K : never }[keyof EquipmentFormData]
 type BoolKey = { [K in keyof EquipmentFormData]: EquipmentFormData[K] extends boolean ? K : never }[keyof EquipmentFormData]
@@ -223,7 +112,6 @@ export function EquipmentFields({ value, onChange, options, errors, disabled = f
             value={value[key]}
             disabled={disabled}
             onChange={(e) => set(key, e.target.value)}
-            className={cn(errors[key] && errorClass)}
             {...inputProps}
             {...aria}
           />
@@ -242,7 +130,6 @@ export function EquipmentFields({ value, onChange, options, errors, disabled = f
             value={value[key]}
             disabled={disabled}
             onChange={(e) => set(key, e.target.value)}
-            className={cn(errors[key] && errorClass)}
             {...aria}
           />
         )}
@@ -259,10 +146,9 @@ export function EquipmentFields({ value, onChange, options, errors, disabled = f
             name={key}
             value={value[key]}
             disabled={disabled || !options}
-            options={withCurrent(list, value[key])}
+            options={withCurrentOption(list, value[key])}
             placeholder={placeholder}
             onChange={(e) => set(key, e.target.value)}
-            className={cn(errors[key] && errorClass)}
             {...aria}
           />
         )}
@@ -280,10 +166,9 @@ export function EquipmentFields({ value, onChange, options, errors, disabled = f
             name={key}
             value={selected ?? ''}
             disabled={disabled || !options}
-            options={withCurrent(list, selected, current?.[key] === selected ? currentLabel : null)}
+            options={withCurrentOption(list, selected, current?.[key] === selected ? currentLabel : null)}
             placeholder={placeholder}
             onChange={(e) => set(key, e.target.value === '' ? null : Number(e.target.value))}
-            className={cn(errors[key] && errorClass)}
             {...aria}
           />
         )}

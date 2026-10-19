@@ -1,4 +1,3 @@
-import { isAxiosError } from 'axios'
 import { Lock, Pencil, Plus, ShieldCheck, Trash2, Users as UsersIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 
@@ -15,19 +14,12 @@ import { Spinner } from '@/components/ui/Spinner'
 import { Textarea } from '@/components/ui/Textarea'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, isValidationError } from '@/lib/errors'
 import type { PermissionInfo } from '@/lib/permissions'
 import { permissionService, roleService, type RolePayload } from '@/services/roleService'
-import type { ApiValidationError } from '@/types/api'
 import type { Role } from '@/types/role'
 
 const column = gridColumnHelper<Role>()
-
-/** First message per field from a 422, or null for any other error. */
-function fieldErrors(error: unknown): Record<string, string> | null {
-  if (!isAxiosError<ApiValidationError>(error) || error.response?.status !== 422) return null
-  return Object.fromEntries(Object.entries(error.response.data.errors ?? {}).map(([field, messages]) => [field, messages[0] ?? '']))
-}
 
 const emptyForm: RolePayload = { name: '', label: '', description: '', permissions: [] }
 
@@ -134,7 +126,7 @@ export function RoleList() {
       setDialogOpen(false)
       await loadRoles()
     } catch (error) {
-      const fields = fieldErrors(error)
+      const fields = isValidationError(error) ? extractFieldErrors(error) : null
       if (fields) {
         setErrors(fields)
         setFormError(fields.permissions ? null : 'Please correct the highlighted fields.')
@@ -341,12 +333,7 @@ export function RoleList() {
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             />
 
-            {isProtected ? (
-              <Alert type="warning">
-                This role is protected. It must always have zero permissions: it is the deny-by-default role for accounts that have not been given
-                access yet. Only its label and description can be changed.
-              </Alert>
-            ) : detailLoading ? (
+            {detailLoading ? (
               <div className="flex min-h-48 items-center justify-center" role="status" aria-label="Loading permissions">
                 <Spinner />
               </div>
@@ -356,6 +343,8 @@ export function RoleList() {
                 value={form.permissions}
                 onChange={(next) => setForm((f) => ({ ...f, permissions: next }))}
                 canGrant={canGrantAny}
+                locked={isProtected}
+                lockedMessage="Protected deny-by-default role: it must always have zero permissions. Only its label and description can be changed."
               />
             )}
             {errors.permissions && <Alert type="error">{errors.permissions}</Alert>}

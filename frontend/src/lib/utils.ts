@@ -22,3 +22,8 @@ export function formatDateTime(value: string | Date | null | undefined): string 
     minute: '2-digit',
   }).format(date)
 }
+
+/** Space-joined id list for `aria-describedby`/`aria-labelledby`, or undefined when empty. */
+export function idList(...ids: (string | false | null | undefined)[]): string | undefined {
+  return ids.filter(Boolean).join(' ') || undefined
+}

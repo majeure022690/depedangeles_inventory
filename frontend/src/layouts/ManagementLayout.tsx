@@ -16,13 +16,14 @@ import {
   Wifi,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { BrandMarks } from '@/components/BrandMarks'
 import { ErrorBoundary, RouteErrorFallback } from '@/components/ErrorBoundary'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { Spinner } from '@/components/ui/Spinner'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useAuth } from '@/context/AuthContext'
 import { usePortalTheme } from '@/hooks/usePortalTheme'
@@ -355,7 +356,9 @@ export function ManagementLayout() {
 
         <main className="flex-1 p-[clamp(1rem,0.85rem_+_0.75vw,1.5rem)]">
           <ErrorBoundary fallback={<RouteErrorFallback />}>
-            <Outlet />
+            <Suspense fallback={<Spinner full />}>
+              <Outlet />
+            </Suspense>
           </ErrorBoundary>
         </main>
       </div>

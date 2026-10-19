@@ -1,16 +1,14 @@
 import { ClipboardList, History } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 
-import { FormField, fieldErrorsFrom, type FieldErrors } from '@/components/equipment/EquipmentFields'
-import { FieldHint } from '@/components/forms/FieldHint'
+import { FormField } from '@/components/forms/FormField'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { SelectPicker } from '@/components/ui/SelectPicker'
-import { extractError } from '@/lib/errors'
-import { cn } from '@/lib/utils'
+import { extractError, extractFieldErrors, type FieldErrors } from '@/lib/errors'
 import { equipmentService, toTransactionPayload } from '@/services/equipmentService'
 import type { EquipmentTransaction, EquipmentTransactionFormData, EquipmentTransactionOptions } from '@/types/equipment'
 import type { Option } from '@/types/lookup'
@@ -30,8 +28,6 @@ function emptyTransaction(): EquipmentTransactionFormData {
     par_ics_rrsp_rs_wmr_no: '',
   }
 }
-
-const errorClass = 'border-error-400 focus:border-error-500 focus:ring-error-500/20'
 
 function formatDate(value: string | null): string {
   if (!value) return '—'
@@ -83,7 +79,7 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
       setForm(emptyTransaction())
       onRecorded(response.message)
     } catch (error) {
-      setErrors(fieldErrorsFrom(error))
+      setErrors(extractFieldErrors(error))
       setFormError(extractError(error, 'Unable to record the transaction. Please try again.'))
     } finally {
       setSaving(false)
@@ -99,7 +95,6 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
             type={type}
             value={form[key]}
             onChange={(e) => set(key, e.target.value)}
-            className={cn(errors[key] && errorClass)}
             {...aria}
           />
         )}
@@ -118,7 +113,6 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
             disabled={!options}
             placeholder={placeholder}
             onChange={(e) => set(key, e.target.value)}
-            className={cn(errors[key] && errorClass)}
             {...aria}
           />
         )}
@@ -126,31 +120,24 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
     )
   }
 
-  // SelectPicker (searchable) for the personnel lists, which can be long. It
-  // doesn't take an id, so the visible label names its group instead.
+  // SelectPicker (searchable) for the personnel lists, which can be long.
   function personField(key: PersonKey, label: string, hint: string) {
     const id = `tx-${key}`
     const selected = form[key]
     return (
-      <div role="group" aria-labelledby={`${id}-label`} aria-describedby={[`${id}-hint`, errors[key] ? `${id}-error` : null].filter(Boolean).join(' ')} className="min-w-0">
-        <div className="mb-1 flex items-center gap-1.5">
-          <span id={`${id}-label`} className="text-sm font-medium text-gray-700">
-            {label} <span className="text-xs font-normal text-red-500">(optional)</span>
-          </span>
-          <FieldHint htmlFor={id} label={label} text={hint} />
-        </div>
-        <SelectPicker
-          options={people}
-          selectedValue={selected === null ? null : String(selected)}
-          onSelect={(option) => set(key, option ? Number(option.value) : null)}
-          placeholder="Select personnel"
-        />
-        {errors[key] && (
-          <p id={`${id}-error`} className="mt-1 text-xs text-error-600">
-            {errors[key]}
-          </p>
+      <FormField id={id} label={`${label} (optional)`} hint={hint} error={errors[key]}>
+        {(aria) => (
+          <SelectPicker
+            id={id}
+            aria-labelledby={`${id}-label`}
+            options={people}
+            selectedValue={selected === null ? null : String(selected)}
+            onSelect={(option) => set(key, option ? Number(option.value) : null)}
+            placeholder="Select personnel"
+            {...aria}
+          />
         )}
-      </div>
+      </FormField>
     )
   }
 

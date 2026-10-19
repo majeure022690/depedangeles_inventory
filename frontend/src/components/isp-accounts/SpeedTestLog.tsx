@@ -1,12 +1,13 @@
 import { Gauge, History } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 
-import { FormInput, FormSelect, fieldErrorsFrom, type FieldErrors } from '@/components/isp-accounts/IspAccountFields'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { DetailSection } from '@/components/ui/DetailSection'
-import { extractError } from '@/lib/errors'
+import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
+import { extractError, extractFieldErrors, isValidationError, type FieldErrors } from '@/lib/errors'
 import { formatDateTime } from '@/lib/utils'
 import { emptySpeedTestForm, ispAccountService } from '@/services/ispAccountService'
 import type { IspSpeedTest, IspSpeedTestFormData } from '@/types/isp-account'
@@ -52,7 +53,7 @@ export function SpeedTestLog({ ispAccountId, speedTests, signalQualityOptions, c
       setForm(emptySpeedTestForm())
       setFeedback({ type: 'success', message: response.message })
     } catch (error) {
-      const fieldErrors = fieldErrorsFrom(error)
+      const fieldErrors = isValidationError(error) ? extractFieldErrors(error) : null
       if (fieldErrors) setErrors(fieldErrors)
       setFeedback({ type: 'error', message: fieldErrors ? 'Unable to log the speed test. Please review the highlighted fields and try again.' : extractError(error) })
     } finally {
@@ -75,12 +76,12 @@ export function SpeedTestLog({ ispAccountId, speedTests, signalQualityOptions, c
             )}
             <form noValidate onSubmit={handleSubmit} aria-label="Log a speed test">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormInput {...field('download_speed')} label="Download speed (Mbps)" type="number" step="0.01" min="0" inputMode="decimal" />
-                <FormInput {...field('upload_speed')} label="Upload speed (Mbps)" type="number" step="0.01" min="0" inputMode="decimal" />
-                <FormInput {...field('ping')} label="Ping (ms) (optional)" type="number" min="0" inputMode="numeric" />
-                <FormInput {...field('tested_at')} label="Tested at" type="datetime-local" />
-                <FormSelect {...field('signal_quality')} label="Signal quality" placeholder="Select a signal quality" options={signalQualityOptions} />
-                <FormInput {...field('rate_isp_service')} label="ISP service rating (1–5) (optional)" type="number" min="1" max="5" inputMode="numeric" />
+                <Input {...field('download_speed')} label="Download speed (Mbps)" type="number" step="0.01" min="0" inputMode="decimal" />
+                <Input {...field('upload_speed')} label="Upload speed (Mbps)" type="number" step="0.01" min="0" inputMode="decimal" />
+                <Input {...field('ping')} label="Ping (ms) (optional)" type="number" min="0" inputMode="numeric" />
+                <Input {...field('tested_at')} label="Tested at" type="datetime-local" />
+                <Select {...field('signal_quality')} label="Signal quality" placeholder="Select a signal quality" options={signalQualityOptions} />
+                <Input {...field('rate_isp_service')} label="ISP service rating (1–5) (optional)" type="number" min="1" max="5" inputMode="numeric" />
               </div>
               <div className="mt-4 flex justify-end">
                 <Button type="submit" isLoading={saving}>

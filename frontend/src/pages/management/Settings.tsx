@@ -27,9 +27,9 @@ export function Settings() {
         </div>
       </div>
 
-      <Tabs tabs={tabs} value={tab ?? ''} onChange={(value) => setSearchParams({ tab: value }, { replace: true })} />
+      <Tabs id="settings" label="Settings sections" tabs={tabs} value={tab ?? ''} onChange={(value) => setSearchParams({ tab: value }, { replace: true })} />
 
-      <TabPanel active={tab === 'security'}>
+      <TabPanel tabsId="settings" value="security" active={tab === 'security'}>
         <SecuritySettingsPanel />
       </TabPanel>
     </div>

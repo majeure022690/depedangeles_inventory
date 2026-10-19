@@ -16,9 +16,8 @@ import { Switch } from '@/components/ui/Switch'
 import { Textarea } from '@/components/ui/Textarea'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useServerTable } from '@/hooks/useServerTable'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, isValidationError } from '@/lib/errors'
 import { referenceDataService } from '@/services/referenceDataService'
-import type { ApiValidationError } from '@/types/api'
 import type { ReferenceDataRow, ReferenceDataTableMeta, ReferenceDataTier2Row } from '@/types/reference-data'
 
 const column = gridColumnHelper<ReferenceDataRow>()
@@ -44,11 +43,6 @@ function isTier2Row(row: ReferenceDataRow): row is ReferenceDataTier2Row {
 
 function rowLabel(row: ReferenceDataRow): string {
   return isTier2Row(row) ? row.value : row.name
-}
-
-function validationErrors(error: unknown): RowFormErrors | null {
-  if (!isAxiosError<ApiValidationError>(error) || error.response?.status !== 422) return null
-  return Object.fromEntries(Object.entries(error.response.data.errors ?? {}).map(([field, messages]) => [field, messages[0]])) as RowFormErrors
 }
 
 /** Route `/portal/reference-data/:table`. Keyed by table so switching tables resets paging, filters and dialogs. */
@@ -144,7 +138,7 @@ function ReferenceDataTableView({ table }: { table: string }) {
       setDialogOpen(false)
       await reload()
     } catch (saveError) {
-      const fieldErrors = validationErrors(saveError)
+      const fieldErrors = isValidationError(saveError) ? extractFieldErrors(saveError) : null
       setFormErrors(fieldErrors ?? {})
       setFormError(fieldErrors ? null : extractError(saveError, 'Unable to save. Please try again.'))
     } finally {
@@ -407,11 +401,14 @@ function ReferenceDataTableView({ table }: { table: string }) {
               error={formErrors.sort_order}
             />
 
-            <div>
-              <Switch checked={form.is_active} onChange={(checked) => patchForm({ is_active: checked })} label="Active" />
-              <p className="mt-1 text-xs text-gray-500">Inactive values stay on existing records but are no longer offered in forms.</p>
-              {formErrors.is_active && <p className="mt-1 text-xs text-error-600">{formErrors.is_active}</p>}
-            </div>
+            <Switch
+              id="reference-is-active"
+              checked={form.is_active}
+              onChange={(checked) => patchForm({ is_active: checked })}
+              label="Active"
+              hint="Inactive values stay on existing records but are no longer offered in forms."
+              error={formErrors.is_active}
+            />
           </form>
 
           <DialogFooter>

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { DetailPageSkeleton } from '@/components/DetailPageSkeleton'
-import { EquipmentFields, equipmentToForm, fieldErrorsFrom, type FieldErrors } from '@/components/equipment/EquipmentFields'
+import { EquipmentFields, equipmentToForm } from '@/components/equipment/EquipmentFields'
 import { TransactionLog } from '@/components/equipment/TransactionLog'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -14,7 +14,7 @@ import { DetailSection } from '@/components/ui/DetailSection'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, type FieldErrors } from '@/lib/errors'
 import { equipmentService, toEquipmentPayload } from '@/services/equipmentService'
 import type { Equipment, EquipmentFormData, EquipmentOptions } from '@/types/equipment'
 
@@ -84,7 +84,7 @@ export function EquipmentEdit() {
       setForm(equipmentToForm(updated))
       setSuccess(response.message)
     } catch (e) {
-      setErrors(fieldErrorsFrom(e))
+      setErrors(extractFieldErrors(e))
       setFormError(extractError(e, 'Unable to save this equipment record. Please try again.'))
     } finally {
       setSaving(false)

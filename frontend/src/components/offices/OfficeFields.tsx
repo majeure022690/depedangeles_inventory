@@ -2,13 +2,12 @@ import { isAxiosError } from 'axios'
 import { Building2, MapPin, Phone } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import { FieldHint } from '@/components/forms/FieldHint'
+import { FormField } from '@/components/forms/FormField'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Switch } from '@/components/ui/Switch'
 import { Textarea } from '@/components/ui/Textarea'
 import { extractError } from '@/lib/errors'
-import type { ApiValidationError } from '@/types/api'
 import type { Office, OfficeFormData, OfficePayload } from '@/types/office'
 
 export type OfficeFieldErrors = Partial<Record<keyof OfficeFormData, string>>
@@ -59,14 +58,6 @@ export function toOfficePayload(form: OfficeFormData): OfficePayload {
   }
 }
 
-/** First message per field from a 422 response, or null when the error isn't a validation error. */
-export function officeFieldErrors(error: unknown): OfficeFieldErrors | null {
-  if (!isAxiosError<ApiValidationError>(error) || error.response?.status !== 422) return null
-  return Object.fromEntries(
-    Object.entries(error.response.data.errors ?? {}).map(([field, messages]) => [field, messages[0]]),
-  ) as OfficeFieldErrors
-}
-
 /** 409 = still referenced by users/profiles/surveys; the server message says to deactivate instead. */
 export function officeDeleteErrorMessage(error: unknown): string {
   if (isAxiosError(error) && error.response?.status === 409) {
@@ -90,17 +81,6 @@ function Section({ icon, title, description, className, children }: { icon: Reac
         <CardContent className="space-y-4">{children}</CardContent>
       </section>
     </Card>
-  )
-}
-
-function HintedLabel({ htmlFor, label, hint }: { htmlFor: string; label: string; hint: string }) {
-  return (
-    <div className="mb-1 flex items-center gap-1.5">
-      <label htmlFor={htmlFor} className="text-sm font-medium text-gray-700">
-        {label} <span className="text-xs font-normal text-red-500">(optional)</span>
-      </label>
-      <FieldHint htmlFor={htmlFor} label={label} text={hint} />
-    </div>
   )
 }
 
@@ -132,51 +112,44 @@ export function OfficeFields({ value, onChange, errors, disabled = false }: Offi
             disabled={disabled}
             maxLength={255}
           />
-          <div className="w-full">
-            <HintedLabel
-              htmlFor="office_type"
-              label="Office type"
-              hint="Free text, e.g. Elementary School, High School, Division Office or Unit."
-            />
-            <Input
-              id="office_type"
-              aria-describedby="office_type-hint"
-              placeholder="e.g. Elementary School"
-              value={value.office_type}
-              onChange={(e) => onChange({ office_type: e.target.value })}
-              error={errors.office_type}
-              disabled={disabled}
-              maxLength={100}
-            />
-          </div>
-          <div className="w-full">
-            <HintedLabel
-              htmlFor="school_id"
-              label="School ID"
-              hint="The DepEd-assigned School ID. Only schools have one; leave it blank for division offices and units."
-            />
-            <Input
-              id="school_id"
-              aria-describedby="school_id-hint"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              placeholder="DepEd-assigned School ID, if applicable"
-              value={value.school_id}
-              onChange={(e) => onChange({ school_id: e.target.value })}
-              error={errors.school_id}
-              disabled={disabled}
-            />
-          </div>
+          <FormField id="office_type" label="Office type (optional)" hint="Free text, e.g. Elementary School, High School, Division Office or Unit." error={errors.office_type}>
+            {(aria) => (
+              <Input
+                id="office_type"
+                placeholder="e.g. Elementary School"
+                value={value.office_type}
+                onChange={(e) => onChange({ office_type: e.target.value })}
+                disabled={disabled}
+                maxLength={100}
+                {...aria}
+              />
+            )}
+          </FormField>
+          <FormField id="school_id" label="School ID (optional)" hint="The DepEd-assigned School ID. Only schools have one; leave it blank for division offices and units." error={errors.school_id}>
+            {(aria) => (
+              <Input
+                id="school_id"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                placeholder="DepEd-assigned School ID, if applicable"
+                value={value.school_id}
+                onChange={(e) => onChange({ school_id: e.target.value })}
+                disabled={disabled}
+                {...aria}
+              />
+            )}
+          </FormField>
           <div className="flex flex-col justify-end sm:pb-2.5">
             <Switch
+              id="is_active"
               checked={value.is_active}
               onChange={(checked) => onChange({ is_active: checked })}
               label="Active"
               disabled={disabled}
+              hint="Inactive offices stay on existing records but are hidden from office pickers."
+              error={errors.is_active}
             />
-            <p className="mt-1 text-xs text-gray-500">Inactive offices stay on existing records but are hidden from office pickers.</p>
-            {errors.is_active && <p className="mt-1 text-xs text-error-600">{errors.is_active}</p>}
           </div>
         </div>
       </Section>

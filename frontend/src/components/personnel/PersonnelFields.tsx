@@ -1,8 +1,10 @@
-import { CheckboxField, FormField, FormSection, type FieldErrors } from '@/components/equipment/EquipmentFields'
 import { CheckboxGroupField } from '@/components/forms/CheckboxGroupField'
+import { CheckboxField, FormField } from '@/components/forms/FormField'
+import { FormSection } from '@/components/forms/FormSection'
 import { Input } from '@/components/ui/Input'
 import { Select, type SelectOption } from '@/components/ui/Select'
-import { cn } from '@/lib/utils'
+import type { FieldErrors } from '@/lib/errors'
+import { withCurrentOption } from '@/lib/options'
 import type { Personnel, PersonnelFormData, PersonnelOptions } from '@/types/personnel'
 
 export function emptyPersonnelForm(): PersonnelFormData {
@@ -59,15 +61,6 @@ export function personnelToForm(personnel: Personnel): PersonnelFormData {
   }
 }
 
-/** Keeps a stored value visible when it's no longer an active option; the server decides if it's still accepted. */
-function withCurrent(options: readonly SelectOption[] | undefined, value: string | number | null, label?: string | null): SelectOption[] {
-  const list = [...(options ?? [])]
-  if (value === null || value === '' || list.some((option) => option.value === value)) return list
-  return [...list, { value, label: `${label ?? value} (inactive)` }]
-}
-
-const errorClass = 'border-error-400 focus:border-error-500 focus:ring-error-500/20'
-
 type TextKey = { [K in keyof PersonnelFormData]: PersonnelFormData[K] extends string ? K : never }[keyof PersonnelFormData]
 type IdKey = { [K in keyof PersonnelFormData]: PersonnelFormData[K] extends number | null ? K : never }[keyof PersonnelFormData]
 
@@ -102,7 +95,6 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
             value={value[key]}
             disabled={disabled}
             onChange={(e) => set(key, e.target.value)}
-            className={cn(errors[key] && errorClass)}
             {...inputProps}
             {...aria}
           />
@@ -120,10 +112,9 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
             name={key}
             value={value[key]}
             disabled={disabled || !options}
-            options={withCurrent(list, value[key])}
+            options={withCurrentOption(list, value[key])}
             placeholder="None"
             onChange={(e) => set(key, e.target.value)}
-            className={cn(errors[key] && errorClass)}
             {...aria}
           />
         )}
@@ -141,18 +132,15 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
             name={key}
             value={selected ?? ''}
             disabled={disabled || !options}
-            options={withCurrent(list, selected, current?.[key] === selected ? currentLabel : null)}
+            options={withCurrentOption(list, selected, current?.[key] === selected ? currentLabel : null)}
             placeholder="None"
             onChange={(e) => set(key, e.target.value === '' ? null : Number(e.target.value))}
-            className={cn(errors[key] && errorClass)}
             {...aria}
           />
         )}
       </FormField>
     )
   }
-
-  const fundSourceError = errors.fund_source ?? Object.entries(errors).find(([key]) => key.startsWith('fund_source.'))?.[1]
 
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
@@ -197,7 +185,7 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
             value={value.fund_source}
             onChange={(next) => set('fund_source', next)}
             disabled={disabled}
-            error={fundSourceError}
+            error={errors.fund_source}
             className="sm:col-span-2"
           />
         )}

@@ -7,10 +7,8 @@ import {
   STAKEHOLDER_SECTIONS,
   StakeholderProfileFields,
   StakeholderProfileStepper,
-  fieldErrorsFrom,
   isFieldFilled,
   sectionOfField,
-  type FieldErrors,
   type SectionId,
 } from '@/components/stakeholder-profiles/StakeholderProfileFields'
 import { Alert } from '@/components/ui/Alert'
@@ -18,7 +16,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, isValidationError, type FieldErrors } from '@/lib/errors'
 import type { PermissionName } from '@/lib/permissions'
 import { stakeholderProfileFormFrom, stakeholderProfileService } from '@/services/stakeholderProfileService'
 import type { ProfileOffice, StakeholderProfile, StakeholderProfileFormData, StakeholderProfileOptions } from '@/types/stakeholder-profile'
@@ -129,7 +127,7 @@ export function StakeholderProfileEdit() {
       setSavedForm(next)
       setFeedback({ type: 'success', message: response.message })
     } catch (error) {
-      const fieldErrors = fieldErrorsFrom(error)
+      const fieldErrors = isValidationError(error) ? extractFieldErrors(error) : null
       if (fieldErrors) {
         setErrors(fieldErrors)
         // Only the active step is rendered, so jump to the first one holding an error.

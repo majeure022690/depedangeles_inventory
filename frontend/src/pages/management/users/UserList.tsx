@@ -1,4 +1,3 @@
-import { isAxiosError } from 'axios'
 import { Filter, Pencil, Plus, RotateCcw, ShieldCheck, ShieldOff, Trash2, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
@@ -15,10 +14,9 @@ import { SelectPicker } from '@/components/ui/SelectPicker'
 import { Switch } from '@/components/ui/Switch'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useServerTable } from '@/hooks/useServerTable'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, isValidationError } from '@/lib/errors'
 import { roleService } from '@/services/roleService'
 import { userService } from '@/services/userService'
-import type { ApiValidationError } from '@/types/api'
 import type { Role } from '@/types/role'
 import type { ManagedUser, RoleSummary, UserOptions } from '@/types/user'
 
@@ -32,12 +30,6 @@ function initials(name: string): string {
     .slice(0, 2)
     .join('')
     .toUpperCase()
-}
-
-/** First message per field from a 422, or null for any other error. */
-function fieldErrors(error: unknown): Record<string, string> | null {
-  if (!isAxiosError<ApiValidationError>(error) || error.response?.status !== 422) return null
-  return Object.fromEntries(Object.entries(error.response.data.errors ?? {}).map(([field, messages]) => [field, messages[0] ?? '']))
 }
 
 interface FormState {
@@ -201,7 +193,7 @@ export function UserList() {
       setDialogOpen(false)
       await reload()
     } catch (saveError) {
-      const fields = fieldErrors(saveError)
+      const fields = isValidationError(saveError) ? extractFieldErrors(saveError) : null
       if (fields) {
         setErrors(fields)
         setFormError('Please correct the highlighted fields.')
@@ -451,6 +443,7 @@ export function UserList() {
           </FilterSelect>
           <div className="sm:col-span-2 lg:col-span-3">
             <SelectPicker
+              aria-label="Office"
               placeholder="All offices"
               options={officePickerOptions}
               selectedValue={officeFilter || null}
@@ -600,8 +593,13 @@ export function UserList() {
               )}
             </fieldset>
 
-            <Switch checked={form.is_active} onChange={(checked) => setForm((f) => ({ ...f, is_active: checked }))} label="Active (can sign in)" />
-            {errors.is_active && <p className="text-xs text-error-600">{errors.is_active}</p>}
+            <Switch
+              id="user-is-active"
+              checked={form.is_active}
+              onChange={(checked) => setForm((f) => ({ ...f, is_active: checked }))}
+              label="Active (can sign in)"
+              error={errors.is_active}
+            />
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>

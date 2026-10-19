@@ -10,6 +10,7 @@ interface PermissionPickerProps {
   value: string[]
   onChange: (value: string[]) => void
   canGrant: (permission: string) => boolean
+  /** Read-only: shows the current `value` with every checkbox disabled. */
   locked?: boolean
   /** Shown above the list when `locked` is set. */
   lockedMessage?: string
@@ -46,7 +47,7 @@ export function PermissionPicker({
         <p className="text-sm font-medium text-gray-700">
           Permissions{' '}
           <span className="font-normal text-gray-500">
-            · {locked ? available.length : value.length} of {available.length} selected
+            · {value.length} of {available.length} selected
           </span>
         </p>
         {!locked && (
@@ -63,7 +64,7 @@ export function PermissionPicker({
 
       {locked ? (
         <p className="mb-2 flex items-center gap-1.5 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <Lock className="h-3.5 w-3.5 shrink-0" />
+          <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {lockedMessage}
         </p>
       ) : (
@@ -87,7 +88,7 @@ export function PermissionPicker({
           if (shown.length === 0) return null
           const names = group.permissions.map((p) => p.name)
           const grantableNames = names.filter(canGrant)
-          const count = locked ? names.length : names.filter((n) => selected.has(n)).length
+          const count = names.filter((n) => selected.has(n)).length
           const all = count === names.length
           const some = count > 0 && !all
 
@@ -97,9 +98,9 @@ export function PermissionPicker({
                 <input
                   type="checkbox"
                   className="h-4 w-4 rounded border-gray-300 text-primary-600"
-                  checked={locked || all}
+                  checked={all}
                   ref={(el) => {
-                    if (el) el.indeterminate = !locked && some
+                    if (el) el.indeterminate = some
                   }}
                   disabled={locked || grantableNames.length === 0}
                   onChange={(e) => setMany(grantableNames, e.target.checked)}
@@ -112,7 +113,7 @@ export function PermissionPicker({
               <ul className="divide-y divide-gray-100">
                 {shown.map((permission) => {
                   const allowed = canGrant(permission.name)
-                  const checked = locked || selected.has(permission.name)
+                  const checked = selected.has(permission.name)
                   return (
                     <li key={permission.name}>
                       <label

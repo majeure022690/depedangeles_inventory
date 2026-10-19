@@ -1,9 +1,10 @@
 import { ChevronDown, Search, X } from 'lucide-react'
-import { type ChangeEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { type AriaAttributes, type ChangeEvent, type KeyboardEvent, useEffect, useId, useRef, useState } from 'react'
 
-import { cn } from '@/lib/utils'
+import { cn, idList } from '@/lib/utils'
 
 import { FieldLabelText } from '@/components/ui/FieldLabelText'
+import { isInvalid } from '@/components/ui/fieldState'
 
 export interface SelectPickerOption {
   label: string
@@ -20,6 +21,14 @@ interface SelectPickerProps {
   selectedValue?: string | null
   label?: string
   error?: string
+  /** Id of the trigger button; a `<label htmlFor>` pointing here names it. */
+  id?: string
+  /** An external label element's id (e.g. a FormField label); used instead of `label`. */
+  'aria-labelledby'?: string
+  /** Accessible name when there's no visible label at all. */
+  'aria-label'?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: AriaAttributes['aria-invalid']
 }
 
 const LIST_MAX_HEIGHT = 288
@@ -43,7 +52,22 @@ export function SelectPicker({
   selectedValue,
   label,
   error,
+  id,
+  'aria-labelledby': labelledBy,
+  'aria-label': ariaLabel,
+  'aria-describedby': describedBy,
+  'aria-invalid': ariaInvalid,
 }: SelectPickerProps) {
+  const generatedId = useId()
+  const triggerId = id ?? generatedId
+  const labelId = `${triggerId}-label`
+  const valueId = `${triggerId}-value`
+  const errorId = `${triggerId}-error`
+  // Name = label + current value ("Office, Division Office"), like a native select.
+  // With only aria-label, the trigger references itself, which resolves to its aria-label.
+  const nameSource = labelledBy ?? (label ? labelId : ariaLabel ? triggerId : undefined)
+  const invalid = isInvalid(error, ariaInvalid)
+
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [dropdownPosition, setDropdownPosition] = useState<'bottom' | 'top'>('bottom')
@@ -123,25 +147,34 @@ export function SelectPicker({
 
   return (
     <div className="w-full">
-      {label && <label className="mb-1 block text-sm font-medium text-gray-700"><FieldLabelText label={label} /></label>}
+      {label && (
+        <label id={labelId} htmlFor={triggerId} className="mb-1 block text-sm font-medium text-gray-700">
+          <FieldLabelText label={label} />
+        </label>
+      )}
       <div className={cn('relative w-full', className)} ref={containerRef}>
         <button
           ref={triggerRef}
+          id={triggerId}
           type="button"
+          aria-label={ariaLabel}
+          aria-labelledby={nameSource ? idList(nameSource, valueId) : undefined}
+          aria-describedby={idList(describedBy, error && errorId)}
+          aria-invalid={invalid || undefined}
           className={cn(
             'flex h-10 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 text-left text-sm',
             'focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500',
             'transition-colors',
             disabled ? 'cursor-not-allowed bg-gray-50 opacity-60' : 'hover:border-gray-400',
             isOpen && 'border-primary-500 ring-2 ring-primary-500/20',
-            error && 'border-error-400',
+            invalid && 'border-error-400',
           )}
           onClick={handleToggle}
           disabled={disabled}
           aria-haspopup="listbox"
           aria-expanded={isOpen}
         >
-          <span className={cn('truncate', selectedOption ? 'text-gray-900' : 'text-gray-500')}>
+          <span id={valueId} className={cn('truncate', selectedOption ? 'text-gray-900' : 'text-gray-500')}>
             {selectedOption ? selectedOption.label : placeholder}
           </span>
           <div className="flex items-center gap-1">
@@ -206,7 +239,11 @@ export function SelectPicker({
           </div>
         )}
       </div>
-      {error && <p className="mt-1 text-xs text-error-600">{error}</p>}
+      {error && (
+        <p id={errorId} className="mt-1 text-xs text-error-600">
+          {error}
+        </p>
+      )}
     </div>
   )
 }

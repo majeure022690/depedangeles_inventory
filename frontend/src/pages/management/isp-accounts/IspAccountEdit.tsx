@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { DetailPageSkeleton } from '@/components/DetailPageSkeleton'
-import { IspAccountFields, fieldErrorsFrom, type FieldErrors } from '@/components/isp-accounts/IspAccountFields'
+import { IspAccountFields } from '@/components/isp-accounts/IspAccountFields'
 import { SpeedTestLog } from '@/components/isp-accounts/SpeedTestLog'
 import { SubscriptionCostLog } from '@/components/isp-accounts/SubscriptionCostLog'
 import { Alert } from '@/components/ui/Alert'
@@ -13,7 +13,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { TabPanel, Tabs } from '@/components/ui/Tabs'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, isValidationError, type FieldErrors } from '@/lib/errors'
 import type { PermissionName } from '@/lib/permissions'
 import { ispAccountFormFrom, ispAccountService } from '@/services/ispAccountService'
 import type { IspAccount, IspAccountFormData, IspAccountOptions } from '@/types/isp-account'
@@ -107,7 +107,7 @@ export function IspAccountEdit() {
       setSavedForm(next)
       setFeedback({ type: 'success', message: response.message })
     } catch (error) {
-      const fieldErrors = fieldErrorsFrom(error)
+      const fieldErrors = isValidationError(error) ? extractFieldErrors(error) : null
       if (fieldErrors) setErrors(fieldErrors)
       setFeedback({
         type: 'error',
@@ -153,10 +153,10 @@ export function IspAccountEdit() {
       )}
 
       <div className="mb-4">
-        <Tabs tabs={tabs} value={tab} onChange={(value) => setTab(value as Tab)} />
+        <Tabs id="isp-account" label="ISP account sections" tabs={tabs} value={tab} onChange={(value) => setTab(value as Tab)} />
       </div>
 
-      <TabPanel active={tab === 'details'}>
+      <TabPanel tabsId="isp-account" value="details" active={tab === 'details'}>
         <form noValidate onSubmit={handleSubmit} aria-label="ISP account details">
           <Card>
             <CardContent className="p-0">
@@ -194,7 +194,7 @@ export function IspAccountEdit() {
         </form>
       </TabPanel>
 
-      <TabPanel active={tab === 'speed-tests'}>
+      <TabPanel tabsId="isp-account" value="speed-tests" active={tab === 'speed-tests'}>
         <SpeedTestLog
           ispAccountId={account.id}
           speedTests={speedTests}
@@ -204,7 +204,7 @@ export function IspAccountEdit() {
         />
       </TabPanel>
 
-      <TabPanel active={tab === 'subscription-costs'}>
+      <TabPanel tabsId="isp-account" value="subscription-costs" active={tab === 'subscription-costs'}>
         <SubscriptionCostLog
           ispAccountId={account.id}
           subscriptionCosts={subscriptionCosts}

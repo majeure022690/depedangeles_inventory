@@ -6,7 +6,6 @@ import { DetailPageSkeleton } from '@/components/DetailPageSkeleton'
 import {
   OfficeFields,
   officeDeleteErrorMessage,
-  officeFieldErrors,
   officeToForm,
   toOfficePayload,
   type OfficeFieldErrors,
@@ -17,7 +16,7 @@ import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, isValidationError } from '@/lib/errors'
 import { officeService } from '@/services/officeService'
 import type { Office, OfficeFormData } from '@/types/office'
 
@@ -76,7 +75,7 @@ export function OfficeEdit() {
       setForm(officeToForm(updated))
       setFeedback({ type: 'success', message: 'Office details saved.' })
     } catch (error) {
-      const fieldErrors = officeFieldErrors(error)
+      const fieldErrors = isValidationError(error) ? extractFieldErrors(error) : null
       setErrors(fieldErrors ?? {})
       setFeedback({ type: 'error', message: fieldErrors ? 'Please correct the highlighted fields.' : extractError(error, 'Unable to save this office. Please try again.') })
     } finally {

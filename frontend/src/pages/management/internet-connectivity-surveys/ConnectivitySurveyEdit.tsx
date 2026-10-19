@@ -3,13 +3,13 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { DetailPageSkeleton } from '@/components/DetailPageSkeleton'
-import { ConnectivitySurveyFields, fieldErrorsFrom, type FieldErrors } from '@/components/internet-connectivity-surveys/ConnectivitySurveyFields'
+import { ConnectivitySurveyFields } from '@/components/internet-connectivity-surveys/ConnectivitySurveyFields'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, isValidationError, type FieldErrors } from '@/lib/errors'
 import type { PermissionName } from '@/lib/permissions'
 import { connectivitySurveyFormFrom, connectivitySurveyService } from '@/services/connectivitySurveyService'
 import type { ConnectivitySurveyFormData, ConnectivitySurveyOptions } from '@/types/internet-connectivity-survey'
@@ -93,7 +93,7 @@ export function ConnectivitySurveyEdit() {
       setSavedForm(next)
       setFeedback({ type: 'success', message: response.message })
     } catch (error) {
-      const fieldErrors = fieldErrorsFrom(error)
+      const fieldErrors = isValidationError(error) ? extractFieldErrors(error) : null
       if (fieldErrors) setErrors(fieldErrors)
       setFeedback({
         type: 'error',

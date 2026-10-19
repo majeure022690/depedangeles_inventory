@@ -1,6 +1,5 @@
-import { isAxiosError } from 'axios'
 import { Building2, Compass, FileText, HeartHandshake, MapPin, Phone, Route, UserRound } from 'lucide-react'
-import type { ComponentProps, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 import { CheckboxGroupField } from '@/components/forms/CheckboxGroupField'
 import { DetailSection } from '@/components/ui/DetailSection'
@@ -8,66 +7,9 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Switch } from '@/components/ui/Switch'
 import { Textarea } from '@/components/ui/Textarea'
+import type { FieldErrors } from '@/lib/errors'
 import { cn } from '@/lib/utils'
-import type { ApiValidationError } from '@/types/api'
 import type { StakeholderProfileFormData, StakeholderProfileOptions } from '@/types/stakeholder-profile'
-
-export type FieldErrors = Partial<Record<string, string>>
-
-/** First 422 message per field (`field.0` element errors fold into `field`), or null for any other failure. */
-export function fieldErrorsFrom(error: unknown): FieldErrors | null {
-  if (!isAxiosError<ApiValidationError>(error) || error.response?.status !== 422 || !error.response.data?.errors) return null
-  const errors: FieldErrors = {}
-  for (const [key, messages] of Object.entries(error.response.data.errors)) {
-    const field = key.split('.')[0]
-    if (!errors[field] && messages[0]) errors[field] = messages[0]
-  }
-  return errors
-}
-
-const INVALID = 'border-error-400 focus:border-error-500 focus:ring-error-500/20'
-
-function FieldError({ id, message }: { id: string; message?: string }) {
-  if (!message) return null
-  return (
-    <p id={`${id}-error`} className="mt-1 text-xs text-error-600">
-      {message}
-    </p>
-  )
-}
-
-function described(id: string, error?: string) {
-  return { 'aria-invalid': error ? true : undefined, 'aria-describedby': error ? `${id}-error` : undefined }
-}
-
-type Wrapped<P> = Omit<P, 'id' | 'label' | 'error'> & { id: string; label: string; error?: string }
-
-function FormInput({ id, label, error, className, ...props }: Wrapped<ComponentProps<typeof Input>>) {
-  return (
-    <div>
-      <Input id={id} label={label} className={cn(error && INVALID, className)} {...described(id, error)} {...props} />
-      <FieldError id={id} message={error} />
-    </div>
-  )
-}
-
-function FormSelect({ id, label, error, className, ...props }: Wrapped<ComponentProps<typeof Select>>) {
-  return (
-    <div>
-      <Select id={id} label={label} className={cn(error && INVALID, className)} {...described(id, error)} {...props} />
-      <FieldError id={id} message={error} />
-    </div>
-  )
-}
-
-function FormTextarea({ id, label, error, className, ...props }: Wrapped<ComponentProps<typeof Textarea>>) {
-  return (
-    <div>
-      <Textarea id={id} label={label} className={cn(error && INVALID, className)} {...described(id, error)} {...props} />
-      <FieldError id={id} message={error} />
-    </div>
-  )
-}
 
 export type SectionId = 'location' | 'organization' | 'personnel' | 'contacts' | 'coordinates' | 'accessibility' | 'community' | 'notes'
 
@@ -218,7 +160,7 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
       icon: <MapPin className="h-4 w-4" />,
       body: (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormSelect
+          <Select
             id="province_id"
             label="Province"
             placeholder="None"
@@ -233,7 +175,7 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
               onChange('barangay_id', null)
             }}
           />
-          <FormSelect
+          <Select
             id="municipality_id"
             label="City / Municipality"
             placeholder={form.province_id === null ? 'Select a province first' : 'None'}
@@ -246,8 +188,8 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
               onChange('barangay_id', null)
             }}
           />
-          <FormInput {...text('legislative_district')} label="Legislative district" />
-          <FormSelect
+          <Input {...text('legislative_district')} label="Legislative district" />
+          <Select
             id="barangay_id"
             label="Barangay"
             placeholder={form.municipality_id === null ? 'Select a municipality first' : 'None'}
@@ -257,7 +199,7 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
             disabled={disabled || form.municipality_id === null}
             onChange={(e) => onChange('barangay_id', toId(e.target.value))}
           />
-          <FormInput {...text('street')} label="Street" />
+          <Input {...text('street')} label="Street" />
           <div className="sm:col-span-2">
             <Input
               id="complete_address"
@@ -275,12 +217,12 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
       icon: <Building2 className="h-4 w-4" />,
       body: (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormSelect {...text('governance_level')} label="Governance level" placeholder="None" options={options?.governance_level ?? []} />
-          <FormInput {...text('ro')} label="Regional Office" />
-          <FormInput {...text('sdo')} label="Schools Division Office" />
-          <FormInput {...text('school_district')} label="School district" />
-          <FormInput {...text('school_name')} label="School name" />
-          <FormInput {...text('school_id')} label="School ID" />
+          <Select {...text('governance_level')} label="Governance level" placeholder="None" options={options?.governance_level ?? []} />
+          <Input {...text('ro')} label="Regional Office" />
+          <Input {...text('sdo')} label="Schools Division Office" />
+          <Input {...text('school_district')} label="School district" />
+          <Input {...text('school_name')} label="School name" />
+          <Input {...text('school_id')} label="School ID" />
         </div>
       ),
     },
@@ -291,22 +233,22 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
           <fieldset>
             <legend className="mb-2 text-sm font-semibold text-gray-900">RO/SDO Chief / School Head</legend>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormInput {...text('chief_name')} label="Name" />
-              <FormInput {...text('chief_position')} label="Position" />
-              <FormInput {...text('chief_email')} label="Email" type="email" autoComplete="off" />
-              <FormInput {...text('chief_mobile')} label="Mobile" type="tel" />
+              <Input {...text('chief_name')} label="Name" />
+              <Input {...text('chief_position')} label="Position" />
+              <Input {...text('chief_email')} label="Email" type="email" autoComplete="off" />
+              <Input {...text('chief_mobile')} label="Mobile" type="tel" />
             </div>
           </fieldset>
           <fieldset>
             <legend className="mb-2 text-sm font-semibold text-gray-900">Administrative Staff / Inventory Clerk</legend>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormInput {...text('admin_staff_name')} label="Name" />
-              <FormInput {...text('admin_staff_position')} label="Position" />
-              <FormInput {...text('admin_staff_email')} label="Email" type="email" autoComplete="off" />
-              <FormInput {...text('admin_staff_mobile')} label="Mobile" type="tel" />
+              <Input {...text('admin_staff_name')} label="Name" />
+              <Input {...text('admin_staff_position')} label="Position" />
+              <Input {...text('admin_staff_email')} label="Email" type="email" autoComplete="off" />
+              <Input {...text('admin_staff_mobile')} label="Mobile" type="tel" />
             </div>
           </fieldset>
-          <FormInput {...text('network_administrator_name')} label="Network administrator" />
+          <Input {...text('network_administrator_name')} label="Network administrator" />
         </div>
       ),
     },
@@ -314,9 +256,9 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
       icon: <Phone className="h-4 w-4" />,
       body: (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <FormInput {...text('mobile_1')} label="Mobile 1" type="tel" />
-          <FormInput {...text('mobile_2')} label="Mobile 2" type="tel" />
-          <FormInput {...text('landline')} label="Landline" type="tel" />
+          <Input {...text('mobile_1')} label="Mobile 1" type="tel" />
+          <Input {...text('mobile_2')} label="Mobile 2" type="tel" />
+          <Input {...text('landline')} label="Landline" type="tel" />
         </div>
       ),
     },
@@ -324,8 +266,8 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
       icon: <Compass className="h-4 w-4" />,
       body: (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormInput {...text('longitude')} label="Longitude" type="number" step="0.0000001" min="-180" max="180" inputMode="decimal" />
-          <FormInput {...text('latitude')} label="Latitude" type="number" step="0.0000001" min="-90" max="90" inputMode="decimal" />
+          <Input {...text('longitude')} label="Longitude" type="number" step="0.0000001" min="-180" max="180" inputMode="decimal" />
+          <Input {...text('latitude')} label="Latitude" type="number" step="0.0000001" min="-90" max="90" inputMode="decimal" />
         </div>
       ),
     },
@@ -343,10 +285,10 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
             disabled={disabled}
           />
           <div className="sm:max-w-sm">
-            <FormInput {...text('nearby_institutions_other')} label="Other nearby institution" />
+            <Input {...text('nearby_institutions_other')} label="Other nearby institution" />
           </div>
           <div className="sm:max-w-sm">
-            <FormInput {...text('travel_time_to_center_minutes')} label="Travel time to center (minutes)" type="number" min="0" inputMode="numeric" />
+            <Input {...text('travel_time_to_center_minutes')} label="Travel time to center (minutes)" type="number" min="0" inputMode="numeric" />
           </div>
           <CheckboxGroupField
             id="access_paths"
@@ -367,33 +309,43 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
             disabled={disabled}
           />
           <div className="sm:max-w-sm">
-            <FormInput {...text('transportation_other')} label="Other transportation option" />
+            <Input {...text('transportation_other')} label="Other transportation option" />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Switch
               checked={form.transportation_difficult}
+              id="transportation_difficult"
+              error={errors.transportation_difficult}
               disabled={disabled}
               onChange={(checked) => onChange('transportation_difficult', checked)}
               label="Transportation is difficult"
             />
             <Switch
               checked={form.considered_very_remote}
+              id="considered_very_remote"
+              error={errors.considered_very_remote}
               disabled={disabled}
               onChange={(checked) => onChange('considered_very_remote', checked)}
               label="Considered very remote"
             />
             <Switch
               checked={form.gidca}
+              id="gidca"
+              error={errors.gidca}
               disabled={disabled}
               onChange={(checked) => onChange('gidca', checked)}
               label="GIDCA (Geographically Isolated, Disadvantaged, and Conflict-Affected)"
             />
-            <Switch checked={form.lms} disabled={disabled} onChange={(checked) => onChange('lms', checked)} label="LMS (Last Mile School)" />
+            <Switch
+              id="lms"
+              checked={form.lms}
+              disabled={disabled}
+              onChange={(checked) => onChange('lms', checked)}
+              label="LMS (Last Mile School)"
+              error={errors.lms}
+            />
           </div>
-          {(['transportation_difficult', 'considered_very_remote', 'gidca', 'lms'] as const).map((flag) => (
-            <FieldError key={flag} id={flag} message={errors[flag]} />
-          ))}
-          <FormTextarea {...text('remote_context_notes')} label="Remote context notes" />
+          <Textarea {...text('remote_context_notes')} label="Remote context notes" />
         </div>
       ),
     },
@@ -410,7 +362,7 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
             error={errors.community_engagement}
             disabled={disabled}
           />
-          <FormTextarea {...text('community_context_remarks')} label="Community context remarks" />
+          <Textarea {...text('community_context_remarks')} label="Community context remarks" />
         </div>
       ),
     },
@@ -418,13 +370,13 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
       icon: <FileText className="h-4 w-4" />,
       body: (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormInput {...text('submitted_at')} label="Submitted at" type="datetime-local" />
-          <FormSelect {...text('transaction_type')} label="Transaction type" placeholder="None" options={options?.transaction_type ?? []} />
+          <Input {...text('submitted_at')} label="Submitted at" type="datetime-local" />
+          <Select {...text('transaction_type')} label="Transaction type" placeholder="None" options={options?.transaction_type ?? []} />
           <div className="sm:col-span-2">
-            <FormTextarea {...text('notes_corrections')} label="Notes / corrections" />
+            <Textarea {...text('notes_corrections')} label="Notes / corrections" />
           </div>
           <div className="sm:col-span-2">
-            <FormTextarea {...text('notes_recent_development')} label="Notes on recent development" />
+            <Textarea {...text('notes_recent_development')} label="Notes on recent development" />
           </div>
         </div>
       ),

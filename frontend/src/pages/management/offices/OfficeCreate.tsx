@@ -2,11 +2,11 @@ import { ArrowLeft } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { emptyOfficeForm, OfficeFields, officeFieldErrors, toOfficePayload, type OfficeFieldErrors } from '@/components/offices/OfficeFields'
+import { emptyOfficeForm, OfficeFields, toOfficePayload, type OfficeFieldErrors } from '@/components/offices/OfficeFields'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, isValidationError } from '@/lib/errors'
 import { officeService } from '@/services/officeService'
 import type { OfficeFormData } from '@/types/office'
 
@@ -27,7 +27,7 @@ export function OfficeCreate() {
       const office = await officeService.create(toOfficePayload(form))
       navigate('/portal/offices', { state: { flash: `"${office.office_name}" was added.` } })
     } catch (error) {
-      const fieldErrors = officeFieldErrors(error)
+      const fieldErrors = isValidationError(error) ? extractFieldErrors(error) : null
       setErrors(fieldErrors ?? {})
       setFormError(fieldErrors ? 'Please correct the highlighted fields.' : extractError(error, 'Unable to save this office. Please try again.'))
       setSaving(false)

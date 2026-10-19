@@ -3,7 +3,6 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { DetailPageSkeleton } from '@/components/DetailPageSkeleton'
-import { fieldErrorsFrom, type FieldErrors } from '@/components/equipment/EquipmentFields'
 import { PersonnelFields, personnelToForm } from '@/components/personnel/PersonnelFields'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -11,7 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, type FieldErrors } from '@/lib/errors'
 import { personnelService, toPersonnelPayload } from '@/services/personnelService'
 import type { Personnel, PersonnelFormData, PersonnelOptions } from '@/types/personnel'
 
@@ -70,7 +69,7 @@ export function PersonnelEdit() {
       const response = await personnelService.update(personnel.id, toPersonnelPayload(form))
       navigate('/portal/personnel', { state: { flash: response.message } })
     } catch (e) {
-      setErrors(fieldErrorsFrom(e))
+      setErrors(extractFieldErrors(e))
       setFormError(extractError(e, 'Unable to save this personnel record. Please try again.'))
       window.scrollTo({ top: 0, behavior: 'smooth' })
       setSaving(false)

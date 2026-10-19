@@ -2,11 +2,11 @@ import { ArrowLeft } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { EquipmentFields, emptyEquipmentForm, fieldErrorsFrom, type FieldErrors } from '@/components/equipment/EquipmentFields'
+import { EquipmentFields, emptyEquipmentForm } from '@/components/equipment/EquipmentFields'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, type FieldErrors } from '@/lib/errors'
 import { equipmentService, toEquipmentPayload } from '@/services/equipmentService'
 import type { EquipmentFormData, EquipmentFormOptions } from '@/types/equipment'
 
@@ -37,7 +37,7 @@ export function EquipmentCreate() {
       const response = await equipmentService.create(toEquipmentPayload(form))
       navigate(`/portal/equipment/${response.data.id}/edit`, { state: { flash: response.message } })
     } catch (e) {
-      setErrors(fieldErrorsFrom(e))
+      setErrors(extractFieldErrors(e))
       setFormError(extractError(e, 'Unable to save this equipment record. Please try again.'))
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } finally {

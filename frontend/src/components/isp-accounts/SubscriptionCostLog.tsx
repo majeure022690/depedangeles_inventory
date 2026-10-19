@@ -1,12 +1,12 @@
 import { History, Wallet } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 
-import { FormInput, fieldErrorsFrom, type FieldErrors } from '@/components/isp-accounts/IspAccountFields'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { DetailSection } from '@/components/ui/DetailSection'
-import { extractError } from '@/lib/errors'
+import { Input } from '@/components/ui/Input'
+import { extractError, extractFieldErrors, isValidationError, type FieldErrors } from '@/lib/errors'
 import { formatDateTime } from '@/lib/utils'
 import { emptySubscriptionCostForm, ispAccountService } from '@/services/ispAccountService'
 import type { IspSubscriptionCost, IspSubscriptionCostFormData } from '@/types/isp-account'
@@ -60,7 +60,7 @@ export function SubscriptionCostLog({ ispAccountId, subscriptionCosts, canRecord
       setForm(emptySubscriptionCostForm())
       setFeedback({ type: 'success', message: response.message })
     } catch (error) {
-      const fieldErrors = fieldErrorsFrom(error)
+      const fieldErrors = isValidationError(error) ? extractFieldErrors(error) : null
       if (fieldErrors) setErrors(fieldErrors)
       setFeedback({
         type: 'error',
@@ -87,12 +87,12 @@ export function SubscriptionCostLog({ ispAccountId, subscriptionCosts, canRecord
             )}
             <form noValidate onSubmit={handleSubmit} aria-label="Log a subscription cost">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormInput {...field('contract_start_date')} label="Contract start date" type="date" />
-                <FormInput {...field('contract_end_date')} label="Contract end date" type="date" />
-                <FormInput {...field('total_amount_spent')} label="Total amount spent" type="number" step="0.01" min="0" inputMode="decimal" />
-                <FormInput {...field('contract_projected_start_date')} label="Projected start date" type="date" />
-                <FormInput {...field('contract_projected_end_date')} label="Projected end date" type="date" />
-                <FormInput
+                <Input {...field('contract_start_date')} label="Contract start date" type="date" />
+                <Input {...field('contract_end_date')} label="Contract end date" type="date" />
+                <Input {...field('total_amount_spent')} label="Total amount spent" type="number" step="0.01" min="0" inputMode="decimal" />
+                <Input {...field('contract_projected_start_date')} label="Projected start date" type="date" />
+                <Input {...field('contract_projected_end_date')} label="Projected end date" type="date" />
+                <Input
                   {...field('total_projected_expenditure')}
                   label="Total projected expenditure"
                   type="number"

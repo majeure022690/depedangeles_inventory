@@ -2,12 +2,11 @@ import { ArrowLeft } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { fieldErrorsFrom, type FieldErrors } from '@/components/equipment/EquipmentFields'
 import { PersonnelFields, emptyPersonnelForm } from '@/components/personnel/PersonnelFields'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError } from '@/lib/errors'
+import { extractError, extractFieldErrors, type FieldErrors } from '@/lib/errors'
 import { personnelService, toPersonnelPayload } from '@/services/personnelService'
 import type { PersonnelFormData, PersonnelOptions } from '@/types/personnel'
 
@@ -38,7 +37,7 @@ export function PersonnelCreate() {
       const response = await personnelService.create(toPersonnelPayload(form))
       navigate('/portal/personnel', { state: { flash: response.message } })
     } catch (e) {
-      setErrors(fieldErrorsFrom(e))
+      setErrors(extractFieldErrors(e))
       setFormError(extractError(e, 'Unable to save this personnel record. Please try again.'))
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } finally {
