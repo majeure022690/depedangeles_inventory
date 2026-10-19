@@ -1,8 +1,439 @@
-import { PagePlaceholder } from '@/components/PagePlaceholder'
-import { usePageTitle } from '@/hooks/usePageTitle'
+import { isAxiosError } from 'axios'
+import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 
-// Stub registered by the Phase 4.0 shell; replaced by its batch (see decoupled-spa-stack-plan.md, Phase 4).
+import { Alert } from '@/components/ui/Alert'
+import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/DataGrid'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/Dialog'
+import { FilterSearch, FilterSelect } from '@/components/ui/FilterControls'
+import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
+import { Switch } from '@/components/ui/Switch'
+import { Textarea } from '@/components/ui/Textarea'
+import { usePageTitle } from '@/hooks/usePageTitle'
+import { useServerTable } from '@/hooks/useServerTable'
+import { extractError } from '@/lib/errors'
+import { referenceDataService } from '@/services/referenceDataService'
+import type { ApiValidationError } from '@/types/api'
+import type { ReferenceDataRow, ReferenceDataTableMeta, ReferenceDataTier2Row } from '@/types/reference-data'
+
+const column = gridColumnHelper<ReferenceDataRow>()
+
+type Feedback = { type: 'success' | 'error'; message: string }
+
+interface RowForm {
+  name: string
+  type: string
+  value: string
+  description: string
+  sort_order: string
+  is_active: boolean
+}
+
+type RowFormErrors = Partial<Record<keyof RowForm, string>>
+
+const EMPTY_FORM: RowForm = { name: '', type: '', value: '', description: '', sort_order: '0', is_active: true }
+
+function isTier2Row(row: ReferenceDataRow): row is ReferenceDataTier2Row {
+  return 'value' in row
+}
+
+function rowLabel(row: ReferenceDataRow): string {
+  return isTier2Row(row) ? row.value : row.name
+}
+
+function validationErrors(error: unknown): RowFormErrors | null {
+  if (!isAxiosError<ApiValidationError>(error) || error.response?.status !== 422) return null
+  return Object.fromEntries(Object.entries(error.response.data.errors ?? {}).map(([field, messages]) => [field, messages[0]])) as RowFormErrors
+}
+
+/** Route `/portal/reference-data/:table`. Keyed by table so switching tables resets paging, filters and dialogs. */
 export function ReferenceDataTable() {
-  usePageTitle('Reference Data')
-  return <PagePlaceholder title="Reference Data" />
+  const { table = '' } = useParams<{ table: string }>()
+  return <ReferenceDataTableView key={table} table={table} />
+}
+
+function ReferenceDataTableView({ table }: { table: string }) {
+  const navigate = useNavigate()
+  const [tableMeta, setTableMeta] = useState<ReferenceDataTableMeta | null>(null)
+  usePageTitle(tableMeta?.label ?? 'Reference Data')
+
+  const isTier1 = (tableMeta?.tier ?? 1) === 1
+  const types = useMemo(() => tableMeta?.types ?? [], [tableMeta])
+  const typeLabels = useMemo(() => new Map(types.map((type) => [type.value, type.label])), [types])
+
+  const [typeFilter, setTypeFilter] = useState('')
+  const { items, meta, loading, error, page, setPage, perPage, setPerPage, setSearch, reload } = useServerTable(
+    (params) =>
+      referenceDataService.list(table, params).then((response) => {
+        setTableMeta(response.meta.table)
+        return response
+      }),
+    { waitForPerPage: true, filters: { type: typeFilter } },
+  )
+
+  const [searchDraft, setSearchDraft] = useState('')
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(searchDraft.trim()), 300)
+    return () => window.clearTimeout(timer)
+    // setSearch is recreated every render; only the typed value should restart the debounce.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchDraft])
+
+  const [feedback, setFeedback] = useState<Feedback | null>(null)
+
+  // Create/edit dialog. `editing` null + open = create.
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editing, setEditing] = useState<ReferenceDataRow | null>(null)
+  const [form, setForm] = useState<RowForm>(EMPTY_FORM)
+  const [formErrors, setFormErrors] = useState<RowFormErrors>({})
+  const [formError, setFormError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  function openCreate() {
+    setEditing(null)
+    setForm({ ...EMPTY_FORM, type: typeFilter })
+    setFormErrors({})
+    setFormError(null)
+    setDialogOpen(true)
+  }
+
+  function openEdit(row: ReferenceDataRow) {
+    setEditing(row)
+    setForm({
+      name: isTier2Row(row) ? '' : row.name,
+      type: isTier2Row(row) ? row.type : '',
+      value: isTier2Row(row) ? row.value : '',
+      description: row.description ?? '',
+      sort_order: String(row.sort_order),
+      is_active: row.is_active,
+    })
+    setFormErrors({})
+    setFormError(null)
+    setDialogOpen(true)
+  }
+
+  function patchForm(patch: Partial<RowForm>) {
+    setForm((current) => ({ ...current, ...patch }))
+  }
+
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSaving(true)
+    setFormErrors({})
+    setFormError(null)
+
+    const common = {
+      description: form.description.trim() === '' ? null : form.description.trim(),
+      sort_order: form.sort_order.trim() === '' ? 0 : Number(form.sort_order),
+      is_active: form.is_active,
+    }
+
+    try {
+      if (editing) {
+        await referenceDataService.update(table, editing.id, isTier1 ? { ...common, name: form.name.trim() } : common)
+        setFeedback({ type: 'success', message: `"${isTier1 ? form.name.trim() : rowLabel(editing)}" was updated.` })
+      } else {
+        await referenceDataService.create(table, isTier1 ? { ...common, name: form.name.trim() } : { ...common, type: form.type, value: form.value.trim() })
+        setFeedback({ type: 'success', message: `"${isTier1 ? form.name.trim() : form.value.trim()}" was added.` })
+      }
+      setDialogOpen(false)
+      await reload()
+    } catch (saveError) {
+      const fieldErrors = validationErrors(saveError)
+      setFormErrors(fieldErrors ?? {})
+      setFormError(fieldErrors ? null : extractError(saveError, 'Unable to save. Please try again.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Delete confirmation. A 409 means some record still uses the value.
+  const [pendingDelete, setPendingDelete] = useState<ReferenceDataRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDelete() {
+    if (!pendingDelete) return
+    setDeleting(true)
+    try {
+      await referenceDataService.remove(table, pendingDelete.id)
+      setFeedback({ type: 'success', message: `"${rowLabel(pendingDelete)}" was deleted.` })
+      await reload()
+    } catch (deleteError) {
+      const inUse = isAxiosError(deleteError) && deleteError.response?.status === 409
+      setFeedback({
+        type: 'error',
+        message: inUse
+          ? extractError(deleteError, 'This value is still in use and cannot be deleted. Deactivate it instead.')
+          : extractError(deleteError, 'Unable to delete this value. Please try again.'),
+      })
+    } finally {
+      setDeleting(false)
+      setPendingDelete(null)
+    }
+  }
+
+  const columns = useMemo<GridColumn<ReferenceDataRow>[]>(() => {
+    const identity: GridColumn<ReferenceDataRow>[] = isTier1
+      ? [
+          column.display({
+            id: 'name',
+            header: 'Name',
+            enableHiding: false,
+            cell: ({ row }) => <span className="font-medium text-gray-900">{rowLabel(row.original)}</span>,
+          }),
+        ]
+      : [
+          column.display({
+            id: 'type',
+            header: 'Type',
+            cell: ({ row }) => {
+              const type = isTier2Row(row.original) ? row.original.type : ''
+              return typeLabels.get(type) ?? type
+            },
+          }),
+          column.display({
+            id: 'value',
+            header: 'Value',
+            enableHiding: false,
+            cell: ({ row }) => <span className="font-medium text-gray-900">{rowLabel(row.original)}</span>,
+          }),
+        ]
+
+    return [
+      ...identity,
+      column.accessor('description', {
+        header: 'Description',
+        enableSorting: false,
+        cell: (info) => info.getValue() || <span className="text-gray-400">—</span>,
+      }),
+      column.accessor('sort_order', {
+        header: 'Sort order',
+        enableSorting: false,
+        meta: { align: 'center', className: 'tabular-nums' },
+      }),
+      column.accessor('is_active', {
+        header: 'Status',
+        enableSorting: false,
+        meta: { className: 'whitespace-nowrap' },
+        cell: (info) => <Badge color={info.getValue() ? 'success' : 'gray'}>{info.getValue() ? 'Active' : 'Inactive'}</Badge>,
+      }),
+      column.display({
+        id: 'actions',
+        header: '',
+        enableHiding: false,
+        meta: { align: 'right' },
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="sm" onClick={() => openEdit(row.original)} aria-label={`Edit ${rowLabel(row.original)}`} title="Edit">
+              <Pencil className="h-4 w-4 text-primary-600" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row.original)} aria-label={`Delete ${rowLabel(row.original)}`} title="Delete">
+              <Trash2 className="h-4 w-4 text-error-600" />
+            </Button>
+          </div>
+        ),
+      }),
+    ]
+    // openEdit only closes over state setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTier1, typeLabels])
+
+  const noun = isTier1 ? 'entry' : 'library value'
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/portal/reference-data')} aria-label="Back to reference data" className="mt-1">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-bold text-gray-900">{tableMeta?.label ?? 'Reference Data'}</h1>
+              {tableMeta && <Badge color={isTier1 ? 'primary' : 'gray'}>Tier {tableMeta.tier}</Badge>}
+            </div>
+            {tableMeta && (
+              <p className="text-sm text-gray-600">
+                {isTier1
+                  ? 'Dedicated reference table. Name, description, sort order and status are editable; renames show on every linked record.'
+                  : 'Grouped library table. Type and value are fixed once created; description, sort order and status are editable.'}
+              </p>
+            )}
+          </div>
+        </div>
+        {tableMeta && (
+          <div className="page-actions">
+            <Button leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate} size="sm">
+              Add {noun}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {feedback && (
+        <Alert type={feedback.type} className="mb-4">
+          {feedback.message}
+        </Alert>
+      )}
+
+      <DataGrid
+        id={`reference-data.${table}`}
+        columns={columns}
+        rows={items}
+        rowKey={(row) => row.id}
+        loading={loading}
+        error={error}
+        meta={meta}
+        page={page}
+        onPageChange={setPage}
+        perPage={perPage}
+        onPerPageChange={setPerPage}
+        emptyMessage={searchDraft || typeFilter ? 'No rows match these filters.' : 'No rows yet.'}
+        onRowClick={openEdit}
+        toolbar={
+          <div className="flex w-full flex-wrap items-center gap-3">
+            <div className="w-full sm:w-64">
+              <FilterSearch
+                label={isTier1 ? 'Search by name or description' : 'Search by value or description'}
+                value={searchDraft}
+                onChange={setSearchDraft}
+                onSubmit={() => setSearch(searchDraft.trim())}
+              />
+            </div>
+            {!isTier1 && types.length > 0 && (
+              <FilterSelect label="Filter by type" value={typeFilter} onChange={setTypeFilter} className="w-full sm:w-56">
+                <option value="">All types</option>
+                {types.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </FilterSelect>
+            )}
+            {meta && (
+              <span>
+                <span className="font-semibold text-gray-900">{meta.total.toLocaleString()}</span> row{meta.total === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
+        }
+      />
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => !saving && setDialogOpen(open)}>
+        <DialogContent>
+          <DialogTitle>{editing ? `Edit ${noun}` : `Add ${noun}`}</DialogTitle>
+          <DialogDescription>
+            {isTier1
+              ? editing
+                ? 'Rename this entry or update its description, sort order and status. Every record that uses it shows the new name immediately.'
+                : 'Add a new entry to this table. The name must be unique within the table.'
+              : editing
+                ? 'Only the description, sort order and status can change. The type and value stay fixed so existing records keep matching.'
+                : 'Add a value under one of this library’s types. The value must be unique within its type and cannot be changed later.'}
+          </DialogDescription>
+
+          {formError && <Alert type="error">{formError}</Alert>}
+
+          <form id="reference-data-form" onSubmit={handleSave} noValidate className="space-y-4">
+            {isTier1 ? (
+              <Input
+                id="reference-name"
+                label="Name"
+                required
+                autoFocus
+                maxLength={255}
+                value={form.name}
+                onChange={(e) => patchForm({ name: e.target.value })}
+                error={formErrors.name}
+              />
+            ) : editing ? (
+              <dl className="grid grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
+                <div>
+                  <dt className="text-xs text-gray-500">Type</dt>
+                  <dd className="font-medium text-gray-900">{typeLabels.get(form.type) ?? form.type}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs text-gray-500">Value</dt>
+                  <dd className="font-medium break-words text-gray-900">{form.value}</dd>
+                </div>
+              </dl>
+            ) : (
+              <>
+                <Select
+                  id="reference-type"
+                  label="Type"
+                  required
+                  placeholder="Select a type"
+                  options={types.map((type) => ({ value: type.value, label: type.label }))}
+                  value={form.type}
+                  onChange={(e) => patchForm({ type: e.target.value })}
+                  error={formErrors.type}
+                />
+                <Input
+                  id="reference-value"
+                  label="Value"
+                  required
+                  maxLength={255}
+                  value={form.value}
+                  onChange={(e) => patchForm({ value: e.target.value })}
+                  error={formErrors.value}
+                />
+              </>
+            )}
+
+            <Textarea
+              id="reference-description"
+              label="Description (optional)"
+              rows={3}
+              value={form.description}
+              onChange={(e) => patchForm({ description: e.target.value })}
+              error={formErrors.description}
+            />
+
+            <Input
+              id="reference-sort-order"
+              label="Sort order"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              hint="Lower numbers appear first in dropdowns."
+              value={form.sort_order}
+              onChange={(e) => patchForm({ sort_order: e.target.value })}
+              error={formErrors.sort_order}
+            />
+
+            <div>
+              <Switch checked={form.is_active} onChange={(checked) => patchForm({ is_active: checked })} label="Active" />
+              <p className="mt-1 text-xs text-gray-500">Inactive values stay on existing records but are no longer offered in forms.</p>
+              {formErrors.is_active && <p className="mt-1 text-xs text-error-600">{formErrors.is_active}</p>}
+            </div>
+          </form>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" form="reference-data-form" isLoading={saving}>
+              {editing ? 'Save changes' : 'Add'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && !deleting && setPendingDelete(null)}
+        onConfirm={handleDelete}
+        title={`Delete ${noun}?`}
+        description={`This permanently deletes "${pendingDelete ? rowLabel(pendingDelete) : ''}". Values still used by any record can't be deleted; deactivate them instead.`}
+        confirmText="Delete"
+        loading={deleting}
+      />
+    </div>
+  )
 }

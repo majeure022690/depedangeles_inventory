@@ -1,0 +1,171 @@
+import type { Option } from '@/types/lookup'
+
+export interface PersonnelSummary {
+  id: number
+  full_name: string | null
+}
+
+export interface EquipmentTransaction {
+  id: number
+  equipment_id: number
+  transaction_type: string
+  accountable_officer: PersonnelSummary | null
+  end_user: PersonnelSummary | null
+  received_by: PersonnelSummary | null
+  date_assigned_accountable_officer: string | null
+  date_assigned_end_user: string | null
+  date_received_new_accountable: string | null
+  supporting_documents1: string | null
+  or_si_dr_iar_no: string | null
+  supporting_documents2: string | null
+  par_ics_rrsp_rs_wmr_no: string | null
+  created_at: string | null
+}
+
+/**
+ * `EquipmentResource`. Tier 1 fields ship the FK id the form binds to
+ * (`item_type_id`) and the resolved display name under the historical key
+ * (`item`); never derive the name from the id client-side.
+ * `transactions` is only present on the detail endpoint.
+ */
+export interface Equipment {
+  id: number
+  property_no: string | null
+  old_property_no: string | null
+  serial_number: string | null
+  item_type_id: number
+  item: string | null
+  uom: string
+  brand_id: number
+  brand_manufacturer: string | null
+  model: string | null
+  specifications: string | null
+  non_dcp: boolean
+  dcp_package: string | null
+  dcp_year: number | null
+  equipment_category_id: number
+  category: string | null
+  equipment_classification_id: number
+  classification: string | null
+  gl_sl_code: string | null
+  uacs: string | null
+  acquisition_cost: number | null
+  received_date: string | null
+  estimated_useful_life: number | null
+  mode_acquisition: string
+  source_acquisition: string
+  donor: string | null
+  source_fund: string
+  allotment_class: string
+  pm_plan: string | null
+  equipment_location: string | null
+  non_functional: boolean
+  equipment_condition_id: number
+  equipment_condition: string | null
+  disposition_status: string
+  remarks: string | null
+  qr_code: string | null
+  under_warranty: boolean
+  end_warranty_date: string | null
+  supplier: string | null
+  current_accountable_officer: PersonnelSummary | null
+  current_end_user: PersonnelSummary | null
+  transactions?: EquipmentTransaction[]
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface EquipmentFormOptions {
+  item_type: Option<number>[]
+  brand: Option<number>[]
+  category: Option<number>[]
+  classification: Option<number>[]
+  condition: Option<number>[]
+  unit_of_measure: Option<string>[]
+  dcp_package: Option<string>[]
+  mode_of_acquisition: Option<string>[]
+  source_of_acquisition: Option<string>[]
+  source_of_funds: Option<string>[]
+  allotment_class: Option<string>[]
+  disposition_status: Option<string>[]
+}
+
+export interface EquipmentFilterOptions {
+  condition: Option<number>[]
+  category: Option<number>[]
+  disposition_status: Option<string>[]
+}
+
+export interface EquipmentTransactionOptions {
+  transaction_type: Option<string>[]
+  supporting_document_type: Option<string>[]
+}
+
+/** `GET /api/equipment/options`. `personnel` is only sent to `equipment.transactions.create` holders. */
+export interface EquipmentOptions {
+  form: EquipmentFormOptions
+  filters: EquipmentFilterOptions
+  transaction: EquipmentTransactionOptions
+  personnel?: Option<number>[]
+}
+
+/**
+ * Form state for create/edit, mirroring Store/UpdateEquipmentRequest.
+ * Tier 1 ids use `null` for "not chosen yet"; numeric text inputs stay
+ * strings while editing and are converted by `toEquipmentPayload`.
+ * Excludes current_* accountability pointers and qr_code by design: those
+ * only change through a recorded transaction.
+ */
+export interface EquipmentFormData {
+  property_no: string
+  old_property_no: string
+  serial_number: string
+  item_type_id: number | null
+  uom: string
+  brand_id: number | null
+  model: string
+  specifications: string
+  non_dcp: boolean
+  dcp_package: string
+  dcp_year: string
+  equipment_category_id: number | null
+  equipment_classification_id: number | null
+  gl_sl_code: string
+  uacs: string
+  acquisition_cost: string
+  received_date: string
+  estimated_useful_life: string
+  mode_acquisition: string
+  source_acquisition: string
+  donor: string
+  source_fund: string
+  allotment_class: string
+  pm_plan: string
+  equipment_location: string
+  non_functional: boolean
+  equipment_condition_id: number | null
+  disposition_status: string
+  remarks: string
+  under_warranty: boolean
+  end_warranty_date: string
+  supplier: string
+}
+
+/** Mirrors StoreEquipmentTransactionRequest; personnel ids are `null` when not chosen. */
+export interface EquipmentTransactionFormData {
+  transaction_type: string
+  accountable_officer_id: number | null
+  end_user_id: number | null
+  received_by_id: number | null
+  date_assigned_accountable_officer: string
+  date_assigned_end_user: string
+  date_received_new_accountable: string
+  supporting_documents1: string
+  or_si_dr_iar_no: string
+  supporting_documents2: string
+  par_ics_rrsp_rs_wmr_no: string
+}
+
+export type EquipmentPayload = { [K in keyof EquipmentFormData]: EquipmentFormData[K] | null }
+
+export type EquipmentTransactionPayload = { [K in keyof EquipmentTransactionFormData]: EquipmentTransactionFormData[K] | null }

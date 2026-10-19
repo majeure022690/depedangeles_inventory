@@ -78,7 +78,7 @@ export function SecuritySettingsPanel() {
                 </div>
                 <div className="flex items-end gap-2 sm:w-44 sm:shrink-0">
                   <Input
-                    label=""
+                    aria-label={setting.label}
                     type="number"
                     min={setting.min}
                     max={setting.max}
