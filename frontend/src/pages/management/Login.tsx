@@ -1,0 +1,133 @@
+import { isAxiosError } from 'axios'
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import { type FormEvent, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+
+import { Alert } from '@/components/ui/Alert'
+import { Button } from '@/components/ui/Button'
+import { AuthLayout } from '@/components/management/AuthLayout'
+import { useAuth } from '@/context/AuthContext'
+import { usePageTitle } from '@/hooks/usePageTitle'
+import { useRecaptcha } from '@/hooks/useRecaptcha'
+import { useShowRecaptchaBadge } from '@/hooks/useShowRecaptchaBadge'
+import type { ApiValidationError } from '@/types/api'
+
+export function Login() {
+  usePageTitle('User Login')
+  const { login } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const executeRecaptcha = useRecaptcha()
+  useShowRecaptchaBadge()
+  const resetSuccess = Boolean((location.state as { resetSuccess?: boolean } | null)?.resetSuccess)
+  const signedOutIdle = new URLSearchParams(location.search).get('reason') === 'idle'
+
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setErrorMessage(null)
+
+    try {
+      const recaptchaToken = await executeRecaptcha('admin_login')
+      const result = await login(email, password, recaptchaToken ?? '')
+
+      if (result.status === 'authenticated') {
+        navigate('/portal/dashboard')
+      } else if (result.status === 'requires_2fa_setup') {
+        navigate('/portal/2fa/setup', { state: { setupToken: result.setupToken } })
+      } else {
+        navigate('/portal/2fa/verify', { state: { twoFaToken: result.twoFaToken, trustDeviceDays: result.trustDeviceDays } })
+      }
+    } catch (error) {
+      if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
+        setErrorMessage(Object.values(error.response.data.errors).flat()[0] ?? 'Invalid credentials.')
+      } else {
+        setErrorMessage('Something went wrong. Please try again.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <AuthLayout>
+      <div className="mb-5 text-center lg:mb-6 lg:text-left">
+        <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
+        <p className="mt-1 text-sm text-gray-500">Sign in to the management portal</p>
+      </div>
+
+      {resetSuccess && (
+        <Alert type="success" className="mb-4">
+          Password reset successfully. Please log in with your new password.
+        </Alert>
+      )}
+
+      {signedOutIdle && !errorMessage && (
+        <Alert type="info" className="mb-4">
+          You were signed out because there was no activity for a while. Please sign in again.
+        </Alert>
+      )}
+
+      {errorMessage && (
+        <Alert type="error" className="mb-4">
+          {errorMessage}
+        </Alert>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-3.5 lg:space-y-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Email</label>
+          <div className="relative">
+            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="email"
+              autoComplete="username"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 py-2.5 pl-9 pr-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+            />
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <Link to="/portal/forgot-password" className="text-sm font-medium text-primary-600 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 py-2.5 pl-9 pr-9 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+
+        <Button type="submit" className="w-full" size="lg" isLoading={loading}>
+          Sign In
+        </Button>
+      </form>
+    </AuthLayout>
+  )
+}

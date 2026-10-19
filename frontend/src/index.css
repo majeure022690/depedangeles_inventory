@@ -1,0 +1,381 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Fonts — loaded via index.html's Google Fonts <link>, not bettergov-main's
+     Figtree; Poppins per explicit request. */
+  --font-sans: 'Poppins', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Primary (blue) — matches bettergov-main's exact palette (src/index.css), swapped from
+     the original teal per explicit request to align with the BetterGov look. */
+  --color-primary-50: #e6f0fd;
+  --color-primary-100: #cce0fb;
+  --color-primary-200: #99c2f7;
+  --color-primary-300: #66a3f3;
+  --color-primary-400: #3385ef;
+  --color-primary-500: #0066eb;
+  --color-primary-600: #0052bc;
+  --color-primary-700: #003d8d;
+  --color-primary-800: #00295e;
+  --color-primary-900: #00142f;
+
+  /* Secondary (red) — the "urgent" accent (destructive actions, errors) */
+  --color-secondary-50: #fef2f2;
+  --color-secondary-100: #fee2e2;
+  --color-secondary-200: #fecaca;
+  --color-secondary-300: #fca5a5;
+  --color-secondary-400: #f87171;
+  --color-secondary-500: #ef4444;
+  --color-secondary-600: #dc2626;
+  --color-secondary-700: #b91c1c;
+  --color-secondary-800: #991b1b;
+  --color-secondary-900: #7f1d1d;
+
+  /* Accent (amber) */
+  --color-accent-50: #fffbeb;
+  --color-accent-100: #fef3c7;
+  --color-accent-200: #fde68a;
+  --color-accent-300: #fcd34d;
+  --color-accent-400: #fbbf24;
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #d97706;
+  --color-accent-700: #b45309;
+  --color-accent-800: #92400e;
+  --color-accent-900: #78350f;
+
+  /* Semantic */
+  --color-success-50: #ecfdf5;
+  --color-success-100: #d1fae5;
+  --color-success-200: #a7f3d0;
+  --color-success-300: #6ee7b7;
+  --color-success-400: #34d399;
+  --color-success-500: #10b981;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+  --color-success-800: #065f46;
+  --color-success-900: #064e3b;
+
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
+  --color-warning-300: #fcd34d;
+  --color-warning-400: #fbbf24;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+  --color-warning-800: #92400e;
+  --color-warning-900: #78350f;
+
+  --color-error-50: #fef2f2;
+  --color-error-100: #fee2e2;
+  --color-error-200: #fecaca;
+  --color-error-300: #fca5a5;
+  --color-error-400: #f87171;
+  --color-error-500: #ef4444;
+  --color-error-600: #dc2626;
+  --color-error-700: #b91c1c;
+  --color-error-800: #991b1b;
+  --color-error-900: #7f1d1d;
+
+  /* Gray (slate) */
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+}
+
+/*
+  Tailwind v4 changed the default border color to `currentcolor` — restore
+  v3's behavior so every existing border-* utility usage still looks right
+  without an explicit color on each one. Ported from BetterGov's index.css.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* Tailwind v4's Preflight applies its own --default-font-family fallback to
+   html, not --font-sans directly — set it explicitly so Poppins actually
+   takes effect instead of silently falling back to the system font stack. */
+body {
+  font-family: var(--font-sans);
+}
+
+/* react-easy-crop dims everything outside the crop selection by default
+   (a large box-shadow on the crop-area element) — explicitly turned off
+   per request; the crop area itself is already sized to exactly fill its
+   container (see ImageCropDialog's `cropSize`), so there's no functional
+   need for the dimming affordance either. */
+.reactEasyCrop_CropArea {
+  box-shadow: none !important;
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@utility animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes indeterminateBar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+@utility animate-indeterminate {
+  animation: indeterminateBar 1.2s ease-in-out infinite;
+}
+
+/* Hide reCAPTCHA v3 badge globally — only shown on public form pages
+   that explicitly opt in via .show-recaptcha-badge on the body/wrapper. */
+.grecaptcha-badge {
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+.show-recaptcha-badge .grecaptcha-badge {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-gray-300) var(--color-gray-100);
+}
+
+.scrollbar-hover {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.scrollbar-hover:hover,
+.scrollbar-hover:focus-within {
+  scrollbar-color: var(--color-gray-300) transparent;
+}
+
+.scrollbar-hover::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-hover::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-hover::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 9999px;
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar-thumb,
+.scrollbar-hover:focus-within::-webkit-scrollbar-thumb {
+  background-color: var(--color-gray-300);
+}
+
+.scrollbar-hover::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-gray-400);
+}
+
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@media screen {
+  html.dark {
+    color-scheme: dark;
+    --rw-surface: #161c27;
+    --color-gray-50: #1c2433;
+    --color-gray-100: #0e131c;
+    --color-gray-200: #2a3343;
+    --color-gray-300: #3a4455;
+    --color-gray-400: #6b7686;
+    --color-gray-500: #98a2b0;
+    --color-gray-600: #b3bcc8;
+    --color-gray-700: #cbd2db;
+    --color-gray-800: #e1e5eb;
+    --color-gray-900: #f1f3f6;
+    --color-gray-950: #f9fafb;
+    --color-primary-50: color-mix(in oklab, var(--color-primary-500) 14%, var(--rw-surface));
+    --color-primary-100: color-mix(in oklab, var(--color-primary-500) 22%, var(--rw-surface));
+    --color-primary-200: color-mix(in oklab, var(--color-primary-500) 38%, var(--rw-surface));
+    --color-primary-700: color-mix(in oklab, var(--color-primary-400) 55%, white);
+    --color-primary-800: color-mix(in oklab, var(--color-primary-300) 50%, white);
+    --color-primary-900: color-mix(in oklab, var(--color-primary-200) 40%, white);
+    --color-secondary-50: color-mix(in oklab, var(--color-secondary-500) 14%, var(--rw-surface));
+    --color-secondary-100: color-mix(in oklab, var(--color-secondary-500) 22%, var(--rw-surface));
+    --color-secondary-200: color-mix(in oklab, var(--color-secondary-500) 38%, var(--rw-surface));
+    --color-secondary-700: color-mix(in oklab, var(--color-secondary-400) 55%, white);
+    --color-secondary-800: color-mix(in oklab, var(--color-secondary-300) 50%, white);
+    --color-secondary-900: color-mix(in oklab, var(--color-secondary-200) 40%, white);
+    --color-accent-50: color-mix(in oklab, var(--color-accent-500) 14%, var(--rw-surface));
+    --color-accent-100: color-mix(in oklab, var(--color-accent-500) 22%, var(--rw-surface));
+    --color-accent-200: color-mix(in oklab, var(--color-accent-500) 38%, var(--rw-surface));
+    --color-accent-700: color-mix(in oklab, var(--color-accent-400) 55%, white);
+    --color-accent-800: color-mix(in oklab, var(--color-accent-300) 50%, white);
+    --color-accent-900: color-mix(in oklab, var(--color-accent-200) 40%, white);
+    --color-success-50: color-mix(in oklab, var(--color-success-500) 14%, var(--rw-surface));
+    --color-success-100: color-mix(in oklab, var(--color-success-500) 22%, var(--rw-surface));
+    --color-success-200: color-mix(in oklab, var(--color-success-500) 38%, var(--rw-surface));
+    --color-success-700: color-mix(in oklab, var(--color-success-400) 55%, white);
+    --color-success-800: color-mix(in oklab, var(--color-success-300) 50%, white);
+    --color-success-900: color-mix(in oklab, var(--color-success-200) 40%, white);
+    --color-warning-50: color-mix(in oklab, var(--color-warning-500) 14%, var(--rw-surface));
+    --color-warning-100: color-mix(in oklab, var(--color-warning-500) 22%, var(--rw-surface));
+    --color-warning-200: color-mix(in oklab, var(--color-warning-500) 38%, var(--rw-surface));
+    --color-warning-700: color-mix(in oklab, var(--color-warning-400) 55%, white);
+    --color-warning-800: color-mix(in oklab, var(--color-warning-300) 50%, white);
+    --color-warning-900: color-mix(in oklab, var(--color-warning-200) 40%, white);
+    --color-error-50: color-mix(in oklab, var(--color-error-500) 14%, var(--rw-surface));
+    --color-error-100: color-mix(in oklab, var(--color-error-500) 22%, var(--rw-surface));
+    --color-error-200: color-mix(in oklab, var(--color-error-500) 38%, var(--rw-surface));
+    --color-error-700: color-mix(in oklab, var(--color-error-400) 55%, white);
+    --color-error-800: color-mix(in oklab, var(--color-error-300) 50%, white);
+    --color-error-900: color-mix(in oklab, var(--color-error-200) 40%, white);
+    --color-red-50: color-mix(in oklab, var(--color-red-500) 14%, var(--rw-surface));
+    --color-red-100: color-mix(in oklab, var(--color-red-500) 22%, var(--rw-surface));
+    --color-red-200: color-mix(in oklab, var(--color-red-500) 38%, var(--rw-surface));
+    --color-red-700: color-mix(in oklab, var(--color-red-400) 55%, white);
+    --color-red-800: color-mix(in oklab, var(--color-red-300) 50%, white);
+    --color-red-900: color-mix(in oklab, var(--color-red-200) 40%, white);
+    --color-green-50: color-mix(in oklab, var(--color-green-500) 14%, var(--rw-surface));
+    --color-green-100: color-mix(in oklab, var(--color-green-500) 22%, var(--rw-surface));
+    --color-green-200: color-mix(in oklab, var(--color-green-500) 38%, var(--rw-surface));
+    --color-green-700: color-mix(in oklab, var(--color-green-400) 55%, white);
+    --color-green-800: color-mix(in oklab, var(--color-green-300) 50%, white);
+    --color-green-900: color-mix(in oklab, var(--color-green-200) 40%, white);
+    --color-amber-50: color-mix(in oklab, var(--color-amber-500) 14%, var(--rw-surface));
+    --color-amber-100: color-mix(in oklab, var(--color-amber-500) 22%, var(--rw-surface));
+    --color-amber-200: color-mix(in oklab, var(--color-amber-500) 38%, var(--rw-surface));
+    --color-amber-700: color-mix(in oklab, var(--color-amber-400) 55%, white);
+    --color-amber-800: color-mix(in oklab, var(--color-amber-300) 50%, white);
+    --color-amber-900: color-mix(in oklab, var(--color-amber-200) 40%, white);
+    --color-sky-50: color-mix(in oklab, var(--color-sky-500) 14%, var(--rw-surface));
+    --color-sky-100: color-mix(in oklab, var(--color-sky-500) 22%, var(--rw-surface));
+    --color-sky-200: color-mix(in oklab, var(--color-sky-500) 38%, var(--rw-surface));
+    --color-sky-700: color-mix(in oklab, var(--color-sky-400) 55%, white);
+    --color-sky-800: color-mix(in oklab, var(--color-sky-300) 50%, white);
+    --color-sky-900: color-mix(in oklab, var(--color-sky-200) 40%, white);
+    --color-rose-50: color-mix(in oklab, var(--color-rose-500) 14%, var(--rw-surface));
+    --color-rose-100: color-mix(in oklab, var(--color-rose-500) 22%, var(--rw-surface));
+    --color-rose-200: color-mix(in oklab, var(--color-rose-500) 38%, var(--rw-surface));
+    --color-rose-700: color-mix(in oklab, var(--color-rose-400) 55%, white);
+    --color-rose-800: color-mix(in oklab, var(--color-rose-300) 50%, white);
+    --color-rose-900: color-mix(in oklab, var(--color-rose-200) 40%, white);
+    --color-violet-50: color-mix(in oklab, var(--color-violet-500) 14%, var(--rw-surface));
+    --color-violet-100: color-mix(in oklab, var(--color-violet-500) 22%, var(--rw-surface));
+    --color-violet-200: color-mix(in oklab, var(--color-violet-500) 38%, var(--rw-surface));
+    --color-violet-700: color-mix(in oklab, var(--color-violet-400) 55%, white);
+    --color-violet-800: color-mix(in oklab, var(--color-violet-300) 50%, white);
+    --color-violet-900: color-mix(in oklab, var(--color-violet-200) 40%, white);
+    --color-pink-50: color-mix(in oklab, var(--color-pink-500) 14%, var(--rw-surface));
+    --color-pink-100: color-mix(in oklab, var(--color-pink-500) 22%, var(--rw-surface));
+    --color-pink-200: color-mix(in oklab, var(--color-pink-500) 38%, var(--rw-surface));
+    --color-pink-700: color-mix(in oklab, var(--color-pink-400) 55%, white);
+    --color-pink-800: color-mix(in oklab, var(--color-pink-300) 50%, white);
+    --color-pink-900: color-mix(in oklab, var(--color-pink-200) 40%, white);
+    --color-orange-50: color-mix(in oklab, var(--color-orange-500) 14%, var(--rw-surface));
+    --color-orange-100: color-mix(in oklab, var(--color-orange-500) 22%, var(--rw-surface));
+    --color-orange-200: color-mix(in oklab, var(--color-orange-500) 38%, var(--rw-surface));
+    --color-orange-700: color-mix(in oklab, var(--color-orange-400) 55%, white);
+    --color-orange-800: color-mix(in oklab, var(--color-orange-300) 50%, white);
+    --color-orange-900: color-mix(in oklab, var(--color-orange-200) 40%, white);
+    --color-lime-50: color-mix(in oklab, var(--color-lime-500) 14%, var(--rw-surface));
+    --color-lime-100: color-mix(in oklab, var(--color-lime-500) 22%, var(--rw-surface));
+    --color-lime-200: color-mix(in oklab, var(--color-lime-500) 38%, var(--rw-surface));
+    --color-lime-700: color-mix(in oklab, var(--color-lime-400) 55%, white);
+    --color-lime-800: color-mix(in oklab, var(--color-lime-300) 50%, white);
+    --color-lime-900: color-mix(in oklab, var(--color-lime-200) 40%, white);
+    --color-indigo-50: color-mix(in oklab, var(--color-indigo-500) 14%, var(--rw-surface));
+    --color-indigo-100: color-mix(in oklab, var(--color-indigo-500) 22%, var(--rw-surface));
+    --color-indigo-200: color-mix(in oklab, var(--color-indigo-500) 38%, var(--rw-surface));
+    --color-indigo-700: color-mix(in oklab, var(--color-indigo-400) 55%, white);
+    --color-indigo-800: color-mix(in oklab, var(--color-indigo-300) 50%, white);
+    --color-indigo-900: color-mix(in oklab, var(--color-indigo-200) 40%, white);
+    --color-emerald-50: color-mix(in oklab, var(--color-emerald-500) 14%, var(--rw-surface));
+    --color-emerald-100: color-mix(in oklab, var(--color-emerald-500) 22%, var(--rw-surface));
+    --color-emerald-200: color-mix(in oklab, var(--color-emerald-500) 38%, var(--rw-surface));
+    --color-emerald-700: color-mix(in oklab, var(--color-emerald-400) 55%, white);
+    --color-emerald-800: color-mix(in oklab, var(--color-emerald-300) 50%, white);
+    --color-emerald-900: color-mix(in oklab, var(--color-emerald-200) 40%, white);
+    --color-cyan-50: color-mix(in oklab, var(--color-cyan-500) 14%, var(--rw-surface));
+    --color-cyan-100: color-mix(in oklab, var(--color-cyan-500) 22%, var(--rw-surface));
+    --color-cyan-200: color-mix(in oklab, var(--color-cyan-500) 38%, var(--rw-surface));
+    --color-cyan-700: color-mix(in oklab, var(--color-cyan-400) 55%, white);
+    --color-cyan-800: color-mix(in oklab, var(--color-cyan-300) 50%, white);
+    --color-cyan-900: color-mix(in oklab, var(--color-cyan-200) 40%, white);
+  }
+
+  html.dark body {
+    background-color: var(--color-gray-100);
+  }
+
+  html.dark .bg-white {
+    background-color: var(--rw-surface);
+  }
+
+  html.dark .bg-white\/95 {
+    background-color: color-mix(in oklab, var(--rw-surface) 95%, transparent);
+  }
+
+  html.dark .bg-white\/80 {
+    background-color: color-mix(in oklab, var(--rw-surface) 80%, transparent);
+  }
+
+  html.dark .bg-white\/60 {
+    background-color: color-mix(in oklab, var(--rw-surface) 60%, transparent);
+  }
+
+
+  html.dark .recharts-cartesian-grid line {
+    stroke: var(--color-gray-200);
+  }
+
+  html.dark .recharts-default-tooltip {
+    background-color: var(--rw-surface) !important;
+    border-color: var(--color-gray-200) !important;
+  }
+}
+
+@utility page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+
+  @media (width < 40rem) {
+    width: 100%;
+
+    & > * {
+      flex: 1 1 auto;
+    }
+  }
+}
