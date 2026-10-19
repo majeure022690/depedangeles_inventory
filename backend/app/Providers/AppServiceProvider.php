@@ -110,11 +110,6 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(600)->by('user:'.($request->user()?->id ?: $request->ip()));
         });
 
-        RateLimiter::for('export', function (Request $request) {
-            return Limit::perMinute(SecuritySettings::get('export_rate_limit_per_minute'))
-                ->by($request->user()?->id ?: $request->ip());
-        });
-
         RateLimiter::for('two-factor-verify', function (Request $request) {
             $token = $request->input('two_fa_token') ?? $request->input('setup_token');
             $userId = TwoFactorController::pendingUserIdForToken(is_string($token) ? $token : null);

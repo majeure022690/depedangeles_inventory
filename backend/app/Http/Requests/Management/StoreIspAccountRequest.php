@@ -73,4 +73,28 @@ class StoreIspAccountRequest extends FormRequest
             'rate_isp_service' => ['nullable', 'integer', 'min:1', 'max:5'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'isp_provider_id' => 'ISP',
+            'isp_billing_account_no' => 'billing account number',
+            'package_purchased_inclusion' => 'package inclusions',
+            'school_area_coverage' => 'school level coverage',
+            'min_speed' => 'minimum speed',
+            'max_speed' => 'maximum speed',
+            'isp_connection_type' => 'connection type',
+            'fund_source' => 'source of funds',
+            'number_access_points_linked' => 'number of access points linked',
+            'locations_access_points' => 'access point locations',
+            'number_admin_area_covered' => 'number of admin areas covered',
+            'rate_connectivity_admin_areas' => 'admin area connectivity rating',
+            'number_classrooms_covered' => 'number of classrooms covered',
+            'rate_connectivity_classroom' => 'classroom connectivity rating',
+            'rate_isp_service' => 'ISP service rating',
+        ];
+    }
 }

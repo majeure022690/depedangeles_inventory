@@ -83,4 +83,31 @@ class StoreEquipmentRequest extends FormRequest
             'supplier' => ['nullable', 'string', 'max:255'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'property_no' => 'property number',
+            'old_property_no' => 'old property number',
+            'item_type_id' => 'item type',
+            'uom' => 'unit of measure',
+            'brand_id' => 'brand',
+            'non_dcp' => 'non-DCP',
+            'dcp_package' => 'DCP package',
+            'dcp_year' => 'DCP year',
+            'equipment_category_id' => 'equipment category',
+            'equipment_classification_id' => 'equipment classification',
+            'gl_sl_code' => 'GL/SL code',
+            'uacs' => 'UACS code',
+            'mode_acquisition' => 'mode of acquisition',
+            'source_acquisition' => 'source of acquisition',
+            'source_fund' => 'source of funds',
+            'pm_plan' => 'PM plan',
+            'equipment_condition_id' => 'equipment condition',
+            'end_warranty_date' => 'warranty end date',
+        ];
+    }
 }

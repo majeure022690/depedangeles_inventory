@@ -75,4 +75,14 @@ class StoreReferenceDataRequest extends FormRequest
 
         return $rules;
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'is_active' => 'active status',
+        ];
+    }
 }

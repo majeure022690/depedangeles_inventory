@@ -22,13 +22,6 @@ class SecuritySettings
             'min' => 1,
             'max' => 10,
         ],
-        'export_rate_limit_per_minute' => [
-            'value' => 10,
-            'label' => 'Exports per minute',
-            'description' => 'Maximum report exports allowed for one authenticated user per minute.',
-            'min' => 1,
-            'max' => 20,
-        ],
         'two_factor_verify_rate_limit_per_minute' => [
             'value' => 5,
             'label' => 'Two-factor code attempts per minute',

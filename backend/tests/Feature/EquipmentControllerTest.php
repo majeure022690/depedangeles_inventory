@@ -86,7 +86,9 @@ class EquipmentControllerTest extends TestCase
         $this->actingAs($user)->postJson('/api/equipment', [])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['item_type_id', 'uom', 'brand_id', 'equipment_category_id'])
-            ->assertJsonMissingValidationErrors(['property_no', 'acquisition_cost']);
+            ->assertJsonMissingValidationErrors(['property_no', 'acquisition_cost'])
+            ->assertJsonPath('errors.item_type_id.0', 'The item type field is required.')
+            ->assertJsonPath('errors.uom.0', 'The unit of measure field is required.');
 
         $response = $this->actingAs($user)->postJson('/api/equipment', $this->payload())
             ->assertCreated()

@@ -76,4 +76,12 @@ class UpdateEquipmentRequest extends FormRequest
             'supplier' => ['nullable', 'string', 'max:255'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return (new StoreEquipmentRequest)->attributes();
+    }
 }

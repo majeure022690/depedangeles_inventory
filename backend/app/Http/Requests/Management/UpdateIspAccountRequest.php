@@ -67,4 +67,12 @@ class UpdateIspAccountRequest extends FormRequest
             'rate_isp_service' => ['nullable', 'integer', 'min:1', 'max:5'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return (new StoreIspAccountRequest)->attributes();
+    }
 }

@@ -41,4 +41,15 @@ class StoreIspSubscriptionCostRequest extends FormRequest
             'total_projected_expenditure' => ['nullable', 'numeric', 'min:0'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'contract_projected_start_date' => 'projected start date',
+            'contract_projected_end_date' => 'projected end date',
+        ];
+    }
 }

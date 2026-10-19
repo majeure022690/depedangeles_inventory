@@ -59,4 +59,12 @@ class UpdateUserRequest extends FormRequest
             }
         });
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return (new StoreUserRequest)->attributes();
+    }
 }

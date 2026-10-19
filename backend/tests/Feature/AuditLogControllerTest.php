@@ -239,6 +239,28 @@ class AuditLogControllerTest extends TestCase
         $this->assertContains(User::class, $subjectTypes->pluck('value')->all());
     }
 
+    public function test_options_list_actors_sorted_including_deleted_accounts_from_their_snapshot(): void
+    {
+        $admin = $this->admin();
+        $zoe = User::factory()->create(['name' => 'Zoe Live']);
+        $bob = User::factory()->create(['name' => 'bob Gone']);
+        $idle = User::factory()->create(['name' => 'Never Acted']);
+        $this->record('zoe.action', causer: $zoe);
+        $this->record('bob.action', causer: $bob);
+        $this->record('bob.again', causer: $bob);
+        $this->record('system.action');
+        $bobId = $bob->id;
+        $bob->delete();
+
+        $actors = $this->actingAs($admin)->getJson('/api/audit-log/options')->assertOk()->json('data.actors');
+
+        $this->assertSame([
+            ['value' => $bobId, 'label' => 'bob Gone (deleted)'],
+            ['value' => $zoe->id, 'label' => 'Zoe Live'],
+        ], $actors);
+        $this->assertNotContains($idle->id, array_column($actors, 'value'));
+    }
+
     public function test_the_audit_log_cannot_be_written_through_the_api(): void
     {
         $admin = $this->admin();

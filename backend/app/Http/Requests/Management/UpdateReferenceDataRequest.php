@@ -74,4 +74,12 @@ class UpdateReferenceDataRequest extends FormRequest
 
         return $rules;
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return (new StoreReferenceDataRequest)->attributes();
+    }
 }

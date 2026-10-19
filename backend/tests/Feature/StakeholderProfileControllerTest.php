@@ -100,6 +100,34 @@ class StakeholderProfileControllerTest extends TestCase
         $this->assertSame([$institutionId], $profile->nearby_institutions);
     }
 
+    public function test_submitted_at_in_utc_is_stored_as_manila_wall_clock_and_round_trips(): void
+    {
+        $office = $this->createOffice();
+        $user = $this->userAt('encoder', $office);
+
+        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", ['submitted_at' => '2026-10-18T23:45:00Z'])
+            ->assertOk()
+            ->assertJsonPath('data.profile.submitted_at', '2026-10-18T23:45:00.000000Z');
+
+        $profile = StakeholderProfile::where('office_id', $office->id)->sole();
+        $this->assertSame('2026-10-19 07:45:00', $profile->getRawOriginal('submitted_at'));
+
+        $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")
+            ->assertOk()
+            ->assertJsonPath('data.profile.submitted_at', '2026-10-18T23:45:00.000000Z');
+    }
+
+    public function test_validation_messages_use_readable_attribute_names(): void
+    {
+        $office = $this->createOffice();
+
+        $this->actingAs($this->userAt('encoder', $office))
+            ->putJson("/api/stakeholder-profiles/{$office->id}", ['province_id' => 'x', 'sdo' => ['not-a-string']])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.province_id.0', 'The province field must be an integer.')
+            ->assertJsonPath('errors.sdo.0', 'The Schools Division Office field must be a string.');
+    }
+
     public function test_show_exposes_the_owning_offices_school_id(): void
     {
         $office = $this->createOffice(['office_name' => 'Angeles ES', 'school_id' => 107022]);

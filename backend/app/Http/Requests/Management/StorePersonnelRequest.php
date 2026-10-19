@@ -79,4 +79,25 @@ class StorePersonnelRequest extends FormRequest
             'transferred_to' => ['nullable', 'string', 'max:255'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'employee_id' => 'employee ID',
+            'position_id' => 'position',
+            'ro_office_id' => 'RO division',
+            'sdo_office_id' => 'division/unit',
+            'oic' => 'officer-in-charge (OIC)',
+            'oic_office' => 'OIC office',
+            'deped_email' => 'DepEd email',
+            'non_deped_funded' => 'non-DepEd funded',
+            'fund_source' => 'funding source',
+            'fund_source.*' => 'funding source',
+            'inactive' => 'inactive / separated',
+            'separation_cause' => 'cause of separation',
+        ];
+    }
 }

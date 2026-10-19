@@ -39,4 +39,12 @@ class UpdateOfficeRequest extends FormRequest
             'is_active' => ['boolean'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return (new StoreOfficeRequest)->attributes();
+    }
 }

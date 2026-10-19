@@ -14,6 +14,7 @@ use App\Models\IspSpeedTest;
 use App\Models\IspSubscriptionCost;
 use App\Models\ItemType;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -301,6 +302,38 @@ class IspAccountControllerTest extends TestCase
         $this->assertSame(IspAccount::class, $activity->subject_type);
         $this->assertSame($ispAccount->id, $activity->subject_id);
         $this->assertSame($speedTest->id, $activity->properties['speed_test_id']);
+    }
+
+    public function test_speed_test_tested_at_in_utc_is_stored_as_manila_wall_clock_and_round_trips(): void
+    {
+        $ispAccount = $this->makeIspAccount();
+        $payload = ['download_speed' => 40, 'upload_speed' => 10, 'signal_quality' => 'Strong'];
+
+        $this->actingAs($this->encoder())
+            ->postJson("/api/isp-accounts/{$ispAccount->id}/speed-tests", $payload + ['tested_at' => '2026-10-19T02:30:00.000Z'])
+            ->assertCreated()
+            ->assertJsonPath('data.tested_at', '2026-10-19T02:30:00.000000Z');
+
+        $speedTest = IspSpeedTest::where('isp_account_id', $ispAccount->id)->sole();
+        $this->assertSame('2026-10-19 10:30:00', $speedTest->getRawOriginal('tested_at'));
+        $this->assertSame('Asia/Manila', $speedTest->tested_at->timezoneName);
+        $this->assertTrue($speedTest->tested_at->equalTo(CarbonImmutable::parse('2026-10-19T02:30:00Z')));
+
+        $this->actingAs($this->userWithRole('viewer'))->getJson("/api/isp-accounts/{$ispAccount->id}")
+            ->assertOk()
+            ->assertJsonPath('data.speed_tests.0.tested_at', '2026-10-19T02:30:00.000000Z');
+
+        // An offset-less value is already app-timezone wall-clock time and is stored as-is.
+        $this->actingAs($this->encoder())
+            ->postJson("/api/isp-accounts/{$ispAccount->id}/speed-tests", $payload + ['tested_at' => '2026-10-20 08:15:00'])
+            ->assertCreated()
+            ->assertJsonPath('data.tested_at', '2026-10-20T00:15:00.000000Z');
+        $this->assertSame('2026-10-20 08:15:00', IspSpeedTest::latest('id')->first()?->getRawOriginal('tested_at'));
+
+        $this->actingAs($this->encoder())
+            ->postJson("/api/isp-accounts/{$ispAccount->id}/speed-tests", $payload + ['tested_at' => 'not-a-date'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('tested_at');
     }
 
     public function test_subscription_cost_store_appends_to_history(): void

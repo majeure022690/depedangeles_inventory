@@ -67,4 +67,12 @@ class UpdatePersonnelRequest extends FormRequest
             'transferred_to' => ['nullable', 'string', 'max:255'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return (new StorePersonnelRequest)->attributes();
+    }
 }

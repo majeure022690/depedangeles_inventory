@@ -25,6 +25,8 @@ class AuditLogController extends Controller
 {
     use ResolvesListParameters;
 
+    private const MAX_ACTOR_OPTIONS = 500;
+
     public function index(Request $request): JsonResponse
     {
         $this->authorize(Permission::AuditLogView->value);
@@ -62,7 +64,8 @@ class AuditLogController extends Controller
     /**
      * Filter dropdowns: the distinct events present, and the distinct
      * subject types as `{value: FQCN, label: class basename}` (the
-     * `subject_type` filter expects the FQCN back).
+     * `subject_type` filter expects the FQCN back), and the actors for the
+     * `causer_id` filter.
      */
     public function options(): JsonResponse
     {
@@ -85,8 +88,55 @@ class AuditLogController extends Controller
                     ->map(fn (string $type) => ['value' => $type, 'label' => class_basename($type)])
                     ->values()
                     ->all(),
+                'actors' => $this->actorOptions(),
             ],
             'message' => 'Success',
         ]);
+    }
+
+    /**
+     * Users that appear as causers, as `{value: causer_id, label: name}`
+     * sorted by label. Deleted accounts are labelled from their latest
+     * actor snapshot. Capped at the most recently active actors.
+     *
+     * @return array<int, array{value: int, label: string}>
+     */
+    private function actorOptions(): array
+    {
+        $causerIds = Activity::query()
+            ->where('causer_type', (new User)->getMorphClass())
+            ->whereNotNull('causer_id')
+            ->groupBy('causer_id')
+            ->orderByRaw('MAX(id) DESC')
+            ->limit(self::MAX_ACTOR_OPTIONS)
+            ->pluck('causer_id')
+            ->map(fn ($id) => (int) $id);
+
+        $labels = User::query()->whereIn('id', $causerIds)->pluck('name', 'id');
+
+        $deletedIds = $causerIds->diff($labels->keys());
+
+        if ($deletedIds->isNotEmpty()) {
+            $snapshots = Activity::query()
+                ->whereIn('id', Activity::query()
+                    ->selectRaw('MAX(id)')
+                    ->where('causer_type', (new User)->getMorphClass())
+                    ->whereIn('causer_id', $deletedIds)
+                    ->whereNotNull('properties->actor_snapshot->name')
+                    ->groupBy('causer_id'))
+                ->get(['causer_id', 'properties'])
+                ->mapWithKeys(fn (Activity $activity) => [(int) $activity->causer_id => $activity->properties['actor_snapshot']['name'] ?? null]);
+
+            foreach ($deletedIds as $id) {
+                $name = $snapshots->get($id);
+                $labels->put($id, (is_string($name) && $name !== '' ? $name : "User #{$id}").' (deleted)');
+            }
+        }
+
+        return $labels
+            ->map(fn ($label, $id) => ['value' => (int) $id, 'label' => (string) $label])
+            ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
     }
 }

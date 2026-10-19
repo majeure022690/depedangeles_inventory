@@ -44,4 +44,14 @@ class StoreRoleRequest extends FormRequest
             'permissions.*' => ['string', new Enum(PermissionEnum::class)],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'permissions.*' => 'permission',
+        ];
+    }
 }

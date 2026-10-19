@@ -101,4 +101,30 @@ class UpdateInternetConnectivitySurveyRequest extends FormRequest
             'rooms_other_use' => ['nullable', 'integer', 'min:0'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'has_isp_in_area' => 'ISP availability in the area',
+            'available_isps' => 'available ISPs',
+            'available_isps.*' => 'available ISP',
+            'available_isps_other' => 'other available ISP',
+            'mobile_signal_types.*' => 'mobile signal type',
+            'has_mobile_data_connectivity' => 'mobile data connectivity',
+            'subscribes_to_isp' => 'ISP subscription',
+            'subscribed_isps' => 'subscribed ISPs',
+            'subscribed_isps.*' => 'subscribed ISP',
+            'coverage_areas.*' => 'coverage area',
+            'coverage_areas_other' => 'other coverage area',
+            'dict_free_wifi_recipient' => 'DICT Free Wi-Fi recipient',
+            'dict_free_wifi_rating' => 'DICT Free Wi-Fi rating',
+            'has_sufficient_bandwidth' => 'sufficient bandwidth',
+            'has_electricity_source' => 'electricity source',
+            'electricity_sources.*' => 'electricity source',
+            'rooms_other_use' => 'rooms for other use',
+        ];
+    }
 }

@@ -43,4 +43,15 @@ class StoreOfficeRequest extends FormRequest
             'is_active' => ['nullable', 'boolean'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'school_id' => 'school ID',
+            'is_active' => 'active status',
+        ];
+    }
 }

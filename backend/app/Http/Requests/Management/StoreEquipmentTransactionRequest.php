@@ -52,4 +52,19 @@ class StoreEquipmentTransactionRequest extends FormRequest
             'par_ics_rrsp_rs_wmr_no' => ['nullable', 'string', 'max:255'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'accountable_officer_id' => 'accountable officer',
+            'end_user_id' => 'end user',
+            'received_by_id' => 'received by',
+            'date_received_new_accountable' => 'date received by new accountable officer',
+            'or_si_dr_iar_no' => 'OR/SI/DR/IAR number',
+            'par_ics_rrsp_rs_wmr_no' => 'PAR/ICS/RRSP/RS/WMR number',
+        ];
+    }
 }

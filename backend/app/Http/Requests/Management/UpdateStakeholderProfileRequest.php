@@ -6,6 +6,7 @@ namespace App\Http\Requests\Management;
 
 use App\Enums\EquipmentLibraryType;
 use App\Enums\StakeholderLibraryType;
+use App\Http\Requests\Management\Concerns\NormalizesDateTimesToAppTimezone;
 use App\Models\EquipmentLibrary;
 use App\Models\Office;
 use App\Models\StakeholderLibrary;
@@ -54,6 +55,13 @@ use Illuminate\Validation\Rule;
  */
 class UpdateStakeholderProfileRequest extends FormRequest
 {
+    use NormalizesDateTimesToAppTimezone;
+
+    protected function prepareForValidation(): void
+    {
+        $this->normalizeDateTimesToAppTimezone('submitted_at');
+    }
+
     public function authorize(): bool
     {
         // Authorize against a transient (unsaved) instance scoped to the
@@ -163,6 +171,32 @@ class UpdateStakeholderProfileRequest extends FormRequest
 
             'submitted_at' => ['nullable', 'date'],
             'transaction_type' => ['nullable', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::TransactionType))],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'ro' => 'Regional Office',
+            'sdo' => 'Schools Division Office',
+            'school_id' => 'school ID',
+            'province_id' => 'province',
+            'municipality_id' => 'city / municipality',
+            'barangay_id' => 'barangay',
+            'notes_corrections' => 'notes / corrections',
+            'notes_recent_development' => 'notes on recent development',
+            'nearby_institutions.*' => 'nearby institution',
+            'nearby_institutions_other' => 'other nearby institution',
+            'travel_time_to_center_minutes' => 'travel time to center',
+            'access_paths.*' => 'access path',
+            'transportation_options.*' => 'transportation option',
+            'transportation_other' => 'other transportation option',
+            'gidca' => 'GIDCA',
+            'lms' => 'LMS',
+            'community_engagement.*' => 'community engagement',
         ];
     }
 }

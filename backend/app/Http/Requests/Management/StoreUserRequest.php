@@ -36,4 +36,17 @@ class StoreUserRequest extends FormRequest
             'role_ids.*' => ['integer', 'distinct', Rule::exists('roles', 'id')],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'office_id' => 'office',
+            'is_active' => 'active status',
+            'role_ids' => 'roles',
+            'role_ids.*' => 'role',
+        ];
+    }
 }
