@@ -24,7 +24,6 @@ class TrustedDeviceService
             Permission::RolesEdit->value,
             Permission::RolesDelete->value,
             Permission::UsersEdit->value,
-            Permission::UsersDelete->value,
             Permission::UsersResetTwoFactor->value,
         ])) {
             return 0;
