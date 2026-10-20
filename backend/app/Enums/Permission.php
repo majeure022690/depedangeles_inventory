@@ -157,6 +157,11 @@ enum Permission: string
     // GET/PUT /api/settings/security). Admin-only.
     case SecuritySettingsManage = 'security_settings.manage';
 
+    // Outbound email log (view/clear email_messages). Separate from
+    // SecuritySettingsManage because entries hold recipient addresses.
+    // Admin-only.
+    case EmailLogManage = 'email_log.manage';
+
     /**
      * Human-readable label for the permission picker.
      */
@@ -182,7 +187,7 @@ enum Permission: string
             self::InternetConnectivityView, self::InternetConnectivityEdit,
             self::InternetConnectivityViewAll => 'Internet Connectivity',
             self::ReferenceDataManage, self::UsersManage, self::RolesManage, self::AuditLogView,
-            self::SecuritySettingsManage => 'Administration',
+            self::SecuritySettingsManage, self::EmailLogManage => 'Administration',
         };
     }
 }

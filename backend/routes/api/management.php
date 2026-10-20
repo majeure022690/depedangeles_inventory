@@ -3,6 +3,7 @@
 use App\Enums\Permission as P;
 use App\Http\Controllers\Api\Management\AuditLogController;
 use App\Http\Controllers\Api\Management\DashboardController;
+use App\Http\Controllers\Api\Management\EmailLogController;
 use App\Http\Controllers\Api\Management\EquipmentController;
 use App\Http\Controllers\Api\Management\EquipmentTransactionController;
 use App\Http\Controllers\Api\Management\InternetConnectivitySurveyController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\Api\Management\ReferenceDataController;
 use App\Http\Controllers\Api\Management\RoleController;
 use App\Http\Controllers\Api\Management\SecuritySettingController;
 use App\Http\Controllers\Api\Management\StakeholderProfileController;
+use App\Http\Controllers\Api\Management\SystemLogController;
 use App\Http\Controllers\Api\Management\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -123,5 +125,23 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
     Route::middleware($can(P::SecuritySettingsManage))->group(function () {
         Route::get('/settings/security', [SecuritySettingController::class, 'index']);
         Route::put('/settings/security', [SecuritySettingController::class, 'update']);
+    });
+
+    // Administration: error and slow-query logs (redacted; downloads and clears tighter-throttled).
+    Route::middleware($can(P::SecuritySettingsManage))->group(function () {
+        Route::get('/settings/system-logs/errors', [SystemLogController::class, 'errorLogs']);
+        Route::get('/settings/system-logs/errors/download', [SystemLogController::class, 'downloadErrorLogs'])->middleware('throttle:10,1');
+        Route::delete('/settings/system-logs/errors', [SystemLogController::class, 'clearErrorLogs'])->middleware('throttle:10,1');
+
+        Route::get('/settings/system-logs/slow-queries', [SystemLogController::class, 'slowQueryLogs']);
+        Route::get('/settings/system-logs/slow-queries/status', [SystemLogController::class, 'slowQueryStatus']);
+        Route::get('/settings/system-logs/slow-queries/download', [SystemLogController::class, 'downloadSlowQueryLogs'])->middleware('throttle:10,1');
+        Route::delete('/settings/system-logs/slow-queries', [SystemLogController::class, 'clearSlowQueryLogs'])->middleware('throttle:10,1');
+    });
+
+    // Administration: outgoing email log (holds recipient addresses, so its own permission).
+    Route::middleware($can(P::EmailLogManage))->group(function () {
+        Route::get('/settings/email-log', [EmailLogController::class, 'index']);
+        Route::delete('/settings/email-log', [EmailLogController::class, 'clear'])->middleware('throttle:10,1');
     });
 });

@@ -44,7 +44,7 @@ class PasswordResetTest extends TestCase
 
         $html = (new ResetPasswordNotification('test-token'))->toMail($user)->render();
 
-        $this->assertStringContainsString('https://dictis.test/portal/reset-password?token=test-token&amp;email=staff%40example.com', $html);
+        $this->assertStringContainsString('https://dictis.test/reset-password?token=test-token&amp;email=staff%40example.com', $html);
         $this->assertStringContainsString('Schools Division Office', $html);
         $this->assertStringContainsString('Hello Juan Dela Cruz', $html);
     }

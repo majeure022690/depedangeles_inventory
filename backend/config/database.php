@@ -19,6 +19,13 @@ return [
 
     'default' => env('DB_CONNECTION', 'sqlite'),
 
+    // Queries slower than this (ms) go to storage/logs/slow-queries.log;
+    // 0 disables. DB_SLOW_QUERY_LOG_FILE adds MySQL's own slow log to the
+    // Settings > System logs path allowlist when it lives elsewhere.
+    'slow_query_ms' => (int) env('DB_SLOW_QUERY_MS', 1000),
+
+    'slow_query_log_file' => env('DB_SLOW_QUERY_LOG_FILE'),
+
     /*
     |--------------------------------------------------------------------------
     | Database Connections

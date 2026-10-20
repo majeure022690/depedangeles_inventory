@@ -9,5 +9,5 @@ use Illuminate\Support\Facades\Route;
 // frontend origin (never a client-supplied URL), so it is not an open
 // redirect; the SPA enforces login and equipment.view from there.
 Route::get('/equipment/{equipment}/edit', fn (Equipment $equipment) => redirect()->away(
-    rtrim((string) config('app.frontend_url'), '/')."/portal/equipment/{$equipment->id}/edit",
+    rtrim((string) config('app.frontend_url'), '/')."/equipment/{$equipment->id}/edit",
 ))->whereNumber('equipment')->name('equipment.edit');

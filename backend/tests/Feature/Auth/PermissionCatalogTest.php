@@ -31,12 +31,24 @@ class PermissionCatalogTest extends TestCase
 
     public function test_security_settings_manage_is_seeded_to_admin_only(): void
     {
-        $holders = Role::query()
-            ->whereHas('permissions', fn ($query) => $query->where('name', Permission::SecuritySettingsManage->value))
+        $this->assertSame(['admin'], $this->holdersOf(Permission::SecuritySettingsManage));
+    }
+
+    public function test_email_log_manage_is_seeded_to_admin_only(): void
+    {
+        $this->assertSame('email_log.manage', Permission::EmailLogManage->value);
+        $this->assertSame(['admin'], $this->holdersOf(Permission::EmailLogManage));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function holdersOf(Permission $permission): array
+    {
+        return Role::query()
+            ->whereHas('permissions', fn ($query) => $query->where('name', $permission->value))
             ->pluck('name')
             ->all();
-
-        $this->assertSame(['admin'], $holders);
     }
 
     public function test_pending_role_grants_nothing(): void
@@ -55,6 +67,7 @@ class PermissionCatalogTest extends TestCase
 
         $this->assertSame('Administration', Permission::ReferenceDataManage->group());
         $this->assertSame('Administration', Permission::SecuritySettingsManage->group());
+        $this->assertSame('Administration', Permission::EmailLogManage->group());
         $this->assertSame('Offices', Permission::OfficeDelete->group());
     }
 

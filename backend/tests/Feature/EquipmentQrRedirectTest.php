@@ -22,7 +22,7 @@ class EquipmentQrRedirectTest extends TestCase
         $this->assertSame(url("/equipment/{$equipment->id}/edit"), $equipment->fresh()->qr_code);
 
         $this->get("/equipment/{$equipment->id}/edit")
-            ->assertRedirect("https://dictis.example.gov.ph/portal/equipment/{$equipment->id}/edit");
+            ->assertRedirect("https://dictis.example.gov.ph/equipment/{$equipment->id}/edit");
     }
 
     public function test_the_redirect_target_never_comes_from_the_request(): void
@@ -31,7 +31,7 @@ class EquipmentQrRedirectTest extends TestCase
         $equipment = Equipment::factory()->create();
 
         $this->get("/equipment/{$equipment->id}/edit?redirect=https://evil.example", ['Host' => 'evil.example'])
-            ->assertRedirect("http://localhost:5173/portal/equipment/{$equipment->id}/edit");
+            ->assertRedirect("http://localhost:5173/equipment/{$equipment->id}/edit");
     }
 
     public function test_an_unknown_equipment_id_is_a_404(): void

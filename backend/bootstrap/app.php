@@ -23,7 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->append(SecurityHeaders::class);
-        // The backend has no login page (the SPA owns /portal/login), so
+        // The backend has no login page (the SPA owns /login), so
         // guests get a 401 instead of a redirect to a missing route.
         $middleware->redirectGuestsTo(null);
         // Only the permission alias: inventory never routes on a role name.
