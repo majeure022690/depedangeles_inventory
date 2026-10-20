@@ -2,60 +2,54 @@
 
 ## Purpose
 
-Read-only admin browse screen over `App\Models\AuditLog` — the append-only trail already written to by `AuditLog::record()` across nearly every controller/policy in the app (CRUD, role/permission changes, denied-permission checks). Existed as a table with no admin UI until now; this adds the ability to actually look at it.
+Read-only admin browse over `activity_log` (spatie/laravel-activitylog) — the append-only trail of record CRUD, role and role-assignment changes, accountability transfers, readings, admin 2FA resets and denied-permission attempts. What gets written, and how actor attribution survives account deletion, is described in [`docs/architecture.md`](../architecture.md#audit-logging); this doc covers the screen and its API.
 
 ## Architecture
 
-- `App\Http\Controllers\AuditLogController` — single `index()` action. No `create`/`store`/`edit`/`update`/`destroy` exist, or ever should — the table is append-only by design (see `AuditLog`'s own doc-comment).
-- No Policy class. Same pattern as `ReferenceDataController::index()`/`UserController::index()`: this is an aggregate listing with no single model instance to check per-record, so `$this->authorize(Permission::AuditLogView->value)` checks the permission string directly.
+- `Api\Management\AuditLogController` — `index()` and `options()` only. There are no write endpoints, and there never should be: the trail is append-only and never pruned.
+- No Policy class: this is an aggregate listing with no per-record ability, so the controller authorizes the permission string directly (`$this->authorize(Permission::AuditLogView->value)`), same as the reference-data overview.
 
 ## Access model
 
-One permission, `audit_log.view`, seeded **admin-only** via the automatic `Permission::cases()` mechanism — not granted to `encoder`/`viewer`.
+One permission, `audit_log.view`, seeded **admin-only** and deliberately not paired with per-resource `.view` permissions. A role holding it alone would see other resources' PII inside `changes`/`properties` (e.g. Personnel or Stakeholder Profile contact fields) without that resource's own `.view`. It is safe today only because `admin` holds every `.view`; read the doc-comment on `Permission::AuditLogView` before granting it to any other role.
 
-Deliberately not paired with per-resource `.view` permissions. A role holding `audit_log.view` alone would see other resources' PII inside `properties` diffs (e.g. Personnel/StakeholderProfile contact fields) without holding that resource's own `.view` permission. This is safe today only because `admin` — the only role that currently holds it — already holds every `.view` permission in the app; see the doc-comment on `Permission::AuditLogView` before ever seeding this to a lesser role.
+## API endpoints
 
-## Flow / filtering
+| Method + path | Route permission | Response |
+|---|---|---|
+| `GET /api/audit-log?search&event&subject_type&causer_id&date_from&date_to&per_page` | `audit_log.view` | paginated `AuditLogResource`, newest first |
+| `GET /api/audit-log/options` | `audit_log.view` | `{data: {events: string[], subject_types: {value: FQCN, label: basename}[], actors: {value: causer_id, label: name}[]}}` |
 
-`GET /audit-log` (`audit-log.index`) — paginated (20/page), newest-first. Filters, all optional and combinable:
+Filters (all optional, combinable):
 
 | Param | Match | Notes |
 |---|---|---|
-| `search` | substring | `action` OR the actor's live `users.name`/`email` OR — when the actor's `User` account was later deleted — `properties->actor_snapshot->name`/`email` |
-| `action` | exact | Options (`filterOptions.actions`) are a live `DISTINCT` query, not a hardcoded list — actions are added ad-hoc with no central enum |
-| `subject_type` | exact | Requires the full FQCN (e.g. `App\Models\Office`), not the basename shown in the table. Options (`filterOptions.subjectTypes`) ship as `{value: FQCN, label: basename}` pairs |
-| `from` / `to` | date range | Both boundaries inclusive |
+| `search` | substring | `description` (e.g. `equipment.updated`), the live causer's name/email, **or** `properties.actor_snapshot.name`/`email`, so a deleted actor's rows stay findable under the name they had then |
+| `event` | exact | `created`/`updated`/`deleted` or a dotted event (`equipment.transaction.recorded`, `authorization.denied`, ...). Options are a live `DISTINCT`, not a hard-coded list. |
+| `subject_type` | exact | **Full FQCN** (`App\Models\Office`); the basename shown in the table matches nothing. Submit the `value` from options, not the `label`. |
+| `causer_id` | exact | Options list up to 500 most recently active actors; deleted accounts are labelled from their latest snapshot with a `(deleted)` suffix. |
+| `date_from` / `date_to` | date | both inclusive, compared in Manila time |
 
-**Actor resolution** (`AuditLogController::resolveActor()`): prefers the live `actor()` relation; falls back to `properties.actor_snapshot` (captured at write time by `AuditLog::record()` — see [`docs/architecture.md`](../architecture.md#audit-logging)) when the live relation is null (actor's account was since deleted, `actor_id` nulled via `nullOnDelete`); `null` (rendered "System") for genuinely actor-less rows (console/system-initiated). Search matches the snapshot too, so a deleted actor's historical rows stay findable by the name/email they had at write time.
+**`AuditLogResource`:** `{id, log_name, description, event, subject_type (basename|null), subject_id, actor: {id, name, email}|null, changes: {old, attributes}, properties, created_at}`. `actor` prefers the live causer and falls back to `properties.actor_snapshot`; `null` means a system/console action. `changes` holds the before/after attribute diff; `properties` holds event-specific data (and `migrated_from_audit_log_id` on rows copied from the pre-2026-10-19 `audit_logs` table).
 
-**Properties viewer**: each row's `properties` (shape varies per action — before/after diff, created-attribute snapshot, or ad-hoc fields) is shown via a "View details" button opening a `Dialog` with `JSON.stringify(..., null, 2)` in a `<pre>`. Not rendered inline (payload size varies too much per action) and not special-cased per action type, matching this app's existing philosophy of one generic screen rather than fragmenting by type.
+## Frontend
 
-Reached via a top-level sidebar item ("Audit Log", `History` icon), placed after Roles and before Libraries — grouped with the other admin-capability screens (Users/Roles), not nested under Libraries.
-
-## Inertia routes / prop contracts
-
-Requires `auth`+`verified`+`audit_log.view`. Controller: `App\Http\Controllers\AuditLogController`.
-
-| Route | Page component | Key props |
-|---|---|---|
-| `GET /audit-log` (`audit-log.index`) | `audit-log/Index` | `logs` (paginated: `id`, `created_at`, `action`, `actor` (`{id, name, email}` \| `null`), `subject_type` (basename \| `null`), `subject_id`, `properties`), `filterOptions` (`actions: string[]`, `subjectTypes: {value, label}[]`), `filters` (`search`, `action`, `subject_type`, `from`, `to`) |
+`/audit-log` → `pages/management/AuditLog.tsx` (`audit_log.view`; sidebar "Administration" group). Filter bar with removable chips, click an actor to filter by them, and a details dialog showing the before/after diff. API: `services/auditLogService.ts`; types: `types/auditLog.ts`.
 
 ## Key files
 
-- `app/Http/Controllers/AuditLogController.php`
-- `app/Models/AuditLog.php`
-- `app/Enums/Permission.php` — `AuditLogView` case and its doc-comment (the admin-only-coupling risk note)
-- `resources/js/pages/audit-log/Index.vue`
-- `resources/js/types/audit-log.ts`
-- `resources/js/components/AppSidebar.vue` — "Audit Log" nav item
-- `tests/Feature/AuditLogControllerTest.php` — 17 tests: authorization per role, pagination order, all four filter shapes (including the FQCN-vs-basename `subject_type` trap and inclusive date boundaries), actor resolution (live/snapshot/null), `filterOptions` correctness, and that no mutation route exists (405 on `POST /audit-log`)
+- `backend/app/Http/Controllers/Api/Management/AuditLogController.php`
+- `backend/app/Http/Resources/Management/AuditLogResource.php`
+- `backend/app/Providers/AppServiceProvider.php` — `configureAuditTrail()` (actor snapshot hook)
+- `backend/app/Enums/Permission.php` — `AuditLogView` and its admin-only-coupling note
+- `backend/database/migrations/2026_10_19_000003_create_activity_log_table.php`, `2026_10_19_000004_copy_audit_logs_into_activity_log.php`
 
 ## Non-obvious design decisions
 
-- **No Policy class.** Consistent with `ReferenceDataController`/`UserController`'s index-only admin screens — a Policy earns its cost when there's a per-record ability to check (`view`/`update` on one model instance); here there's only ever "can this user see the aggregate listing at all."
-- **`subject_type` filters on the raw FQCN, not the display basename.** The column stores the full class name; the basename is a display-only transform applied in `through()`. Filtering by `'Office'` silently matches nothing — the frontend `<Select>` must submit the FQCN values `filterOptions.subjectTypes` provides, not their labels.
-- **Admin-only coupling is a known, accepted risk, not an oversight.** Documented directly on `Permission::AuditLogView` rather than only here, since that's where a future permission-seeding change is most likely to be made without reading this doc first.
+- **`subject_type` filters on the FQCN, not the display basename** — the column stores the class name; the basename is a display transform.
+- **Actor options are capped at 500**, most recently active first, so the dropdown stays usable as the trail grows; search still finds older actors.
+- **Admin-only coupling is an accepted, documented risk**, recorded on `Permission::AuditLogView` itself because that's where a future grant change will be made.
 
 ## Future considerations
 
-- If a custom-role feature ever lets non-admin roles be granted `audit_log.view`, it must be paired with a check (or a data-filtering rule) that the grantee also holds `.view` on whatever resources appear in `subject_type`/`properties` — otherwise it reopens the PII-leak risk the current admin-only coupling avoids by construction. See `Permission::AuditLogView`'s doc-comment.
+- If non-admin roles are ever granted `audit_log.view`, pair it with a check (or data filter) that the grantee also holds `.view` on the resources appearing in `subject_type`/`changes` — otherwise it reopens the PII exposure the admin-only coupling avoids.

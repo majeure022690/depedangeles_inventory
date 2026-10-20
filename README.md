@@ -9,9 +9,10 @@ Built for the ICT unit of a single division office: encoders enter and maintain 
 - **Personnel** — the division's staff directory (names, positions, contact info, employment status), used as the source of "who" for equipment accountability.
 - **Equipment** — the ICT asset register (property number, specs, acquisition/funding info, condition/disposition) with a full accountability-transfer history: every time a device changes hands, that event is logged, not overwritten.
 - **ISP Accounts** — the office's internet service subscriptions (provider, plan, cost, contract dates), each with its own append-only speed-test log and subscription-cost history.
-- **Stakeholder Profile** — a single record describing the division office itself (location, contact persons, community context) — one form, no list.
-- **Internet Connectivity Survey** — a single record capturing the office's connectivity situation (available ISPs, signal quality, electricity source, coverage), plus a live-computed summary panel (total ISPs, total monthly cost, total spend, etc.) sourced from ISP Accounts — nothing in that panel is stored, it's always computed fresh.
-- **Roles & permissions** — granular, permission-string-based access control (never role-name checks), with admin-configurable roles (`/roles`) and multi-role user assignment (`/users`), separated into two permission tiers (`roles.manage` vs. `users.manage`) so assigning an existing role is a lower-stakes act than redefining what a role grants.
+- **Offices** — every school and division unit; the backbone the office-scoped records below hang off.
+- **Stakeholder Profile** — one record per office (location, contact persons, community context), filled in by that office's users; admins see every office.
+- **Internet Connectivity Survey** — one record per office capturing its connectivity situation (available ISPs, signal quality, electricity source, coverage), scoped the same way.
+- **Roles & permissions** — granular, permission-string-based access control (never role-name checks), with admin-configurable roles (`/roles`) and multi-role user accounts (`/users`), separated into two permission tiers (`roles.manage` vs. `users.manage`) so assigning an existing role is a lower-stakes act than redefining what a role grants.
 - **Reference data** — admin screen (`/reference-data`) for the 13 tiered reference-data tables (item types, brands, positions, ISP providers, and more) every other module's dropdowns draw from.
 - **Audit log** — an append-only record of every create/update/delete, role/role-assignment change, and denied-permission attempt, with actor identity preserved even if the acting account is later deleted.
 
@@ -20,7 +21,7 @@ Built for the ICT unit of a single division office: encoders enter and maintain 
 Two apps in one repo, mirroring the sibling project rwatch (see [`docs/architecture-decisions/decoupled-spa-stack.md`](docs/architecture-decisions/decoupled-spa-stack.md)):
 
 - **`backend/`** — Laravel 13 / PHP 8.4 JSON API under `/api`, Sanctum SPA cookie auth, spatie/laravel-permission (granular permissions, never role-name checks), spatie/laravel-activitylog, Google2FA.
-- **`frontend/`** — React 19 + TypeScript SPA (Vite, Tailwind CSS, React Router), served under `/portal`.
+- **`frontend/`** — React 19 + TypeScript SPA (Vite, Tailwind CSS, React Router), served at the site root (`/login`, `/dashboard`, …).
 - **Database:** MySQL via XAMPP in local dev. Tests use in-memory SQLite.
 
 ## Local setup
@@ -64,7 +65,7 @@ cd backend && php artisan serve    # API on http://localhost:8000
 cd frontend && npm run dev         # SPA on http://localhost:5173
 ```
 
-Then browse **http://localhost:5173/portal**.
+Then browse **http://localhost:5173/**.
 
 Gotchas:
 

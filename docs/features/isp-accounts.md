@@ -2,81 +2,64 @@
 
 ## Purpose
 
-The office's internet service subscriptions — provider, plan, cost, contract dates, coverage — each with two independent, growing histories: speed-test results over time and subscription-cost/budget periods over time. This is the module the append-only child-log pattern (see [`docs/architecture.md`](../architecture.md#2-append-only-child-log-isp-accounts)) exists for, distinct from Equipment's accountability-transfer pattern because there's no "current state" pointer on the parent that needs syncing.
+The office's internet service subscriptions — provider, plan, cost, contract dates, coverage — each with two independent, growing histories: speed tests over time and subscription-cost/budget periods over time. This is the module the append-only child-log pattern (see [`docs/architecture.md`](../architecture.md#2-append-only-child-log-isp-accounts)) exists for; unlike Equipment there is no "current state" pointer on the parent to keep in sync.
 
 ## Architecture
 
-- `App\Models\IspAccount` — soft-deletes. `hasMany(IspSpeedTest)`, `hasMany(IspSubscriptionCost)`.
-- `App\Models\IspSpeedTest` — append-only, no soft-deletes (nothing to "undo," only to append to). `belongsTo(IspAccount)`, `belongsTo(User)` as `recordedBy`.
-- `App\Models\IspSubscriptionCost` — same shape as `IspSpeedTest`, budget-period history instead of bandwidth measurements.
-- `App\Policies\IspAccountPolicy` — standard `viewAny`/`view`/`create`/`update`/`delete`; `update` doubles as the authorization gate for both nested logs (see below).
+- `App\Models\IspAccount` — soft-deletes, `isp_provider_id` (Tier 1 FK). `hasMany(IspSpeedTest)`, `hasMany(IspSubscriptionCost)`.
+- `App\Models\IspSpeedTest`, `IspSubscriptionCost` — append-only, no soft-deletes. Each `belongsTo(User)` as `recordedBy`.
+- `App\Policies\IspAccountPolicy` — `viewAny`/`view`/`create`/`update`/`delete`; `update` also gates both child logs; `delete` denials are audited.
 
-## Flow
+Audit: account CRUD via `LogsActivity` (`isp_account.created|updated|deleted`); logging a reading writes `isp_account.speed_test.recorded` / `isp_account.subscription_cost.recorded` against the parent account.
 
-1. **List** (`GET /isp-accounts`, `isp-accounts.index`) — searchable, filterable by provider and active/inactive contract status, paginated 15/page.
-2. **Create** (`GET /isp-accounts/create`, `isp-accounts.create`) / **Store** (`POST /isp-accounts`, `isp-accounts.store`).
-3. **Edit** (`GET /isp-accounts/{ispAccount}/edit`, `isp-accounts.edit`) — shows the account plus both history lists (each ordered by `created_at` descending — row-insertion order, not the domain date columns like `tested_at`/contract dates, which can legitimately be backdated relative to when they were logged).
-4. **Log a speed test** (`POST /isp-accounts/{ispAccount}/speed-tests`, `isp-accounts.speed-tests.store`) — append-only, no update/destroy route.
-5. **Log a subscription cost period** (`POST /isp-accounts/{ispAccount}/subscription-costs`, `isp-accounts.subscription-costs.store`) — append-only, no update/destroy route.
-6. **Update** (`PUT/PATCH /isp-accounts/{ispAccount}`, `isp-accounts.update`) — edits the account's own fields.
-7. **Delete** (`DELETE /isp-accounts/{ispAccount}`, `isp-accounts.destroy`) — soft delete.
+## API endpoints
 
-Every create/update/delete writes an `AuditLog` entry (`isp_account.created`/`.updated`/`.deleted`); logging a speed test or subscription cost writes `isp_account.speed_test.recorded` / `isp_account.subscription_cost.recorded`.
+Controllers: `Api\Management\IspAccountController`, `IspSpeedTestController`, `IspSubscriptionCostController`. The route parameter is `{ispAccount}` (camelCase) so the same name works in the nested routes and in `$this->route('ispAccount')`.
 
-## Inertia routes / prop contracts
+| Method + path | Route permission | Policy | Request → response |
+|---|---|---|---|
+| `GET /api/isp-accounts?search&isp&status&sort&direction&per_page` | `isp_accounts.view` | `viewAny` | paginated `IspAccountResource`. `isp` = provider id; `status` = `active`/`inactive` contract. Sort keys: `isp_billing_account_no`, `cost_per_month`, `contract_start_date`, `contract_end_date`, `created_at`; default groups by provider. |
+| `GET /api/isp-accounts/options` | `isp_accounts.view` | — | `{data: {form: {isp_provider, school_level_coverage, subscription_type, isp_connection_type, purpose_of_subscription, signal_quality, mode_of_acquisition, source_of_acquisition, source_of_funds}, filters: {isp_provider}, speed_test: {signal_quality}}}`. `isp_provider` is id-valued; the rest are Tier 2 strings (the last three read from Equipment's library on purpose). |
+| `POST /api/isp-accounts` | `isp_accounts.create` | `create` (Form Request) | `StoreIspAccountRequest` → `IspAccountResource`, 201 |
+| `GET /api/isp-accounts/{ispAccount}` | `isp_accounts.view` | `view` | `IspAccountResource` with `speed_tests[]` and `subscription_costs[]` |
+| `PUT /api/isp-accounts/{ispAccount}` | `isp_accounts.edit` | `update` | `UpdateIspAccountRequest` → `IspAccountResource` |
+| `DELETE /api/isp-accounts/{ispAccount}` | `isp_accounts.delete` | `delete` | 204, soft delete |
+| `POST /api/isp-accounts/{ispAccount}/speed-tests` | `isp_accounts.edit` | parent `update` | `StoreIspSpeedTestRequest` → `IspSpeedTestResource`, 201 |
+| `POST /api/isp-accounts/{ispAccount}/subscription-costs` | `isp_accounts.edit` | parent `update` | `StoreIspSubscriptionCostRequest` → `IspSubscriptionCostResource`, 201 |
 
-All routes require `auth`+`verified`. Controllers: `App\Http\Controllers\IspAccountController`, `IspSpeedTestController`, `IspSubscriptionCostController`.
+No update/delete endpoints exist for either log.
 
-The resource's route parameter is explicitly mapped to `ispAccount` (camelCase) rather than the hyphenated resource name's default snake_case derivation, specifically so the same wildcard name works verbatim in the nested `speed-tests`/`subscription-costs` routes and in the three Form Requests' `$this->route('ispAccount')` lookups — no snake/camel mismatch to remember at each call site (see `routes/web.php` comment).
+**Account fields:** required `isp_provider_id`, `cost_per_month`, `isp_billing_account_no`, `package_purchased_inclusion`, `school_area_coverage`, `subscription_type`, `isp_connection_type`, `purpose_of_subscription`, `mode_of_acquisition`, `source_of_acquisition`, `fund_source`, `overall_signal_quality`; optional `min_speed`, `max_speed` (≥ min), `contract_start_date`, `contract_end_date`, `inactive_contract`, `donor`, `number_access_points_linked`, `locations_access_points`, `number_admin_area_covered`, `rate_connectivity_admin_areas`, `number_classrooms_covered`, `rate_connectivity_classroom`, `rate_isp_service` (1-5).
 
-| Route | Page component | Key props |
-|---|---|---|
-| `GET /isp-accounts` (`isp-accounts.index`) | `isp-accounts/Index` | `ispAccounts` (paginated), `filters` (`search`, `isp`, `status`), `options` (ISP provider lookup, for the filter dropdown) |
-| `GET /isp-accounts/create` (`isp-accounts.create`) | `isp-accounts/Create` | `options` (provider, school-level coverage, subscription type, connection type, purpose, mode/source of acquisition, source of funds, signal quality lookups) |
-| `GET /isp-accounts/{ispAccount}/edit` (`isp-accounts.edit`) | `isp-accounts/Edit` | `ispAccount` (full record + `speed_tests[]` + `subscription_costs[]`), `options` (form lookups), `speedTestOptions` (signal-quality lookup, for the speed-test log form) |
+**Speed test fields:** required `download_speed`, `upload_speed`, `tested_at` (datetime, converted to Manila time — see [timezone](../architecture.md#timezone-asiamanila)), `signal_quality`; optional `ping`, `rate_isp_service`.
+**Subscription cost fields (all optional):** `contract_start_date`, `contract_end_date`, `total_amount_spent`, `contract_projected_start_date`, `contract_projected_end_date`, `total_projected_expenditure`.
 
-`isp-accounts.index` row shape:
+**`IspAccountResource`:** every account field plus `id`, `isp` (provider name), `created_at`, `updated_at`; money/speeds as floats. On the detail endpoint, `speed_tests[]` = `{id, isp_account_id, download_speed, upload_speed, ping, tested_at, signal_quality, rate_isp_service, created_at}` and `subscription_costs[]` = `{id, isp_account_id, contract_start_date, contract_end_date, total_amount_spent, contract_projected_start_date, contract_projected_end_date, total_projected_expenditure, created_at}`, both newest-logged first.
 
-```php
-[
-    'id', 'isp', 'isp_billing_account_no', 'subscription_type', 'isp_connection_type',
-    'cost_per_month' /* float */, 'contract_start_date', 'contract_end_date',
-    'inactive_contract', 'overall_signal_quality',
-]
-```
+## Frontend
 
-`isp-accounts.edit`'s `ispAccount` prop includes every fillable IspAccount column plus:
+| Route | Page |
+|---|---|
+| `/isp-accounts` | `pages/management/isp-accounts/IspAccountList.tsx` |
+| `/isp-accounts/new` | `pages/management/isp-accounts/IspAccountCreate.tsx` (`isp_accounts.create`) |
+| `/isp-accounts/:id/edit` | `pages/management/isp-accounts/IspAccountEdit.tsx` |
 
-```php
-'speed_tests' => [
-    ['id', 'download_speed' /* float */, 'upload_speed' /* float */, 'ping',
-     'tested_at', 'signal_quality', 'rate_isp_service', 'created_at'],
-    ...
-],
-'subscription_costs' => [
-    ['id', 'contract_start_date', 'contract_end_date', 'total_amount_spent' /* float|null */,
-     'contract_projected_start_date', 'contract_projected_end_date',
-     'total_projected_expenditure' /* float|null */, 'created_at'],
-    ...
-],
-```
+Components: `components/isp-accounts/IspAccountFields.tsx`, `SpeedTestLog.tsx`, `SubscriptionCostLog.tsx`; API: `services/ispAccountService.ts`; types: `types/isp-account.ts`.
 
 ## Key files
 
-- `app/Http/Controllers/IspAccountController.php`, `IspSpeedTestController.php`, `IspSubscriptionCostController.php`
-- `app/Models/IspAccount.php`, `IspSpeedTest.php`, `IspSubscriptionCost.php`
-- `app/Policies/IspAccountPolicy.php`
-- `app/Http/Requests/IspAccountStoreRequest.php`, `IspAccountUpdateRequest.php`, `IspSpeedTestStoreRequest.php`, `IspSubscriptionCostStoreRequest.php`
-- `database/migrations/2026_07_10_070151_create_isp_accounts_table.php`, `2026_07_10_070152_create_isp_speed_tests_table.php` (same file also creates `isp_subscription_costs`), `2026_07_10_080000_add_recorded_by_user_id_to_isp_speed_tests_and_subscription_costs_tables.php`
-- `resources/js/pages/isp-accounts/` (`Index.vue`, `Create.vue`, `Edit.vue`, `Partials/`)
+- `backend/app/Http/Controllers/Api/Management/IspAccountController.php`, `IspSpeedTestController.php`, `IspSubscriptionCostController.php`
+- `backend/app/Http/Requests/Management/StoreIspAccountRequest.php`, `UpdateIspAccountRequest.php`, `StoreIspSpeedTestRequest.php`, `StoreIspSubscriptionCostRequest.php`
+- `backend/app/Http/Resources/Management/IspAccountResource.php`, `IspSpeedTestResource.php`, `IspSubscriptionCostResource.php`
+- `backend/app/Models/IspAccount.php`, `IspSpeedTest.php`, `IspSubscriptionCost.php`, `backend/app/Policies/IspAccountPolicy.php`
 
 ## Non-obvious design decisions
 
-- **No dedicated permission for logging a speed test or subscription cost.** Unlike Equipment's `equipment.transactions.create` (which reassigns accountability for a physical asset — judged materially more sensitive than editing the asset itself), a speed-test/subscription-cost entry is just an append-only measurement/cost log with no accountability-transfer semantics. It rides along with `isp_accounts.edit`: whoever may edit the account may also log readings against it. Both nested store actions authorize via `$user->can('update', $ispAccount)` against the **parent** IspAccount, the same mechanism Equipment transactions use against the parent Equipment.
-- **`min_speed`/`max_speed` (the promised plan bandwidth) are not duplicated onto `isp_speed_tests`.** The source Excel workbook repeats them on every test row, but that's an artifact of its flat one-sheet-per-entity shape, not a claim that the promised speed varies per test. `isp_accounts` models exactly one *current* plan per account (no versioned plan-history table), so a test row can only mean "measured against the account's current plan speed." Consumers read the promised range off the parent `IspAccount` (`min_speed`/`max_speed`) and compare it against the test row's `download_speed`/`upload_speed`. If a genuine plan-tier-history requirement appears later, that's a new `isp_account_plan_history` concern, not a reason to duplicate columns on every speed test.
-- **`tested_at` vs. `created_at`.** `tested_at` is the user-entered/imported moment the physical test actually ran (can be backdated, e.g. during a bulk import); `created_at` is just when the row was inserted into this system. Both history lists in `isp-accounts.edit` are deliberately ordered by `created_at`, not the domain date column, for the same reason.
-- **Status filter (`active`/`inactive` contract) is a plain hardcoded two-option dropdown, not reference-data-backed** — `inactive_contract` is a real boolean column, not a shared vocabulary list, so there's no reference-data row backing it.
+- **No dedicated permission for logging readings.** Unlike Equipment's `equipment.transactions.create` (which reassigns accountability for a physical asset), a speed test or cost period is just an append-only measurement. It rides on `isp_accounts.edit` and authorizes against the parent's `update`.
+- **`min_speed`/`max_speed` live on the account, not on each test.** The source workbook repeats them per test row, an artifact of its flat sheet. `isp_accounts` models one current plan; compare a test's `download_speed`/`upload_speed` against the parent. A real plan-history need would be a new table, not duplicated columns.
+- **`tested_at` vs `created_at`.** `tested_at` is when the test physically ran (can be backdated during an import); `created_at` is when it was logged. Both histories are ordered by `created_at`, so a backdated entry doesn't jump around the list.
+- **The status filter is a hard-coded active/inactive pair**, not reference data — `inactive_contract` is a boolean column, not a vocabulary.
 
 ## Future considerations
 
-None flagged as blocking during review.
+None blocking.

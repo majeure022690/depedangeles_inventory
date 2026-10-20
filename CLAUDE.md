@@ -5,7 +5,7 @@
 **Decision (owner, 2026-10-19), full detail in [`docs/architecture-decisions/decoupled-spa-stack.md`](docs/architecture-decisions/decoupled-spa-stack.md):** this app mirrors the sibling project **rwatch** (`C:\xampp\htdocs\rwatch`, read-only reference) — same stack, folder layout, UI/UX, sidebar, components, and security model. It supersedes the earlier Inertia/Vue monolith. Conversion steps: [`decoupled-spa-stack-plan.md`](docs/architecture-decisions/decoupled-spa-stack-plan.md).
 
 - **`backend/`** — Laravel 13, PHP 8.4, **JSON API only**. Sanctum SPA cookie auth (`statefulApi()`, `/sanctum/csrf-cookie`, CORS limited to `FRONTEND_URL`). Spatie laravel-permission (authorization) and spatie laravel-activitylog (audit). Mandatory TOTP 2FA (pragmarx/google2fa) with trusted devices and recovery codes, reCAPTCHA v3 on login, named rate limiters, `security` log channel, `SecurityHeaders` middleware, JSON-only exceptions.
-- **`frontend/`** — React 19 + TypeScript + Vite + React Router 7 + axios + Tailwind 4 + Radix + TanStack Table + lucide-react. Staff portal under `/portal/*`; no public portal.
+- **`frontend/`** — React 19 + TypeScript + Vite + React Router 7 + axios + Tailwind 4 + Radix + TanStack Table + lucide-react. Staff app served at the site root (`/login`, `/dashboard`, …) — no `/portal` prefix (owner decision, 2026-10-20); no public portal.
 - Dev: `cd backend && php artisan serve` (:8000) and `cd frontend && npm run dev` (:5173). Browse via `localhost`, not `127.0.0.1`.
 
 Not used (removed): Inertia, Fortify, Wayfinder, laravel/passkeys, Vue/shadcn-vue, self-registration, the custom `roles`/`permissions` pivot layer, the custom `audit_logs` table.

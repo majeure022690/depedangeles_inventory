@@ -2,91 +2,67 @@
 
 ## Purpose
 
-A profile describing a school or division-level office — governance level, location/address, contact persons (chief, admin staff, network administrator), community/access context. One edit form per office, shared by every user assigned to that office.
+A profile describing a school or division-level office — governance level, location/address, contact persons (chief, admin staff, network administrator), community and access context. One form per office, shared by every user assigned to that office.
 
-Started (2026-07-10) as a true global singleton — one record for the whole application, following the same starting shape Internet Connectivity Survey used at the time. Converted (2026-07-14) to **one row per `App\Models\Office`** once the app grew to track multiple schools under the division (the `offices` table) rather than a single division office — see [`docs/architecture.md`](../architecture.md#3-one-row-per-tenant-stakeholder-profile-internet-connectivity-survey) for the full pattern description and how it differs from a true singleton. Internet Connectivity Survey went through the same conversion one day later (2026-07-15) — see [`docs/features/internet-connectivity-survey.md`](internet-connectivity-survey.md).
+Started (2026-07-10) as a global singleton; converted (2026-07-14) to **one row per `App\Models\Office`** once the app began tracking every school under the division. The shared pattern is described in [`docs/architecture.md`](../architecture.md#3-one-row-per-office-stakeholder-profile-internet-connectivity-survey); Internet Connectivity Survey followed the same conversion a day later.
 
 ## Architecture
 
-- `App\Models\StakeholderProfile` — bare structural model, fillable/casts/`belongsTo(Office)` only, **no factory** (profiles are created lazily per office, never seeded/faked in bulk), no relationships to Equipment/Personnel/IspAccount (standalone survey/profile data, scoped only to its owning Office).
+- `App\Models\StakeholderProfile` — `belongsTo(Office)` plus the three PSGC relations; **no factory** (rows are created lazily per office). `hasAnswers()` tells "filled in" from "opened once" (see below).
 - `App\Models\Office::stakeholderProfile()` — the inverse `hasOne`.
-- `App\Policies\StakeholderProfilePolicy` — `view`/`update` (own-office scoped) plus `viewAny` (gates the cross-office admin list). No `create`/`delete` to authorize, since neither action exists.
-- `App\Http\Controllers\StakeholderProfileController` — `index()` (admin list) plus `edit()`/`update()`, both always scoped to one specific `{office}`.
+- `App\Policies\StakeholderProfilePolicy` — `view`/`update` (own office, or any office with `.view_all`) and `viewAny` (the cross-office list, `.view_all` only). No `create`/`delete`: neither action exists.
+
+Audit: `LogsActivity`, `updated` events only (`stakeholder_profile.updated`) — the lazy empty insert isn't worth a row.
 
 ## Access model
 
-- **Own office only** — a user holding `stakeholder_profile.view`/`.edit` can only read/write the profile matching their own `office_id` (`User::office_id`). Attempting another office's profile (by URL) 403s, and never creates that office's row as a side effect.
-- **Cross-office oversight** — a user holding `stakeholder_profile.view_all` (seeded only to `admin`) can view and edit *any* office's profile, and is the only one who can reach the admin list. This is independent of whether they also have an `office_id` of their own.
-- **No office assigned** — a `view`/`.edit` holder with no `office_id` has nothing to view (hidden from the sidebar entirely); a `.view_all` holder with no `office_id` still gets the full cross-office list.
+- **Own office only** — `stakeholder_profile.view`/`.edit` reach only the profile whose `office_id` matches the user's own. Another office's id returns 403 and does **not** create that office's row.
+- **Cross-office** — `stakeholder_profile.view_all` (seeded to `admin` only) can view and edit any office's profile and is the only permission that reaches the list. It is a separate permission, not a modifier on the other two.
+- **No office assigned** — a `.view`/`.edit` holder without an `office_id` has nothing to open; the sidebar hides the item. A `.view_all` holder without an office still gets the list.
 
-## Flow
+## API endpoints
 
-1. **Index** (`GET /stakeholder-profiles`, `stakeholder-profiles.index`, `view_all` only) — paginated/searchable list of every `Office`, each row showing whether it has a profile yet (`has_profile`) and when it was last updated. Office-centric, not StakeholderProfile-row-centric, since most offices won't have a profile row until their first edit.
-2. **Edit** (`GET /stakeholder-profiles/{office}`, `stakeholder-profiles.edit`) — authorizes against a transient (unsaved) `StakeholderProfile` instance with `office_id` already set *before* touching the database, then `firstOrCreate(['office_id' => $office->id])`s that office's row and renders it.
-3. **Update** (`PUT /stakeholder-profiles/{office}`, `stakeholder-profiles.update`) — same `firstOrCreate`, then updates.
+Controller: `Api\Management\StakeholderProfileController`. `{office}` is an `offices.id`.
 
-There is no `create`, `store`, or `destroy` route — a profile is always reached via the lazy `firstOrCreate`, never explicitly created or deleted.
+| Method + path | Route permission | Policy | Request → response |
+|---|---|---|---|
+| `GET /api/stakeholder-profiles?search&per_page` | `stakeholder_profile.view_all` | `viewAny` | paginated **offices** (not profile rows): `{id, office_name, office_type, school_id, has_profile, updated_at}`. `updated_at` is the profile's, `null` until answered. |
+| `GET /api/stakeholder-profiles/options` | `.view` or `.view_all` | — | see options below |
+| `GET /api/stakeholder-profiles/{office}` | `.view` or `.view_all` | `view` on a transient model, **before** `firstOrCreate` | `{data: {office: {id, office_name, school_id}, profile: StakeholderProfileResource}}` |
+| `PUT /api/stakeholder-profiles/{office}` | `.edit` or `.view_all` | `update` on a transient model | `UpdateStakeholderProfileRequest` → same shape as GET |
 
-Every update writes an `AuditLog` entry (`stakeholder_profile.updated`) with a field-level before/after diff.
+**`StakeholderProfileResource` / writable fields** (all optional): `governance_level`, `ro`, `sdo`, `school_district`, `school_name`, `school_id`, `province_id`, `municipality_id`, `barangay_id` (PSGC ids), `legislative_district`, `street`, `notes_corrections`, `notes_recent_development`, `mobile_1`, `mobile_2`, `landline`, `chief_*`/`admin_staff_*` (name, position, email, mobile), `network_administrator_name`, `longitude`, `latitude`, `nearby_institutions`, `access_paths`, `transportation_options`, `community_engagement` (arrays of `stakeholder_libraries` ids), `nearby_institutions_other`, `transportation_other`, `travel_time_to_center_minutes`, `transportation_difficult`, `considered_very_remote`, `remote_context_notes`, `gidca`, `lms`, `community_context_remarks`, `submitted_at` (datetime, converted to Manila time), `transaction_type`. The resource adds `id`, `office_id`, `updated_at`, and read-only `complete_address`.
 
-## Inertia routes / prop contracts
+**Options:** `governance_level`, `transaction_type` (Tier 2 strings; `transaction_type` is read from Equipment's library on purpose), `nearby_institution`, `type_of_access_road`, `by_transportation`, `community_engagement` (id-valued, for the checkbox groups), and `province`, `municipality`, `barangay` — the whole Region III PSGC tree (~3,100 barangays) with `parent_id` on municipalities (→ province) and barangays (→ municipality). It is sent once and filtered client-side into cascading selects rather than round-tripping per selection.
 
-Requires `auth`+`verified`. Controller: `App\Http\Controllers\StakeholderProfileController`.
+## Frontend
 
-| Route | Page component | Key props |
-|---|---|---|
-| `GET /stakeholder-profiles` (`stakeholder-profiles.index`) | `stakeholder-profile/Index` | `offices` (paginated list: `id`, `office_name`, `office_type`, `school_id`, `has_profile`, `updated_at`), `filters` (`search`) |
-| `GET /stakeholder-profiles/{office}` (`stakeholder-profiles.edit`) | `stakeholder-profile/Edit` | `office` (`id`, `office_name`, `school_id`), `stakeholderProfile` (that office's record), `options` (governance level, nearby institution, access-road type, transportation, community engagement, transaction-type lookups, plus the full PSGC `province`/`municipality`/`barangay` hierarchy — see below) |
+| Route | Page |
+|---|---|
+| `/stakeholder-profiles` | `pages/management/stakeholder-profiles/StakeholderProfileList.tsx` (`.view_all`) |
+| `/stakeholder-profiles/:officeId` | `pages/management/stakeholder-profiles/StakeholderProfileEdit.tsx` — completion bar and section stepper, one section rendered at a time |
 
-`stakeholderProfile` prop shape (every fillable column except `office_id` itself, plus one read-only derived field):
-
-```php
-[
-    'id', 'governance_level', 'ro', 'sdo',
-    'school_district', 'school_name', 'school_id',
-    'province_id', 'municipality_id', 'legislative_district', 'barangay_id', 'street',
-    'complete_address', // read-only, see below — never in the writable payload
-    'notes_corrections', 'notes_recent_development',
-    'mobile_1', 'mobile_2', 'landline',
-    'chief_name', 'chief_position', 'chief_email', 'chief_mobile',
-    'admin_staff_name', 'admin_staff_position', 'admin_staff_email', 'admin_staff_mobile',
-    'network_administrator_name',
-    'longitude' /* float|null */, 'latitude' /* float|null */,
-    'nearby_institutions', 'nearby_institutions_other',
-    'travel_time_to_center_minutes',
-    'access_paths',
-    'transportation_options', 'transportation_other',
-    'transportation_difficult', 'considered_very_remote', 'remote_context_notes',
-    'gidca', 'lms',
-    'community_engagement', 'community_context_remarks',
-    'submitted_at', 'transaction_type',
-]
-```
-
-Note `school_district`/`school_name`/`school_id` are free-text fields, not FKs — `school_name`/`school_id` are pre-filled from the owning `Office` row's `office_name`/`school_id` when the form first loads (Edit.vue, since the office is already known from the URL), but remain editable, plain strings; nothing keeps them in sync after that first pre-fill.
-
-`options.province`/`.municipality`/`.barangay` (2026-07-14) are the full Region III PSGC hierarchy (~3,100 barangays), shipped in full on every edit-page load — `.municipality`/`.barangay` carry a `parent_id` so the form filters them client-side into cascading `<Select>`s (province → municipality → barangay) rather than round-tripping per selection. See `docs/architecture.md`'s PSGC section for why this is 3 dedicated tables, not 4 (no `psgc_regions`) or 1 flat table.
+Form body: `components/stakeholder-profiles/StakeholderProfileFields.tsx`; API: `services/stakeholderProfileService.ts`; types: `types/stakeholder-profile.ts`. The sidebar link goes to the list for `.view_all` holders and to the user's own `:officeId` otherwise (`layouts/ManagementLayout.tsx`).
 
 ## Key files
 
-- `app/Http/Controllers/StakeholderProfileController.php`
-- `app/Models/StakeholderProfile.php`, `app/Models/Office.php`
-- `app/Policies/StakeholderProfilePolicy.php`
-- `app/Http/Requests/StakeholderProfileUpdateRequest.php`
-- `database/migrations/2026_07_10_090000_create_stakeholder_profiles_table.php`, `2026_07_14_071751_make_stakeholder_profiles_office_scoped.php` (converts from global singleton to one-per-office; supersedes the now-removed `2026_07_11_000000_add_singleton_guard_...` guard for this table), `2026_07_14_083524_convert_stakeholder_profiles_address_to_psgc_foreign_keys.php` (province/city_municipality/barangay/psgc strings → real FKs)
-- `app/Models/PsgcProvince.php`, `PsgcMunicipality.php`, `PsgcBarangay.php` + their migrations/seeders (`database/seeders/data/psgc_*.json`, imported from the division's legacy PSGC dump, Region III only)
-- `resources/js/pages/stakeholder-profile/` (`Index.vue`, `Edit.vue`, `Partials/`)
-- `resources/js/components/AppSidebar.vue` — conditional nav item (list for `.view_all`, own-office edit link otherwise)
+- `backend/app/Http/Controllers/Api/Management/StakeholderProfileController.php`
+- `backend/app/Http/Requests/Management/UpdateStakeholderProfileRequest.php`
+- `backend/app/Http/Resources/Management/StakeholderProfileResource.php`, `StakeholderProfileOfficeResource.php`
+- `backend/app/Models/StakeholderProfile.php`, `Office.php`, `PsgcProvince.php`, `PsgcMunicipality.php`, `PsgcBarangay.php`
+- `backend/app/Policies/StakeholderProfilePolicy.php`
+- `backend/database/migrations/2026_07_14_071751_make_stakeholder_profiles_office_scoped.php`, `2026_07_14_083524_convert_stakeholder_profiles_address_to_psgc_foreign_keys.php`
 
 ## Non-obvious design decisions
 
-- **One row per office, not a global singleton or a full CRUD list resource.** No `create`/`store`/`destroy` exist by design (a profile is always lazily `firstOrCreate`'d, never explicitly made or removed) — but unlike a true singleton, there is an `index()`, because there are now up to one row per office (95+ possible) rather than exactly one ever.
-- **The same permission string means something different depending on whose office it's checked against.** `stakeholder_profile.view`/`.edit` are scoped to the acting user's own `office_id` by the Policy, not by the permission system itself — `stakeholder_profile.view_all` is what actually grants cross-office access, and it's a completely separate permission, not a modifier on the other two.
-- **`office_id` is `NOT NULL`, unique.** The old `singleton_guard` column (a race-condition guard for "exactly one row globally") no longer applies and was dropped; a plain `unique` index on `office_id` provides the equivalent guarantee ("at most one profile per office") without needing a sentinel column, since MySQL/MariaDB's unique index semantics already give the right behavior for a `NOT NULL` column.
-- **`complete_address` is a PHP accessor** (`StakeholderProfile::completeAddress()`), not a stored column — it used to be a MySQL STORED generated column, but generated columns can't `JOIN` to read the PSGC province/municipality/barangay names now that those are real FKs, so it's built from the three relations instead. Deliberately excluded from `$fillable`, since it can never be mass-assigned, only read. It's included in the `stakeholderProfile` prop as a read-only display value.
-- **`province`/`municipality`/`barangay` are real FKs into dedicated PSGC tables** (`province_id`/`municipality_id`/`barangay_id`), not free text — see `docs/architecture.md`. There's no stored `psgc` column anymore: the granular PSGC code is simply the selected barangay's own `code`.
-- **Authorization checks a transient instance (with `office_id` already set) before any DB write.** `StakeholderProfilePolicy` needs `$stakeholderProfile->office_id` to compare against the acting user's own — so the controller/Form Request build `new StakeholderProfile(['office_id' => $office->id])` and authorize that, rather than `firstOrCreate`-ing first. A wrong-office (or `pending`-role) user's `GET` is 403'd *before* that office's row gets created, rather than creating it and then denying access to it.
+- **One row per office, lazily created.** No create/store/destroy; `GET`/`PUT` `firstOrCreate(['office_id' => ...])`. There is a list because there are up to one row per office (95+), not one ever.
+- **Authorize a transient instance before writing.** The Policy needs `office_id` to compare against the user's own, so the controller authorizes `new StakeholderProfile(['office_id' => $office->id])` first. A wrong-office or zero-permission request 403s without creating the row.
+- **`has_profile` uses `hasAnswers()`, not row existence.** Opening the page creates an empty row, so existence alone would mark every visited office as answered. The four booleans default to `false` at the DB level and are excluded from the check, since a default can't count as an answer.
+- **`office_id` is `NOT NULL` + unique.** That index is the whole "at most one per office" guarantee; it replaced the old `singleton_guard` column.
+- **`complete_address` is a PHP accessor**, not a stored column. It used to be a MySQL STORED generated column, but generated columns can't join the PSGC tables once those became FKs. Never mass-assignable; returned as a read-only display value.
+- **PSGC location is real FKs** (`province_id`/`municipality_id`/`barangay_id`). There is no stored `psgc` code; it is the selected barangay's own `code`.
+- **`school_name`/`school_id` are free text**, pre-filled from the office in `services/stakeholderProfileService.ts` when empty, then independent of the office row. Nothing keeps them in sync afterwards.
 
 ## Future considerations
 
-- No trusted-device-style "recently viewed offices" shortcut for admins browsing many schools — the index list's search is the only navigation aid today.
+- No "recently viewed offices" shortcut for admins browsing many schools; the list's search is the only navigation aid.

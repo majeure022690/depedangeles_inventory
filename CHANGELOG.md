@@ -1,6 +1,31 @@
 # Changelog
 
-All notable changes to this project, in terms of user/developer impact. Dates are reconstructed from migration filename timestamps and source file modification times (there is no git history yet — this project has not been initialized as a git repository) and are accurate to the day for entries backed by a migration timestamp; entries reconstructed from file mtimes alone are noted as such and may be off by a day where work spanned a day boundary.
+All notable changes to this project, in terms of user/developer impact. Entries up to 2026-07-15 were reconstructed from migration filename timestamps and source file modification times, before the project had git history; they are accurate to the day where backed by a migration timestamp, and entries reconstructed from file mtimes alone are noted as such. Later entries cite their commits.
+
+## 2026-10-19 — Decoupled SPA conversion
+
+The whole app moved from the Inertia/Vue monolith to a Laravel JSON API (`backend/`) plus a React SPA (`frontend/`), mirroring the sibling project rwatch. Decision: [`docs/architecture-decisions/decoupled-spa-stack.md`](docs/architecture-decisions/decoupled-spa-stack.md); execution and deviations: [`decoupled-spa-stack-plan.md`](docs/architecture-decisions/decoupled-spa-stack-plan.md). Commits `ea3b08a`..`1d7732b` on `iris-staging`; migrations `2026_10_19_000001`-`000012`. Features and data are unchanged.
+
+### Changed
+
+- **New staff portal UI** (React, rwatch's sidebar and components). Every screen was ported: Dashboard, Personnel, Equipment (QR, transactions), ISP Accounts, Stakeholder Profile, Internet Connectivity Survey, Offices, Reference Data, Users, Roles, Audit Log, Profile. Users now create, edit and reset 2FA for accounts in dialogs on one page; roles are edited in a dialog.
+- **Two-factor authentication is mandatory for every user.** Anyone not yet enrolled is taken through authenticator setup at their next login. Existing authenticator enrollments and recovery codes carried over (migration `000008`); every previously trusted device was forgotten once. "Trust this device" is now configurable (0-30 days) and never applies to users who can manage roles or users. Admins can reset a user's 2FA when they lose their device.
+- **Accounts can be deactivated** via a new `is_active` flag (a deactivated user cannot sign in), or deleted outright.
+- **Timezone is now Asia/Manila** (was UTC). Timestamps already in the database were shifted +8 hours (migration `000011`), so record and audit times match the office clock. User-entered times (speed test `tested_at`, profile `submitted_at`) and dates were not shifted.
+- **Authorization and audit moved onto Spatie packages** (laravel-permission, laravel-activitylog). Permission names, role grants and ids were preserved in place; the old `audit_logs` rows were copied into `activity_log` with actor snapshots kept, then the old table was dropped. The audit trail is still never pruned.
+- **Two-server dev setup:** `php artisan serve` (:8000) and `npm run dev` (:5173), browsed at `http://localhost:5173` (`localhost`, not `127.0.0.1`). See the README.
+
+### Added
+
+- Login reCAPTCHA v3, idle sign-out, named rate limiters, security headers and a `security` log channel (from rwatch). A Settings screen (`security_settings.manage`, new permission, admin-only) edits rate limits, trusted-device days and the idle timeout.
+- Audit log filter by actor.
+- Printed equipment QR labels keep working: the old `/equipment/{id}/edit` URL redirects to the same page in the new frontend.
+
+### Removed
+
+- **Self-registration and email verification** — accounts are created by administrators only.
+- **Passkeys**, self-service account deletion, the confirm-password page (sensitive profile actions ask for the current password instead), and the option to turn 2FA off.
+- Fortify, Inertia, Wayfinder, Vue/shadcn-vue, and all Node tooling from `backend/`; the unused `.husky/` and `.github/` folders.
 
 ## 2026-07-15
 

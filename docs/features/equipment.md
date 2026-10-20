@@ -2,80 +2,92 @@
 
 ## Purpose
 
-The ICT asset register for the division office: property number, item/spec details, acquisition/funding info, condition/disposition, and — distinctively — a full history of who has been accountable for each physical device over time. This is the module the accountability-transfer pattern (see [`docs/architecture.md`](../architecture.md#1-accountability-transfer-equipment)) exists for.
+The ICT asset register for the division office: property number, item/spec details, acquisition/funding info, condition/disposition, and a full history of who has been accountable for each physical device over time. This is the module the accountability-transfer pattern (see [`docs/architecture.md`](../architecture.md#1-accountability-transfer-equipment)) exists for.
 
 ## Architecture
 
-- `App\Models\Equipment` — the asset record. Soft-deletes. Holds `current_accountable_officer_id` / `current_end_user_id`, both `belongsTo(Personnel::class)`.
-- `App\Models\EquipmentTransaction` — append-only log, one row per accountability/lifecycle event (`equipment_transactions`, `belongsTo(Equipment)`, plus `belongsTo(Personnel)` three ways: `accountableOfficer`, `endUser`, `receivedBy`, and `belongsTo(User)` as `recordedBy` — the system user who entered the transaction, distinct from the Personnel it's about).
-- `App\Services\EquipmentAccountabilityService` — the only sanctioned way to record a transaction and move `current_*` pointers, done atomically in one DB transaction.
-- `App\Policies\EquipmentPolicy` — `viewAny`/`view`/`create`/`update`/`delete` plus a custom `createTransaction` ability, each checked against its own `Permission` case.
+- `App\Models\Equipment` — the asset record. Soft-deletes. Holds `current_accountable_officer_id` / `current_end_user_id`, both `belongsTo(Personnel::class)`. Tier 1 reference fields are FKs (`item_type_id`, `brand_id`, `equipment_category_id`, `equipment_classification_id`, `equipment_condition_id`).
+- `App\Models\EquipmentTransaction` — append-only log, one row per accountability/lifecycle event. `belongsTo(Personnel)` three ways (`accountableOfficer`, `endUser`, `receivedBy`) plus `belongsTo(User)` as `recordedBy` — the system user who entered it, distinct from the Personnel it's about.
+- `App\Services\EquipmentAccountabilityService` — the only sanctioned way to record a transaction and move the `current_*` pointers, atomically in one DB transaction.
+- `App\Policies\EquipmentPolicy` — `viewAny`/`view`/`create`/`update`/`delete` plus `createTransaction`, each checked against its own `Permission` case.
+- `App\Observers\EquipmentObserver` — fills `qr_code` with `route('equipment.edit', $equipment)` once the row has an id (see QR below).
 
-## Flow
+Audit: create/update/delete come from `LogsActivity` (`equipment.created|updated|deleted`, `current_*` excluded); recording a transaction logs `equipment.transaction.recorded`.
 
-1. **List** (`GET /equipment`, `equipment.index`) — searchable/filterable, paginated 15/page.
-2. **Create** (`GET /equipment/create`, `equipment.create`) / **Store** (`POST /equipment`, `equipment.store`) — creates the Equipment row only; no transaction, no accountable officer assigned yet (that happens via a separate transaction).
-3. **Edit** (`GET /equipment/{equipment}/edit`, `equipment.edit`) — shows the record plus its full transaction history (newest first) and a form to record a new transaction.
-4. **Record a transaction** (`POST /equipment/{equipment}/transactions`, `equipment.transactions.store`) — the only way `current_accountable_officer_id`/`current_end_user_id` change. Append-only: no update/destroy route exists for `equipment_transactions`.
-5. **Update** (`PUT/PATCH /equipment/{equipment}`, `equipment.update`) — edits Equipment's own descriptive fields; blocked from touching `current_*` columns by a model-level guard (throws `AccountabilitySyncRequiredException` if attempted).
-6. **Delete** (`DELETE /equipment/{equipment}`, `equipment.destroy`) — soft delete.
+## API endpoints
 
-Every create/update/delete writes an `AuditLog` entry (`equipment.created`/`equipment.updated`/`equipment.deleted`); recording a transaction writes `equipment.transaction.recorded`.
+All under `auth:sanctum` + `throttle:authenticated-api`. Controllers: `Api\Management\EquipmentController`, `EquipmentTransactionController`.
 
-## Inertia routes / prop contracts
+| Method + path | Route permission | Policy | Request → response |
+|---|---|---|---|
+| `GET /api/equipment?search&condition&category&disposition_status&sort&direction&per_page` | `equipment.view` | `viewAny` | paginated `EquipmentResource` (no `transactions`). `condition`/`category` are Tier 1 ids, `disposition_status` a string. Sort keys: `property_no`, `serial_number`, `model`, `disposition_status`, `acquisition_cost`, `received_date`, `created_at`; default puts items without a property number last. |
+| `GET /api/equipment/options` | `equipment.view` | — | see options below |
+| `POST /api/equipment` | `equipment.create` | `create` (Form Request) | `StoreEquipmentRequest` → `EquipmentResource`, 201. Creates the asset only: no transaction, no accountable officer. |
+| `GET /api/equipment/{id}` | `equipment.view` | `view` | `EquipmentResource` with `transactions[]` (newest first) |
+| `PUT /api/equipment/{id}` | `equipment.edit` | `update` | `UpdateEquipmentRequest` → `EquipmentResource` |
+| `DELETE /api/equipment/{id}` | `equipment.delete` | `delete` (denial audited) | 204, soft delete |
+| `GET /api/equipment/{id}/qr-code` | `equipment.view` | `view` | `image/png` (300px, `inline`). The SPA fetches it as a blob through axios; a plain `<img src>` would not send the session cookie cross-origin. |
+| `POST /api/equipment/{id}/transactions` | `equipment.transactions.create` | `createTransaction` (denial audited) | `StoreEquipmentTransactionRequest` → `EquipmentTransactionResource`, 201 |
 
-All routes require `auth`+`verified` middleware. Controller: `App\Http\Controllers\EquipmentController` (+ `EquipmentTransactionController` for the nested transaction route).
+There is no update or delete endpoint for transactions, by design.
 
-| Route | Page component | Key props |
-|---|---|---|
-| `GET /equipment` (`equipment.index`) | `equipment/Index` | `equipment` (paginated), `filters` (`search`, `condition`, `category`, `disposition_status`), `options` (lookup options for `condition`/`category`/`disposition_status` filter dropdowns) |
-| `GET /equipment/create` (`equipment.create`) | `equipment/Create` | `options` (full form lookup set — item type, UOM, brand, DCP package, category, classification, mode/source of acquisition, source of funds, allotment class, condition, disposition status) |
-| `GET /equipment/{equipment}/edit` (`equipment.edit`) | `equipment/Edit` | `equipment` (full record + nested `transactions[]`, each with resolved `accountable_officer`/`end_user`/`received_by`), `options` (form lookups), `transactionOptions` (transaction-type + supporting-document-type lookups), `personnelOptions` (active personnel, `{value, label}` pairs, for the accountable officer / end user / received-by selects) |
+**Request fields** (`StoreEquipmentRequest`; Update is the same with `property_no` unique-ignoring itself). Required: `item_type_id`, `brand_id`, `equipment_category_id`, `equipment_classification_id`, `equipment_condition_id` (active Tier 1 ids), `uom`, `mode_acquisition`, `source_acquisition`, `source_fund`, `allotment_class`, `disposition_status` (active Tier 2 values). Optional: `property_no` (unique), `old_property_no`, `serial_number`, `model`, `specifications`, `non_dcp`, `dcp_package`, `dcp_year`, `gl_sl_code`, `uacs`, `acquisition_cost`, `received_date`, `estimated_useful_life`, `donor`, `pm_plan`, `equipment_location`, `non_functional`, `remarks`, `under_warranty`, `end_warranty_date`, `supplier`. The `current_*` pointers are never accepted.
 
-`equipment.index` row shape (via `->through()`):
+**Transaction fields:** `transaction_type` (required, Tier 2), `accountable_officer_id`, `end_user_id`, `received_by_id` (Personnel ids), `date_assigned_accountable_officer`, `date_assigned_end_user`, `date_received_new_accountable`, `supporting_documents1`/`supporting_documents2` (Tier 2 supporting-document types), `or_si_dr_iar_no`, `par_ics_rrsp_rs_wmr_no`.
 
-```php
-[
-    'id', 'property_no', 'item', 'brand_manufacturer', 'model', 'serial_number',
-    'category', 'equipment_condition', 'disposition_status', 'acquisition_cost' /* float */,
-    'current_accountable_officer' => ['id', 'full_name']|null,
-    'current_end_user' => ['id', 'full_name']|null,
-]
+### `EquipmentResource`
+
+Every request field above, plus `id`, `qr_code`, `created_at`, `updated_at`, and:
+
+- Tier 1 display names under their historical keys next to the FK id: `item`, `brand_manufacturer`, `category`, `classification`, `equipment_condition`.
+- `acquisition_cost` as a float, or `null` ("not on file yet" is not zero). Dates as `Y-m-d`.
+- `current_accountable_officer`, `current_end_user`: `{id, full_name} | null`.
+- `transactions` (detail only): `{id, equipment_id, transaction_type, accountable_officer, end_user, received_by, date_*..., supporting_documents1, or_si_dr_iar_no, supporting_documents2, par_ics_rrsp_rs_wmr_no, created_at}`, people as `{id, full_name} | null`.
+
+### `GET /api/equipment/options`
+
+```
+{ data: {
+    form:        { item_type, brand, category, classification, condition,          // Tier 1, id-valued
+                   unit_of_measure, dcp_package, mode_of_acquisition, source_of_acquisition,
+                   source_of_funds, allotment_class, disposition_status },        // Tier 2, string-valued
+    filters:     { condition, category, disposition_status },
+    transaction: { transaction_type, supporting_document_type },
+    personnel?:  [{ value: id, label: full_name }]   // active personnel; only for equipment.transactions.create holders
+} }
 ```
 
-`equipment.edit`'s `equipment` prop includes every fillable Equipment column (see `Equipment::$fillable`) plus `current_accountable_officer`/`current_end_user` (resolved `{id, full_name}`) and `transactions[]`, each shaped:
+`personnel` is withheld from users who cannot record transactions because it only feeds the transaction form, and it is a staff directory.
 
-```php
-[
-    'id', 'transaction_type',
-    'accountable_officer' => ['id', 'full_name']|null,
-    'end_user' => ['id', 'full_name']|null,
-    'received_by' => ['id', 'full_name']|null,
-    'date_assigned_accountable_officer', 'date_assigned_end_user', 'date_received_new_accountable',
-    'supporting_documents1', 'or_si_dr_iar_no', 'supporting_documents2', 'par_ics_rrsp_rs_wmr_no',
-    'created_at',
-]
-```
+## Frontend
+
+| Route | Page |
+|---|---|
+| `/equipment` | `pages/management/equipment/EquipmentList.tsx` |
+| `/equipment/new` | `pages/management/equipment/EquipmentCreate.tsx` (`equipment.create`) |
+| `/equipment/:id/edit` | `pages/management/equipment/EquipmentEdit.tsx` — record, QR image with print/download, transaction history and form |
+| `/equipment/:id/edit` | alias redirecting to the portal edit page (QR scans) |
+
+Form body: `components/equipment/EquipmentFields.tsx`; history and transaction form: `components/equipment/TransactionLog.tsx`; API: `services/equipmentService.ts`; types: `types/equipment.ts`.
 
 ## Key files
 
-- `app/Http/Controllers/EquipmentController.php`, `app/Http/Controllers/EquipmentTransactionController.php`
-- `app/Models/Equipment.php`, `app/Models/EquipmentTransaction.php`
-- `app/Services/EquipmentAccountabilityService.php`
-- `app/Exceptions/AccountabilitySyncRequiredException.php`
-- `app/Policies/EquipmentPolicy.php`
-- `app/Http/Requests/EquipmentStoreRequest.php`, `EquipmentUpdateRequest.php`, `EquipmentTransactionStoreRequest.php`
-- `database/migrations/2026_07_10_000003_create_equipment_table.php`, `2026_07_10_000004_create_equipment_transactions_table.php`, `2026_07_10_040000_add_recorded_by_user_id_to_equipment_transactions_table.php`
-- `resources/js/pages/equipment/` (`Index.vue`, `Create.vue`, `Edit.vue`, `Partials/`)
+- `backend/app/Http/Controllers/Api/Management/EquipmentController.php`, `EquipmentTransactionController.php`
+- `backend/app/Http/Requests/Management/StoreEquipmentRequest.php`, `UpdateEquipmentRequest.php`, `StoreEquipmentTransactionRequest.php`
+- `backend/app/Http/Resources/Management/EquipmentResource.php`, `EquipmentTransactionResource.php`
+- `backend/app/Models/Equipment.php`, `EquipmentTransaction.php`, `backend/app/Observers/EquipmentObserver.php`
+- `backend/app/Services/EquipmentAccountabilityService.php`, `backend/app/Exceptions/AccountabilitySyncRequiredException.php`
+- `backend/app/Policies/EquipmentPolicy.php`
+- `backend/routes/web.php` — the QR redirect route
 
 ## Non-obvious design decisions
 
-- **Accountability sync guard.** `Equipment`'s `updating` model hook throws `AccountabilitySyncRequiredException` if `current_accountable_officer_id`/`current_end_user_id` is dirty outside `Equipment::withAccountabilitySync()` — the closure `EquipmentAccountabilityService::recordTransaction()` runs inside. This makes it structurally impossible for a controller (now or added later) to drift the "current holder" pointers out of sync with the audit log by updating them directly. The guard only fires on `UPDATE`, not `CREATE` — initial creation (factories, seeders, a future import pipeline) has no prior holder to reconcile against.
-- **Sync policy is "last transaction wins," always.** `current_*` is unconditionally overwritten to match the new transaction's `accountable_officer_id`/`end_user_id`, including being cleared to `null` if the transaction doesn't name one — deliberately no per-transaction-type branching, to keep the invariant trivial to reason about.
-- **`equipment.transactions.create` is its own permission**, separate from `equipment.edit`. Reassigning accountability for a physical asset was judged materially more sensitive than editing the asset's descriptive fields (spec, remarks, location), so `encoder` gets both, but a hypothetical future role could hold one without the other.
-- **`Permission::EquipmentDelete` denials are audit-logged.** Deletion is Equipment's most consequential action, so `EquipmentPolicy::delete()` records an `authorization.denied` entry on denial rather than silently 403ing.
-- **No `employee_id=9999` "unknown officer" placeholder row.** Personnel's doc-comment notes this deliberately: `current_accountable_officer_id`/`current_end_user_id` are nullable FKs, and "unknown/unassigned" is represented as `null`, not a sentinel Personnel row.
+- **Accountability sync guard.** `Equipment`'s `updating` hook throws `AccountabilitySyncRequiredException` if `current_accountable_officer_id`/`current_end_user_id` is dirty outside `Equipment::withAccountabilitySync()` — the closure `EquipmentAccountabilityService::recordTransaction()` runs inside. A controller (now or later) cannot drift the pointers out of sync with the log. The guard fires only on `UPDATE`, not `CREATE`: initial creation (factories, seeders, a future import) has no prior holder to reconcile.
+- **"Last transaction wins," always.** `current_*` is overwritten to match the new transaction, including `null` when the transaction names no one. No per-transaction-type branching, so the invariant stays trivial.
+- **`equipment.transactions.create` is its own permission**, separate from `equipment.edit`: reassigning accountability for a physical asset is more sensitive than editing its description. `encoder` holds both, but a role can hold one without the other.
+- **QR labels must outlive the URL scheme.** Labels encode `APP_URL/equipment/{id}/edit`. That path stayed valid through the SPA conversion via the backend redirect and the SPA alias; stored `qr_code` values were not rewritten. Don't change the observer's URL without a plan for already-printed labels.
+- **No `employee_id = 9999` "unknown officer" placeholder.** Unknown/unassigned is a `null` FK, not a sentinel Personnel row.
 
 ## Future considerations
 
-None flagged as blocking. `App\Models\EquipmentTransaction`'s doc-comment notes "no factory was requested for this model; add one if Backend needs it for tests" — worth revisiting if transaction-focused test coverage expands.
+None blocking. `EquipmentTransaction` has no factory; add one if transaction-focused test coverage grows.

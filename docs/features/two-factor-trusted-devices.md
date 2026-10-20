@@ -1,36 +1,56 @@
-# Two-Factor "Remember This Device"
+# Two-Factor Authentication & Trusted Devices
 
 ## Purpose
 
-Laravel Fortify's stock two-factor authentication (this app's only 2FA implementation — not custom-built) has no built-in way to skip the challenge screen on a device the user has already verified. Users with 2FA enabled were being challenged on every single login, with no way to trust their own machine for a while. This feature adds a "Remember this device for 30 days" checkbox to the challenge screen: checking it skips the 2FA prompt on that same browser/device for 30 days, via a revocable, hashed, per-user token — never a trusted-forever bypass.
+TOTP two-factor authentication is **mandatory for every account**, ported from rwatch (pragmarx/google2fa). A password alone never produces a session: a user without 2FA is sent through enrollment at login. "Trust this device" lets a user skip the code on a browser they have already verified, for a configurable number of days, except holders of the access-changing permissions, who always need the code.
 
-There is deliberately **no** trusted-device management UI (no list of devices, no per-device revoke) — this was a scoped decision, not an oversight. If that's ever needed, it layers on top of the existing `two_factor_trusted_devices` table without changing the skip mechanism.
+This replaced the Fortify-based optional 2FA and its "remember this device for 30 days" extension (2026-07-14). Migration `2026_10_19_000008` re-encoded confirmed Fortify secrets and recovery codes into the format this code reads, so enrolled users kept their authenticator; unconfirmed enrollments were cleared, and every previously trusted device was forgotten once (`2026_10_19_000007` replaced the table and cookie). The login sequence itself is in [`docs/architecture.md`](../architecture.md#authentication-flow).
 
 ## Architecture
 
-- `App\Models\TwoFactorTrustedDevice` — one row per trusted device: `user_id`, `token_hash` (SHA-256 of a random 60-character token — the raw token is never stored), `expires_at`. Two static helpers are the only entry points: `remember(User $user, Request $request)` (persist a new trusted record + queue the cookie) and `isTrusted(User $user, Request $request)` (check the request's cookie against a non-expired record scoped to that specific user).
-- The plaintext token lives only in an `httpOnly`, `secure` (mirroring `config('session.secure')`), `SameSite`-matching-session cookie named `two_factor_remember` — Laravel's `EncryptCookies` middleware (already global on the `web` group) handles encryption/decryption transparently; nothing in this feature touches encryption directly.
-- `App\Actions\Fortify\RedirectIfTwoFactorAuthenticatable` — extends Fortify's stock action of the same name, adding one check: if the user would normally be sent to the 2FA challenge, first check `TwoFactorTrustedDevice::isTrusted()`; if trusted, skip the challenge and let the login pipeline continue as if 2FA passed.
-- `App\Actions\Fortify\TwoFactorLoginResponse` — extends Fortify's stock response, adding one side effect: if the challenge form's `remember_device` checkbox was checked, call `TwoFactorTrustedDevice::remember()` before delegating to the normal post-login redirect.
-- Both are wired in via container binding in `App\Providers\FortifyServiceProvider::register()` (`RedirectsIfTwoFactorAuthenticatable`/`TwoFactorLoginResponse` contracts) — Fortify is extended, never forked. No vendor files are touched, and no Fortify controllers/routes are duplicated.
-- `resources/js/pages/auth/TwoFactorChallenge.vue` — a plain `Checkbox` (`name="remember_device"`) added to both the authenticator-code and recovery-code forms, following the exact pattern the Login page already uses for "Remember me" (a native form field the Inertia `<Form>` component picks up on submit — no JS state needed).
+- `Api\Auth\TwoFactorController` — `setup`, `confirmSetup`, `verify` (pre-session, keyed by a short-lived cache token from `/api/login`), `regenerateRecoveryCodes`.
+- `Api\Auth\TrustedDeviceController` — list and revoke the current user's trusted devices.
+- `App\Services\TwoFactorAuthService` — secrets, QR data URI (issuer `DICTIS`), code verification with replay protection (`verifyCodeOnce()` remembers the last accepted time step per user, so a code can't be reused within its window), 8 recovery codes stored hashed.
+- `App\Services\TrustedDeviceService` — issues, finds, touches and revokes devices; `days()` decides whether trusting is allowed.
+- `App\Models\TrustedDevice` (`trusted_devices`: `token_hash` (SHA-256), `user_agent`, `ip_address`, `last_used_ip`, `last_used_at`, `expires_at`).
+- User columns `two_factor_secret` (`encrypted` cast), `two_factor_recovery_codes` (`encrypted:array` of hashes), `two_factor_confirmed_at`. Never logged to activity.
+
+## API endpoints
+
+Pre-session (throttle `two-factor-verify`, keyed by the pending user):
+
+| Method + path | Body | Response |
+|---|---|---|
+| `POST /api/2fa/setup` | `setup_token` | `{data: {qr_code, secret}}`; secret held in cache 10 min |
+| `POST /api/2fa/setup/confirm` | `setup_token`, `code` | `UserResource` envelope (now logged in) plus `data.recovery_codes` — shown once |
+| `POST /api/2fa/verify` | `two_fa_token`, `code` **or** `recovery_code`, optional `remember_device` | `UserResource` envelope; `warning` when ≤ 2 recovery codes remain; sets the `dictis_trusted_device` cookie when `remember_device` and trusting is allowed |
+
+Authenticated:
+
+| Method + path | Body | Response |
+|---|---|---|
+| `POST /api/2fa/recovery-codes/regenerate` (throttle `password-confirm`) | `current_password` | `{data: {recovery_codes}}` — replaces all previous codes |
+| `GET /api/trusted-devices` | — | `{data: [{id, label, ip_address, trusted_at, last_used_at, expires_at, is_current}], meta: {trust_device_days}}` (unexpired only) |
+| `DELETE /api/trusted-devices/{id}` | — | revokes one; clears the cookie if it was this browser |
+| `DELETE /api/trusted-devices` | — | revokes all, clears the cookie |
+| `POST /api/users/{id}/2fa/reset` (`users.manage`) | admin's `current_password` | clears the user's 2FA so they re-enroll at next login — see [roles-and-permissions.md](roles-and-permissions.md#users) |
+
+There is deliberately **no "disable 2FA"** endpoint. A user who loses their authenticator uses a recovery code or asks an admin to reset it.
+
+## Frontend
+
+- `pages/management/TwoFactorSetup.tsx` (`/2fa/setup`), `TwoFactorVerify.tsx` (`/2fa/verify`, with the "trust this device" checkbox when `trust_device_days > 0`).
+- `pages/management/ProfileSettings.tsx` (`/profile`) — recovery-code regeneration and `components/TrustedDevicesCard.tsx`.
+- `services/twoFactorService.ts`, `services/trustedDeviceService.ts`; `components/ui/OtpInput.tsx`.
 
 ## Design decisions
 
-- **Why a DB-backed hashed token instead of a signed-cookie-only check**: a pure signed/encrypted cookie with no DB record would be unrevocable — there'd be no way to invalidate a trusted device early (e.g. if 2FA is disabled/re-enabled, or a device is later suspected compromised) without also touching every trusted browser. The DB record is the source of truth; the cookie is just the credential a legitimate holder presents.
-- **Why scoped to `user_id`, not just a bare valid token**: defense in depth. The token itself (60 random characters, hashed) is already infeasible to guess, but scoping the lookup by user means a token can never be replayed against a different account even in a hypothetical collision/leak scenario.
-- **Why 30 days**: matches common industry defaults (GitHub/Google-style trust windows) — a deliberate product tradeoff between convenience and requiring periodic re-verification, not a technical constraint.
-- **Why extend `RedirectIfTwoFactorAuthenticatable`/`TwoFactorLoginResponse` via container binding instead of `Fortify::authenticateThrough()`**: binding just these two contracts changes exactly the two behaviors this feature needs, without having to reconstruct Fortify's entire login pipeline array (which is also conditional on other config like rate-limiting and username-lowercasing) — smaller, more targeted diff against vendor behavior.
-
-## Files
-
-- `database/migrations/2026_07_14_030156_create_two_factor_trusted_devices_table.php`
-- `app/Models/TwoFactorTrustedDevice.php`, `app/Models/User.php` (`twoFactorTrustedDevices()` relation)
-- `app/Actions/Fortify/RedirectIfTwoFactorAuthenticatable.php`, `app/Actions/Fortify/TwoFactorLoginResponse.php`
-- `app/Providers/FortifyServiceProvider.php` (bindings)
-- `resources/js/pages/auth/TwoFactorChallenge.vue`
+- **Mandatory, not opt-in.** The data is DepEd staff PII and asset records; rwatch's model was adopted wholesale rather than keeping optional 2FA.
+- **Trust is a DB-backed hashed token, not a bare signed cookie.** The cookie (`httpOnly`, `secure` per session config) holds a random 64-char token; only its SHA-256 is stored, scoped to the user. The DB row is the source of truth, so a device can be revoked individually, and all of a user's devices are revoked automatically when their password or 2FA secret changes or the account is deactivated (`User::booted()`).
+- **No trust for the access-changing permissions.** `TrustedDeviceService::days()` returns 0 for anyone holding `roles.manage` or `users.manage`: those accounts can grant access to everything else, so their code is always required. rwatch keys this on role names; inventory keys it on permissions, per the no-role-name-checks rule.
+- **Trust window is a setting**, `trusted_device_days` (0-30, default 30, 0 disables the option), edited at `/settings` (`security_settings.manage`).
+- **Recovery codes are case-insensitive.** Input is upper-cased before `Hash::check`; the Fortify migration upper-cased the old mixed-case codes before hashing so they kept working.
 
 ## Open follow-ups
 
-- No trusted-device list/revoke UI (scoped out — see Purpose).
-- No scheduled cleanup of expired rows — they're excluded from `isTrusted()`'s query by the `expires_at > now()` filter regardless, so expired-and-unused rows are inert, not a correctness risk; a pruning command is an easy follow-up if the table's size ever becomes a concern.
+- Expired `trusted_devices` rows are pruned only for the user who trusts a new device; they're inert (filtered by `expires_at`), so a scheduled prune is optional.

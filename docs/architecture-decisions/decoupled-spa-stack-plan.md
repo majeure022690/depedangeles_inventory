@@ -2,6 +2,30 @@
 
 Execution plan for [`decoupled-spa-stack.md`](decoupled-spa-stack.md). Read the ADR first; this document says *what to do in what order*, the ADR says *why*.
 
+## Execution status (2026-10-20)
+
+| Phase | Status | Commit(s) on `iris-staging` |
+|---|---|---|
+| 0 Dependencies | Done | `e3e85f6` |
+| 1 Database | Done | `630f45e` |
+| 2 Auth | Done | `eb9ef43` |
+| 3 Backend API | Done | `63e9095` |
+| 4.0 Frontend shell, 4A-4D page ports | Done | `83ae447`, `f83f5c2`, `e04a474` |
+| 5 Tests | Done alongside each phase | — |
+| 6 DevOps, 7 Cleanup | Done; the `drop_audit_logs_table` migration (`2026_10_19_000012`) is pending commit | `1d7732b` |
+| 8 Sign-off | Documentation done; `qa` → `security` → `reviewer` outstanding | — |
+
+Deviations from the plan below, recorded during execution:
+
+- **`export` rate limiter and `export_rate_limit_per_minute` setting removed** (`436b336`). Inventory has no export feature; re-add both with the feature if one is ever built.
+- **App timezone changed from UTC to `Asia/Manila`** (`436b336`), not in the original plan. Form Requests convert UTC ISO input for user-entered datetimes (`NormalizesDateTimesToAppTimezone`), and migration `2026_10_19_000011` shifted existing system-written timestamps +8h (`1108a5c`). See [`architecture.md`](../architecture.md#timezone-asiamanila).
+- **Audit log gained an actor filter** (`causer_id` + `actors` in `/api/audit-log/options`, `76d77de`).
+- **Route-level `permission:` denials on writes are audited** (`authorization.denied`, `bootstrap/app.php`), since they never reach the Policy.
+- **Internet Connectivity Survey `aggregates` not ported**: the panel had already been removed on 2026-07-15, so `GET /api/internet-connectivity-surveys/{office}` returns `{office, survey}` only.
+- **`.husky/` and `.github/` were deleted** (`b3e3ebd`) rather than adapted; there are no git hooks or CI workflows. The stray root `inventory` SQLite file was removed earlier than Phase 7 (`cb95a7a`).
+- **`PUT /api/users/{self}` is refused outright** (edit yourself via `/api/profile`), stricter than the plan's "self-deactivation blocked".
+- **Permissions-Policy is `camera=()`**: no QR scanner was built.
+
 **Reference project (READ-ONLY, never modify anything there):** `C:\xampp\htdocs\rwatch`, referred to below as `rwatch/`. Paths without a prefix are relative to this repo's root.
 
 **Porting rules that apply to every phase:**
@@ -111,7 +135,7 @@ Do **not** publish Spatie's stock `create_permission_tables` migration.
 | `app/Services/LoginSession.php` | verbatim |
 | `app/Services/TwoFactorAuthService.php` | `ISSUER = 'DICTIS'` |
 | `app/Services/TrustedDeviceService.php` | `COOKIE = 'dictis_trusted_device'`. **Replace** the `hasAnyRole(config(...two_factor_always_required_roles))` line with `$user->hasAnyPermission([Permission::RolesManage->value, Permission::UsersManage->value])`. |
-| `app/Services/SecuritySettings.php` | Keep `login_rate_limit_per_minute`, `password_reset_rate_limit_per_hour`, `export_rate_limit_per_minute`, `two_factor_verify_rate_limit_per_minute`, `trusted_device_days`, `idle_timeout_seconds`. Remove the three public-portal keys. Reword the `trusted_device_days` description to "Users who can manage roles or users always need the code." |
+| `app/Services/SecuritySettings.php` | Keep `login_rate_limit_per_minute`, `password_reset_rate_limit_per_hour`, `two_factor_verify_rate_limit_per_minute`, `trusted_device_days`, `idle_timeout_seconds`. Remove the three public-portal keys and `export_rate_limit_per_minute` (no export feature; removed in `436b336`). Reword the `trusted_device_days` description to "Users who can manage roles or users always need the code." |
 | `app/Services/FileUploadService.php` | verbatim (avatar uploads) |
 | `app/Models/SystemSetting.php`, `app/Models/TrustedDevice.php` | verbatim |
 | `app/Http/Middleware/SecurityHeaders.php` | Remove the `api/public/lookups` cache branch and the OSM/ArcGIS/Nominatim CSP hosts. Permissions-Policy: `geolocation=(), camera=(self), microphone=()`. `camera=(self)` is kept only if the equipment QR scanner is built later; otherwise use `camera=()`. |
@@ -120,7 +144,7 @@ Do **not** publish Spatie's stock `create_permission_tables` migration.
 | `app/Http/Controllers/Api/Management/SecuritySettingController.php` | Route gated by `permission:security_settings.manage` |
 | `app/Http/Requests/Management/ResetTwoFactorRequest.php` + `UserController::resetTwoFactor` | Admin reset for a lost authenticator, gated by `users.manage` + `UserPolicy`. Blocks resetting yourself. |
 | `bootstrap/app.php` | `statefulApi()`, append `SecurityHeaders`, the Spatie `permission` middleware alias (**not** `role`/`role_or_permission`), and the JSON-only exception rendering block verbatim. Remove `HandleInertiaRequests`, `HandleAppearance`, `web`-group Inertia middleware. |
-| `AppServiceProvider` | `configureRateLimiting()` with `login`, `password-reset`, `password-confirm`, `authenticated-api`, `export`, `two-factor-verify` (drop `report-submit`, `tracking-lookup`, `public-api`), `TrustProxies`, `Password::defaults(min 12, mixedCase, numbers, symbols)`, `ResetPassword::createUrlUsing(... '/portal/reset-password?...')`, `Gate::policy(Role::class, RolePolicy::class)`. **Delete** inventory's custom `Gate::before`; Spatie's `register_permission_check_method` replaces it. Add the `Activity::creating` hook that writes `properties.actor_snapshot` (ADR §6). |
+| `AppServiceProvider` | `configureRateLimiting()` with `login`, `password-reset`, `password-confirm`, `authenticated-api`, `two-factor-verify` (drop `report-submit`, `tracking-lookup`, `public-api`, and `export`, which was ported and then removed with its setting), `TrustProxies`, `Password::defaults(min 12, mixedCase, numbers, symbols)`, `ResetPassword::createUrlUsing(... '/reset-password?...')`, `Gate::policy(Role::class, RolePolicy::class)`. **Delete** inventory's custom `Gate::before`; Spatie's `register_permission_check_method` replaces it. Add the `Activity::creating` hook that writes `properties.actor_snapshot` (ADR §6). |
 | `app/Console/Commands/CreateSuperAdmin.php` | Optional. Port it as `app:create-admin` only if `devops` wants a CLI bootstrap path; `DatabaseSeeder` already covers dev. |
 
 ### 2b. Model and authorization changes
@@ -221,7 +245,7 @@ The frontend's `AuthContext.can()` reads `user.permissions`. This replaces the I
 
 **Equipment QR stability (ADR §8):**
 
-- `routes/web.php` contains exactly one route: `Route::get('/equipment/{equipment}/edit', fn (Equipment $equipment) => redirect()->away(rtrim(config('app.frontend_url'), '/')."/portal/equipment/{$equipment->id}/edit"))->name('equipment.edit');`.
+- `routes/web.php` contains exactly one route: `Route::get('/equipment/{equipment}/edit', fn (Equipment $equipment) => redirect()->away(rtrim(config('app.frontend_url'), '/')."/equipment/{$equipment->id}/edit"))->name('equipment.edit');`.
 - `EquipmentObserver` stays unchanged and keeps calling `route('equipment.edit', $equipment)`.
 
 ### 3a. Endpoint map: `backend/routes/api/management.php`
@@ -346,7 +370,7 @@ The two rwatch user-avatar admin endpoints are **not** ported: inventory users m
 | *(new, rwatch)* | `GET /api/settings/security` | `SecuritySettingController@index` | `security_settings.manage` | `SecuritySettings::all()` |
 | *(new, rwatch)* | `PUT /api/settings/security` | `@update` | `security_settings.manage` | `{key, value}` |
 
-Not ported (YAGNI; inventory has no use for them): rwatch's system-log/slow-query viewer, email log, SMS, site settings, notifications, exports. Exports are rate-limited by the `export` limiter, which is kept so `integration` can use it if an export feature is ever requested.
+Not ported (YAGNI; inventory has no use for them): rwatch's system-log/slow-query viewer, email log, SMS, site settings, notifications, exports. rwatch's `export` limiter was not kept either; add it back together with an export feature if one is ever requested.
 
 ### 3b. Backend files deleted in Phase 3
 
@@ -404,10 +428,10 @@ From rwatch's `package.json`, **keep only these dependencies**: `react`, `react-
 **Routes (`App.tsx`):**
 
 ```
-/                                   → <Navigate to="/portal/dashboard">
-/equipment/:id/edit                 → <Navigate to="/portal/equipment/:id/edit">     (QR alias, ADR §8)
-/portal/login | forgot-password | reset-password | 2fa/setup | 2fa/verify   (GuestOnly)
-/portal  (RequireAuth → ManagementLayout)
+/                                   → <Navigate to="/dashboard">
+/equipment/:id/edit                 → <Navigate to="/equipment/:id/edit">     (QR alias, ADR §8)
+/login | forgot-password | reset-password | 2fa/setup | 2fa/verify   (GuestOnly)
+  (RequireAuth → ManagementLayout)
   dashboard
   profile
   personnel, personnel/new, personnel/:id/edit                         RequirePermission personnel.view
@@ -430,18 +454,18 @@ From rwatch's `package.json`, **keep only these dependencies**: `react`, `react-
 
 | Group | Item | Route | Permission |
 |---|---|---|---|
-| *(none)* | Dashboard (`LayoutDashboard`) | `/portal/dashboard` | none |
-| **Records** | Personnel (`Users`) | `/portal/personnel` | `personnel.view` |
-| | Equipment (`Monitor`) | `/portal/equipment` | `equipment.view` |
-| | ISP Accounts (`Wifi`) | `/portal/isp-accounts` | `isp_accounts.view` |
-| **Office Profiles** | Stakeholder Profile (`School`) | `/portal/stakeholder-profiles` if the user holds `stakeholder_profile.view_all`; otherwise `/portal/stakeholder-profiles/{user.office_id}` if they hold `.view` and have an `office_id` (same branching as today's `AppSidebar.vue`) | `stakeholder_profile.view\|.view_all` |
+| *(none)* | Dashboard (`LayoutDashboard`) | `/dashboard` | none |
+| **Records** | Personnel (`Users`) | `/personnel` | `personnel.view` |
+| | Equipment (`Monitor`) | `/equipment` | `equipment.view` |
+| | ISP Accounts (`Wifi`) | `/isp-accounts` | `isp_accounts.view` |
+| **Office Profiles** | Stakeholder Profile (`School`) | `/stakeholder-profiles` if the user holds `stakeholder_profile.view_all`; otherwise `/stakeholder-profiles/{user.office_id}` if they hold `.view` and have an `office_id` (same branching as today's `AppSidebar.vue`) | `stakeholder_profile.view\|.view_all` |
 | | Internet Connectivity (`Signal`) | same branching | `internet_connectivity.view\|.view_all` |
-| **Libraries** | Reference Data (`Library`) | `/portal/reference-data` | `reference-data.manage` |
-| | Offices (`Building2`) | `/portal/offices` | `office.view` |
-| **Administration** | Users (`UserCog`) | `/portal/users` | `users.manage` |
-| | Roles (`ShieldCheck`) | `/portal/roles` | `roles.manage` |
-| | Audit Log (`History`) | `/portal/audit-log` | `audit_log.view` |
-| | Settings (`Settings`) | `/portal/settings` | `security_settings.manage` |
+| **Libraries** | Reference Data (`Library`) | `/reference-data` | `reference-data.manage` |
+| | Offices (`Building2`) | `/offices` | `office.view` |
+| **Administration** | Users (`UserCog`) | `/users` | `users.manage` |
+| | Roles (`ShieldCheck`) | `/roles` | `roles.manage` |
+| | Audit Log (`History`) | `/audit-log` | `audit_log.view` |
+| | Settings (`Settings`) | `/settings` | `security_settings.manage` |
 
 The `ManagementLayout` nav-item type needs a `to` that can be a function of the user, for the two office-scoped items. That is the shell's one small extension to rwatch's layout.
 

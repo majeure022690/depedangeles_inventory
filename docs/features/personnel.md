@@ -2,60 +2,57 @@
 
 ## Purpose
 
-The division office's staff directory. This is the "who" behind Equipment's accountability tracking (`accountable_officer`, `end_user`, `received_by` on every transaction all resolve to a Personnel record) — a standard CRUD resource with search/filter and soft deletes, no special data-access pattern beyond the ordinary one.
+The division office's staff directory. This is the "who" behind Equipment's accountability tracking (`accountable_officer`, `end_user`, `received_by` on every transaction resolve to a Personnel record). A standard CRUD resource with search/filter and soft deletes, no special data-access pattern.
 
 ## Architecture
 
-- `App\Models\Personnel` — soft-deletes, `$table = 'personnel'` (explicit, since the plural of "personnel" isn't Eloquent's default guess).
-- `App\Policies\PersonnelPolicy` — standard `viewAny`/`view`/`create`/`update`/`delete`/`restore`/`forceDelete`, each against its own `Permission` case; `restore`/`forceDelete` are hard-coded `false` (no UI path to either exists).
-- Relationships back to Equipment/EquipmentTransaction (`currentlyAccountableForEquipment`, `currentlyEndUserForEquipment`, `equipmentTransactionsAsAccountableOfficer`, `equipmentTransactionsAsEndUser`, `equipmentTransactionsReceived`) exist on the Personnel side for querying "what does this person currently hold / what have they ever been party to," even though Equipment's docs describe the relationship from the Equipment side.
+- `App\Models\Personnel` — soft-deletes, `$table = 'personnel'` (explicit, since Eloquent can't pluralize "personnel"). Tier 1 FKs: `position_id`, `ro_office_id`, `sdo_office_id` (all nullable, matching the original string columns). `fund_source` is a JSON array of `personnel_libraries` ids (teachers' funding source).
+- `App\Policies\PersonnelPolicy` — `viewAny`/`view`/`create`/`update`/`delete`, each against its own `Permission` case; `delete` denials are audited. `restore`/`forceDelete` are hard-coded `false` (no path to either exists).
+- Relationships back to Equipment/EquipmentTransaction (`currentlyAccountableForEquipment`, `equipmentTransactionsAsAccountableOfficer`, ...) exist for "what does this person hold / what have they been party to" queries.
 
-## Flow
+Audit: `LogsActivity` (`personnel.created|updated|deleted`).
 
-1. **List** (`GET /personnel`, `personnel.index`) — searchable, filterable by employment status (`active`/`inactive`/`all`, defaults to `active`), paginated 15/page.
-2. **Create** (`GET /personnel/create`, `personnel.create`) / **Store** (`POST /personnel`, `personnel.store`).
-3. **Edit** (`GET /personnel/{personnel}/edit`, `personnel.edit`) / **Update** (`PUT/PATCH /personnel/{personnel}`, `personnel.update`).
-4. **Delete** (`DELETE /personnel/{personnel}`, `personnel.destroy`) — soft delete; historical Equipment transactions referencing a deleted Personnel row keep their nullable FK intact (deletion doesn't cascade or null those out — Personnel is soft-deleted, so the row and its `id` still exist for the FK to point at).
+## API endpoints
 
-Every create/update/delete writes an `AuditLog` entry (`personnel.created`/`personnel.updated`/`personnel.deleted`).
+Controller: `Api\Management\PersonnelController`. All under `auth:sanctum` + `throttle:authenticated-api`.
 
-## Inertia routes / prop contracts
+| Method + path | Route permission | Policy | Request → response |
+|---|---|---|---|
+| `GET /api/personnel?search&status&sort&direction&per_page` | `personnel.view` | `viewAny` | paginated `PersonnelResource`. `status` = `active` (default) / `inactive` / `all`. Sort keys: `employee_id`, `full_name`, `last_name`, `created_at`; default last name, first name. |
+| `GET /api/personnel/options` | `personnel.view` or `.create` or `.edit` | — | `{data: {position, ro_office, sdo_office, name_suffix, cause_of_separation, teachers_funding_source}}` — the first three Tier 1 (id-valued), the next two Tier 2 (string-valued), `teachers_funding_source` id-valued because it backs the `fund_source` array |
+| `POST /api/personnel` | `personnel.create` | `create` (Form Request) | `StorePersonnelRequest` → `PersonnelResource`, 201 |
+| `GET /api/personnel/{id}` | `personnel.view` | `view` | `PersonnelResource` |
+| `PUT /api/personnel/{id}` | `personnel.edit` | `update` | `UpdatePersonnelRequest` → `PersonnelResource` |
+| `DELETE /api/personnel/{id}` | `personnel.delete` | `delete` | 204, soft delete |
 
-All routes require `auth`+`verified`. Controller: `App\Http\Controllers\PersonnelController`. No `show` route (`Route::resource(...)->except('show')` — same as every other resource-backed module in this app; there's no dedicated read-only detail page distinct from Edit).
+**Request fields:** required `employee_id` (unique), `last_name`, `first_name`; optional `middle_name`, `suffix` (Tier 2), `position_id`/`ro_office_id`/`sdo_office_id` (active Tier 1 ids), `oic`, `oic_office`, `mobile_1`, `mobile_2`, `deped_email`, `personal_email`, `date_hired`, `non_deped_funded`, `fund_source` (array of active library ids), `inactive`, `separation_date`, `separation_cause` (Tier 2), `transferred_from`, `transferred_to`.
 
-| Route | Page component | Key props |
-|---|---|---|
-| `GET /personnel` (`personnel.index`) | `personnel/Index` | `personnel` (paginated), `filters` (`search`, `status`) |
-| `GET /personnel/create` (`personnel.create`) | `personnel/Create` | `options` (position, name-suffix, RO offices, SDO offices, cause-of-separation, teachers-funding-source lookups) |
-| `GET /personnel/{personnel}/edit` (`personnel.edit`) | `personnel/Edit` | `personnel` (full record), `options` (same lookup set as Create) |
+**`PersonnelResource`:** every request field, plus `id`, computed `full_name`, `created_at`, `updated_at`, and the Tier 1 display names under their historical keys: `position`, `ro_division` (RO office), `division_unit` (SDO office). Dates as `Y-m-d`.
 
-`personnel.index` row shape:
+## Frontend
 
-```php
-[
-    'id', 'employee_id', 'full_name', 'last_name', 'first_name', 'middle_name', 'suffix',
-    'position', 'division_unit', 'ro_division', 'mobile_1', 'deped_email',
-    'oic', 'oic_office', 'inactive',
-]
-```
+| Route | Page |
+|---|---|
+| `/personnel` | `pages/management/personnel/PersonnelList.tsx` |
+| `/personnel/new` | `pages/management/personnel/PersonnelCreate.tsx` (`personnel.create`) |
+| `/personnel/:id/edit` | `pages/management/personnel/PersonnelEdit.tsx` |
 
-`personnel.edit`'s `personnel` prop is every fillable column plus computed `full_name`, dates formatted as `Y-m-d` strings (`date_hired`, `separation_date`).
+Form body: `components/personnel/PersonnelFields.tsx`; API: `services/personnelService.ts`; types: `types/personnel.ts`.
 
 ## Key files
 
-- `app/Http/Controllers/PersonnelController.php`
-- `app/Models/Personnel.php`
-- `app/Policies/PersonnelPolicy.php`
-- `app/Http/Requests/PersonnelStoreRequest.php`, `PersonnelUpdateRequest.php`
-- `database/migrations/2026_07_10_000002_create_personnel_table.php`
-- `resources/js/pages/personnel/` (`Index.vue`, `Create.vue`, `Edit.vue`, `Partials/`)
+- `backend/app/Http/Controllers/Api/Management/PersonnelController.php`
+- `backend/app/Http/Requests/Management/StorePersonnelRequest.php`, `UpdatePersonnelRequest.php`
+- `backend/app/Http/Resources/Management/PersonnelResource.php`
+- `backend/app/Models/Personnel.php`, `backend/app/Policies/PersonnelPolicy.php`
 
 ## Non-obvious design decisions
 
-- **Inactive/separated personnel are retained, not deleted.** The `inactive` boolean plus `separation_date`/`separation_cause`/`transferred_from`/`transferred_to` columns model an employment-status lifecycle distinct from soft-delete — a separated employee's record stays queryable (and their historical Equipment accountability stays intact) even though they no longer show up in the default `active`-filtered index view. Soft-delete (`deleted_at`) is reserved for records genuinely removed from the system, not for staff who've left the office.
-- **`scopeActive()` excludes separated/transferred-out records** but this is independent of soft-deletes — a record can be `inactive = true` and still not soft-deleted, precisely so its accountability history stays queryable.
-- **No `employee_id = 9999` "unknown" placeholder.** Explicitly called out in the model's doc-comment: "unknown accountable officer" on Equipment is represented by a `null` nullable FK, not a sentinel Personnel row.
+- **Separated staff are retained, not deleted.** `inactive` plus `separation_date`/`separation_cause`/`transferred_from`/`transferred_to` model an employment lifecycle distinct from soft-delete. A separated employee stays queryable, with their Equipment accountability history intact, even though the default `active` list hides them. Soft-delete is for records genuinely removed from the system.
+- **`scopeActive()` is independent of soft-deletes** — a record can be `inactive` and not deleted, precisely so its history stays queryable.
+- **Soft delete keeps transaction FKs valid.** Historical Equipment transactions referencing a deleted person still point at an existing row.
+- **No `employee_id = 9999` "unknown" placeholder.** Unknown accountable officer on Equipment is a `null` FK.
 
 ## Future considerations
 
-None flagged as blocking during review.
+None blocking.

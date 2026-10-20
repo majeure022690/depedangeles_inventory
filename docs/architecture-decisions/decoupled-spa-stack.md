@@ -32,11 +32,11 @@ In production the frontend's web server serves the SPA and reverse-proxies `/api
 
 ### 3. Frontend layout mirrors `rwatch/frontend/src`
 
-`components/ui`, `components/<feature>`, `components/management`, `context/AuthContext.tsx`, `hooks`, `layouts/ManagementLayout.tsx`, `lib/api.ts`, `router/Guards.tsx`, `services/<feature>Service.ts`, `types/`, `pages/management/<feature>/`. The staff portal lives under `/portal/*`. rwatch's public pages, i18n, Leaflet maps, notifications, tours, gallery, and the branding/site-settings panels are **not** ported; inventory has no use for them.
+`components/ui`, `components/<feature>`, `components/management`, `context/AuthContext.tsx`, `hooks`, `layouts/ManagementLayout.tsx`, `lib/api.ts`, `router/Guards.tsx`, `services/<feature>Service.ts`, `types/`, `pages/management/<feature>/`. The staff portal lives under `/*`. rwatch's public pages, i18n, Leaflet maps, notifications, tours, gallery, and the branding/site-settings panels are **not** ported; inventory has no use for them.
 
 ### 4. Authentication: rwatch's model, ported
 
-The login flow is a custom `AuthController::login`, then **mandatory TOTP 2FA** for every account (pragmarx/google2fa, setup/verify tokens held in cache), trusted devices, hashed recovery codes, forgot/reset password, idle-timeout logout, and reCAPTCHA v3 on login. Alongside it come a `security` log channel, the `SecurityHeaders` middleware, named rate limiters (`login`, `password-reset`, `two-factor-verify`, `authenticated-api`, `password-confirm`, `export`) backed by `SecuritySettings`/`system_settings`, and JSON-only exception rendering.
+The login flow is a custom `AuthController::login`, then **mandatory TOTP 2FA** for every account (pragmarx/google2fa, setup/verify tokens held in cache), trusted devices, hashed recovery codes, forgot/reset password, idle-timeout logout, and reCAPTCHA v3 on login. Alongside it come a `security` log channel, the `SecurityHeaders` middleware, named rate limiters (`login`, `password-reset`, `two-factor-verify`, `authenticated-api`, `password-confirm`; rwatch's `export` limiter was dropped during execution since inventory has no export feature) backed by `SecuritySettings`/`system_settings`, and JSON-only exception rendering.
 
 What this drops, and why:
 - **Self-registration** (Fortify `registration`): rwatch has none, because admins create accounts. This removes the open-registration PII exposure path outright instead of mitigating it. The `pending` role is kept as an ordinary zero-permission, protected role.
@@ -74,8 +74,8 @@ What this drops, and why:
 ### 8. Equipment QR codes stay stable
 
 Printed QR labels are long-lived physical artifacts. They encode `equipment.qr_code`, today `APP_URL/equipment/{id}/edit`. Two things keep those labels working:
-- the backend keeps exactly one web route, `GET /equipment/{equipment}/edit`, which redirects (302) to `FRONTEND_URL/portal/equipment/{id}/edit`;
-- the SPA has an alias route `/equipment/:id/edit` → `/portal/equipment/:id/edit`, for deployments where the frontend host is the one that receives the scan.
+- the backend keeps exactly one web route, `GET /equipment/{equipment}/edit`, which redirects (302) to `FRONTEND_URL/equipment/{id}/edit`;
+- the SPA has an alias route `/equipment/:id/edit` → `/equipment/:id/edit`, for deployments where the frontend host is the one that receives the scan.
 
 Stored `qr_code` values are not rewritten.
 
