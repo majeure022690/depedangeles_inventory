@@ -9,6 +9,7 @@ use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Http\Resources\Management\UserResource;
 use App\Models\User;
+use App\Services\ExternalUserAuthService;
 use App\Services\FileUploadService;
 use App\Services\LoginSession;
 use App\Services\SecuritySettings;
@@ -27,23 +28,32 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function login(LoginRequest $request): JsonResponse
+    public function login(LoginRequest $request, ExternalUserAuthService $externalAuth): JsonResponse
     {
         $credentials = $request->only('email', 'password');
 
-        if (! Auth::attempt($credentials, false)) {
-            Log::channel('security')->warning('Failed login attempt', [
-                'email' => $credentials['email'],
-                'ip' => $request->ip(),
-            ]);
+        // Try external authentication first
+        $user = $externalAuth->authenticate($credentials['email'], $credentials['password']);
 
-            throw ValidationException::withMessages([
-                'email' => __('Invalid credentials.'),
-            ]);
+        if (!$user) {
+            // Fallback to local authentication
+            if (! Auth::attempt($credentials, false)) {
+                Log::channel('security')->warning('Failed login attempt', [
+                    'email' => $credentials['email'],
+                    'ip' => $request->ip(),
+                ]);
+
+                throw ValidationException::withMessages([
+                    'email' => __('Invalid credentials.'),
+                ]);
+            }
+
+            /** @var User $user */
+            $user = Auth::user();
+        } else {
+            // External auth succeeded, log them in
+            Auth::login($user, false);
         }
-
-        /** @var User $user */
-        $user = Auth::user();
 
         if (! $user->is_active) {
             Auth::logout();
