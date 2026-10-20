@@ -44,7 +44,8 @@ class Recaptcha implements ValidationRule
         }
 
         try {
-            $response = Http::timeout(self::TIMEOUT_SECONDS)->asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
+            // The production host's IPv6 route stalls; IPv4 answers immediately.
+            $response = Http::timeout(self::TIMEOUT_SECONDS)->withOptions(['force_ip_resolve' => 'v4'])->asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
                 'secret' => $secret,
                 'response' => $value,
                 'remoteip' => Request::ip(),
