@@ -4,9 +4,11 @@ namespace Tests\Feature\Management;
 
 use App\Enums\Permission;
 use App\Models\Role;
+use App\Models\SystemSetting;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 class SecuritySettingTest extends TestCase
@@ -61,6 +63,54 @@ class SecuritySettingTest extends TestCase
             'value' => '8',
             'type' => 'integer',
         ]);
+    }
+
+    public function test_each_effective_change_is_audited_with_old_and_new_values(): void
+    {
+        $admin = $this->userWithRole('admin');
+
+        $this->actingAs($admin)->putJson('/api/settings/security', [
+            'setting_key' => 'trusted_device_days',
+            'value' => 7,
+        ])->assertOk();
+
+        $activity = Activity::query()->where('event', 'security_setting.updated')->sole();
+        $this->assertSame('security_setting.updated', $activity->description);
+        $this->assertSame($admin->id, $activity->causer_id);
+        $this->assertSame(SystemSetting::class, $activity->subject_type);
+        $this->assertSame(['trusted_device_days' => 30], $activity->attribute_changes['old']);
+        $this->assertSame(['trusted_device_days' => 7], $activity->attribute_changes['attributes']);
+
+        $this->actingAs($admin)->putJson('/api/settings/security', [
+            'setting_key' => 'trusted_device_days',
+            'value' => 0,
+        ])->assertOk();
+
+        $latest = Activity::query()->where('event', 'security_setting.updated')->latest('id')->firstOrFail();
+        $this->assertSame(['trusted_device_days' => 7], $latest->attribute_changes['old']);
+        $this->assertSame(['trusted_device_days' => 0], $latest->attribute_changes['attributes']);
+
+        // Re-saving the same value is not a change.
+        $this->actingAs($admin)->putJson('/api/settings/security', [
+            'setting_key' => 'trusted_device_days',
+            'value' => 0,
+        ])->assertOk();
+        $this->assertSame(2, Activity::query()->where('event', 'security_setting.updated')->count());
+    }
+
+    public function test_rejected_updates_are_not_audited_as_changes(): void
+    {
+        $this->actingAs($this->userWithRole('viewer'))->putJson('/api/settings/security', [
+            'setting_key' => 'trusted_device_days',
+            'value' => 7,
+        ])->assertForbidden();
+
+        $this->actingAs($this->userWithRole('admin'))->putJson('/api/settings/security', [
+            'setting_key' => 'trusted_device_days',
+            'value' => 99,
+        ])->assertStatus(422);
+
+        $this->assertSame(0, Activity::query()->where('event', 'security_setting.updated')->count());
     }
 
     public function test_security_settings_require_the_permission(): void

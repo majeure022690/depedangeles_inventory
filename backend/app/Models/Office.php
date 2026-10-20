@@ -116,7 +116,7 @@ class Office extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logFillable()
+            ->logOnly(['office_name', 'office_type', 'school_id', 'address', 'region', 'division', 'district', 'contact_number', 'email', 'is_active'])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
             ->setDescriptionForEvent(fn (string $event): string => "office.{$event}");

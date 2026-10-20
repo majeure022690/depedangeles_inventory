@@ -147,7 +147,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         $admin = $this->userWithRole('admin');
 
         $this->actingAs($admin)->getJson($this->url($office))->assertOk();
-        $this->assertDatabaseHas('internet_connectivity_surveys', ['office_id' => $office->id]);
+        $this->assertDatabaseMissing('internet_connectivity_surveys', ['office_id' => $office->id]);
         $this->assertSame(0, Activity::query()->where('subject_type', InternetConnectivitySurvey::class)->count());
 
         $row = collect($this->actingAs($admin)->getJson('/api/internet-connectivity-surveys')->json('data'))->firstWhere('id', $office->id);
@@ -244,15 +244,55 @@ class InternetConnectivitySurveyControllerTest extends TestCase
             ->assertJsonValidationErrors(['electricity_sources.0']);
     }
 
-    public function test_first_or_create_creates_once_per_office_and_reuses_the_same_row(): void
+    public function test_show_does_not_persist_and_the_first_update_creates_the_single_row(): void
     {
         $office = $this->createOffice();
         $user = $this->userAt('encoder', $office);
 
-        $firstId = $this->actingAs($user)->getJson($this->url($office))->assertOk()->json('data.survey.id');
-        $this->actingAs($user)->getJson($this->url($office))->assertJsonPath('data.survey.id', $firstId);
-        $this->actingAs($user)->putJson($this->url($office), ['rooms_other_use' => 4])->assertJsonPath('data.survey.id', $firstId);
+        $this->actingAs($user)->getJson($this->url($office))->assertOk()
+            ->assertJsonPath('data.survey.id', null)
+            ->assertJsonPath('data.survey.office_id', $office->id);
+        $this->assertSame(0, InternetConnectivitySurvey::count());
+
+        $id = $this->actingAs($user)->putJson($this->url($office), ['rooms_other_use' => 4])->assertOk()->json('data.survey.id');
+        $this->assertIsInt($id);
+
+        $this->actingAs($user)->getJson($this->url($office))->assertJsonPath('data.survey.id', $id);
+        $this->actingAs($user)->putJson($this->url($office), ['rooms_other_use' => 4])->assertJsonPath('data.survey.id', $id);
 
         $this->assertSame(1, InternetConnectivitySurvey::count());
+    }
+
+    public function test_update_reuses_a_row_another_request_created_first(): void
+    {
+        $office = $this->createOffice();
+        $existing = InternetConnectivitySurvey::create(['office_id' => $office->id]);
+
+        $this->actingAs($this->userAt('encoder', $office))
+            ->putJson($this->url($office), ['rooms_other_use' => 4])
+            ->assertOk()
+            ->assertJsonPath('data.survey.id', $existing->id);
+
+        $this->assertSame(1, InternetConnectivitySurvey::count());
+    }
+
+    public function test_an_office_that_was_only_viewed_can_still_be_deleted(): void
+    {
+        $office = $this->createOffice();
+        $admin = $this->userWithRole('admin');
+
+        $this->actingAs($admin)->getJson($this->url($office))->assertOk();
+        $this->actingAs($admin)->deleteJson("/api/offices/{$office->id}")->assertNoContent();
+        $this->assertModelMissing($office);
+    }
+
+    public function test_an_office_with_a_saved_row_is_still_protected_from_deletion(): void
+    {
+        $office = $this->createOffice();
+        $admin = $this->userWithRole('admin');
+
+        $this->actingAs($admin)->putJson($this->url($office), ['rooms_other_use' => 4])->assertOk();
+        $this->actingAs($admin)->deleteJson("/api/offices/{$office->id}")->assertStatus(409);
+        $this->assertModelExists($office);
     }
 }

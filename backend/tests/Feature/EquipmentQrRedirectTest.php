@@ -34,10 +34,19 @@ class EquipmentQrRedirectTest extends TestCase
             ->assertRedirect("http://localhost:5173/equipment/{$equipment->id}/edit");
     }
 
-    public function test_an_unknown_equipment_id_is_a_404(): void
+    public function test_an_unknown_id_gets_the_same_redirect_so_existence_is_not_revealed(): void
     {
-        $this->get('/equipment/999999/edit')->assertNotFound();
+        config(['app.frontend_url' => 'http://localhost:5173']);
+
+        $this->get('/equipment/999999/edit')
+            ->assertStatus(302)
+            ->assertRedirect('http://localhost:5173/equipment/999999/edit');
+    }
+
+    public function test_a_non_numeric_id_is_a_404(): void
+    {
         $this->get('/equipment/not-a-number/edit')->assertNotFound();
+        $this->get('/equipment/1%2F..%2Fevil/edit')->assertNotFound();
     }
 
     public function test_no_other_web_routes_exist(): void

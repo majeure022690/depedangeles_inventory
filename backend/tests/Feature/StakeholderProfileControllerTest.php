@@ -22,7 +22,7 @@ use Tests\TestCase;
 /**
  * One profile PER OFFICE. `.view`/`.edit` reach only the user's own
  * office; `.view_all` reaches every office and the cross-office list.
- * Authorization runs against a transient model before firstOrCreate(),
+ * Authorization runs against a transient model before any write,
  * so a forbidden request never creates a row. The checkbox-group fields
  * store stakeholder_libraries ids.
  */
@@ -197,7 +197,7 @@ class StakeholderProfileControllerTest extends TestCase
     }
 
     /**
-     * show() firstOrCreate()s an empty row; merely opening it must not
+     * show() returns a transient blank model; merely opening it must not
      * flip the list to "submitted", nor write an audit row.
      */
     public function test_index_still_shows_not_started_after_show_but_nothing_saved(): void
@@ -206,7 +206,7 @@ class StakeholderProfileControllerTest extends TestCase
         $admin = $this->userWithRole('admin');
 
         $this->actingAs($admin)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk();
-        $this->assertDatabaseHas('stakeholder_profiles', ['office_id' => $office->id]);
+        $this->assertDatabaseMissing('stakeholder_profiles', ['office_id' => $office->id]);
         $this->assertSame(0, Activity::query()->where('subject_type', StakeholderProfile::class)->count());
 
         $row = collect($this->actingAs($admin)->getJson('/api/stakeholder-profiles')->json('data'))->firstWhere('id', $office->id);
@@ -342,20 +342,56 @@ class StakeholderProfileControllerTest extends TestCase
             ->assertJsonValidationErrors(['barangay_id']);
     }
 
-    public function test_first_or_create_creates_once_per_office_and_reuses_the_same_row(): void
+    public function test_show_does_not_persist_and_the_first_update_creates_the_single_row(): void
     {
         $office = $this->createOffice();
         $user = $this->userAt('encoder', $office);
 
+        $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk()
+            ->assertJsonPath('data.profile.id', null)
+            ->assertJsonPath('data.profile.office_id', $office->id);
         $this->assertSame(0, StakeholderProfile::count());
 
-        $firstId = $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk()->json('data.profile.id');
-        $this->assertSame(1, StakeholderProfile::count());
+        $id = $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", ['ro' => 'III'])->assertOk()->json('data.profile.id');
+        $this->assertIsInt($id);
 
-        $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk()->assertJsonPath('data.profile.id', $firstId);
-        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", ['ro' => 'III'])->assertOk()->assertJsonPath('data.profile.id', $firstId);
+        $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")->assertJsonPath('data.profile.id', $id);
+        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", ['ro' => 'III'])->assertJsonPath('data.profile.id', $id);
 
         $this->assertSame(1, StakeholderProfile::count());
+    }
+
+    public function test_update_reuses_a_row_another_request_created_first(): void
+    {
+        $office = $this->createOffice();
+        $existing = StakeholderProfile::create(['office_id' => $office->id]);
+
+        $this->actingAs($this->userAt('encoder', $office))
+            ->putJson("/api/stakeholder-profiles/{$office->id}", ['ro' => 'III'])
+            ->assertOk()
+            ->assertJsonPath('data.profile.id', $existing->id);
+
+        $this->assertSame(1, StakeholderProfile::count());
+    }
+
+    public function test_an_office_that_was_only_viewed_can_still_be_deleted(): void
+    {
+        $office = $this->createOffice();
+        $admin = $this->userWithRole('admin');
+
+        $this->actingAs($admin)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk();
+        $this->actingAs($admin)->deleteJson("/api/offices/{$office->id}")->assertNoContent();
+        $this->assertModelMissing($office);
+    }
+
+    public function test_an_office_with_a_saved_row_is_still_protected_from_deletion(): void
+    {
+        $office = $this->createOffice();
+        $admin = $this->userWithRole('admin');
+
+        $this->actingAs($admin)->putJson("/api/stakeholder-profiles/{$office->id}", ['ro' => 'III'])->assertOk();
+        $this->actingAs($admin)->deleteJson("/api/offices/{$office->id}")->assertStatus(409);
+        $this->assertModelExists($office);
     }
 
     public function test_there_is_no_create_or_delete_route(): void

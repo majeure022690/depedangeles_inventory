@@ -23,7 +23,8 @@ use Illuminate\Http\Request;
 /**
  * ONE ROW PER OFFICE, same shape as StakeholderProfileController: index()
  * is the cross-office admin list; show()/update() are scoped to one
- * {office} and authorize a transient model before firstOrCreate().
+ * {office} and authorize a transient model before touching the table;
+ * only update() persists (createOrFirst()).
  *
  * Audit: `updated` rows come from InternetConnectivitySurvey's LogsActivity.
  */
@@ -71,9 +72,12 @@ class InternetConnectivitySurveyController extends Controller
 
     public function show(Office $office): JsonResponse
     {
-        $this->authorize('view', new InternetConnectivitySurvey(['office_id' => $office->id]));
+        $blank = new InternetConnectivitySurvey(['office_id' => $office->id]);
+        $this->authorize('view', $blank);
 
-        $survey = InternetConnectivitySurvey::firstOrCreate(['office_id' => $office->id]);
+        // Viewing never writes: no saved row yet means the transient blank
+        // model, so a GET can't race or pin the office against deletion.
+        $survey = InternetConnectivitySurvey::query()->firstWhere('office_id', $office->id) ?? $blank;
 
         return $this->respond($office, $survey, 'Success');
     }
@@ -82,7 +86,10 @@ class InternetConnectivitySurveyController extends Controller
     {
         $this->authorize('update', new InternetConnectivitySurvey(['office_id' => $office->id]));
 
-        $survey = InternetConnectivitySurvey::firstOrCreate(['office_id' => $office->id]);
+        // createOrFirst() leans on the unique office_id index, so concurrent
+        // first saves converge on one row. The bare insert isn't audited
+        // ($recordEvents = updated); the update below is.
+        $survey = InternetConnectivitySurvey::createOrFirst(['office_id' => $office->id]);
         $survey->update($request->validated());
 
         return $this->respond($office, $survey, 'Internet connectivity survey updated.');

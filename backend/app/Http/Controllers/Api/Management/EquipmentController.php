@@ -26,6 +26,7 @@ use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 
 /**
  * Audit: create/update/delete rows come from Equipment's LogsActivity;
@@ -226,9 +227,14 @@ class EquipmentController extends Controller
             margin: 10,
         ))->build();
 
+        // property_no is free text: strip control chars and path separators
+        // (rejected by makeDisposition) and give an ASCII-only fallback.
+        $filename = 'equipment-'.preg_replace('~[\x00-\x1F\x7F/\\\\]+~u', '-', (string) ($equipment->property_no ?? $equipment->id)).'-qr.png';
+        $fallback = (string) preg_replace('/[^A-Za-z0-9._-]/', '_', $filename);
+
         return response($result->getString(), 200, [
             'Content-Type' => $result->getMimeType(),
-            'Content-Disposition' => sprintf('inline; filename="equipment-%s-qr.png"', $equipment->property_no ?? $equipment->id),
+            'Content-Disposition' => HeaderUtils::makeDisposition(HeaderUtils::DISPOSITION_INLINE, $filename, $fallback),
         ]);
     }
 }

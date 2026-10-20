@@ -147,6 +147,28 @@ class EquipmentQrCodeTest extends TestCase
         $this->assertStringStartsWith("\x89PNG", $response->getContent());
     }
 
+    public function test_qr_code_content_disposition_survives_quotes_and_crlf_in_property_no(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $user = User::factory()->create();
+        $user->assignRole('viewer');
+
+        $equipment = Equipment::factory()->create([
+            'property_no' => "PN\"1\r\nX-Injected: yes/é",
+            'disposition_status' => 'Normal',
+        ]);
+
+        $response = $this->actingAs($user)->get("/api/equipment/{$equipment->id}/qr-code");
+
+        $response->assertOk();
+        $response->assertHeaderMissing('X-Injected');
+        $disposition = (string) $response->headers->get('Content-Disposition');
+        $this->assertStringNotContainsString("\r", $disposition);
+        $this->assertStringNotContainsString("\n", $disposition);
+        $this->assertStringStartsWith('inline; filename=equipment-PN_1-X-Injected__yes-__-qr.png;', $disposition);
+        $this->assertStringContainsString("filename*=utf-8''", $disposition);
+    }
+
     public function test_qr_code_image_endpoint_is_forbidden_without_equipment_view(): void
     {
         $this->seed(RolePermissionSeeder::class);

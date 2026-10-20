@@ -191,7 +191,14 @@ class Personnel extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logFillable()
+            ->logOnly([
+                'employee_id', 'last_name', 'first_name', 'middle_name', 'suffix',
+                'oic', 'oic_office',
+                'mobile_1', 'mobile_2', 'deped_email', 'personal_email', 'date_hired',
+                'non_deped_funded', 'fund_source', 'inactive', 'separation_date',
+                'separation_cause', 'transferred_from', 'transferred_to',
+                'position_id', 'ro_office_id', 'sdo_office_id',
+            ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
             ->setDescriptionForEvent(fn (string $event): string => "personnel.{$event}");

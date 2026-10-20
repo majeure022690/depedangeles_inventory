@@ -285,10 +285,21 @@ class Equipment extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logFillable()
-            // Accountability moves are audited as equipment.transaction.recorded
-            // by EquipmentAccountabilityService, not as a plain update.
-            ->logExcept(['current_accountable_officer_id', 'current_end_user_id'])
+            // current_accountable_officer_id/current_end_user_id are left out on
+            // purpose: accountability moves are audited as
+            // equipment.transaction.recorded by EquipmentAccountabilityService.
+            ->logOnly([
+                'property_no', 'old_property_no', 'serial_number', 'uom',
+                'model', 'specifications', 'non_dcp',
+                'dcp_package', 'dcp_year', 'gl_sl_code',
+                'uacs', 'acquisition_cost', 'received_date', 'estimated_useful_life',
+                'mode_acquisition', 'source_acquisition', 'donor', 'source_fund',
+                'allotment_class', 'pm_plan', 'equipment_location', 'non_functional',
+                'disposition_status', 'remarks',
+                'under_warranty', 'end_warranty_date', 'supplier',
+                'item_type_id', 'brand_id', 'equipment_category_id',
+                'equipment_classification_id', 'equipment_condition_id',
+            ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
             ->setDescriptionForEvent(fn (string $event): string => "equipment.{$event}");

@@ -167,7 +167,16 @@ class IspAccount extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logFillable()
+            ->logOnly([
+                'cost_per_month', 'isp_billing_account_no', 'package_purchased_inclusion',
+                'school_area_coverage', 'min_speed', 'max_speed', 'subscription_type',
+                'isp_connection_type', 'contract_start_date', 'contract_end_date',
+                'inactive_contract', 'purpose_of_subscription', 'mode_of_acquisition',
+                'source_of_acquisition', 'donor', 'fund_source', 'number_access_points_linked',
+                'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas',
+                'number_classrooms_covered', 'rate_connectivity_classroom', 'overall_signal_quality',
+                'rate_isp_service', 'isp_provider_id',
+            ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
             ->setDescriptionForEvent(fn (string $event): string => "isp_account.{$event}");

@@ -81,7 +81,17 @@ class InternetConnectivitySurvey extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logFillable()
+            ->logOnly([
+                'office_id', 'has_isp_in_area', 'available_isps', 'available_isps_other',
+                'mobile_signal_types', 'has_mobile_data_connectivity',
+                'mobile_data_quality', 'subscribes_to_isp', 'subscribed_isps',
+                'insufficient_bandwidth_explanation', 'coverage_areas',
+                'coverage_areas_other', 'dict_free_wifi_recipient',
+                'dict_free_wifi_rating', 'has_sufficient_bandwidth',
+                'no_subscription_reason', 'has_electricity_source',
+                'electricity_sources', 'primarily_solar_powered', 'frequent_brownouts',
+                'rooms_other_use',
+            ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
             ->setDescriptionForEvent(fn (string $event): string => "internet_connectivity_survey.{$event}");

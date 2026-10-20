@@ -24,10 +24,11 @@ use Illuminate\Http\Request;
 
 /**
  * ONE ROW PER OFFICE: index() is the cross-office admin list (view_all
- * only); show()/update() are scoped to one {office}. No store/destroy: a
- * profile is firstOrCreate()'d lazily. Both authorize a transient model
- * carrying the office_id BEFORE firstOrCreate(), so a wrong-office or
- * zero-permission request never creates that office's row.
+ * only); show()/update() are scoped to one {office}. No store/destroy: the
+ * row is created on the first update() only (createOrFirst()); show()
+ * returns a transient blank model until then. Both authorize a transient
+ * model carrying the office_id before touching the table, so a
+ * wrong-office or zero-permission request never creates that office's row.
  *
  * Audit: `updated` rows come from StakeholderProfile's LogsActivity.
  */
@@ -100,9 +101,12 @@ class StakeholderProfileController extends Controller
 
     public function show(Office $office): JsonResponse
     {
-        $this->authorize('view', new StakeholderProfile(['office_id' => $office->id]));
+        $blank = new StakeholderProfile(['office_id' => $office->id]);
+        $this->authorize('view', $blank);
 
-        $profile = StakeholderProfile::firstOrCreate(['office_id' => $office->id]);
+        // Viewing never writes: no saved row yet means the transient blank
+        // model, so a GET can't race or pin the office against deletion.
+        $profile = StakeholderProfile::query()->firstWhere('office_id', $office->id) ?? $blank;
 
         return $this->respond($office, $profile, 'Success');
     }
@@ -111,7 +115,10 @@ class StakeholderProfileController extends Controller
     {
         $this->authorize('update', new StakeholderProfile(['office_id' => $office->id]));
 
-        $profile = StakeholderProfile::firstOrCreate(['office_id' => $office->id]);
+        // createOrFirst() leans on the unique office_id index, so concurrent
+        // first saves converge on one row. The bare insert isn't audited
+        // ($recordEvents = updated); the update below is.
+        $profile = StakeholderProfile::createOrFirst(['office_id' => $office->id]);
         $profile->update($request->validated());
 
         return $this->respond($office, $profile, 'Stakeholder profile updated.');

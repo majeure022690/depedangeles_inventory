@@ -146,7 +146,21 @@ class StakeholderProfile extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logFillable()
+            ->logOnly([
+                'office_id', 'governance_level', 'ro', 'sdo', 'school_district', 'school_name',
+                'school_id', 'province_id', 'municipality_id', 'legislative_district',
+                'barangay_id', 'street', 'notes_corrections',
+                'notes_recent_development', 'mobile_1', 'mobile_2', 'landline',
+                'chief_name', 'chief_position', 'chief_email', 'chief_mobile',
+                'admin_staff_name', 'admin_staff_position', 'admin_staff_email',
+                'admin_staff_mobile', 'network_administrator_name', 'longitude',
+                'latitude', 'nearby_institutions', 'nearby_institutions_other',
+                'travel_time_to_center_minutes', 'access_paths', 'transportation_options',
+                'transportation_other', 'transportation_difficult',
+                'considered_very_remote', 'remote_context_notes', 'gidca', 'lms',
+                'community_engagement', 'community_context_remarks', 'submitted_at',
+                'transaction_type',
+            ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
             ->setDescriptionForEvent(fn (string $event): string => "stakeholder_profile.{$event}");
