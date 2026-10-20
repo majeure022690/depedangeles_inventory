@@ -20,6 +20,8 @@ export interface Personnel {
   ro_division: string | null
   sdo_office_id: number | null
   division_unit: string | null
+  office_id: number | null
+  office: string | null
   oic: boolean
   oic_office: string | null
   mobile_1: string | null
@@ -47,6 +49,7 @@ export interface PersonnelOptions {
   position: Option<number>[]
   ro_office: Option<number>[]
   sdo_office: Option<number>[]
+  office: Option<number>[]
   name_suffix: Option<string>[]
   cause_of_separation: Option<string>[]
   teachers_funding_source: Option<number>[]
@@ -63,6 +66,7 @@ export interface PersonnelFormData {
   suffix: string
   ro_office_id: number | null
   sdo_office_id: number | null
+  office_id: number | null
   position_id: number | null
   oic: boolean
   oic_office: string

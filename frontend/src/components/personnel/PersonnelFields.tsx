@@ -16,6 +16,7 @@ export function emptyPersonnelForm(): PersonnelFormData {
     suffix: '',
     ro_office_id: null,
     sdo_office_id: null,
+    office_id: null,
     position_id: null,
     oic: false,
     oic_office: '',
@@ -43,6 +44,7 @@ export function personnelToForm(personnel: Personnel): PersonnelFormData {
     suffix: personnel.suffix ?? '',
     ro_office_id: personnel.ro_office_id ?? null,
     sdo_office_id: personnel.sdo_office_id ?? null,
+    office_id: personnel.office_id ?? null,
     position_id: personnel.position_id ?? null,
     oic: personnel.oic,
     oic_office: personnel.oic_office ?? '',
@@ -156,6 +158,7 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
         {idSelect('position_id', 'Position (optional)', options?.position, current?.position)}
         {idSelect('ro_office_id', 'RO division (optional)', options?.ro_office, current?.ro_division)}
         {idSelect('sdo_office_id', 'Division/unit (optional)', options?.sdo_office, current?.division_unit)}
+        {idSelect('office_id', 'School/office (optional)', options?.office, current?.office)}
         <CheckboxField id="oic" label="Officer-in-charge (OIC)" checked={value.oic} disabled={disabled} error={errors.oic} onChange={(checked) => set('oic', checked)} />
         {value.oic && text('oic_office', 'OIC office (optional)', { className: 'sm:col-span-2' })}
       </FormSection>

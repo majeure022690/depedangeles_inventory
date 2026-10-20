@@ -10,6 +10,7 @@ import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/Dat
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/Dialog'
 import { FilterSearch } from '@/components/ui/FilterControls'
 import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { Spinner } from '@/components/ui/Spinner'
 import { Textarea } from '@/components/ui/Textarea'
 import { useAuth } from '@/context/AuthContext'
@@ -17,11 +18,11 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { extractError, extractFieldErrors, isValidationError } from '@/lib/errors'
 import type { PermissionInfo } from '@/lib/permissions'
 import { permissionService, roleService, type RolePayload } from '@/services/roleService'
-import type { Role } from '@/types/role'
+import { DATA_SCOPE_OPTIONS, type DataScope, type Role } from '@/types/role'
 
 const column = gridColumnHelper<Role>()
 
-const emptyForm: RolePayload = { name: '', label: '', description: '', permissions: [] }
+const emptyForm: RolePayload = { name: '', label: '', description: '', data_scope: 'own', permissions: [] }
 
 export function RoleList() {
   usePageTitle('Roles')
@@ -84,7 +85,7 @@ export function RoleList() {
 
   async function openEdit(role: Role) {
     setEditing(role)
-    setForm({ name: role.name, label: role.label, description: role.description ?? '', permissions: [] })
+    setForm({ name: role.name, label: role.label, description: role.description ?? '', data_scope: role.data_scope, permissions: [] })
     setErrors({})
     setFormError(null)
     setDialogOpen(true)
@@ -95,7 +96,7 @@ export function RoleList() {
       const detail = await roleService.show(role.id)
       if (requestId !== detailRequest.current) return
       setEditing(detail)
-      setForm({ name: detail.name, label: detail.label, description: detail.description ?? '', permissions: [...(detail.permissions ?? [])] })
+      setForm({ name: detail.name, label: detail.label, description: detail.description ?? '', data_scope: detail.data_scope, permissions: [...(detail.permissions ?? [])] })
     } catch (error) {
       if (requestId === detailRequest.current) setFormError(extractError(error, 'Unable to load this role.'))
     } finally {
@@ -114,6 +115,7 @@ export function RoleList() {
       name: form.name.trim(),
       label: form.label.trim(),
       description: form.description?.trim() ? form.description.trim() : null,
+      data_scope: form.data_scope,
       permissions: form.permissions,
     }
 
@@ -200,6 +202,12 @@ export function RoleList() {
         header: 'Description',
         enableSorting: false,
         cell: (info) => info.getValue() || <span className="text-gray-400">—</span>,
+      }),
+      column.accessor('data_scope', {
+        header: 'Data scope',
+        enableSorting: false,
+        meta: { className: 'whitespace-nowrap' },
+        cell: (info) => DATA_SCOPE_OPTIONS.find((option) => option.value === info.getValue())?.label ?? info.getValue(),
       }),
       column.display({
         id: 'permissions',
@@ -349,6 +357,15 @@ export function RoleList() {
               error={errors.description}
               disabled={readOnly}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            />
+            <Select
+              label="Data scope"
+              options={DATA_SCOPE_OPTIONS}
+              value={form.data_scope}
+              error={errors.data_scope}
+              disabled={readOnly || isProtected}
+              hint={isProtected ? 'This role always reaches all records.' : "Which records this role's permissions apply to: items issued to the user, their school, or everything."}
+              onChange={(e) => setForm((f) => ({ ...f, data_scope: e.target.value as DataScope }))}
             />
 
             {detailLoading ? (

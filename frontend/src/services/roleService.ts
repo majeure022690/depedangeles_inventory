@@ -1,12 +1,13 @@
 import { api } from '@/lib/api'
 import type { PermissionInfo } from '@/lib/permissions'
 import type { ApiResponse } from '@/types/api'
-import type { Role } from '@/types/role'
+import type { DataScope, Role } from '@/types/role'
 
 export interface RolePayload {
   name: string
   label: string
   description: string | null
+  data_scope: DataScope
   permissions: string[]
 }
 
