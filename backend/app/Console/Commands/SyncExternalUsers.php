@@ -3,46 +3,43 @@
 namespace App\Console\Commands;
 
 use App\Models\User;
+use App\Services\ExternalUserAuthService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 class SyncExternalUsers extends Command
 {
     protected $signature = 'users:sync-external';
-    protected $description = 'Import all users from external database to local database';
+
+    protected $description = 'Import active PRIME users that do not exist locally yet';
 
     public function handle(): int
     {
-        $this->info('Syncing users from external database...');
-
-        $externalUsers = DB::connection('external_users')
-            ->table('users')  // Change to your table name
-            ->get();
-
         $synced = 0;
         $skipped = 0;
 
-        foreach ($externalUsers as $externalUser) {
-            // Skip if user already exists locally
-            if (User::where('email', $externalUser->email)->exists()) {
-                $skipped++;
-                continue;
-            }
+        ExternalUserAuthService::users()
+            ->where('user_status', ExternalUserAuthService::ACTIVE_STATUS)
+            ->orderBy('user_id')
+            ->each(function (object $primeUser) use (&$synced, &$skipped) {
+                if (User::where('email', $primeUser->email_address)->exists()) {
+                    $skipped++;
 
-            User::create([
-                'name' => $externalUser->name ?? $externalUser->username,
-                'email' => $externalUser->email,
-                'password' => $externalUser->password,
-                'is_active' => true,
-                'office_id' => null, // Admin assigns later
-            ]);
+                    return;
+                }
 
-            $synced++;
-        }
+                User::create([
+                    'name' => $primeUser->full_name,
+                    'email' => $primeUser->email_address,
+                    'password' => $primeUser->password,
+                    'is_active' => true,
+                ]);
+
+                $synced++;
+            });
 
         $this->info("Synced {$synced} new users.");
         $this->info("Skipped {$skipped} existing users.");
 
-        return 0;
+        return self::SUCCESS;
     }
 }

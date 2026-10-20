@@ -11,6 +11,7 @@ use App\Http\Resources\Management\UserResource;
 use App\Models\User;
 use App\Services\ExternalUserAuthService;
 use App\Services\FileUploadService;
+use App\Services\InvalidPrimeCredentials;
 use App\Services\LoginSession;
 use App\Services\SecuritySettings;
 use App\Services\TrustedDeviceService;
@@ -32,20 +33,20 @@ class AuthController extends Controller
     {
         $credentials = $request->only('email', 'password');
 
-        // Try external authentication first (with error handling)
         $user = null;
+        $primeRefused = false;
         try {
             $user = $externalAuth->authenticate($credentials['email'], $credentials['password']);
+        } catch (InvalidPrimeCredentials) {
+            $primeRefused = true;
         } catch (\Exception $e) {
-            // Log the external auth failure but continue to local fallback
             Log::warning('External authentication unavailable, falling back to local', [
                 'error' => $e->getMessage(),
             ]);
         }
 
-        if (!$user) {
-            // Fallback to local authentication
-            if (! Auth::attempt($credentials, false)) {
+        if (! $user) {
+            if ($primeRefused || ! Auth::attempt($credentials, false)) {
                 Log::channel('security')->warning('Failed login attempt', [
                     'email' => $credentials['email'],
                     'ip' => $request->ip(),
@@ -59,7 +60,6 @@ class AuthController extends Controller
             /** @var User $user */
             $user = Auth::user();
         } else {
-            // External auth succeeded, log them in
             Auth::login($user, false);
         }
 

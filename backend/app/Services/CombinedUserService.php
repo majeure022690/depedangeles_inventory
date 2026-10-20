@@ -6,7 +6,6 @@ namespace App\Services;
 
 use App\Models\User;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Service to provide a combined view of local and external users.
@@ -44,15 +43,14 @@ final class CombinedUserService
         $localEmails = $localUsers->pluck('email')->all();
 
         // Get external users not yet synced
-        $externalUsers = DB::connection('external_users')
-            ->table('users')  // Change to your table name
-            ->whereNotIn('email', $localEmails)
+        $externalUsers = ExternalUserAuthService::users()
+            ->whereNotIn('email_address', $localEmails)
             ->get()
             ->map(function ($externalUser) {
                 return [
                     'id' => null,
-                    'name' => $externalUser->name ?? $externalUser->username,
-                    'email' => $externalUser->email,
+                    'name' => $externalUser->full_name,
+                    'email' => $externalUser->email_address,
                     'office' => null,
                     'is_active' => false,  // Not active until they log in
                     'role' => null,
