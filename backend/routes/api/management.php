@@ -94,13 +94,13 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     });
 
     // Administration: account management (users.* permissions; UserPolicy and UserRoleService re-check).
-    // User creation is disabled - all users are synced from PRIME.
-    Route::middleware($can(P::UsersView, P::UsersEdit, P::UsersDelete, P::UsersResetTwoFactor))->group(function () use ($can) {
+    // User creation and deletion are disabled - all users are synced from PRIME.
+    Route::middleware($can(P::UsersView, P::UsersEdit, P::UsersResetTwoFactor))->group(function () use ($can) {
         Route::get('/users/options', [UserController::class, 'options'])->middleware($can(P::UsersView, P::UsersEdit));
         Route::get('/users', [UserController::class, 'index'])->middleware($can(P::UsersView));
         Route::post('/users', [UserController::class, 'store']); // Disabled - returns 403
         Route::put('/users/{user}', [UserController::class, 'update'])->middleware('throttle:user-update', $can(P::UsersEdit))->whereNumber('user');
-        Route::delete('/users/{user}', [UserController::class, 'destroy'])->middleware($can(P::UsersDelete))->whereNumber('user');
+        Route::delete('/users/{user}', [UserController::class, 'destroy']); // Disabled - returns 403
         Route::post('/users/{user}/2fa/reset', [UserController::class, 'resetTwoFactor'])->middleware($can(P::UsersResetTwoFactor))->whereNumber('user');
     });
 

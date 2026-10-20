@@ -123,11 +123,10 @@ class UserController extends Controller
 
     public function destroy(Request $request, User $user, UserRoleService $userRoleService): Response
     {
-        $this->authorize('delete', $user);
-
-        $userRoleService->deleteUser($request->user(), $user);
-
-        return response()->noContent();
+        // User deletion is disabled - all users are managed through PRIME
+        return response()->json([
+            'message' => 'User deletion is disabled. Users are managed through PRIME.',
+        ], 403);
     }
 
     /**
@@ -150,7 +149,7 @@ class UserController extends Controller
     }
 
     /**
-     * Mirrors UserPolicy: `can_edit` is update, `can_delete` is delete,
+     * Mirrors UserPolicy: `can_edit` is update, `can_delete` is always false (deletion disabled),
      * `can_reset_two_factor` is resetTwoFactor, so the SPA can hide
      * actions the Policy would refuse.
      *
@@ -160,14 +159,13 @@ class UserController extends Controller
     {
         $exceeding = $userRoleService->idsExceedingActor($actor, $users->pluck('id')->all());
         $canEdit = $actor->hasPermissionTo(Permission::UsersEdit);
-        $canDelete = $actor->hasPermissionTo(Permission::UsersDelete);
         $canResetTwoFactor = $actor->hasPermissionTo(Permission::UsersResetTwoFactor);
 
-        $users->each(function (User $user) use ($actor, $exceeding, $canEdit, $canDelete, $canResetTwoFactor): void {
+        $users->each(function (User $user) use ($actor, $exceeding, $canEdit, $canResetTwoFactor): void {
             $withinTier = ! in_array($user->id, $exceeding, true);
 
             $user->setAttribute('can_edit', $canEdit && $withinTier);
-            $user->setAttribute('can_delete', $canDelete && $withinTier && ! $actor->is($user));
+            $user->setAttribute('can_delete', false); // User deletion is disabled - all users are synced from PRIME
             $user->setAttribute('can_reset_two_factor', $canResetTwoFactor && $withinTier && ! $actor->is($user) && $user->hasTwoFactorEnabled());
         });
     }

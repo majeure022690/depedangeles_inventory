@@ -74,11 +74,10 @@ enum Permission: string
     // Backend's reference-data admin screen authorizes against.
     case ReferenceDataManage = 'reference-data.manage';
 
-    // User management - users are synced from PRIME, cannot be created locally.
+    // User management - users are synced from PRIME, cannot be created or deleted locally.
     // Only role assignment, office assignment, and account status can be managed.
     case UsersView = 'users.view';
     case UsersEdit = 'users.edit';
-    case UsersDelete = 'users.delete';
     case UsersResetTwoFactor = 'users.reset_two_factor';
 
     // Role management (creating/editing/deleting role definitions).
@@ -192,7 +191,7 @@ enum Permission: string
             self::InternetConnectivityView, self::InternetConnectivityEdit,
             self::InternetConnectivityViewAll => 'Internet Connectivity',
             self::ReferenceDataManage, self::UsersView, self::UsersEdit, 
-            self::UsersDelete, self::UsersResetTwoFactor, self::RolesView, self::RolesCreate, 
+            self::UsersResetTwoFactor, self::RolesView, self::RolesCreate, 
             self::RolesEdit, self::RolesDelete, self::AuditLogView,
             self::SecuritySettingsManage, self::EmailLogManage => 'Administration',
         };

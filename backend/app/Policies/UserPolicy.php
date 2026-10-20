@@ -33,7 +33,8 @@ class UserPolicy
 
     public function delete(User $user, User $target): bool
     {
-        return $user->hasPermissionTo(Permission::UsersDelete) && ! $user->is($target) && $this->withinTier($user, $target);
+        // User deletion is disabled - all users are synced from PRIME
+        return false;
     }
 
     public function resetTwoFactor(User $user, User $target): bool
