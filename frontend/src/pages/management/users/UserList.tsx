@@ -505,6 +505,9 @@ export function UserList() {
                 required
                 value={form.name}
                 error={errors.name}
+                readOnly={editing}
+                disabled={editing}
+                hint={editing ? 'User identity is managed by PRIME' : undefined}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               />
               <Input
@@ -514,6 +517,9 @@ export function UserList() {
                 required
                 value={form.email}
                 error={errors.email}
+                readOnly={editing}
+                disabled={editing}
+                hint={editing ? 'User identity is managed by PRIME' : undefined}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               />
               {needsCurrentPassword && (

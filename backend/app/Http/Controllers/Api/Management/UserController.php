@@ -121,8 +121,7 @@ class UserController extends Controller
             $request->user(),
             $user,
             [
-                'name' => $request->validated('name'),
-                'email' => $request->validated('email'),
+                // Name and email are managed by PRIME and not updated here
                 'office_id' => $request->validated('office_id'),
                 'is_active' => $request->validated('is_active', $user->is_active),
             ],

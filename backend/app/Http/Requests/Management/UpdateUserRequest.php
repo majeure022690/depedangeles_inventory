@@ -21,31 +21,17 @@ class UpdateUserRequest extends FormRequest
     /**
      * `role_id` replaces the user's role (a user holds exactly one role).
      * No password field: a user who lost theirs uses the forgot-password flow.
+     * Name and email are managed by PRIME and cannot be edited here.
      *
      * @return array<string, mixed>
      */
     public function rules(): array
     {
-        $target = $this->route('user');
-
         $rules = [
-            'name' => ['required', 'string', 'max:255'],
-            'email' => [
-                'required', 'string', 'email', 'max:255',
-                Rule::unique(User::class)->ignore($target instanceof User ? $target->id : null),
-            ],
             'office_id' => ['nullable', 'integer', Rule::exists('offices', 'id')],
             'is_active' => ['sometimes', 'boolean'],
             'role_id' => ['required', 'integer', Rule::exists('roles', 'id')],
         ];
-
-        if ($this->isSelfEdit()) {
-            $rules['current_password'] = [
-                Rule::requiredIf(fn () => $this->input('email') !== $this->user()->email),
-                'nullable',
-                'current_password',
-            ];
-        }
 
         return $rules;
     }

@@ -32,8 +32,16 @@ class AuthController extends Controller
     {
         $credentials = $request->only('email', 'password');
 
-        // Try external authentication first
-        $user = $externalAuth->authenticate($credentials['email'], $credentials['password']);
+        // Try external authentication first (with error handling)
+        $user = null;
+        try {
+            $user = $externalAuth->authenticate($credentials['email'], $credentials['password']);
+        } catch (\Exception $e) {
+            // Log the external auth failure but continue to local fallback
+            Log::warning('External authentication unavailable, falling back to local', [
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         if (!$user) {
             // Fallback to local authentication
