@@ -30,10 +30,6 @@ export function ProfileSettings() {
   const { user, fetchUser } = useAuth()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [originalEmail, setOriginalEmail] = useState('')
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [password, setPassword] = useState('')
-  const [passwordConfirmation, setPasswordConfirmation] = useState('')
   const [avatar, setAvatar] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [removeAvatar, setRemoveAvatar] = useState(false)
@@ -41,8 +37,6 @@ export function ProfileSettings() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [showConfirmModal, setShowConfirmModal] = useState(false)
-  const [modalError, setModalError] = useState<string | null>(null)
 
   const [show2faModal, setShow2faModal] = useState(false)
   const [twoFaPassword, setTwoFaPassword] = useState('')
@@ -54,7 +48,6 @@ export function ProfileSettings() {
     if (!user) return
     setName(user.name)
     setEmail(user.email)
-    setOriginalEmail(user.email)
     setAvatarPreview(user.avatar_url)
   }, [user])
 
@@ -68,13 +61,6 @@ export function ProfileSettings() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-
-    if (needsPasswordConfirm) {
-      setModalError(null)
-      setShowConfirmModal(true)
-      return
-    }
-
     void saveProfile()
   }
 
@@ -82,27 +68,18 @@ export function ProfileSettings() {
     setSaving(true)
     setMessage(null)
     setError(null)
-    setModalError(null)
 
     try {
       await profileService.update({
         name,
         email,
-        current_password: currentPassword || undefined,
-        password: password || undefined,
-        password_confirmation: passwordConfirmation || undefined,
         avatar,
         remove_avatar: removeAvatar,
       })
       await fetchUser()
-      setOriginalEmail(email)
-      setCurrentPassword('')
-      setPassword('')
-      setPasswordConfirmation('')
       setAvatar(null)
       setRemoveAvatar(false)
-      setShowConfirmModal(false)
-      setMessage('Your profile has been updated.')
+      setMessage('Your profile photo has been updated.')
     } catch (requestError) {
       const fallback = 'Unable to update your profile.'
       let messageText = fallback
@@ -112,12 +89,7 @@ export function ProfileSettings() {
           : undefined
         messageText = validationMessage ?? requestError.response?.data?.message ?? fallback
       }
-
-      if (showConfirmModal) {
-        setModalError(messageText)
-      } else {
-        setError(messageText)
-      }
+      setError(messageText)
     } finally {
       setSaving(false)
     }
@@ -141,14 +113,6 @@ export function ProfileSettings() {
     setAvatar(null)
     setAvatarPreview(null)
     setRemoveAvatar(true)
-  }
-
-  function handleModalOpenChange(open: boolean) {
-    setShowConfirmModal(open)
-    if (!open) {
-      setModalError(null)
-      setCurrentPassword('')
-    }
   }
 
   function handle2faModalOpenChange(open: boolean) {
@@ -198,9 +162,6 @@ export function ProfileSettings() {
 
   if (!user) return null
 
-  const emailChanged = email !== originalEmail
-  const needsPasswordConfirm = emailChanged || password !== ''
-
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -248,11 +209,11 @@ export function ProfileSettings() {
         <Card>
           <CardHeader>
             <h2 className="font-semibold text-gray-900">Account details</h2>
-            <p className="mt-1 text-sm text-gray-500">Your email is also your sign-in username.</p>
+            <p className="mt-1 text-sm text-gray-500">Profile data is managed by PRIME. To update your name or email, please update it in the PRIME system.</p>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Input label="Name" value={name} onChange={(event) => setName(event.target.value)} required />
-            <Input label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+            <Input label="Name" value={name} onChange={(event) => setName(event.target.value)} disabled />
+            <Input label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} disabled />
           </CardContent>
         </Card>
 
@@ -262,17 +223,18 @@ export function ProfileSettings() {
               <LockKeyhole className="h-4 w-4 text-primary-600" />
               <h2 className="font-semibold text-gray-900">Change password</h2>
             </div>
-            <p className="mt-1 text-sm text-gray-500">Leave these fields blank to keep your current password.</p>
+            <p className="mt-1 text-sm text-gray-500">Password changes must be done in the PRIME system.</p>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Input label="New password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} />
-            <Input label="Confirm new password" type="password" autoComplete="new-password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} />
+          <CardContent>
+            <Alert type="info">
+              To change your password, please sign in to PRIME and update it there. Your password will automatically sync to this system on your next login.
+            </Alert>
           </CardContent>
         </Card>
 
         <div className="flex justify-end">
           <Button type="submit" isLoading={saving} leftIcon={<Save className="h-4 w-4" />}>
-            Save profile
+            Save photo
           </Button>
         </div>
       </form>
@@ -368,35 +330,6 @@ export function ProfileSettings() {
           onConfirm={(file) => setAvatar(file)}
         />
       )}
-
-      <Dialog open={showConfirmModal} onOpenChange={handleModalOpenChange}>
-        <DialogContent size="sm">
-          <DialogTitle>Confirm your password</DialogTitle>
-          <DialogDescription>
-            {emailChanged
-              ? 'Your email is also your sign-in username. Enter your current password to confirm this change.'
-              : 'Enter your current password to confirm your new password.'}
-          </DialogDescription>
-          {modalError && <Alert type="error">{modalError}</Alert>}
-          <Input
-            label="Current password"
-            type="password"
-            autoComplete="off"
-            autoFocus
-            value={currentPassword}
-            onChange={(event) => setCurrentPassword(event.target.value)}
-            required
-          />
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => handleModalOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="button" isLoading={saving} disabled={!currentPassword} onClick={() => void saveProfile()}>
-              Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
