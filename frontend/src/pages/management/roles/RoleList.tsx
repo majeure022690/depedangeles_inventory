@@ -30,17 +30,15 @@ export function RoleList() {
   const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<PermissionInfo[]>([])
   const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
 
   async function loadRoles() {
     setLoading(true)
-    setLoadError(null)
     try {
       setRoles(await roleService.list())
-    } catch (error) {
-      setLoadError(extractError(error, 'Unable to load roles. Please try again.'))
+    } catch {
+      setRoles([])
     } finally {
       setLoading(false)
     }

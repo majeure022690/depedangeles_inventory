@@ -35,7 +35,7 @@ let leavingForLogin = false
  * Mid-session 401 (deactivated, 2FA reset by an admin, server-side idle
  * timeout): hard-navigate to /login so no stale in-memory data survives.
  */
-function leaveForLogin(message: string | undefined) {
+function leaveForLogin() {
   if (leavingForLogin) return
   leavingForLogin = true
   window.location.replace('/login')
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // The boot probe never runs on guest pages; an app page that finds the
       // session idled out server-side says why on the login screen.
       if (data?.message === IDLE_TIMEOUT_MESSAGE) {
-        leaveForLogin(IDLE_TIMEOUT_MESSAGE)
+        leaveForLogin()
         return false
       }
       setUser(null)
@@ -133,13 +133,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    registerUnauthorizedHandler((message) => {
+    registerUnauthorizedHandler(() => {
       if (isGuestOnlyPath(window.location.pathname)) {
         setUser(null)
         setInitialized(true)
         return
       }
-      leaveForLogin(message)
+      leaveForLogin()
     })
   }, [])
 

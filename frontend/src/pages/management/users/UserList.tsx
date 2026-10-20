@@ -62,7 +62,7 @@ export function UserList() {
   const [officeFilter, setOfficeFilter] = useState('')
   const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
 
-  const { items: users, meta, loading, error, page, setPage, perPage, setPerPage, sortBy, sortDir, onSortChange, reload } = useServerTable(
+  const { items: users, meta, loading, page, setPage, perPage, setPerPage, sortBy, sortDir, onSortChange, reload } = useServerTable(
     (params) => userService.list(params),
     { filters: appliedFilters, waitForPerPage: true },
   )
@@ -124,13 +124,6 @@ export function UserList() {
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  function openCreate() {
-    setEditing(null)
-    setForm(emptyForm())
-    setErrors({})
-    setFormError(null)
-    setDialogOpen(true)
-  }
 
   function openEdit(user: ManagedUser) {
     if (!user.can_edit) return
@@ -498,8 +491,8 @@ export function UserList() {
                 required
                 value={form.name}
                 error={errors.name}
-                readOnly={editing}
-                disabled={editing}
+                readOnly={editing !== null}
+                disabled={editing !== null}
                 hint={editing ? 'User identity is managed by PRIME' : undefined}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               />
@@ -510,8 +503,8 @@ export function UserList() {
                 required
                 value={form.email}
                 error={errors.email}
-                readOnly={editing}
-                disabled={editing}
+                readOnly={editing !== null}
+                disabled={editing !== null}
                 hint={editing ? 'User identity is managed by PRIME' : undefined}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               />

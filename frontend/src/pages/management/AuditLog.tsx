@@ -1,4 +1,4 @@
-import { Filter, RotateCcw, UserSearch } from 'lucide-react'
+import { Filter, RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { Alert } from '@/components/ui/Alert'
@@ -115,7 +115,6 @@ export function AuditLog() {
   const [dateTo, setDateTo] = useState('')
   const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
   // Fallback name for the "By" chip/picker when the shortcut's actor isn't in `options.actors`.
-  const [causerName, setCauserName] = useState('')
 
   const { items: entries, meta, loading, error, page, setPage, perPage, setPerPage } = useServerTable(
     (params) => auditLogService.list(params),
@@ -161,24 +160,15 @@ export function AuditLog() {
 
   const [selected, setSelected] = useState<AuditLogEntry | null>(null)
 
-  function filterByActor(entry: AuditLogEntry) {
-    if (entry.actor?.id == null) return
-    const next = { ...appliedFilters, causer_id: String(entry.actor.id) }
-    setCauserName(actorName(entry))
-    setAppliedFilters(next)
-    syncDraft(next)
-    setSelected(null)
-  }
 
   const subjectLabel = (fqcn: string) => options.subject_types.find((s) => s.value === fqcn)?.label ?? fqcn
 
-  const actorPickerOptions = useMemo(() => {
-    const list = options.actors.map((a) => ({ label: a.label, value: String(a.value) }))
-    if (causerId && causerName && !list.some((o) => o.value === causerId)) list.push({ label: causerName, value: causerId })
-    return list
-  }, [options.actors, causerId, causerName])
+  const actorPickerOptions = useMemo(
+    () => options.actors.map((a) => ({ label: a.label, value: String(a.value) })),
+    [options.actors],
+  )
 
-  const actorLabel = (id: string) => options.actors.find((a) => String(a.value) === id)?.label ?? (causerName || `user #${id}`)
+  const actorLabel = (id: string) => options.actors.find((a) => String(a.value) === id)?.label ?? `user #${id}`
 
   const activeChips: FilterChip<FilterKey>[] = [
     { key: 'search' as const, label: `Search: ${appliedFilters.search}`, removable: true },
