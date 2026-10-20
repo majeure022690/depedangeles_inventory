@@ -6,6 +6,7 @@ use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Services\LogRedactor;
 use App\Services\SlowQueryLog;
+use ErrorException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
