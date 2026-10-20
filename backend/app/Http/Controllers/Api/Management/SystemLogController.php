@@ -79,7 +79,7 @@ class SystemLogController extends Controller
         $logPath = $this->errorLogPath();
         abort_unless(file_exists($logPath), 404, 'No error log file found.');
 
-        return $this->redactedDownload($logPath, 'laravel_error_log_'.now()->format('Y-m-d_His').'.txt');
+        return $this->redactedDownload($logPath, LogRedactor::redact(...), 'laravel_error_log_'.now()->format('Y-m-d_His').'.txt');
     }
 
     public function clearErrorLogs(Request $request): JsonResponse
@@ -124,7 +124,7 @@ class SystemLogController extends Controller
             ], 'message' => 'Success']);
         }
 
-        $lines = array_map(LogRedactor::redact(...), $this->tailFile($logPath, self::SLOW_TAIL_LINES));
+        $lines = array_map($this->redactSlowLine(...), $this->tailFile($logPath, self::SLOW_TAIL_LINES));
         $queryTimes = [];
         foreach ($lines as $line) {
             if (preg_match('/Query_time:\s+([\d.]+)/', $line, $m)) {
@@ -155,7 +155,7 @@ class SystemLogController extends Controller
         $logPath = $this->findSlowQueryLogPath(app()->environment());
         abort_unless($logPath !== null, 404, 'No slow query log file found.');
 
-        return $this->redactedDownload($logPath, 'slow_query_log_'.app()->environment().'_'.now()->format('Y-m-d_His').'.txt');
+        return $this->redactedDownload($logPath, $this->redactSlowLine(...), 'slow_query_log_'.app()->environment().'_'.now()->format('Y-m-d_His').'.txt');
     }
 
     public function clearSlowQueryLogs(Request $request): JsonResponse
@@ -213,9 +213,34 @@ class SystemLogController extends Controller
         return response()->json(['data' => ['variables' => $vars], 'message' => 'Success']);
     }
 
+    private function redactSlowLine(string $line): string
+    {
+        return LogRedactor::redact(LogRedactor::maskSqlLiterals($line));
+    }
+
+    /**
+     * The newest of laravel.log and the daily laravel-YYYY-MM-DD.log files
+     * (LOG_STACK=daily in production), from a fixed glob; defaults to
+     * laravel.log when none exists. Never matches security*.log.
+     */
     private function errorLogPath(): string
     {
-        return storage_path('logs/laravel.log');
+        $dir = storage_path('logs');
+        $candidates = array_filter([
+            $dir.DIRECTORY_SEPARATOR.'laravel.log',
+            ...(glob($dir.DIRECTORY_SEPARATOR.'laravel-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].log') ?: []),
+        ], is_file(...));
+
+        $newest = null;
+        $newestKey = null;
+        foreach ($candidates as $path) {
+            $key = [(int) filemtime($path), basename($path)];
+            if ($newestKey === null || $key > $newestKey) {
+                [$newest, $newestKey] = [$path, $key];
+            }
+        }
+
+        return $newest ?? $dir.DIRECTORY_SEPARATOR.'laravel.log';
     }
 
     private function lastUpdate(string $path): ?string
@@ -379,10 +404,12 @@ class SystemLogController extends Controller
 
     /**
      * Streams the last DOWNLOAD_MAX_BYTES of the file, redacted line by line.
+     *
+     * @param  callable(string): string  $redact
      */
-    private function redactedDownload(string $path, string $filename): StreamedResponse
+    private function redactedDownload(string $path, callable $redact, string $filename): StreamedResponse
     {
-        return response()->streamDownload(function () use ($path) {
+        return response()->streamDownload(function () use ($path, $redact) {
             $handle = fopen($path, 'rb');
             if ($handle === false) {
                 return;
@@ -395,7 +422,7 @@ class SystemLogController extends Controller
             }
 
             while (($line = fgets($handle)) !== false) {
-                echo LogRedactor::redact($line);
+                echo $redact($line);
             }
 
             fclose($handle);
