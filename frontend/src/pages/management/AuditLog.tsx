@@ -425,11 +425,6 @@ export function AuditLog() {
               )}
 
               <DialogFooter>
-                {selected.actor?.id != null && (
-                  <Button variant="outline" leftIcon={<UserSearch className="h-4 w-4" />} onClick={() => filterByActor(selected)}>
-                    Show all activity by {actorName(selected)}
-                  </Button>
-                )}
                 <Button onClick={() => setSelected(null)}>Close</Button>
               </DialogFooter>
             </>
