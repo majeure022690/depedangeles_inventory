@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { CheckboxGroupField } from '@/components/forms/CheckboxGroupField'
 import { DetailSection } from '@/components/ui/DetailSection'
 import { Input } from '@/components/ui/Input'
+import { LocationPicker } from '@/components/ui/LocationPicker'
 import { Select } from '@/components/ui/Select'
 import { Switch } from '@/components/ui/Switch'
 import { Textarea } from '@/components/ui/Textarea'
@@ -265,9 +266,29 @@ export function StakeholderProfileFields({ section, form, onChange, options, err
     coordinates: {
       icon: <Compass className="h-4 w-4" />,
       body: (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input {...text('longitude')} label="Longitude" type="number" step="0.0000001" min="-180" max="180" inputMode="decimal" />
-          <Input {...text('latitude')} label="Latitude" type="number" step="0.0000001" min="-90" max="90" inputMode="decimal" />
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input {...text('longitude')} label="Longitude" type="number" step="0.0000001" min="-180" max="180" inputMode="decimal" />
+            <Input {...text('latitude')} label="Latitude" type="number" step="0.0000001" min="-90" max="90" inputMode="decimal" />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Interactive Map
+              <span className="ml-2 text-xs font-normal text-gray-500">(Click to set location, or drag the marker)</span>
+            </label>
+            <LocationPicker
+              latitude={form.latitude === '' ? null : Number(form.latitude)}
+              longitude={form.longitude === '' ? null : Number(form.longitude)}
+              onChange={(lat, lng) => {
+                onChange('latitude', String(lat))
+                onChange('longitude', String(lng))
+              }}
+              disabled={disabled}
+              height="450px"
+              zoom={15}
+            />
+          </div>
         </div>
       ),
     },
