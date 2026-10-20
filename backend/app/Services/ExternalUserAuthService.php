@@ -16,6 +16,7 @@ final class ExternalUserAuthService
 {
     /**
      * Check if credentials match in the external database and sync to local.
+     * Auto-syncs user data from external DB to keep local copy up-to-date.
      * 
      * @param string $username Username/email from login form
      * @param string $password Plain text password to verify
@@ -35,33 +36,29 @@ final class ExternalUserAuthService
         }
 
         // Verify the password against the external database's hash
-        // Assuming the external DB uses bcrypt/Laravel-compatible hashing
         if (!Hash::check($password, $externalUser->password)) {
             return null;
         }
 
-        // Sync to local database: find or create user with matching email
+        // Sync to local database: always update from external source of truth
         $localUser = User::where('email', $externalUser->email)->first();
 
         if (!$localUser) {
-            // Create new local user (they'll get role assigned by admin later)
+            // Create new local user (admin assigns role later)
             $localUser = User::create([
                 'name' => $externalUser->name ?? $externalUser->username,
                 'email' => $externalUser->email,
-                'password' => $externalUser->password, // Copy the hash
+                'password' => $externalUser->password,
                 'is_active' => true,
-                'office_id' => null, // Admin assigns later
+                'office_id' => $externalUser->office_id ?? null,
             ]);
         } else {
-            // Update password hash if it changed in external DB
-            if ($localUser->password !== $externalUser->password) {
-                $localUser->update(['password' => $externalUser->password]);
-            }
-
-            // Optionally sync name if it changed
-            if ($localUser->name !== $externalUser->name) {
-                $localUser->update(['name' => $externalUser->name]);
-            }
+            // ALWAYS sync from external DB (source of truth for profile data)
+            $localUser->update([
+                'name' => $externalUser->name ?? $externalUser->username,
+                'password' => $externalUser->password, // Keep password in sync
+                'office_id' => $externalUser->office_id ?? null,
+            ]);
         }
 
         return $localUser;
