@@ -33,7 +33,7 @@ class UserResource extends JsonResource
             'two_factor_enabled' => $this->hasTwoFactorEnabled(),
             'roles' => $this->whenLoaded('roles', fn () => $this->roles->pluck('name')),
             'role_ids' => $this->whenLoaded('roles', fn () => $this->roles->pluck('id')),
-            'role' => $this->whenLoaded('roles', fn () => {
+            'role' => $this->whenLoaded('roles', function () {
                 $firstRole = $this->roles->first();
                 return $firstRole ? [
                     'id' => $firstRole->id,
