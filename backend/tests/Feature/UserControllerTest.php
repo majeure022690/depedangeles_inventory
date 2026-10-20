@@ -18,7 +18,7 @@ use Tests\TestCase;
 
 /**
  * The users.manage screen. UserRoleService owns every invariant: no
- * self-edit, permission-tier separation (an actor can only hand out roles
+ * self-lockout, permission-tier separation (an actor can only hand out roles
  * whose permissions they already hold), and the last users.manage holder
  * can never be demoted or deleted.
  */
@@ -210,20 +210,146 @@ class UserControllerTest extends TestCase
             ->assertJsonValidationErrors(['role_ids.0']);
     }
 
-    public function test_user_cannot_edit_their_own_account(): void
+    // Self-edit
+
+    public function test_admin_can_rename_themselves_and_change_office_and_it_is_audited(): void
+    {
+        $admin = $this->admin();
+        $office = Office::create(['office_name' => 'Angeles ES']);
+
+        $this->actingAs($admin)->putJson("/api/users/{$admin->id}", [
+            ...$this->updatePayload($admin, [$this->roleId('admin')]),
+            'name' => 'Renamed Admin',
+            'office_id' => $office->id,
+        ])->assertOk()
+            ->assertJsonPath('data.name', 'Renamed Admin')
+            ->assertJsonPath('data.office_id', $office->id)
+            ->assertJsonPath('data.can_edit', true)
+            ->assertJsonPath('data.can_manage', false);
+
+        $this->assertDatabaseHas('activity_log', [
+            'event' => 'updated',
+            'subject_type' => User::class,
+            'subject_id' => $admin->id,
+            'causer_id' => $admin->id,
+        ]);
+    }
+
+    public function test_self_email_change_requires_the_correct_current_password(): void
+    {
+        $admin = $this->admin();
+        $payload = [...$this->updatePayload($admin, [$this->roleId('admin')]), 'email' => 'changed@example.com'];
+
+        $this->actingAs($admin)->putJson("/api/users/{$admin->id}", $payload)
+            ->assertJsonValidationErrors(['current_password']);
+        $this->actingAs($admin)->putJson("/api/users/{$admin->id}", [...$payload, 'current_password' => 'wrong-password'])
+            ->assertJsonValidationErrors(['current_password']);
+        $this->assertNotSame('changed@example.com', $admin->fresh()->email);
+
+        $this->actingAs($admin)->putJson("/api/users/{$admin->id}", [...$payload, 'current_password' => 'password'])
+            ->assertOk()
+            ->assertJsonPath('data.email', 'changed@example.com');
+    }
+
+    public function test_editing_another_users_email_needs_no_password(): void
+    {
+        $target = $this->userWithRole('viewer');
+
+        $this->actingAs($this->admin())->putJson("/api/users/{$target->id}", [
+            ...$this->updatePayload($target, [$this->roleId('viewer')]),
+            'email' => 'other-new@example.com',
+        ])->assertOk();
+    }
+
+    public function test_self_password_guesses_on_user_update_are_throttled(): void
+    {
+        $admin = $this->admin();
+        $payload = [...$this->updatePayload($admin, [$this->roleId('admin')]), 'email' => 'changed@example.com', 'current_password' => 'wrong-password'];
+
+        for ($i = 0; $i < 6; $i++) {
+            $this->actingAs($admin)->putJson("/api/users/{$admin->id}", $payload)->assertUnprocessable();
+        }
+
+        $this->actingAs($admin)->putJson("/api/users/{$admin->id}", $payload)->assertTooManyRequests();
+    }
+
+    public function test_user_cannot_deactivate_themselves(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->putJson("/api/users/{$admin->id}", [...$this->updatePayload($admin, [$this->roleId('admin')]), 'is_active' => false])
+            ->assertJsonValidationErrors(['is_active' => "You can't deactivate your own account."]);
+
+        $this->assertTrue($admin->fresh()->is_active);
+    }
+
+    public function test_sole_users_manage_holder_cannot_remove_it_from_themselves(): void
     {
         $admin = $this->admin();
 
         $this->actingAs($admin)->putJson("/api/users/{$admin->id}", $this->updatePayload($admin, [$this->roleId('viewer')]))
             ->assertJsonValidationErrors(['role_ids']);
 
-        // Nor deactivate themselves.
-        $this->actingAs($admin)->putJson("/api/users/{$admin->id}", [...$this->updatePayload($admin, [$this->roleId('admin')]), 'is_active' => false])
+        $this->assertSame(['admin'], $admin->fresh()->roles()->pluck('name')->all());
+        $this->assertNull(Activity::where('event', 'user.roles_changed')->first());
+    }
+
+    public function test_user_cannot_drop_their_own_roles_manage_even_when_others_hold_it(): void
+    {
+        $admin = $this->admin();
+        $this->admin();
+        $usersManageOnly = Role::create(['name' => 'user-admin', 'label' => 'User Admin']);
+        $usersManageOnly->givePermissionTo(PermissionEnum::UsersManage->value);
+
+        $this->actingAs($admin)->putJson("/api/users/{$admin->id}", $this->updatePayload($admin, [$usersManageOnly->id]))
             ->assertJsonValidationErrors(['role_ids']);
 
         $this->assertSame(['admin'], $admin->fresh()->roles()->pluck('name')->all());
-        $this->assertTrue($admin->fresh()->is_active);
-        $this->assertNull(Activity::where('event', 'user.roles_changed')->first());
+    }
+
+    public function test_user_can_add_a_role_within_their_own_permissions_to_themselves(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->putJson("/api/users/{$admin->id}", $this->updatePayload($admin, [$this->roleId('admin'), $this->roleId('viewer')]))
+            ->assertOk();
+
+        $this->assertEqualsCanonicalizing(['admin', 'viewer'], $admin->fresh()->roles()->pluck('name')->all());
+        $this->assertDatabaseHas('activity_log', ['event' => 'user.roles_changed', 'subject_id' => $admin->id, 'causer_id' => $admin->id]);
+    }
+
+    public function test_user_cannot_give_themselves_a_role_exceeding_their_permissions(): void
+    {
+        $actor = $this->userWithPermissions([PermissionEnum::UsersManage]);
+        $ownRoleIds = $actor->roles()->pluck('roles.id')->all();
+
+        $this->actingAs($actor)->putJson("/api/users/{$actor->id}", $this->updatePayload($actor, [...$ownRoleIds, $this->roleId('admin')]))
+            ->assertJsonValidationErrors(['role_ids']);
+
+        $this->assertFalse($actor->fresh()->hasPermissionTo(PermissionEnum::RolesManage));
+    }
+
+    public function test_user_without_users_manage_cannot_edit_their_own_row(): void
+    {
+        $actor = $this->userWithRole('encoder');
+
+        $this->actingAs($actor)->putJson("/api/users/{$actor->id}", [...$this->updatePayload($actor, []), 'name' => 'Nope'])
+            ->assertForbidden();
+
+        $this->assertNotSame('Nope', $actor->fresh()->name);
+    }
+
+    public function test_own_row_is_editable_but_not_manageable_in_the_list(): void
+    {
+        $admin = $this->admin();
+        $other = $this->userWithRole('viewer');
+
+        $rows = collect($this->actingAs($admin)->getJson('/api/users?per_page=100')->assertOk()->json('data'))->keyBy('id');
+
+        $this->assertTrue($rows[$admin->id]['can_edit']);
+        $this->assertFalse($rows[$admin->id]['can_manage']);
+        $this->assertTrue($rows[$other->id]['can_edit']);
+        $this->assertTrue($rows[$other->id]['can_manage']);
     }
 
     public function test_admin_can_update_profile_office_and_active_flag_and_it_is_audited(): void

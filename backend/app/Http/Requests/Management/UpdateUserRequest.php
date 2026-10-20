@@ -30,7 +30,7 @@ class UpdateUserRequest extends FormRequest
     {
         $target = $this->route('user');
 
-        return [
+        $rules = [
             'name' => ['required', 'string', 'max:255'],
             'email' => [
                 'required', 'string', 'email', 'max:255',
@@ -41,23 +41,32 @@ class UpdateUserRequest extends FormRequest
             'role_ids' => ['present', 'array'],
             'role_ids.*' => ['integer', 'distinct', Rule::exists('roles', 'id')],
         ];
+
+        if ($this->isSelfEdit()) {
+            $rules['current_password'] = [
+                Rule::requiredIf(fn () => $this->input('email') !== $this->user()->email),
+                'nullable',
+                'current_password',
+            ];
+        }
+
+        return $rules;
     }
 
-    /**
-     * Self-escalation guard: nobody edits their own account here (roles,
-     * profile or is_active, so no self-deactivation either). Surfaced as
-     * a field error so the admin UI can say why; UserRoleService
-     * re-checks it for every other caller.
-     */
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            $target = $this->route('user');
-
-            if ($target instanceof User && $this->user()->is($target)) {
-                $validator->errors()->add('role_ids', __('You cannot edit your own account here — use your profile instead.'));
+            if ($this->isSelfEdit() && $this->has('is_active') && ! $this->boolean('is_active')) {
+                $validator->errors()->add('is_active', __("You can't deactivate your own account."));
             }
         });
+    }
+
+    private function isSelfEdit(): bool
+    {
+        $target = $this->route('user');
+
+        return $target instanceof User && $this->user()->is($target);
     }
 
     /**

@@ -12,7 +12,7 @@ Access control for the whole application, on spatie/laravel-permission, around o
 - `User` uses Spatie's `HasRoles`; `getAllPermissions()` is the flat union across roles.
 - `App\Services\RoleService` — the only entry point for creating, editing, deleting role definitions.
 - `App\Services\UserRoleService` — the only entry point for creating, editing, deleting user accounts and changing a user's role set (`syncRoles()` replaces the whole set).
-- Policies: `RolePolicy` (abilities audited on denial), `UserPolicy` (`viewAny`/`create`/`update`/`delete`/`resetTwoFactor`, all `users.manage`; `delete` and `resetTwoFactor` refuse self).
+- Policies: `RolePolicy` (abilities audited on denial), `UserPolicy` (`viewAny`/`create`/`update`/`delete`/`resetTwoFactor`, all `users.manage`; `update` includes self, `delete` and `resetTwoFactor` refuse self).
 
 The ids of roles and permissions from before the conversion were kept: migration `2026_10_19_000002` altered the old tables in place (added `guard_name`, unique `(name, guard_name)`) and copied `role_user`/`permission_role` into Spatie's pivots rather than recreating tables.
 
@@ -58,11 +58,11 @@ All under `permission:users.manage`, re-checked by `UserPolicy` and `UserRoleSer
 | `GET /api/users?search&role&is_active&office_id&sort&direction&per_page` | paginated `UserResource`. `search` matches name/email; `role` is a role **name**. Sort keys: `name` (default), `email`, `is_active`, `created_at`. |
 | `GET /api/users/options` | `{data: {roles: {id, name, label}[], offices: {value, label}[]}}` — `roles` lists only roles the acting user may assign (`assignableRolesFor()`), so the UI never offers one the write side would reject |
 | `POST /api/users` | `StoreUserRequest`: `name`, `email` (unique), `password` + `password_confirmation` (min 12, mixed case, number, symbol), `office_id`, `is_active` (default true), `role_ids[]` (`present`; may be empty) → `UserResource`, 201 |
-| `PUT /api/users/{id}` | `UpdateUserRequest`: `name`, `email`, `office_id`, `is_active`, `role_ids[]` → `UserResource`. No password field: users change their own password from their profile. |
+| `PUT /api/users/{id}` | `UpdateUserRequest`: `name`, `email`, `office_id`, `is_active`, `role_ids[]` → `UserResource`. No password field: users change their own password from their profile. Editing your own row is allowed (same `users.manage` gate), but an email change then needs `current_password` (throttled by the `user-update` limiter, 6/min), and `is_active: false` or dropping your own `roles.manage`/`users.manage` is a 422. |
 | `DELETE /api/users/{id}` | 204 |
 | `POST /api/users/{id}/2fa/reset` | `current_password` (the admin's) → `{message}`. Clears the user's 2FA so they enroll again at next login; also revokes their trusted devices. Logged to activity (`user.two_factor_reset`) and the `security` channel. Refuses self. |
 
-**`UserResource`:** `{id, name, email, avatar_url, office_id, office: {id, office_name, school_id}|null, is_active, two_factor_enabled, roles: string[], role_ids: int[], role_details: {id, name, label}[], permissions?: string[], is_self, created_at, updated_at}`. `permissions` is only present on the auth endpoints (`/api/user`, login responses), where it feeds `AuthContext.can()`; list endpoints skip it to avoid resolving every user's permission set.
+**`UserResource`:** `{id, name, email, avatar_url, office_id, office: {id, office_name, school_id}|null, is_active, two_factor_enabled, roles: string[], role_ids: int[], role_details: {id, name, label}[], permissions?: string[], is_self, can_edit?, can_manage?, created_at, updated_at}`. `permissions` is only present on the auth endpoints (`/api/user`, login responses), where it feeds `AuthContext.can()`; list endpoints skip it to avoid resolving every user's permission set. `can_edit` (`UserPolicy::update`, true on your own row) and `can_manage` (delete/deactivate/reset 2FA, always false on your own row) are only on the `/api/users` list, create and update responses.
 
 Prefer **deactivating** (`is_active = false`) over deleting: a deactivated user cannot log in (same "Invalid credentials" as a wrong password), loses their trusted devices, and keeps clean attribution in the audit trail.
 
@@ -78,7 +78,7 @@ Prefer **deactivating** (`is_active = false`) over deleting: a deactivated user 
 
 `UserRoleService`:
 
-1. **No self-service through the admin screen** — `PUT /api/users/{self}` is refused outright ("use your profile instead"), so you can never change your own roles or deactivate yourself; deleting yourself is refused too.
+1. **Self-edit without self-lockout** — you can edit your own row (`PUT /api/users/{self}`), but not deactivate yourself, drop your own `roles.manage`/`users.manage`, or change your email without `current_password`. Deleting yourself and resetting your own 2FA are refused.
 2. **Permission-tier separation** (CRITICAL finding, 2026-07) — on create and update, every assigned role's permissions must be a subset of the actor's own. Without it, `users.manage` alone could grant `roles.manage` to anyone.
 3. **Last `users.manage` holder** — can't be synced into roles that don't grant it, and can't be deleted.
 

@@ -11,11 +11,12 @@ import { FilterChips, FilterSearch, FilterSelect, type FilterChip } from '@/comp
 import { Input } from '@/components/ui/Input'
 import { SelectPicker } from '@/components/ui/SelectPicker'
 import { Switch } from '@/components/ui/Switch'
+import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useServerTable } from '@/hooks/useServerTable'
 import { extractError, extractFieldErrors, isValidationError } from '@/lib/errors'
 import { roleService } from '@/services/roleService'
-import { userService } from '@/services/userService'
+import { userService, type UpdateUserPayload } from '@/services/userService'
 import type { Role } from '@/types/role'
 import type { ManagedUser, RoleSummary, UserOptions } from '@/types/user'
 
@@ -36,13 +37,14 @@ interface FormState {
   email: string
   password: string
   password_confirmation: string
+  current_password: string
   office_id: number | null
   is_active: boolean
   role_ids: number[]
 }
 
 function emptyForm(): FormState {
-  return { name: '', email: '', password: '', password_confirmation: '', office_id: null, is_active: true, role_ids: [] }
+  return { name: '', email: '', password: '', password_confirmation: '', current_password: '', office_id: null, is_active: true, role_ids: [] }
 }
 
 const emptyFilters = { search: '', role: '', is_active: '', office_id: '' }
@@ -51,6 +53,7 @@ type FilterKey = keyof typeof emptyFilters
 
 export function UserList() {
   usePageTitle('Users')
+  const { fetchUser } = useAuth()
 
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
@@ -126,14 +129,14 @@ export function UserList() {
   }
 
   function openEdit(user: ManagedUser) {
-    // Self-edits (422) and accounts above your tier (403) are rejected server-side; your own account is managed from your profile.
-    if (user.is_self || !user.can_manage) return
+    if (!user.can_edit) return
     setEditing(user)
     setForm({
       name: user.name,
       email: user.email,
       password: '',
       password_confirmation: '',
+      current_password: '',
       office_id: user.office_id,
       is_active: user.is_active,
       role_ids: [...user.role_ids],
@@ -152,6 +155,9 @@ export function UserList() {
   }, [editing, officePickerOptions])
 
   // Roles the user already holds but this admin may not assign stay listed (locked) so saving doesn't strip them.
+  const editingSelf = editing?.is_self === true
+  const needsCurrentPassword = editingSelf && form.email.trim() !== editing?.email
+
   const roleChoices = useMemo<(RoleSummary & { locked: boolean })[]>(() => {
     const assignable = options.roles.map((role) => ({ ...role, locked: false }))
     const assignableIds = new Set(options.roles.map((role) => role.id))
@@ -182,7 +188,10 @@ export function UserList() {
 
     try {
       if (editing) {
-        await userService.update(editing.id, base)
+        const payload: UpdateUserPayload & { current_password?: string } = needsCurrentPassword
+          ? { ...base, current_password: form.current_password }
+          : base
+        await userService.update(editing.id, payload)
         setSuccessMessage(`${form.name} was updated.`)
       } else {
         await userService.create({ ...base, password: form.password, password_confirmation: form.password_confirmation })
@@ -191,6 +200,7 @@ export function UserList() {
       setPageError(null)
       setDialogOpen(false)
       await reload()
+      if (editingSelf) await fetchUser()
     } catch (saveError) {
       const fields = isValidationError(saveError) ? extractFieldErrors(saveError) : null
       if (fields) {
@@ -349,14 +359,15 @@ export function UserList() {
         meta: { align: 'right' },
         cell: ({ row }) => {
           const user = row.original
-          // Own row and out-of-tier rows get no actions; the server rejects those mutations anyway.
-          if (user.is_self || !user.can_manage) return null
+          if (!user.can_edit && !user.can_manage) return null
           return (
             <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-              <Button variant="ghost" size="sm" onClick={() => openEdit(user)} aria-label={`Edit ${user.name}`} title="Edit">
-                <Pencil className="h-4 w-4 text-primary-600" aria-hidden="true" />
-              </Button>
-              {user.two_factor_enabled && (
+              {user.can_edit && (
+                <Button variant="ghost" size="sm" onClick={() => openEdit(user)} aria-label={`Edit ${user.name}`} title="Edit">
+                  <Pencil className="h-4 w-4 text-primary-600" aria-hidden="true" />
+                </Button>
+              )}
+              {user.can_manage && user.two_factor_enabled && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -367,9 +378,11 @@ export function UserList() {
                   <ShieldOff className="h-4 w-4 text-warning-600" aria-hidden="true" />
                 </Button>
               )}
-              <Button variant="ghost" size="sm" onClick={() => setDeleting(user)} aria-label={`Delete user ${user.name}`} title="Delete user">
-                <UserX className="h-4 w-4 text-error-600" aria-hidden="true" />
-              </Button>
+              {user.can_manage && (
+                <Button variant="ghost" size="sm" onClick={() => setDeleting(user)} aria-label={`Delete user ${user.name}`} title="Delete user">
+                  <UserX className="h-4 w-4 text-error-600" aria-hidden="true" />
+                </Button>
+              )}
             </div>
           )
         },
@@ -504,6 +517,18 @@ export function UserList() {
                 error={errors.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               />
+              {needsCurrentPassword && (
+                <Input
+                  label="Current password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={form.current_password}
+                  error={errors.current_password}
+                  hint="Required to change your own email address."
+                  onChange={(e) => setForm((f) => ({ ...f, current_password: e.target.value }))}
+                />
+              )}
               {!editing && (
                 <>
                   <Input
@@ -580,6 +605,8 @@ export function UserList() {
               checked={form.is_active}
               onChange={(checked) => setForm((f) => ({ ...f, is_active: checked }))}
               label="Active (can sign in)"
+              disabled={editingSelf}
+              hint={editingSelf ? "You can't deactivate your own account." : undefined}
               error={errors.is_active}
             />
 

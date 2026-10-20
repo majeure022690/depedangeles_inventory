@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Management;
 
+use App\Enums\Permission;
 use App\Http\Controllers\Api\Management\Concerns\ResolvesListParameters;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Management\ResetTwoFactorRequest;
@@ -19,8 +20,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
- * The users.manage admin screen. Every account/role invariant (no
- * self-edit, permission-tier separation, last users.manage holder) lives
+ * The users.manage admin screen. Every account/role invariant (self-edit
+ * lockout, permission-tier separation, last users.manage holder) lives
  * in UserRoleService, the single entry point for create/update/delete.
  *
  * Audit: account rows come from User's LogsActivity, role-set changes are
@@ -165,18 +166,22 @@ class UserController extends Controller
     }
 
     /**
-     * Sets `can_manage` (edit/deactivate/delete/reset 2FA allowed) so the
-     * SPA can hide actions UserPolicy would refuse.
+     * Mirrors UserPolicy: `can_edit` is update, `can_manage` is
+     * delete/resetTwoFactor (deactivate included), so the SPA can hide
+     * actions the Policy would refuse.
      *
      * @param  Collection<int, User>  $users
      */
     private function flagManageable(User $actor, Collection $users, UserRoleService $userRoleService): void
     {
         $exceeding = $userRoleService->idsExceedingActor($actor, $users->pluck('id')->all());
+        $managesUsers = $actor->hasPermissionTo(Permission::UsersManage);
 
-        $users->each(fn (User $user) => $user->setAttribute(
-            'can_manage',
-            ! $actor->is($user) && ! in_array($user->id, $exceeding, true),
-        ));
+        $users->each(function (User $user) use ($actor, $exceeding, $managesUsers): void {
+            $canEdit = $managesUsers && ! in_array($user->id, $exceeding, true);
+
+            $user->setAttribute('can_edit', $canEdit);
+            $user->setAttribute('can_manage', $canEdit && ! $actor->is($user));
+        });
     }
 }

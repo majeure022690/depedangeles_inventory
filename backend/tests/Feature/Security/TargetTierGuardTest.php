@@ -138,6 +138,8 @@ class TargetTierGuardTest extends TestCase
             ->keyBy('id');
 
         $this->assertFalse($rows[$admin->id]['can_manage']);
+        $this->assertFalse($rows[$admin->id]['can_edit']);
+        $this->assertTrue($rows[$actor->id]['can_edit']);
         $this->assertTrue($rows[$lower->id]['can_manage']);
         $this->assertTrue($rows[$noAccess->id]['can_manage']);
         $this->assertFalse($rows[$actor->id]['can_manage'], 'own row is never manageable here');

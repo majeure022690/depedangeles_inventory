@@ -31,10 +31,8 @@ use Spatie\Permission\Models\Permission;
  * Enforces the following requirements from the 2026-07 security review,
  * generalized to multi-role semantics (and extended to createUser()/
  * deleteUser() below):
- *   1. A user can never change their own role set (self-escalation
- *      guard) — unchanged from the single-role version: still an
- *      absolute block, because actor and target are the same row
- *      regardless of how many roles are involved.
+ *   1. Self-edits can't deactivate the actor or drop their own
+ *      roles.manage/users.manage.
  *   2. Permission-tier separation (CRITICAL, follow-up review): a
  *      users.manage holder can assign only roles whose ENTIRE permission
  *      set is already a subset of their own effective permissions — see
@@ -174,29 +172,24 @@ final class UserRoleService
     }
 
     /**
-     * Updates an existing user's profile (name/email) and role set
-     * together — the single entry point the users.manage "Edit" action
-     * uses. An actor can never edit their own account through this path
-     * (mirrors syncRoles()'s self-escalation guard, and the Index.vue UI
-     * never even offers the action against the acting user's own row) —
-     * self-service name/email changes go through POST /api/profile instead.
-     *
      * @param  array{name: string, email: string, office_id?: int|null, is_active?: bool}  $attributes
      * @param  array<int, int>  $roleIds
      */
     public function updateUser(User $actor, User $target, array $attributes, array $roleIds): void
     {
-        if ($actor->is($target)) {
+        if ($actor->is($target) && array_key_exists('is_active', $attributes) && ! $attributes['is_active']) {
             throw ValidationException::withMessages([
-                'name' => __('You cannot edit your own account here — use your profile instead.'),
+                'is_active' => __("You can't deactivate your own account."),
             ]);
         }
 
         $this->guardTargetWithinTier($actor, $target);
 
-        app(CauserResolver::class)->withCauser($actor, fn () => $target->fill($attributes)->save());
+        DB::transaction(function () use ($actor, $target, $attributes, $roleIds): void {
+            app(CauserResolver::class)->withCauser($actor, fn () => $target->fill($attributes)->save());
 
-        $this->syncRoles($actor, $target, $roleIds);
+            $this->syncRoles($actor, $target, $roleIds);
+        });
     }
 
     /**
@@ -260,16 +253,6 @@ final class UserRoleService
      */
     public function syncRoles(User $actor, User $target, array $roleIds): void
     {
-        // Belt-and-suspenders: UpdateUserRequest already blocks this
-        // at the HTTP layer (where it surfaces as a field error),
-        // but this Service is the one place the invariant
-        // must hold for every caller, HTTP or otherwise.
-        if ($actor->is($target)) {
-            throw ValidationException::withMessages([
-                'role_ids' => __('You cannot change your own roles.'),
-            ]);
-        }
-
         $this->guardTargetWithinTier($actor, $target);
 
         $roleIds = $this->normalizeRoleIds($roleIds);
@@ -300,6 +283,10 @@ final class UserRoleService
             // pre-write snapshot.
             Permission::where('name', PermissionEnum::UsersManage->value)->lockForUpdate()->first();
 
+            if ($actor->is($target)) {
+                $this->guardAgainstSelfLockout($target, $roleIds);
+            }
+
             $targetCurrentlyGrantsUsersManage = $target->hasPermissionTo(PermissionEnum::UsersManage);
 
             $newRolesGrantUsersManage = Role::query()
@@ -328,6 +315,33 @@ final class UserRoleService
 
             $this->recordRolesChanged($actor, $target, $previousRoleIds, $roleIds);
         });
+    }
+
+    /**
+     * @param  array<int, int>  $roleIds
+     */
+    private function guardAgainstSelfLockout(User $self, array $roleIds): void
+    {
+        foreach ([PermissionEnum::UsersManage, PermissionEnum::RolesManage] as $permission) {
+            if (! $self->hasPermissionTo($permission) || $self->hasDirectPermission($permission)) {
+                continue;
+            }
+
+            $newRolesGrant = Role::query()
+                ->whereIn('id', $roleIds)
+                ->whereHas('permissions', fn ($query) => $query->where('name', $permission->value))
+                ->exists();
+
+            if (! $newRolesGrant) {
+                throw ValidationException::withMessages([
+                    'role_ids' => __(
+                        'You cannot remove :permission from your own account — this change would lock you out of it. '.
+                        'Have another :permission holder make this change instead.',
+                        ['permission' => $permission->value],
+                    ),
+                ]);
+            }
+        }
     }
 
     /**
@@ -396,8 +410,8 @@ final class UserRoleService
      * states a users.manage holder should not automatically be able to
      * redefine what every role means — this closes the gap where nothing
      * actually enforced that on the assignment side, letting a
-     * users.manage-only actor hand any account (including their own,
-     * were self-assignment not separately blocked) a role granting
+     * users.manage-only actor hand any account (including their own)
+     * a role granting
      * roles.manage or any other permission they never held themselves.
      *
      * Checked against the FULL resulting role set, not just newly-added

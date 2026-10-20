@@ -98,7 +98,7 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
         Route::get('/users/options', [UserController::class, 'options']);
         Route::get('/users', [UserController::class, 'index']);
         Route::post('/users', [UserController::class, 'store']);
-        Route::put('/users/{user}', [UserController::class, 'update'])->whereNumber('user');
+        Route::put('/users/{user}', [UserController::class, 'update'])->middleware('throttle:user-update')->whereNumber('user');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->whereNumber('user');
         Route::post('/users/{user}/2fa/reset', [UserController::class, 'resetTwoFactor'])->whereNumber('user');
     });

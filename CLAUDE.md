@@ -63,6 +63,7 @@ JSON-array multi-select columns stay JSON arrays of referenced row ids, validate
 
 ## Global standards (apply regardless of which agent is active)
 
+- **No diary comments in code (owner rule).** Don't narrate, explain history, reference findings/phases/agents, or write docblock essays. Code should read on its own; at most a rare one-line WHY where it would otherwise mislead. Explanations belong in commit messages and `docs/`.
 - SOLID, DRY, KISS, YAGNI. No speculative abstractions, no unnecessary Service/Action layers for simple CRUD.
 - Controllers thin; Form Requests for all validation; Policies for all authorization (route `permission:` middleware is only a fast-fail); API Resources (explicit field allowlists) for every response.
 - Every mutation is audited via spatie/activitylog (`LogsActivity` on models, `activity()` for non-CRUD events); the audit trail is never pruned.

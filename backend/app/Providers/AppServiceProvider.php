@@ -126,6 +126,15 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(6)->by('user:'.($request->user()?->id ?: $request->ip()));
         });
 
+        RateLimiter::for('user-update', function (Request $request) {
+            $target = $request->route('user');
+            $targetId = $target instanceof User ? $target->id : (int) $target;
+
+            return $request->user()?->id === $targetId && $request->filled('current_password')
+                ? Limit::perMinute(6)->by('user:'.$targetId)
+                : Limit::none();
+        });
+
         RateLimiter::for('authenticated-api', function (Request $request) {
             return Limit::perMinute(600)->by('user:'.($request->user()?->id ?: $request->ip()));
         });
