@@ -1,6 +1,5 @@
-import { Filter, Lock, Pencil, Plus, RotateCcw, ShieldCheck, ShieldOff, Trash2, UserRound } from 'lucide-react'
+import { Filter, Pencil, Plus, RotateCcw, ShieldCheck, ShieldOff, UserX } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
 
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -296,34 +295,28 @@ export function UserList() {
         cell: (info) => info.getValue(),
       }),
       column.display({
-        id: 'office',
-        header: 'School / Office',
-        cell: ({ row }) => {
-          const office = row.original.office
-          if (!office) return <span className="text-gray-400">—</span>
-          return (
-            <div className="min-w-0">
-              <p className="truncate text-gray-900">{office.office_name}</p>
-              {office.school_id && <p className="text-xs text-gray-500">School ID: {office.school_id}</p>}
-            </div>
-          )
-        },
-      }),
-      column.display({
         id: 'roles',
-        header: 'Roles',
+        header: 'Role',
         cell: ({ row }) =>
           row.original.role_details.length === 0 ? (
-            <span className="text-gray-400">No role</span>
+            <span className="text-gray-500">No role</span>
           ) : (
-            <div className="flex flex-wrap gap-1">
-              {row.original.role_details.map((role) => (
-                <Badge key={role.id} color="primary">
-                  {role.label}
-                </Badge>
-              ))}
-            </div>
+            row.original.role_details.map((role) => role.label).join(', ')
           ),
+      }),
+      column.display({
+        id: 'office',
+        header: 'Office',
+        cell: ({ row }) => {
+          const office = row.original.office
+          if (!office) return <span className="text-gray-500">—</span>
+          return (
+            <span>
+              {office.office_name}
+              {office.school_id && <span className="ml-1 text-xs text-gray-500">({office.school_id})</span>}
+            </span>
+          )
+        },
       }),
       column.display({
         id: 'two_factor',
@@ -336,7 +329,7 @@ export function UserList() {
               On
             </span>
           ) : (
-            <span className="text-xs text-gray-500">Not set up</span>
+            <span className="text-xs text-gray-500">Off</span>
           ),
       }),
       column.accessor('is_active', {
@@ -356,47 +349,27 @@ export function UserList() {
         meta: { align: 'right' },
         cell: ({ row }) => {
           const user = row.original
+          // Own row and out-of-tier rows get no actions; the server rejects those mutations anyway.
+          if (user.is_self || !user.can_manage) return null
           return (
             <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-              {user.is_self ? (
-                <Link
-                  to="/profile"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm text-gray-700 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                  title="Your own account is managed from your profile"
+              <Button variant="ghost" size="sm" onClick={() => openEdit(user)} aria-label={`Edit ${user.name}`} title="Edit">
+                <Pencil className="h-4 w-4 text-primary-600" aria-hidden="true" />
+              </Button>
+              {user.two_factor_enabled && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => confirmReset2fa(user)}
+                  aria-label={`Reset two-factor authentication for ${user.name}`}
+                  title="Reset two-factor authentication"
                 >
-                  <UserRound className="h-4 w-4 text-primary-600" aria-hidden="true" />
-                  My profile
-                </Link>
-              ) : !user.can_manage ? (
-                <span
-                  className="inline-flex h-8 items-center gap-1.5 px-3 text-xs text-gray-500"
-                  title="This account holds permissions you do not have, so you cannot manage it"
-                >
-                  <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-                  Restricted
-                  <span className="sr-only">: this account holds permissions you do not have, so you cannot manage it</span>
-                </span>
-              ) : (
-                <>
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(user)} aria-label={`Edit ${user.name}`} title="Edit">
-                    <Pencil className="h-4 w-4 text-primary-600" />
-                  </Button>
-                  {user.two_factor_enabled && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => confirmReset2fa(user)}
-                      aria-label={`Reset two-factor authentication for ${user.name}`}
-                      title="Reset two-factor authentication"
-                    >
-                      <ShieldOff className="h-4 w-4 text-warning-600" />
-                    </Button>
-                  )}
-                  <Button variant="ghost" size="sm" onClick={() => setDeleting(user)} aria-label={`Delete ${user.name}`} title="Delete">
-                    <Trash2 className="h-4 w-4 text-error-600" />
-                  </Button>
-                </>
+                  <ShieldOff className="h-4 w-4 text-warning-600" aria-hidden="true" />
+                </Button>
               )}
+              <Button variant="ghost" size="sm" onClick={() => setDeleting(user)} aria-label={`Delete user ${user.name}`} title="Delete user">
+                <UserX className="h-4 w-4 text-error-600" aria-hidden="true" />
+              </Button>
             </div>
           )
         },
