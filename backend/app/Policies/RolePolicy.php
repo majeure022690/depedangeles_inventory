@@ -32,7 +32,8 @@ class RolePolicy
      */
     public function viewAny(User $user): bool
     {
-        $allowed = $user->hasAnyPermission([Permission::RolesView, Permission::UsersCreate, Permission::UsersEdit]);
+        // Users can view roles if they have roles.view or users.edit (for role assignment)
+        $allowed = $user->hasAnyPermission([Permission::RolesView, Permission::UsersEdit]);
 
         if (! $allowed) {
             activity()
@@ -47,7 +48,8 @@ class RolePolicy
 
     public function view(User $user, Role $role): bool
     {
-        $allowed = $user->hasAnyPermission([Permission::RolesView, Permission::UsersCreate, Permission::UsersEdit]);
+        // Users can view roles if they have roles.view or users.edit (for role assignment)
+        $allowed = $user->hasAnyPermission([Permission::RolesView, Permission::UsersEdit]);
 
         if (! $allowed) {
             activity()

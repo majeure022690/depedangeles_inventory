@@ -22,7 +22,8 @@ class UserPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasPermissionTo(Permission::UsersCreate);
+        // User creation is disabled - all users are synced from PRIME
+        return false;
     }
 
     public function update(User $user, User $target): bool
