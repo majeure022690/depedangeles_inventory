@@ -282,10 +282,24 @@ class UserControllerTest extends TestCase
         $this->assertSame(['viewer'], $otherAdmin->fresh()->roles()->pluck('name')->all());
     }
 
+    /**
+     * Through roles alone an actor who passes the target-tier guard holds
+     * users.manage themselves, so the target is never the sole holder. A
+     * direct grant (which the holder count, role-based, doesn't see) still
+     * reaches the lockout guard.
+     */
+    private function actorWithEveryPermissionGrantedDirectly(): User
+    {
+        $actor = User::factory()->create();
+        $actor->givePermissionTo(array_map(fn (PermissionEnum $case) => $case->value, PermissionEnum::cases()));
+
+        return $actor;
+    }
+
     public function test_service_blocks_demoting_the_sole_remaining_users_manage_holder(): void
     {
         $soleAdmin = $this->admin();
-        $actor = User::factory()->create();
+        $actor = $this->actorWithEveryPermissionGrantedDirectly();
 
         $this->expectException(ValidationException::class);
 
@@ -463,7 +477,7 @@ class UserControllerTest extends TestCase
         $this->expectException(ValidationException::class);
 
         try {
-            app(UserRoleService::class)->deleteUser(User::factory()->create(), $soleAdmin);
+            app(UserRoleService::class)->deleteUser($this->actorWithEveryPermissionGrantedDirectly(), $soleAdmin);
         } finally {
             $this->assertNotNull($soleAdmin->fresh());
             $this->assertNull(Activity::where('event', 'deleted')->where('subject_id', $soleAdmin->id)->first());

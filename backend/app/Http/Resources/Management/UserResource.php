@@ -48,6 +48,12 @@ class UserResource extends JsonResource
                 fn () => $this->getAllPermissions()->pluck('name'),
             ),
             'is_self' => $request->user()?->is($this->resource) ?? false,
+            // Users admin endpoints only (set by UserController): whether
+            // the actor may edit/deactivate/delete/reset 2FA for this row.
+            'can_manage' => $this->when(
+                array_key_exists('can_manage', $this->resource->getAttributes()),
+                fn () => (bool) $this->resource->getAttribute('can_manage'),
+            ),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

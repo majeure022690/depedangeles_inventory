@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 /**
@@ -75,6 +76,24 @@ class PermissionBoundaryTest extends TestCase
 
         $this->assertGreaterThan(50, $checked);
         $this->assertNotNull($target->fresh());
+    }
+
+    public function test_route_level_denials_are_audited_but_throttled_per_user(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $pending = User::factory()->create();
+        $pending->assignRole(Role::PENDING);
+
+        foreach (range(1, 15) as $ignored) {
+            $this->actingAs($pending)->postJson('/api/offices', [])->assertForbidden();
+        }
+
+        $this->assertSame(10, Activity::where('event', 'authorization.denied')->where('causer_id', $pending->id)->count());
+
+        $this->travel(61)->seconds();
+        $this->actingAs($pending)->postJson('/api/offices', [])->assertForbidden();
+        $this->assertSame(11, Activity::where('event', 'authorization.denied')->where('causer_id', $pending->id)->count());
     }
 
     public function test_every_management_route_rejects_guests(): void

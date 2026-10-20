@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Enums\Permission as PermissionEnum;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -82,6 +83,69 @@ final class UserRoleService
     }
 
     /**
+     * Target-tier guard: an actor may edit, deactivate, delete, or reset
+     * 2FA only for an account whose effective permissions are a subset of
+     * their own (the assignableRolesFor() rule applied to the target).
+     * Without it a users.manage-only actor could change an admin's email,
+     * request a password reset, reset their 2FA and take the account over.
+     */
+    public function canManage(User $actor, User $target): bool
+    {
+        return $this->idsExceedingActor($actor, [$target->id]) === [];
+    }
+
+    /**
+     * Which of the given user ids hold any permission (via a role or
+     * directly) the actor lacks. One query, so the users list can flag
+     * every row without resolving each user's permission set.
+     *
+     * @param  array<int, int>  $userIds
+     * @return array<int, int>
+     */
+    public function idsExceedingActor(User $actor, array $userIds): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+
+        $actorPermissionNames = $this->permissionNamesOf($actor);
+        $exceeds = fn ($query) => $query->whereNotIn('name', $actorPermissionNames);
+
+        return User::query()
+            ->whereKey($userIds)
+            ->where(fn ($query) => $query->whereHas('roles.permissions', $exceeds)->orWhereHas('permissions', $exceeds))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * Admin reset for a lost authenticator: the user enrolls again on
+     * their next login. Clearing the secret also revokes trusted devices
+     * and live sessions (User::booted()).
+     */
+    public function resetTwoFactor(User $actor, User $target): void
+    {
+        if ($actor->is($target)) {
+            throw new AuthorizationException(__('You cannot reset your own two-factor authentication.'));
+        }
+
+        $this->guardTargetWithinTier($actor, $target);
+
+        $target->forceFill([
+            'two_factor_secret' => null,
+            'two_factor_recovery_codes' => null,
+            'two_factor_confirmed_at' => null,
+        ])->save();
+
+        activity()
+            ->causedBy($actor)
+            ->performedOn($target)
+            ->event('user.two_factor_reset')
+            ->log('user.two_factor_reset');
+    }
+
+    /**
      * Creates a new account (accounts are admin-created; there is no
      * self-registration) and assigns its initial role set in one step.
      * Subject to the same permission-tier guard as syncRoles(): an actor
@@ -128,6 +192,8 @@ final class UserRoleService
             ]);
         }
 
+        $this->guardTargetWithinTier($actor, $target);
+
         app(CauserResolver::class)->withCauser($actor, fn () => $target->fill($attributes)->save());
 
         $this->syncRoles($actor, $target, $roleIds);
@@ -156,6 +222,8 @@ final class UserRoleService
                 'user' => __('You cannot delete your own account.'),
             ]);
         }
+
+        $this->guardTargetWithinTier($actor, $target);
 
         DB::transaction(function () use ($actor, $target): void {
             Permission::where('name', PermissionEnum::UsersManage->value)->lockForUpdate()->first();
@@ -201,6 +269,8 @@ final class UserRoleService
                 'role_ids' => __('You cannot change your own roles.'),
             ]);
         }
+
+        $this->guardTargetWithinTier($actor, $target);
 
         $roleIds = $this->normalizeRoleIds($roleIds);
 
@@ -305,6 +375,17 @@ final class UserRoleService
     private function permissionNamesOf(User $user): array
     {
         return $user->getAllPermissions()->pluck('name')->all();
+    }
+
+    /**
+     * Backstop for UserPolicy's target-tier check, for callers that
+     * bypass the Policy.
+     */
+    private function guardTargetWithinTier(User $actor, User $target): void
+    {
+        if (! $this->canManage($actor, $target)) {
+            throw new AuthorizationException(__('You cannot manage an account that holds permissions you do not hold yourself.'));
+        }
     }
 
     /**

@@ -70,7 +70,7 @@ class AuthController extends Controller
             }
 
             $twoFaToken = TwoFactorController::VERIFY_PREFIX.Str::random(40);
-            Cache::put($twoFaToken, ['user_id' => $user->id], now()->addMinutes(5));
+            Cache::put($twoFaToken, TwoFactorController::pendingPayload($user), now()->addMinutes(5));
 
             return response()->json([
                 'requires_2fa' => true,
@@ -80,7 +80,7 @@ class AuthController extends Controller
         }
 
         $setupToken = TwoFactorController::SETUP_PREFIX.Str::random(40);
-        Cache::put($setupToken, ['user_id' => $user->id], now()->addMinutes(30));
+        Cache::put($setupToken, TwoFactorController::pendingPayload($user), now()->addMinutes(30));
 
         return response()->json(['requires_2fa_setup' => true, 'setup_token' => $setupToken]);
     }
@@ -122,12 +122,12 @@ class AuthController extends Controller
         $user = $request->user();
         $data = $request->validated();
 
-        if ($request->hasFile('avatar')) {
-            if ($user->avatar_path) {
-                Storage::disk('public')->delete($user->avatar_path);
-            }
+        $replacedAvatar = null;
 
+        if ($request->hasFile('avatar')) {
+            // New file first, so a rejected upload keeps the old avatar.
             $data['avatar_path'] = $fileUploads->storeImage($request->file('avatar'), 'public', 'avatars', 'avatar')['path'];
+            $replacedAvatar = $user->avatar_path;
         } elseif ($request->boolean('remove_avatar') && $user->avatar_path) {
             Storage::disk('public')->delete($user->avatar_path);
             $data['avatar_path'] = null;
@@ -142,6 +142,10 @@ class AuthController extends Controller
         }
 
         $user->update($data);
+
+        if ($replacedAvatar) {
+            Storage::disk('public')->delete($replacedAvatar);
+        }
 
         return (new UserResource($user->fresh()->load('roles.permissions', 'permissions', 'office')))
             ->additional(['message' => 'Profile updated successfully.'])

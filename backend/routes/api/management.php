@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\Management\SecuritySettingController;
 use App\Http\Controllers\Api\Management\StakeholderProfileController;
 use App\Http\Controllers\Api\Management\SystemLogController;
 use App\Http\Controllers\Api\Management\UserController;
+use App\Http\Middleware\EnforceIdleTimeout;
+use App\Http\Middleware\EnsureUserIsActive;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -28,7 +30,7 @@ use Illuminate\Support\Facades\Route;
  */
 $can = fn (P ...$permissions): string => 'permission:'.implode('|', array_map(fn (P $p) => $p->value, $permissions));
 
-Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(function () use ($can) {
+Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout::class, 'throttle:authenticated-api'])->group(function () use ($can) {
     // Authenticated: each section is included only for holders of its .view permission.
     Route::get('/dashboard/summary', DashboardController::class);
 

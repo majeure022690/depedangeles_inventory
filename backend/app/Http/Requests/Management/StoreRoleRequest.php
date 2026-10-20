@@ -6,9 +6,11 @@ namespace App\Http\Requests\Management;
 
 use App\Enums\Permission as PermissionEnum;
 use App\Models\Role;
+use App\Services\RoleService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Validator;
 
 class StoreRoleRequest extends FormRequest
 {
@@ -43,6 +45,25 @@ class StoreRoleRequest extends FormRequest
             'permissions' => ['array'],
             'permissions.*' => ['string', new Enum(PermissionEnum::class)],
         ];
+    }
+
+    /**
+     * Grant ceiling: only permissions the actor holds (RoleService
+     * re-checks for every other caller).
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            if ($validator->errors()->has('permissions*')) {
+                return;
+            }
+
+            $unheld = app(RoleService::class)->unheldPermissionsGranted($this->user(), (array) $this->input('permissions', []));
+
+            if ($unheld !== []) {
+                $validator->errors()->add('permissions', RoleService::unheldPermissionsMessage($unheld));
+            }
+        });
     }
 
     /**

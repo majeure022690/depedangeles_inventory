@@ -151,6 +151,22 @@ class ProfileUpdateTest extends TestCase
         Storage::disk('public')->assertExists($user->fresh()->avatar_path);
     }
 
+    public function test_a_rejected_replacement_avatar_keeps_the_old_one(): void
+    {
+        $user = $this->user(['avatar_path' => 'avatars/old.png']);
+        Storage::disk('public')->put('avatars/old.png', 'image');
+
+        // Passes the request rules, then fails FileUploadService's dimension check.
+        $this->actingAs($user)->post('/api/profile', [
+            'name' => $user->name,
+            'email' => $user->email,
+            'avatar' => UploadedFile::fake()->image('tiny.png', 20, 20),
+        ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('avatar');
+
+        Storage::disk('public')->assertExists('avatars/old.png');
+        $this->assertSame('avatars/old.png', $user->fresh()->avatar_path);
+    }
+
     public function test_avatar_can_be_removed(): void
     {
         $user = $this->user(['avatar_path' => 'avatars/old.png']);

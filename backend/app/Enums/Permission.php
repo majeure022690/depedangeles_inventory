@@ -167,6 +167,16 @@ enum Permission: string
      */
     public function label(): string
     {
+        // .view_all also grants cross-office edit (the office-scoped Policies).
+        return match ($this) {
+            self::StakeholderProfileViewAll => 'Stakeholder Profile — view & edit all offices',
+            self::InternetConnectivityViewAll => 'Internet Connectivity — view & edit all offices',
+            default => $this->defaultLabel(),
+        };
+    }
+
+    private function defaultLabel(): string
+    {
         return Str::of($this->value)->replace('.', ' ')->replace('_', ' ')->title()->toString();
     }
 

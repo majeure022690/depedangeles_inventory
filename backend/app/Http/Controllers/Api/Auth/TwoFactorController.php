@@ -12,7 +12,9 @@ use App\Services\LoginSession;
 use App\Services\TrustedDeviceService;
 use App\Services\TwoFactorAuthService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -21,6 +23,13 @@ class TwoFactorController extends Controller
     public const SETUP_PREFIX = '2fa_setup:';
 
     public const VERIFY_PREFIX = '2fa_verify:';
+
+    /**
+     * Consecutive failed verify attempts after which every pending
+     * two_fa_token for the user is invalidated (on top of the
+     * two-factor-verify rate limiter's per-minute and per-hour caps).
+     */
+    public const MAX_CONSECUTIVE_FAILURES = 10;
 
     public function setup(TwoFactorSetupRequest $request): JsonResponse
     {
@@ -106,31 +115,21 @@ class TwoFactorController extends Controller
         $warning = null;
 
         if ($request->filled('recovery_code')) {
-            $hashedCodes = $user->two_factor_recovery_codes ?? [];
-            $index = $tfa->verifyRecoveryCode($request->string('recovery_code')->value(), $hashedCodes);
+            $remaining = $this->consumeRecoveryCode($user, $tfa, $request->string('recovery_code')->value());
 
-            if ($index === null) {
-                Log::channel('security')->warning('2FA verification failed', [
-                    'user_id' => $user->id, 'ip' => $request->ip(), 'reason' => 'invalid_recovery_code',
-                ]);
+            if ($remaining === null) {
+                $this->recordFailedVerification($user, $request, 'invalid_recovery_code');
 
                 throw ValidationException::withMessages([
                     'recovery_code' => __('Invalid recovery code.'),
                 ]);
             }
 
-            unset($hashedCodes[$index]);
-            $hashedCodes = array_values($hashedCodes);
-            $user->two_factor_recovery_codes = $hashedCodes;
-            $user->save();
-
-            if (count($hashedCodes) <= 2) {
-                $warning = 'You have only '.count($hashedCodes).' recovery code(s) left. Generate new ones from your profile.';
+            if ($remaining <= 2) {
+                $warning = 'You have only '.$remaining.' recovery code(s) left. Generate new ones from your profile.';
             }
         } elseif (! $tfa->verifyCodeOnce($user->id, $user->two_factor_secret, $request->string('code')->value())) {
-            Log::channel('security')->warning('2FA verification failed', [
-                'user_id' => $user->id, 'ip' => $request->ip(), 'reason' => 'invalid_totp_code',
-            ]);
+            $this->recordFailedVerification($user, $request, 'invalid_totp_code');
 
             throw ValidationException::withMessages([
                 'code' => __('Invalid verification code.'),
@@ -138,6 +137,7 @@ class TwoFactorController extends Controller
         }
 
         Cache::forget($twoFaToken);
+        Cache::forget(self::failuresKey($user->id));
 
         $response = LoginSession::complete($user, $request, $request->filled('recovery_code') ? 'recovery_code' : 'totp');
         if ($warning) {
@@ -183,6 +183,18 @@ class TwoFactorController extends Controller
         return response()->json(['data' => ['recovery_codes' => $codes]]);
     }
 
+    /**
+     * Cache payload for a new setup/verify token. The epoch ties it to the
+     * user's current token generation, so bumping the epoch invalidates
+     * every outstanding token without having to enumerate them.
+     *
+     * @return array{user_id: int, epoch: int}
+     */
+    public static function pendingPayload(User $user): array
+    {
+        return ['user_id' => $user->id, 'epoch' => (int) Cache::get(self::epochKey($user->id), 0)];
+    }
+
     public static function pendingUserIdForToken(?string $token): ?int
     {
         if (! $token || ! (str_starts_with($token, self::SETUP_PREFIX) || str_starts_with($token, self::VERIFY_PREFIX))) {
@@ -190,8 +202,79 @@ class TwoFactorController extends Controller
         }
 
         $pending = Cache::get($token);
+        $userId = is_array($pending) ? ($pending['user_id'] ?? null) : null;
 
-        return is_array($pending) ? ($pending['user_id'] ?? null) : null;
+        if (! is_int($userId) || ($pending['epoch'] ?? null) !== (int) Cache::get(self::epochKey($userId), 0)) {
+            return null;
+        }
+
+        return $userId;
+    }
+
+    /**
+     * Re-reads the codes under a row lock so one recovery code can't be
+     * spent by two concurrent requests. Returns the remaining count, or
+     * null when the code doesn't match.
+     */
+    private function consumeRecoveryCode(User $user, TwoFactorAuthService $tfa, string $code): ?int
+    {
+        return DB::transaction(function () use ($user, $tfa, $code): ?int {
+            $locked = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $hashedCodes = $locked->two_factor_recovery_codes ?? [];
+            $index = $tfa->verifyRecoveryCode($code, $hashedCodes);
+
+            if ($index === null) {
+                return null;
+            }
+
+            unset($hashedCodes[$index]);
+            $locked->two_factor_recovery_codes = array_values($hashedCodes);
+            $locked->save();
+
+            return count($hashedCodes);
+        });
+    }
+
+    /**
+     * After MAX_CONSECUTIVE_FAILURES the user's pending tokens are
+     * invalidated (epoch bump), so a stolen password alone can't keep
+     * guessing on one token; they must log in again.
+     */
+    private function recordFailedVerification(User $user, Request $request, string $reason): void
+    {
+        Log::channel('security')->warning('2FA verification failed', [
+            'user_id' => $user->id, 'ip' => $request->ip(), 'reason' => $reason,
+        ]);
+
+        $failuresKey = self::failuresKey($user->id);
+        $failures = (int) Cache::get($failuresKey, 0) + 1;
+
+        if ($failures < self::MAX_CONSECUTIVE_FAILURES) {
+            Cache::put($failuresKey, $failures, now()->addHour());
+
+            return;
+        }
+
+        Cache::forget($failuresKey);
+        Cache::forever(self::epochKey($user->id), (int) Cache::get(self::epochKey($user->id), 0) + 1);
+
+        Log::channel('security')->warning('Pending 2FA sign-ins invalidated after repeated failures', [
+            'user_id' => $user->id, 'ip' => $request->ip(), 'failures' => $failures,
+        ]);
+
+        throw ValidationException::withMessages([
+            'two_fa_token' => __('Too many failed attempts. Please log in again.'),
+        ]);
+    }
+
+    private static function failuresKey(int $userId): string
+    {
+        return "2fa_failures:{$userId}";
+    }
+
+    private static function epochKey(int $userId): string
+    {
+        return "2fa_token_epoch:{$userId}";
     }
 
     private function resolvePendingUserId(string $token, string $prefix): ?int

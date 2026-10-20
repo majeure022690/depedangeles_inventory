@@ -8,6 +8,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Exceptions\UnauthorizedException;
 use Spatie\Permission\Middleware\PermissionMiddleware;
@@ -39,7 +40,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (UnauthorizedException $e, Request $request) {
             $user = $request->user();
 
-            if ($user !== null && ! $request->isMethodSafe()) {
+            // Throttled per user so a scripted loop can't flood the audit trail.
+            if ($user !== null && ! $request->isMethodSafe()
+                && RateLimiter::attempt('authorization-denied-audit:'.$user->getAuthIdentifier(), 10, fn () => true, 60)) {
                 $subject = collect($request->route()?->parameters() ?? [])->first(fn ($value) => $value instanceof Model);
 
                 activity()

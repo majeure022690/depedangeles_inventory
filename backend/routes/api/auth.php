@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\TrustedDeviceController;
 use App\Http\Controllers\Api\Auth\TwoFactorController;
+use App\Http\Middleware\EnforceIdleTimeout;
+use App\Http\Middleware\EnsureUserIsActive;
 use Illuminate\Support\Facades\Route;
 
 // Public — rate-limited only.
@@ -17,7 +19,7 @@ Route::middleware('throttle:two-factor-verify')->group(function () {
 });
 
 // Authenticated.
-Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(function () {
+Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout::class, 'throttle:authenticated-api'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
     Route::get('/session-settings', [AuthController::class, 'sessionSettings']);

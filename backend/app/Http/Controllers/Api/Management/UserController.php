@@ -15,6 +15,7 @@ use App\Services\UserRoleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -39,7 +40,7 @@ class UserController extends Controller
         'created_at' => 'created_at',
     ];
 
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, UserRoleService $userRoleService): JsonResponse
     {
         $this->authorize('viewAny', User::class);
 
@@ -59,7 +60,10 @@ class UserController extends Controller
             $query->orderBy('name');
         }
 
-        return UserResource::collection($query->paginate($this->perPage($request))->withQueryString())
+        $users = $query->paginate($this->perPage($request))->withQueryString();
+        $this->flagManageable($request->user(), $users->getCollection(), $userRoleService);
+
+        return UserResource::collection($users)
             ->additional(['message' => 'Success'])
             ->response();
     }
@@ -99,7 +103,10 @@ class UserController extends Controller
             $request->validated('role_ids', []),
         );
 
-        return new UserResource($user->load(['roles:id,name,label', 'office:id,office_name,school_id']))
+        $user->load(['roles:id,name,label', 'office:id,office_name,school_id']);
+        $this->flagManageable($request->user(), collect([$user]), $userRoleService);
+
+        return new UserResource($user)
             ->additional(['message' => 'User created.'])
             ->response()
             ->setStatusCode(201);
@@ -121,7 +128,10 @@ class UserController extends Controller
             $request->validated('role_ids', []),
         );
 
-        return new UserResource($user->fresh(['roles:id,name,label', 'office:id,office_name,school_id']) ?? $user)
+        $user = $user->fresh(['roles:id,name,label', 'office:id,office_name,school_id']) ?? $user;
+        $this->flagManageable($request->user(), collect([$user]), $userRoleService);
+
+        return new UserResource($user)
             ->additional(['message' => 'User updated.'])
             ->response();
     }
@@ -137,23 +147,13 @@ class UserController extends Controller
 
     /**
      * Admin reset for a lost authenticator: the user enrolls again on
-     * their next login (2FA is mandatory). Clearing the secret also
-     * revokes their trusted devices (User::booted()).
+     * their next login (2FA is mandatory).
      */
-    public function resetTwoFactor(ResetTwoFactorRequest $request, User $user): JsonResponse
+    public function resetTwoFactor(ResetTwoFactorRequest $request, User $user, UserRoleService $userRoleService): JsonResponse
     {
         $this->authorize('resetTwoFactor', $user);
 
-        $user->forceFill([
-            'two_factor_secret' => null,
-            'two_factor_recovery_codes' => null,
-            'two_factor_confirmed_at' => null,
-        ])->save();
-
-        activity()
-            ->performedOn($user)
-            ->event('user.two_factor_reset')
-            ->log('user.two_factor_reset');
+        $userRoleService->resetTwoFactor($request->user(), $user);
 
         Log::channel('security')->info('Two-factor authentication reset by admin', [
             'user_id' => $user->id,
@@ -162,5 +162,21 @@ class UserController extends Controller
         ]);
 
         return response()->json(['message' => 'Two-factor authentication has been reset for this user.']);
+    }
+
+    /**
+     * Sets `can_manage` (edit/deactivate/delete/reset 2FA allowed) so the
+     * SPA can hide actions UserPolicy would refuse.
+     *
+     * @param  Collection<int, User>  $users
+     */
+    private function flagManageable(User $actor, Collection $users, UserRoleService $userRoleService): void
+    {
+        $exceeding = $userRoleService->idsExceedingActor($actor, $users->pluck('id')->all());
+
+        $users->each(fn (User $user) => $user->setAttribute(
+            'can_manage',
+            ! $actor->is($user) && ! in_array($user->id, $exceeding, true),
+        ));
     }
 }

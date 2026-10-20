@@ -23,7 +23,7 @@ class FileUploadService
      * MIME is never trusted), genuine-image check, re-encode through GD to
      * a fresh file (strips any embedded payload/polyglot content and all
      * EXIF, including GPS EXIF beyond the intended map pin), store under a
-     * generated UUID filename on a private disk. Returns the metadata to
+     * generated UUID filename on the given disk (public for avatars). Returns the metadata to
      * persist on the attachment row; throws ValidationException on any
      * rejection so it surfaces as the same 422 shape as any other Form
      * Request failure.

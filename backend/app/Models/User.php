@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
@@ -49,8 +50,16 @@ class User extends Authenticatable
     protected static function booted(): void
     {
         static::saved(function (User $user) {
-            if ($user->wasChanged(['password', 'two_factor_secret']) || ($user->wasChanged('is_active') && ! $user->is_active)) {
+            $deactivated = $user->wasChanged('is_active') && ! $user->is_active;
+
+            if ($user->wasChanged(['password', 'two_factor_secret']) || $deactivated) {
                 $user->trustedDevices()->delete();
+            }
+
+            // Deactivation and an admin 2FA reset end every live session
+            // (database driver); EnsureUserIsActive is the backstop.
+            if ($deactivated || ($user->wasChanged('two_factor_secret') && $user->two_factor_secret === null)) {
+                DB::table('sessions')->where('user_id', $user->id)->delete();
             }
         });
     }

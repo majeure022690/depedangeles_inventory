@@ -134,8 +134,14 @@ class AppServiceProvider extends ServiceProvider
             $token = $request->input('two_fa_token') ?? $request->input('setup_token');
             $userId = TwoFactorController::pendingUserIdForToken(is_string($token) ? $token : null);
 
-            return Limit::perMinute(SecuritySettings::get('two_factor_verify_rate_limit_per_minute'))
+            $perMinute = Limit::perMinute(SecuritySettings::get('two_factor_verify_rate_limit_per_minute'))
                 ->by($userId ? "user:{$userId}" : 'ip:'.$request->ip());
+
+            // Hourly cap is per account, so logging in again for a fresh
+            // token doesn't reset it.
+            return $userId
+                ? [$perMinute, Limit::perHour(20)->by("user-hour:{$userId}")]
+                : $perMinute;
         });
     }
 

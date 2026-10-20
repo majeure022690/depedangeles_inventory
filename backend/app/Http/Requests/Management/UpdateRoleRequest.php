@@ -6,6 +6,7 @@ namespace App\Http\Requests\Management;
 
 use App\Enums\Permission as PermissionEnum;
 use App\Models\Role;
+use App\Services\RoleService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
@@ -51,7 +52,21 @@ class UpdateRoleRequest extends FormRequest
         $validator->after(function (Validator $validator) {
             $role = $this->route('role');
 
-            if (! $role instanceof Role || ! $role->isProtected()) {
+            if (! $role instanceof Role) {
+                return;
+            }
+
+            // Grant ceiling: newly granted permissions must be ones the
+            // actor holds (RoleService re-checks for every other caller).
+            if (! $validator->errors()->has('permissions*')) {
+                $unheld = app(RoleService::class)->unheldPermissionsGranted($this->user(), (array) $this->input('permissions', []), $role);
+
+                if ($unheld !== []) {
+                    $validator->errors()->add('permissions', RoleService::unheldPermissionsMessage($unheld));
+                }
+            }
+
+            if (! $role->isProtected()) {
                 return;
             }
 

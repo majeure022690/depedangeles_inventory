@@ -51,6 +51,8 @@ final class RoleService
      */
     public function create(User $actor, array $attributes, array $permissionValues): Role
     {
+        $this->guardAgainstGrantingUnheldPermissions($actor, $permissionValues);
+
         return DB::transaction(function () use ($actor, $attributes, $permissionValues): Role {
             $role = Role::create($attributes);
 
@@ -97,6 +99,8 @@ final class RoleService
                 ]);
             }
         }
+
+        $this->guardAgainstGrantingUnheldPermissions($actor, $permissionValues, $role);
 
         DB::transaction(function () use ($actor, $role, $attributes, $permissionValues): void {
             // guardAgainstLockout() runs INSIDE this transaction, behind a
@@ -167,6 +171,53 @@ final class RoleService
 
             $role->delete();
         });
+    }
+
+    /**
+     * Permissions in $permissionValues the actor does not hold and the
+     * role does not already grant. A roles.manage holder may only grant
+     * permissions they hold themselves (owner decision, 2026-10 security
+     * review); permissions a role already has may be kept or removed.
+     * Full admins hold every permission, so this never limits them.
+     *
+     * @param  array<int, string>  $permissionValues
+     * @return array<int, string>
+     */
+    public function unheldPermissionsGranted(User $actor, array $permissionValues, ?Role $role = null): array
+    {
+        $alreadyGranted = $role?->permissions()->pluck('name')->all() ?? [];
+        $actorHolds = $actor->getAllPermissions()->pluck('name')->all();
+
+        return collect($permissionValues)
+            ->diff($alreadyGranted)
+            ->diff($actorHolds)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, string>  $permissions
+     */
+    public static function unheldPermissionsMessage(array $permissions): string
+    {
+        return (string) __(
+            'You can only grant permissions you hold yourself. You do not hold: :permissions.',
+            ['permissions' => implode(', ', $permissions)],
+        );
+    }
+
+    /**
+     * @param  array<int, string>  $permissionValues
+     */
+    private function guardAgainstGrantingUnheldPermissions(User $actor, array $permissionValues, ?Role $role = null): void
+    {
+        $unheld = $this->unheldPermissionsGranted($actor, $permissionValues, $role);
+
+        if ($unheld !== []) {
+            throw ValidationException::withMessages(['permissions' => self::unheldPermissionsMessage($unheld)]);
+        }
     }
 
     /**

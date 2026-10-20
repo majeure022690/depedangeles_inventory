@@ -71,6 +71,14 @@ class PermissionCatalogTest extends TestCase
         $this->assertSame('Offices', Permission::OfficeDelete->group());
     }
 
+    public function test_view_all_labels_say_they_also_grant_cross_office_edit(): void
+    {
+        $this->assertSame('Stakeholder Profile — view & edit all offices', Permission::StakeholderProfileViewAll->label());
+        $this->assertSame('Internet Connectivity — view & edit all offices', Permission::InternetConnectivityViewAll->label());
+        $this->assertSame('stakeholder_profile.view_all', Permission::StakeholderProfileViewAll->value);
+        $this->assertSame('internet_connectivity.view_all', Permission::InternetConnectivityViewAll->value);
+    }
+
     public function test_roles_created_after_an_api_request_keep_the_web_guard(): void
     {
         $user = User::factory()->create();

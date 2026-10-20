@@ -4,12 +4,14 @@ namespace App\Policies;
 
 use App\Enums\Permission;
 use App\Models\User;
+use App\Services\UserRoleService;
 
 /**
- * "Can this actor manage accounts at all". The account-specific
- * invariants (self-escalation, last users.manage holder, permission-tier
- * separation) live in UserRoleService, the same Policy/Service split
- * RolePolicy/RoleService use.
+ * "Can this actor manage this account". Account-specific actions also
+ * require the target-tier rule (the target's effective permissions are a
+ * subset of the actor's own), which UserRoleService re-checks as a
+ * backstop alongside its other invariants (self-escalation, last
+ * users.manage holder, permission-tier separation on role assignment).
  */
 class UserPolicy
 {
@@ -25,16 +27,21 @@ class UserPolicy
 
     public function update(User $user, User $target): bool
     {
-        return $user->hasPermissionTo(Permission::UsersManage);
+        return $user->hasPermissionTo(Permission::UsersManage) && $this->withinTier($user, $target);
     }
 
     public function delete(User $user, User $target): bool
     {
-        return $user->hasPermissionTo(Permission::UsersManage) && ! $user->is($target);
+        return $user->hasPermissionTo(Permission::UsersManage) && ! $user->is($target) && $this->withinTier($user, $target);
     }
 
     public function resetTwoFactor(User $user, User $target): bool
     {
-        return $user->hasPermissionTo(Permission::UsersManage) && ! $user->is($target);
+        return $user->hasPermissionTo(Permission::UsersManage) && ! $user->is($target) && $this->withinTier($user, $target);
+    }
+
+    private function withinTier(User $user, User $target): bool
+    {
+        return app(UserRoleService::class)->canManage($user, $target);
     }
 }

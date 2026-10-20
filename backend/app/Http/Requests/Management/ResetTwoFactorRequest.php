@@ -2,14 +2,16 @@
 
 namespace App\Http\Requests\Management;
 
-use App\Enums\Permission;
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ResetTwoFactorRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can(Permission::UsersManage->value);
+        $target = $this->route('user');
+
+        return $target instanceof User && $this->user()->can('resetTwoFactor', $target);
     }
 
     /**
