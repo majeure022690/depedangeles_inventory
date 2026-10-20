@@ -38,7 +38,7 @@ let leavingForLogin = false
 function leaveForLogin(message: string | undefined) {
   if (leavingForLogin) return
   leavingForLogin = true
-  window.location.replace(message === IDLE_TIMEOUT_MESSAGE ? '/login?reason=idle' : '/login')
+  window.location.replace('/login')
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

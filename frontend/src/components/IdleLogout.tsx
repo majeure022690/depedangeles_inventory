@@ -11,7 +11,6 @@ const LAST_PING_KEY = 'dictis:last-ping'
 const CHANNEL_NAME = 'dictis-session'
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'click', 'keydown', 'wheel', 'scroll', 'touchstart', 'touchmove', 'pointerdown', 'pointermove'] as const
 const WRITE_INTERVAL_MS = 1000
-const IDLE_LOGIN_URL = '/login?reason=idle'
 const LOGIN_URL = '/login'
 
 function readShared(key: string): number {
@@ -72,12 +71,12 @@ export function IdleLogout() {
       .catch(() => setTimeoutMs(15 * 60 * 1000))
   }, [markPinged])
 
-  const leave = useCallback((url: string = IDLE_LOGIN_URL) => {
+  const leave = useCallback((url: string = LOGIN_URL) => {
     window.location.replace(url)
   }, [])
 
   const signOut = useCallback(
-    async (url: string = IDLE_LOGIN_URL) => {
+    async (url: string = LOGIN_URL) => {
       if (signingOut.current) return
       signingOut.current = true
       channel.current?.postMessage({ type: 'logout', url })
@@ -164,7 +163,7 @@ export function IdleLogout() {
       channel.current.onmessage = (event) => {
         if (event.data?.type === 'logout' && !signingOut.current) {
           signingOut.current = true
-          leave(event.data.url === LOGIN_URL ? LOGIN_URL : IDLE_LOGIN_URL)
+          leave(LOGIN_URL)
         }
       }
     }
