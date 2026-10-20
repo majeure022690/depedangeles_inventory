@@ -47,7 +47,7 @@ interface LocationPickerProps {
 /**
  * Interactive map for picking geographic coordinates. Click on the map to set a location,
  * or drag the marker. The map automatically centers on the current coordinates.
- * Shows Angeles City boundary polygon.
+ * Shows Angeles City boundary polygon. Map is restricted to Angeles City area only.
  */
 export function LocationPicker({ latitude, longitude, onChange, disabled = false, height = '400px', zoom = 13 }: LocationPickerProps) {
   // Default to Angeles City center if no coordinates provided
@@ -68,11 +68,21 @@ export function LocationPicker({ latitude, longitude, onChange, disabled = false
       .catch(err => console.warn('Failed to load Angeles City boundary:', err))
   }, [])
 
+  // Angeles City bounds - southwest and northeast corners
+  const maxBounds: [[number, number], [number, number]] = [
+    [15.108, 120.449], // Southwest corner
+    [15.223, 120.642], // Northeast corner
+  ]
+
   return (
     <div className="relative rounded-md border border-gray-300 overflow-hidden" style={{ height }}>
       <MapContainer
         center={position}
         zoom={zoom}
+        minZoom={12}
+        maxZoom={18}
+        maxBounds={maxBounds}
+        maxBoundsViscosity={1.0}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={!disabled}
         dragging={!disabled}
