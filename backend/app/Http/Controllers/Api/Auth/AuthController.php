@@ -13,6 +13,7 @@ use App\Services\ExternalUserAuthService;
 use App\Services\FileUploadService;
 use App\Services\InvalidPrimeCredentials;
 use App\Services\LoginSession;
+use App\Services\PrimeUserSync;
 use App\Services\SecuritySettings;
 use App\Services\TrustedDeviceService;
 use Illuminate\Http\JsonResponse;
@@ -119,9 +120,20 @@ class AuthController extends Controller
         return response()->json(['message' => 'Success']);
     }
 
-    public function user(Request $request): JsonResponse
+    public function user(Request $request, PrimeUserSync $primeSync): JsonResponse
     {
-        return (new UserResource($request->user()->load('roles.permissions', 'permissions', 'office')))
+        /** @var User $user */
+        $user = $request->user();
+        $primeSync->syncUser($user);
+
+        if (! $user->is_active) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
+        return (new UserResource($user->load('roles.permissions', 'permissions', 'office')))
             ->additional(['message' => 'Success'])
             ->response();
     }

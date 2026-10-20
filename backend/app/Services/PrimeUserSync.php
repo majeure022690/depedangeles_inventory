@@ -13,13 +13,15 @@ final class PrimeUserSync
 {
     private const THROTTLE_SECONDS = 30;
 
+    private const COLUMNS = ['email_address', 'full_name', 'user_status', 'password'];
+
     /**
      * @return array{created: int, updated: int, deactivated: int}
      */
     public function run(): array
     {
         $prime = ExternalUserAuthService::users()
-            ->get(['email_address', 'full_name', 'user_status', 'password'])
+            ->get(self::COLUMNS)
             ->keyBy(fn (object $row) => mb_strtolower($row->email_address));
 
         $locals = User::query()->get()->keyBy(fn (User $user) => mb_strtolower($user->email));
@@ -27,33 +29,11 @@ final class PrimeUserSync
         $counts = ['created' => 0, 'updated' => 0, 'deactivated' => 0];
 
         foreach ($prime as $email => $row) {
-            $active = $row->user_status === ExternalUserAuthService::ACTIVE_STATUS;
-            $local = $locals->get($email);
+            $result = $this->apply($row, $locals->get($email));
 
-            if (! $local) {
-                if ($active) {
-                    $this->save(new User([
-                        'name' => $row->full_name,
-                        'email' => $row->email_address,
-                        'password' => $row->password,
-                        'is_active' => true,
-                    ]), 'created');
-                    $counts['created']++;
-                }
-
-                continue;
-            }
-
-            $local->name = $row->full_name;
-
-            if (! $active && $local->is_active) {
-                $local->is_active = false;
-                $counts['deactivated']++;
-            }
-
-            if ($local->isDirty()) {
-                $this->save($local, 'updated');
-                $counts['updated']++;
+            if ($result !== null) {
+                $counts[$result]++;
+                $counts['updated'] += $result === 'deactivated' ? 1 : 0;
             }
         }
 
@@ -71,6 +51,59 @@ final class PrimeUserSync
         } catch (Throwable $e) {
             Log::warning('PRIME user sync failed; showing the local copy', ['error' => $e->getMessage()]);
         }
+    }
+
+    public function syncUser(User $user): void
+    {
+        try {
+            $row = ExternalUserAuthService::users()->where('email_address', $user->email)->first(self::COLUMNS);
+        } catch (Throwable $e) {
+            Log::warning('PRIME user sync failed; showing the local copy', ['error' => $e->getMessage()]);
+
+            return;
+        }
+
+        if ($row) {
+            $this->apply($row, $user);
+        }
+    }
+
+    /**
+     * @return 'created'|'updated'|'deactivated'|null
+     */
+    private function apply(object $row, ?User $local): ?string
+    {
+        $active = $row->user_status === ExternalUserAuthService::ACTIVE_STATUS;
+
+        if (! $local) {
+            if (! $active) {
+                return null;
+            }
+
+            $this->save(new User([
+                'name' => $row->full_name,
+                'email' => $row->email_address,
+                'password' => $row->password,
+                'is_active' => true,
+            ]), 'created');
+
+            return 'created';
+        }
+
+        $local->name = $row->full_name;
+        $deactivating = ! $active && $local->is_active;
+
+        if ($deactivating) {
+            $local->is_active = false;
+        }
+
+        if (! $local->isDirty()) {
+            return null;
+        }
+
+        $this->save($local, 'updated');
+
+        return $deactivating ? 'deactivated' : 'updated';
     }
 
     private function save(User $user, string $event): void

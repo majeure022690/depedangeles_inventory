@@ -128,6 +128,23 @@ class PrimeLoginTest extends TestCase
         $this->assertNull($activity->causer_id);
     }
 
+    public function test_current_user_picks_up_a_prime_name_change_on_reload(): void
+    {
+        $this->primeUser();
+        $user = User::factory()->create(['email' => 'juan@deped.gov.ph', 'name' => 'Old Name']);
+
+        $this->actingAs($user)->getJson('/api/user')->assertOk()->assertJsonPath('data.name', 'Juan Dela Cruz');
+    }
+
+    public function test_current_user_deactivated_in_prime_is_signed_out_on_reload(): void
+    {
+        $this->primeUser(status: 'Deactivated');
+        $user = User::factory()->create(['email' => 'juan@deped.gov.ph']);
+
+        $this->actingAs($user)->getJson('/api/user')->assertUnauthorized();
+        $this->assertFalse($user->fresh()->is_active);
+    }
+
     public function test_users_page_still_loads_when_prime_is_down(): void
     {
         $admin = User::factory()->create();
