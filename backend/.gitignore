@@ -18,3 +18,7 @@ Homestead.yaml
 /.vscode
 /.zed
 .claude/settings.local.json
+/public/index.html
+/public/assets
+/public/branding
+/public/angeles-city-boundary.json
