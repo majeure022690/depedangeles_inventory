@@ -92,25 +92,10 @@ class UserController extends Controller
 
     public function store(StoreUserRequest $request, UserRoleService $userRoleService): JsonResponse
     {
-        $user = $userRoleService->createUser(
-            $request->user(),
-            [
-                'name' => $request->validated('name'),
-                'email' => $request->validated('email'),
-                'password' => $request->validated('password'),
-                'office_id' => $request->validated('office_id'),
-                'is_active' => $request->validated('is_active', true),
-            ],
-            [$request->validated('role_id')],
-        );
-
-        $user->load(['roles:id,name,label', 'office:id,office_name,school_id']);
-        $this->flagManageable($request->user(), collect([$user]), $userRoleService);
-
-        return new UserResource($user)
-            ->additional(['message' => 'User created.'])
-            ->response()
-            ->setStatusCode(201);
+        // User creation is disabled - all users are managed through PRIME
+        return response()->json([
+            'message' => 'User creation is disabled. Users are managed through PRIME.',
+        ], 403);
     }
 
     public function update(UpdateUserRequest $request, User $user, UserRoleService $userRoleService): JsonResponse

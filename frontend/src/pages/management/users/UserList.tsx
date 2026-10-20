@@ -1,4 +1,4 @@
-import { Filter, Pencil, Plus, RotateCcw, ShieldCheck, ShieldOff, UserX } from 'lucide-react'
+import { Filter, Pencil, RotateCcw, ShieldCheck, ShieldOff, UserX } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 
 import { Alert } from '@/components/ui/Alert'
@@ -396,15 +396,8 @@ export function UserList() {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Users</h1>
-          <p className="text-sm text-gray-600">Portal accounts, the school or office each belongs to, and the roles that decide what they can do.</p>
+          <p className="text-sm text-gray-600">Portal accounts synced from PRIME. Manage roles, office assignments, and account status.</p>
         </div>
-        {can('users.create') && (
-          <div className="page-actions">
-            <Button leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate} size="sm">
-              New User
-            </Button>
-          </div>
-        )}
       </div>
 
       {successMessage && (
