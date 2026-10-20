@@ -11,17 +11,8 @@ use Symfony\Component\Mime\Email;
 use Throwable;
 use WeakMap;
 
-/**
- * Records every outgoing email into the Settings > Email log: a `sending`
- * row on MessageSending, flipped to `sent` on MessageSent. Failures here
- * are reported, never allowed to block the email itself.
- */
 class RecordEmailMessage
 {
-    /**
-     * Friendly labels by notification/mailable class basename; anything
-     * else falls back to the basename as a headline.
-     */
     private const TYPE_LABELS = [
         'ResetPasswordNotification' => 'Password reset',
         'ResetPassword' => 'Password reset',

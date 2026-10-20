@@ -1,6 +1,6 @@
 import { isAxiosError } from 'axios'
 import { ArrowLeft } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { Alert } from '@/components/ui/Alert'
@@ -14,9 +14,13 @@ import type { ApiValidationError } from '@/types/api'
 export function ResetPassword() {
   usePageTitle('Reset Password')
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const token = searchParams.get('token') ?? ''
-  const email = searchParams.get('email') ?? ''
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [token] = useState(() => searchParams.get('token') ?? '')
+  const [email] = useState(() => searchParams.get('email') ?? '')
+
+  useEffect(() => {
+    if (searchParams.has('token') || searchParams.has('email')) setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const [password, setPassword] = useState('')
   const [passwordConfirmation, setPasswordConfirmation] = useState('')
@@ -51,7 +55,7 @@ export function ResetPassword() {
   if (!token || !email) {
     return (
       <AuthLayout backTo="/login" backLabel="Back to Sign In">
-        <Alert type="error">This reset link is invalid. Please request a new one.</Alert>
+        <Alert type="error">This reset link is missing or invalid. Open the link from your email again, or request a new one.</Alert>
         <Link to="/forgot-password" className="mt-4 inline-flex items-center gap-1 text-sm text-primary-600 hover:underline">
           <ArrowLeft className="h-4 w-4" />
           Request a new link
