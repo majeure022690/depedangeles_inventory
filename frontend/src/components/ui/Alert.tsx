@@ -7,6 +7,7 @@ interface AlertProps {
   type?: 'info' | 'success' | 'warning' | 'error'
   children: ReactNode
   className?: string
+  id?: string
 }
 
 const config = {
@@ -16,11 +17,11 @@ const config = {
   error: { icon: AlertCircle, className: 'bg-error-50 text-error-800 border-error-200' },
 }
 
-export function Alert({ type = 'info', children, className }: AlertProps) {
+export function Alert({ type = 'info', children, className, id }: AlertProps) {
   const { icon: Icon, className: typeClassName } = config[type]
 
   return (
-    <div className={cn('flex items-start gap-2 rounded-lg border px-3 py-2 text-sm', typeClassName, className)}>
+    <div id={id} className={cn('flex items-start gap-2 rounded-lg border px-3 py-2 text-sm', typeClassName, className)}>
       <Icon className="mt-0.5 h-4 w-4 shrink-0" />
       <div>{children}</div>
     </div>

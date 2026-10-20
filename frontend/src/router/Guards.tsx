@@ -6,14 +6,14 @@ import { Spinner } from '@/components/ui/Spinner'
 import { useAuth } from '@/context/AuthContext'
 import type { PermissionName } from '@/lib/permissions'
 
-/** Redirects to /portal/login unless the user is authenticated. */
+/** Redirects to /login unless the user is authenticated. */
 export function RequireAuth() {
   const { isAuthenticated, initialized } = useAuth()
 
   if (!initialized) return <Spinner full />
 
   if (!isAuthenticated) {
-    return <Navigate to="/portal/login" replace />
+    return <Navigate to="/login" replace />
   }
 
   return (
@@ -24,12 +24,12 @@ export function RequireAuth() {
   )
 }
 
-/** Redirects authenticated users away from guest-only routes like /portal/login. */
+/** Redirects authenticated users away from guest-only routes like /login. */
 export function GuestOnly({ children }: { children: ReactNode }) {
   const { isAuthenticated, initialized } = useAuth()
 
   if (!initialized) return <Spinner full />
-  if (isAuthenticated) return <Navigate to="/portal/dashboard" replace />
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />
 
   return <>{children}</>
 }
@@ -40,7 +40,7 @@ export function RequirePermission({ permission }: { permission: PermissionName |
   const required = Array.isArray(permission) ? permission : [permission]
 
   if (!required.some((p) => can(p))) {
-    return <Navigate to="/portal/dashboard" replace />
+    return <Navigate to="/dashboard" replace />
   }
 
   return <Outlet />

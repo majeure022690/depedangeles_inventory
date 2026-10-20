@@ -164,7 +164,7 @@ function EquipmentSection({ summary }: { summary: DashboardEquipmentSummary }) {
             title="By disposition status"
             description="Serviceable, unserviceable, disposed and other statuses."
             action={
-              <Link to="/portal/equipment" className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:underline">
+              <Link to="/equipment" className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:underline">
                 View equipment <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             }
@@ -234,7 +234,7 @@ function IspAccountsSection({ summary }: { summary: DashboardIspAccountsSummary 
           title="ISP accounts"
           description="Internet subscriptions across the division."
           action={
-            <Link to="/portal/isp-accounts" className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:underline">
+            <Link to="/isp-accounts" className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:underline">
               View accounts <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
           }
@@ -290,7 +290,7 @@ function RecentTransactions({ entries }: { entries: DashboardRecentTransaction[]
                 <tr key={entry.id} className="even:bg-gray-50/60">
                   <td className="px-4 py-3">
                     {entry.equipment ? (
-                      <Link to={`/portal/equipment/${entry.equipment.id}/edit`} className="group block">
+                      <Link to={`/equipment/${entry.equipment.id}/edit`} className="group block">
                         <span className="font-medium text-gray-900 group-hover:text-primary-700 group-hover:underline">{entry.equipment.property_no ?? `#${entry.equipment.id}`}</span>
                         {entry.equipment.item && <span className="block text-xs text-gray-500">{entry.equipment.item}</span>}
                       </Link>

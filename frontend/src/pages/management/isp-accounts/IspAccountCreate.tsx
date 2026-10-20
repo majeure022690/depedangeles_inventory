@@ -40,7 +40,7 @@ export function IspAccountCreate() {
     setErrorMessage(null)
     try {
       const response = await ispAccountService.create(form)
-      navigate(`/portal/isp-accounts/${response.data.id}/edit`, { state: { flash: response.message } })
+      navigate(`/isp-accounts/${response.data.id}/edit`, { state: { flash: response.message } })
     } catch (error) {
       const fieldErrors = isValidationError(error) ? extractFieldErrors(error) : null
       if (fieldErrors) setErrors(fieldErrors)
@@ -54,7 +54,7 @@ export function IspAccountCreate() {
   return (
     <div>
       <div className="mb-4 flex min-w-0 items-start gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/portal/isp-accounts')} aria-label="Back to ISP accounts" className="mt-1.5">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/isp-accounts')} aria-label="Back to ISP accounts" className="mt-1.5">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700" aria-hidden="true">
@@ -83,7 +83,7 @@ export function IspAccountCreate() {
             <IspAccountFields form={form} onChange={setField} options={options?.form ?? null} errors={errors} disabled={saving} />
           </CardContent>
           <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-3">
-            <Button variant="outline" onClick={() => navigate('/portal/isp-accounts')} disabled={saving}>
+            <Button variant="outline" onClick={() => navigate('/isp-accounts')} disabled={saving}>
               Cancel
             </Button>
             <Button type="submit" isLoading={saving} disabled={!options}>

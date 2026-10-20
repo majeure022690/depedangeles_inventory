@@ -40,7 +40,7 @@ export function ForgotPassword() {
   }
 
   return (
-    <AuthLayout backTo="/portal/login" backLabel="Back to Sign In">
+    <AuthLayout backTo="/login" backLabel="Back to Sign In">
       <div className="mb-5 text-center lg:mb-6 lg:text-left">
         <h2 className="text-2xl font-bold text-gray-900">Forgot your password?</h2>
         <p className="mt-1 text-sm text-gray-500">Enter your account email and we'll send you a link to reset it.</p>

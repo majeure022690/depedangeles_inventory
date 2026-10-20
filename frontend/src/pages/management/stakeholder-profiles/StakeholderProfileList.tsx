@@ -68,7 +68,7 @@ export function StakeholderProfileList() {
             aria-label={`${row.original.has_profile ? 'Edit' : 'Start'} the stakeholder profile of ${row.original.office_name}`}
             onClick={(event) => {
               event.stopPropagation()
-              navigate(`/portal/stakeholder-profiles/${row.original.id}`)
+              navigate(`/stakeholder-profiles/${row.original.id}`)
             }}
             rightIcon={<ArrowRight className="h-4 w-4 text-primary-600" />}
           >
@@ -134,7 +134,7 @@ export function StakeholderProfileList() {
         perPage={perPage}
         onPerPageChange={setPerPage}
         emptyMessage="No offices found."
-        onRowClick={(row) => navigate(`/portal/stakeholder-profiles/${row.id}`)}
+        onRowClick={(row) => navigate(`/stakeholder-profiles/${row.id}`)}
       />
     </div>
   )

@@ -25,7 +25,9 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-const GUEST_ONLY_PATHS = ['/portal/login', '/portal/forgot-password', '/portal/reset-password', '/portal/2fa/setup', '/portal/2fa/verify']
+const GUEST_ONLY_PATHS = ['/login', '/forgot-password', '/reset-password', '/2fa/setup', '/2fa/verify']
+
+const isGuestOnlyPath = (pathname: string) => GUEST_ONLY_PATHS.includes(pathname.replace(/\/+$/, '') || '/')
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -125,14 +127,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const location = useLocation()
 
-  // Only probe the session on admin routes — public pages never need auth
-  // and firing /api/user there just produces a noisy 401 in the console.
-  // Track whether we've already fetched so navigating from public→admin
-  // doesn't skip the check.
+  // Every route except the guest-only auth pages is an app route, so probe the
+  // session there (hard refresh / deep link). Guest pages skip it to avoid an
+  // expected-but-noisy /api/user 401. Track whether we've already fetched so
+  // navigating from a guest page into the app doesn't skip the check.
   const [fetched, setFetched] = useState(false)
 
   useEffect(() => {
-    if (!location.pathname.startsWith('/portal') || GUEST_ONLY_PATHS.includes(location.pathname)) {
+    if (isGuestOnlyPath(location.pathname)) {
       setInitialized(true)
       return
     }

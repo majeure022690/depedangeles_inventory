@@ -189,7 +189,7 @@ export function EquipmentList() {
                 size="sm"
                 aria-label={`${canEdit ? 'Edit' : 'View'} ${label}`}
                 title={canEdit ? 'Edit' : 'View'}
-                onClick={() => navigate(`/portal/equipment/${row.original.id}/edit`)}
+                onClick={() => navigate(`/equipment/${row.original.id}/edit`)}
               >
                 {canEdit ? <Pencil className="h-4 w-4 text-primary-600" /> : <ArrowRight className="h-4 w-4 text-primary-600" />}
               </Button>
@@ -215,7 +215,7 @@ export function EquipmentList() {
         </div>
         {canCreate && (
           <div className="page-actions">
-            <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => navigate('/portal/equipment/new')}>
+            <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => navigate('/equipment/new')}>
               Add Equipment
             </Button>
           </div>
@@ -310,7 +310,7 @@ export function EquipmentList() {
         onSortChange={onSortChange}
         rowHeights={{ comfortable: 61, compact: 49 }}
         emptyMessage="No equipment records found."
-        onRowClick={(row) => navigate(`/portal/equipment/${row.id}/edit`)}
+        onRowClick={(row) => navigate(`/equipment/${row.id}/edit`)}
       />
 
       <ConfirmDialog

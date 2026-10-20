@@ -38,11 +38,11 @@ export function Login() {
       const result = await login(email, password, recaptchaToken ?? '')
 
       if (result.status === 'authenticated') {
-        navigate('/portal/dashboard')
+        navigate('/dashboard')
       } else if (result.status === 'requires_2fa_setup') {
-        navigate('/portal/2fa/setup', { state: { setupToken: result.setupToken } })
+        navigate('/2fa/setup', { state: { setupToken: result.setupToken } })
       } else {
-        navigate('/portal/2fa/verify', { state: { twoFaToken: result.twoFaToken, trustDeviceDays: result.trustDeviceDays } })
+        navigate('/2fa/verify', { state: { twoFaToken: result.twoFaToken, trustDeviceDays: result.trustDeviceDays } })
       }
     } catch (error) {
       if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
@@ -99,7 +99,7 @@ export function Login() {
         <div>
           <div className="mb-1 flex items-center justify-between">
             <label className="block text-sm font-medium text-gray-700">Password</label>
-            <Link to="/portal/forgot-password" className="text-sm font-medium text-primary-600 hover:underline">
+            <Link to="/forgot-password" className="text-sm font-medium text-primary-600 hover:underline">
               Forgot password?
             </Link>
           </div>

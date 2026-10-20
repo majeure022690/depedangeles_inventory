@@ -128,7 +128,7 @@ export function IspAccountEdit() {
   return (
     <div>
       <div className="mb-4 flex min-w-0 items-start gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/portal/isp-accounts')} aria-label="Back to ISP accounts" className="mt-1.5">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/isp-accounts')} aria-label="Back to ISP accounts" className="mt-1.5">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700" aria-hidden="true">

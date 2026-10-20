@@ -10,11 +10,22 @@ interface OtpInputProps {
   autoFocus?: boolean
   disabled?: boolean
   error?: boolean
+  /** Id of the element describing the error; linked from every digit box while `error` is set. */
+  'aria-describedby'?: string
 }
 
 // One box per digit. Typing moves forward, Backspace on an empty box moves back,
 // and pasting or autofilling a whole code into any box spreads it across the boxes.
-export function OtpInput({ label, length = 6, value, onChange, autoFocus, disabled, error }: OtpInputProps) {
+export function OtpInput({
+  label,
+  length = 6,
+  value,
+  onChange,
+  autoFocus,
+  disabled,
+  error,
+  'aria-describedby': describedBy,
+}: OtpInputProps) {
   const labelId = useId()
   const inputs = useRef<(HTMLInputElement | null)[]>([])
   const [digits, setDigits] = useState<string[]>(() => Array.from({ length }, (_, i) => value[i] ?? ''))
@@ -89,6 +100,8 @@ export function OtpInput({ label, length = 6, value, onChange, autoFocus, disabl
             inputMode="numeric"
             autoComplete={index === 0 ? 'one-time-code' : 'off'}
             aria-label={`Digit ${index + 1} of ${length}`}
+            aria-invalid={error || undefined}
+            aria-describedby={error ? describedBy : undefined}
             value={digit}
             onChange={(e) => handleChange(index, e)}
             onKeyDown={(e) => handleKeyDown(index, e)}

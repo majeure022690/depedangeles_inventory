@@ -112,7 +112,7 @@ export function ConnectivitySurveyEdit() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/portal/internet-connectivity-surveys')}
+            onClick={() => navigate('/internet-connectivity-surveys')}
             aria-label="Back to internet connectivity surveys"
             className="mt-1.5"
           >

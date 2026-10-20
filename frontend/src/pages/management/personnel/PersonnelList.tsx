@@ -156,7 +156,7 @@ export function PersonnelList() {
               size="sm"
               aria-label={`${canEdit ? 'Edit' : 'View'} ${row.original.full_name}`}
               title={canEdit ? 'Edit' : 'View'}
-              onClick={() => navigate(`/portal/personnel/${row.original.id}/edit`)}
+              onClick={() => navigate(`/personnel/${row.original.id}/edit`)}
             >
               {canEdit ? <Pencil className="h-4 w-4 text-primary-600" /> : <ArrowRight className="h-4 w-4 text-primary-600" />}
             </Button>
@@ -181,7 +181,7 @@ export function PersonnelList() {
         </div>
         {canCreate && (
           <div className="page-actions">
-            <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => navigate('/portal/personnel/new')}>
+            <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => navigate('/personnel/new')}>
               Add Personnel
             </Button>
           </div>
@@ -259,7 +259,7 @@ export function PersonnelList() {
         onSortChange={onSortChange}
         rowHeights={{ comfortable: 61, compact: 49 }}
         emptyMessage="No personnel records found."
-        onRowClick={(row) => navigate(`/portal/personnel/${row.id}/edit`)}
+        onRowClick={(row) => navigate(`/personnel/${row.id}/edit`)}
       />
 
       <ConfirmDialog

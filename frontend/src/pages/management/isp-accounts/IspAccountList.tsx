@@ -167,7 +167,7 @@ export function IspAccountList() {
                 title={canEdit ? 'Edit' : 'View'}
                 onClick={(event) => {
                   event.stopPropagation()
-                  navigate(`/portal/isp-accounts/${row.original.id}/edit`)
+                  navigate(`/isp-accounts/${row.original.id}/edit`)
                 }}
               >
                 <ArrowRight className="h-4 w-4 text-primary-600" />
@@ -188,7 +188,7 @@ export function IspAccountList() {
           <p className="text-sm text-gray-600">Manage internet service provider subscriptions and contracts.</p>
         </div>
         {canCreate && (
-          <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => navigate('/portal/isp-accounts/new')}>
+          <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => navigate('/isp-accounts/new')}>
             Add ISP account
           </Button>
         )}
@@ -276,7 +276,7 @@ export function IspAccountList() {
         sortDir={sortDir}
         onSortChange={onSortChange}
         emptyMessage="No ISP account records found."
-        onRowClick={(row) => navigate(`/portal/isp-accounts/${row.id}/edit`)}
+        onRowClick={(row) => navigate(`/isp-accounts/${row.id}/edit`)}
       />
 
       <ConfirmDialog

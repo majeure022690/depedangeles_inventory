@@ -88,7 +88,7 @@ export function OfficeEdit() {
     setDeleting(true)
     try {
       await officeService.remove(office.id)
-      navigate('/portal/offices', { state: { flash: `"${office.office_name}" was deleted.` } })
+      navigate('/offices', { state: { flash: `"${office.office_name}" was deleted.` } })
     } catch (error) {
       setFeedback({ type: 'error', message: officeDeleteErrorMessage(error) })
       setConfirmDelete(false)
@@ -101,7 +101,7 @@ export function OfficeEdit() {
     return (
       <div className="space-y-4">
         <Alert type="error">{loadError ?? 'Office not found.'}</Alert>
-        <Button variant="outline" leftIcon={<ArrowLeft className="h-4 w-4" />} onClick={() => navigate('/portal/offices')}>
+        <Button variant="outline" leftIcon={<ArrowLeft className="h-4 w-4" />} onClick={() => navigate('/offices')}>
           Back to offices
         </Button>
       </div>
@@ -112,7 +112,7 @@ export function OfficeEdit() {
     <div>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/portal/offices')} aria-label="Back to offices" className="mt-1.5">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/offices')} aria-label="Back to offices" className="mt-1.5">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <span className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700 sm:flex" aria-hidden="true">
@@ -160,7 +160,7 @@ export function OfficeEdit() {
 
         {canEdit && (
           <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={() => navigate('/portal/offices')} disabled={saving}>
+            <Button variant="outline" onClick={() => navigate('/offices')} disabled={saving}>
               Cancel
             </Button>
             <Button type="submit" isLoading={saving}>

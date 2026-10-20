@@ -33,11 +33,12 @@ export const PERMISSIONS = [
   'office.delete',
   'audit_log.view',
   'security_settings.manage',
+  'email_log.manage',
 ] as const
 
 export type PermissionName = (typeof PERMISSIONS)[number]
 
-export const SETTINGS_PERMISSIONS: PermissionName[] = ['security_settings.manage']
+export const SETTINGS_PERMISSIONS: PermissionName[] = ['security_settings.manage', 'email_log.manage']
 
 /** One row of `GET /api/permissions` (`PermissionResource`); label and group come from the enum server-side. */
 export interface PermissionInfo {
@@ -87,7 +88,8 @@ const PERMISSION_DESCRIPTIONS: Record<PermissionName, string> = {
   'office.edit': 'Edit office details.',
   'office.delete': 'Delete offices that nothing else refers to.',
   'audit_log.view': 'See who changed what across the system.',
-  'security_settings.manage': 'Change sign-in, rate-limit and session security settings.',
+  'security_settings.manage': 'Change sign-in, rate-limit and session security settings, and view or clear the error and slow query logs.',
+  'email_log.manage': 'See and clear the log of emails the system has sent.',
 }
 
 function describe(name: string): string {

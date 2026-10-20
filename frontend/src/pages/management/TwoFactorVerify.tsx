@@ -43,7 +43,7 @@ export function TwoFactorVerify() {
       if (result) {
         setWarning(result)
       } else {
-        navigate('/portal/dashboard')
+        navigate('/dashboard')
       }
     } catch (error) {
       if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
@@ -58,9 +58,9 @@ export function TwoFactorVerify() {
 
   if (!twoFaToken) {
     return (
-      <AuthLayout backTo="/portal/login" backLabel="Back to Sign In">
+      <AuthLayout backTo="/login" backLabel="Back to Sign In">
         <Alert type="error">Your session has expired. Please log in again.</Alert>
-        <Link to="/portal/login" className="mt-4 inline-flex items-center gap-1 text-sm text-primary-600 hover:underline">
+        <Link to="/login" className="mt-4 inline-flex items-center gap-1 text-sm text-primary-600 hover:underline">
           <ArrowLeft className="h-4 w-4" />
           Back to Sign In
         </Link>
@@ -70,11 +70,11 @@ export function TwoFactorVerify() {
 
   if (warning) {
     return (
-      <AuthLayout backTo="/portal/login" backLabel="Back to Sign In">
+      <AuthLayout backTo="/login" backLabel="Back to Sign In">
         <Alert type="warning" className="mb-4">
           {warning}
         </Alert>
-        <Button className="w-full" size="lg" onClick={() => navigate('/portal/dashboard')}>
+        <Button className="w-full" size="lg" onClick={() => navigate('/dashboard')}>
           Continue to Dashboard
         </Button>
       </AuthLayout>
@@ -82,7 +82,7 @@ export function TwoFactorVerify() {
   }
 
   return (
-    <AuthLayout backTo="/portal/login" backLabel="Back to Sign In">
+    <AuthLayout backTo="/login" backLabel="Back to Sign In">
       <div className="mb-5">
         <h2 className="text-2xl font-bold text-gray-900">Two-factor verification</h2>
         <p className="mt-1 text-sm text-gray-500">
@@ -91,7 +91,7 @@ export function TwoFactorVerify() {
       </div>
 
       {errorMessage && (
-        <Alert type="error" className="mb-4">
+        <Alert id="two-factor-error" type="error" className="mb-4">
           {errorMessage}
         </Alert>
       )}
@@ -111,9 +111,18 @@ export function TwoFactorVerify() {
             onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^0-9A-F]/g, '').slice(0, 8))}
             required
             autoFocus
+            aria-invalid={errorMessage ? true : undefined}
+            aria-describedby={errorMessage ? 'two-factor-error' : undefined}
           />
         ) : (
-          <OtpInput label="Verification code" value={code} onChange={setCode} error={!!errorMessage} autoFocus />
+          <OtpInput
+            label="Verification code"
+            value={code}
+            onChange={setCode}
+            error={!!errorMessage}
+            aria-describedby="two-factor-error"
+            autoFocus
+          />
         )}
         {trustDeviceDays > 0 && (
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">

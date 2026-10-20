@@ -151,7 +151,7 @@ export function StakeholderProfileEdit() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/portal/stakeholder-profiles')}
+            onClick={() => navigate('/stakeholder-profiles')}
             aria-label="Back to stakeholder profiles"
             className="mt-1.5"
           >

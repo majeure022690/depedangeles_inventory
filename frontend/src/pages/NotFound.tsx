@@ -8,7 +8,7 @@ export function NotFound() {
       <p className="text-6xl font-bold text-primary-600">404</p>
       <h1 className="text-xl font-semibold text-gray-900">Page not found</h1>
       <p className="max-w-sm text-sm text-gray-500">The page you're looking for doesn't exist or may have moved.</p>
-      <Link to="/portal/dashboard">
+      <Link to="/dashboard">
         <Button>Back to Dashboard</Button>
       </Link>
     </div>

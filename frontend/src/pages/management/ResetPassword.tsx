@@ -36,7 +36,7 @@ export function ResetPassword() {
         password,
         password_confirmation: passwordConfirmation,
       })
-      navigate('/portal/login', { state: { resetSuccess: true } })
+      navigate('/login', { state: { resetSuccess: true } })
     } catch (error) {
       if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
         setErrorMessage(Object.values(error.response.data.errors).flat()[0] ?? 'This reset link is invalid or has expired.')
@@ -50,9 +50,9 @@ export function ResetPassword() {
 
   if (!token || !email) {
     return (
-      <AuthLayout backTo="/portal/login" backLabel="Back to Sign In">
+      <AuthLayout backTo="/login" backLabel="Back to Sign In">
         <Alert type="error">This reset link is invalid. Please request a new one.</Alert>
-        <Link to="/portal/forgot-password" className="mt-4 inline-flex items-center gap-1 text-sm text-primary-600 hover:underline">
+        <Link to="/forgot-password" className="mt-4 inline-flex items-center gap-1 text-sm text-primary-600 hover:underline">
           <ArrowLeft className="h-4 w-4" />
           Request a new link
         </Link>
@@ -61,7 +61,7 @@ export function ResetPassword() {
   }
 
   return (
-    <AuthLayout backTo="/portal/login" backLabel="Back to Sign In">
+    <AuthLayout backTo="/login" backLabel="Back to Sign In">
       <div className="mb-5 text-center lg:mb-6 lg:text-left">
         <h2 className="text-2xl font-bold text-gray-900">Reset your password</h2>
         <p className="mt-1 text-sm text-gray-500">Choose a new password for {email}.</p>

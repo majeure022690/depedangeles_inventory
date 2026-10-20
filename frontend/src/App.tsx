@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentType } from 'react'
-import { Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Spinner } from '@/components/ui/Spinner'
@@ -9,7 +9,7 @@ import { NotFound } from '@/pages/NotFound'
 import { GuestOnly, RequireAuth, RequirePermission } from '@/router/Guards'
 
 // Every page is its own chunk (recharts alone, on the dashboard, is the
-// heaviest dependency the portal ships). ManagementLayout suspends inside its
+// heaviest dependency the app ships). ManagementLayout suspends inside its
 // shell, so the sidebar stays put while a page chunk loads.
 const page = <K extends string, T extends Record<K, ComponentType>>(load: () => Promise<T>, name: K) =>
   lazy(() => load().then((module) => ({ default: module[name] })))
@@ -45,25 +45,15 @@ const StakeholderProfileList = page(() => import('@/pages/management/stakeholder
 const UserList = page(() => import('@/pages/management/users/UserList'), 'UserList')
 
 
-/**
- * Printed equipment QR labels encode `APP_URL/equipment/{id}/edit` (ADR §8).
- * When the frontend host is the one receiving the scan, forward it into the portal.
- */
-function EquipmentQrAlias() {
-  const { id } = useParams()
-  return <Navigate to={`/portal/equipment/${id}/edit`} replace />
-}
-
 export function App() {
   return (
     <ErrorBoundary>
       <Suspense fallback={<Spinner full />}>
         <Routes>
-          <Route index element={<Navigate to="/portal/dashboard" replace />} />
-          <Route path="/equipment/:id/edit" element={<EquipmentQrAlias />} />
+          <Route index element={<Navigate to="/dashboard" replace />} />
 
           <Route
-            path="/portal/login"
+            path="/login"
             element={
               <GuestOnly>
                 <Login />
@@ -72,7 +62,7 @@ export function App() {
           />
 
           <Route
-            path="/portal/forgot-password"
+            path="/forgot-password"
             element={
               <GuestOnly>
                 <ForgotPassword />
@@ -81,7 +71,7 @@ export function App() {
           />
 
           <Route
-            path="/portal/reset-password"
+            path="/reset-password"
             element={
               <GuestOnly>
                 <ResetPassword />
@@ -90,7 +80,7 @@ export function App() {
           />
 
           <Route
-            path="/portal/2fa/setup"
+            path="/2fa/setup"
             element={
               <GuestOnly>
                 <TwoFactorSetup />
@@ -99,7 +89,7 @@ export function App() {
           />
 
           <Route
-            path="/portal/2fa/verify"
+            path="/2fa/verify"
             element={
               <GuestOnly>
                 <TwoFactorVerify />
@@ -107,9 +97,8 @@ export function App() {
             }
           />
 
-          <Route path="/portal" element={<RequireAuth />}>
+          <Route element={<RequireAuth />}>
             <Route element={<ManagementLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<ManagementDashboard />} />
               <Route path="profile" element={<ProfileSettings />} />
 

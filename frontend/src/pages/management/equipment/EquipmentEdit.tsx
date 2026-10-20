@@ -100,7 +100,7 @@ export function EquipmentEdit() {
     setDeleting(true)
     try {
       await equipmentService.remove(equipment.id)
-      navigate('/portal/equipment', { state: { flash: 'Equipment record deleted.' } })
+      navigate('/equipment', { state: { flash: 'Equipment record deleted.' } })
     } catch (e) {
       setFormError(extractError(e, 'Unable to delete this equipment record.'))
       setDeleteOpen(false)
@@ -118,7 +118,7 @@ export function EquipmentEdit() {
   if (!equipment || !form) {
     return (
       <div>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/portal/equipment')} aria-label="Back to equipment">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/equipment')} aria-label="Back to equipment">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <Alert type="error" className="mt-4">
@@ -132,7 +132,7 @@ export function EquipmentEdit() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/portal/equipment')} aria-label="Back to equipment" className="mt-0.5">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/equipment')} aria-label="Back to equipment" className="mt-0.5">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0">
@@ -189,7 +189,7 @@ export function EquipmentEdit() {
         <EquipmentFields value={form} onChange={setForm} options={options?.form ?? null} errors={errors} disabled={!canEdit} current={equipment} />
         {canEdit && (
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={() => navigate('/portal/equipment')}>
+            <Button variant="outline" onClick={() => navigate('/equipment')}>
               Cancel
             </Button>
             <Button type="submit" isLoading={saving} disabled={!options}>

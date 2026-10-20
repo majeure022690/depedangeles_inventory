@@ -9,8 +9,8 @@ const LAST_ACTIVITY_KEY = 'dictis:last-activity'
 const CHANNEL_NAME = 'dictis-session'
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'click', 'keydown', 'wheel', 'scroll', 'touchstart', 'touchmove', 'pointerdown', 'pointermove'] as const
 const WRITE_INTERVAL_MS = 1000
-const IDLE_LOGIN_URL = '/portal/login?reason=idle'
-const LOGIN_URL = '/portal/login'
+const IDLE_LOGIN_URL = '/login?reason=idle'
+const LOGIN_URL = '/login'
 
 function readSharedActivity(): number {
   try {

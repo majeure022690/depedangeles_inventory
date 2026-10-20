@@ -35,7 +35,7 @@ export function PersonnelCreate() {
     setFormError(null)
     try {
       const response = await personnelService.create(toPersonnelPayload(form))
-      navigate('/portal/personnel', { state: { flash: response.message } })
+      navigate('/personnel', { state: { flash: response.message } })
     } catch (e) {
       setErrors(extractFieldErrors(e))
       setFormError(extractError(e, 'Unable to save this personnel record. Please try again.'))
@@ -48,7 +48,7 @@ export function PersonnelCreate() {
   return (
     <div>
       <div className="mb-4 flex items-start gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/portal/personnel')} aria-label="Back to personnel" className="mt-0.5">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/personnel')} aria-label="Back to personnel" className="mt-0.5">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
@@ -66,7 +66,7 @@ export function PersonnelCreate() {
         <PersonnelFields value={form} onChange={setForm} options={options} errors={errors} />
 
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" onClick={() => navigate('/portal/personnel')}>
+          <Button variant="outline" onClick={() => navigate('/personnel')}>
             Cancel
           </Button>
           <Button type="submit" isLoading={saving} disabled={!options}>

@@ -35,7 +35,7 @@ export function EquipmentCreate() {
     setFormError(null)
     try {
       const response = await equipmentService.create(toEquipmentPayload(form))
-      navigate(`/portal/equipment/${response.data.id}/edit`, { state: { flash: response.message } })
+      navigate(`/equipment/${response.data.id}/edit`, { state: { flash: response.message } })
     } catch (e) {
       setErrors(extractFieldErrors(e))
       setFormError(extractError(e, 'Unable to save this equipment record. Please try again.'))
@@ -48,7 +48,7 @@ export function EquipmentCreate() {
   return (
     <div>
       <div className="mb-4 flex items-start gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/portal/equipment')} aria-label="Back to equipment" className="mt-0.5">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/equipment')} aria-label="Back to equipment" className="mt-0.5">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
@@ -66,7 +66,7 @@ export function EquipmentCreate() {
         <EquipmentFields value={form} onChange={setForm} options={options} errors={errors} />
 
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" onClick={() => navigate('/portal/equipment')}>
+          <Button variant="outline" onClick={() => navigate('/equipment')}>
             Cancel
           </Button>
           <Button type="submit" isLoading={saving} disabled={!options}>

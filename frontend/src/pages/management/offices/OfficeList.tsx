@@ -119,7 +119,7 @@ export function OfficeList() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(`/portal/offices/${row.original.id}/edit`)}
+              onClick={() => navigate(`/offices/${row.original.id}/edit`)}
               aria-label={`${canEdit ? 'Edit' : 'View'} ${row.original.office_name}`}
               title={canEdit ? 'Edit office' : 'View office'}
             >
@@ -152,7 +152,7 @@ export function OfficeList() {
         </div>
         {can('office.create') && (
           <div className="page-actions">
-            <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => navigate('/portal/offices/new')} size="sm">
+            <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => navigate('/offices/new')} size="sm">
               Add office
             </Button>
           </div>
@@ -181,7 +181,7 @@ export function OfficeList() {
         sortDir={sortDir}
         onSortChange={onSortChange}
         emptyMessage={searchDraft ? 'No offices match this search.' : 'No offices found.'}
-        onRowClick={(row) => navigate(`/portal/offices/${row.id}/edit`)}
+        onRowClick={(row) => navigate(`/offices/${row.id}/edit`)}
         toolbar={
           <div className="flex w-full flex-wrap items-center gap-3">
             <div className="w-full sm:w-72">

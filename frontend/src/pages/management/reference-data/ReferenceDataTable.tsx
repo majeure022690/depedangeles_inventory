@@ -45,7 +45,7 @@ function rowLabel(row: ReferenceDataRow): string {
   return isTier2Row(row) ? row.value : row.name
 }
 
-/** Route `/portal/reference-data/:table`. Keyed by table so switching tables resets paging, filters and dialogs. */
+/** Route `/reference-data/:table`. Keyed by table so switching tables resets paging, filters and dialogs. */
 export function ReferenceDataTable() {
   const { table = '' } = useParams<{ table: string }>()
   return <ReferenceDataTableView key={table} table={table} />
@@ -243,7 +243,7 @@ function ReferenceDataTableView({ table }: { table: string }) {
     <div>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/portal/reference-data')} aria-label="Back to reference data" className="mt-1">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/reference-data')} aria-label="Back to reference data" className="mt-1">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0">

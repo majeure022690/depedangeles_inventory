@@ -107,7 +107,7 @@ export function ReferenceDataIndex() {
             {tier1.map((table) => (
               <TableCard
                 key={table.key}
-                to={`/portal/reference-data/${table.key}`}
+                to={`/reference-data/${table.key}`}
                 title={table.label}
                 badge={<Badge color="primary">Tier 1</Badge>}
                 count={plural(table.row_count, 'row')}
@@ -119,7 +119,7 @@ export function ReferenceDataIndex() {
             {tier2.map((table) => (
               <TableCard
                 key={table.key}
-                to={`/portal/reference-data/${table.key}`}
+                to={`/reference-data/${table.key}`}
                 title={table.label}
                 badge={<Badge color="gray">Tier 2</Badge>}
                 count={plural(table.row_count, 'row')}
@@ -131,7 +131,7 @@ export function ReferenceDataIndex() {
             <div className="border-t border-gray-200 pt-6">
               <Section icon={<Building2 className="h-4 w-4" />} title="Institutional data" description="Schools and division offices have their own full create/edit pages.">
                 <TableCard
-                  to="/portal/offices"
+                  to="/offices"
                   title="Offices"
                   badge={<Badge color="success">Full CRUD</Badge>}
                   count={plural(overview.office_count, 'office')}

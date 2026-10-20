@@ -72,14 +72,14 @@ function officeScopedPath(base: string, viewAll: PermissionName, view: Permissio
 const navGroups: NavGroup[] = [
   {
     title: null,
-    items: [{ title: 'Dashboard', to: '/portal/dashboard', icon: LayoutDashboard, color: 'text-primary-600' }],
+    items: [{ title: 'Dashboard', to: '/dashboard', icon: LayoutDashboard, color: 'text-primary-600' }],
   },
   {
     title: 'Records',
     items: [
-      { title: 'Personnel', to: '/portal/personnel', icon: Users, color: 'text-violet-500', permission: 'personnel.view' },
-      { title: 'Equipment', to: '/portal/equipment', icon: Monitor, color: 'text-sky-500', permission: 'equipment.view' },
-      { title: 'ISP Accounts', to: '/portal/isp-accounts', icon: Wifi, color: 'text-emerald-600', permission: 'isp_accounts.view' },
+      { title: 'Personnel', to: '/personnel', icon: Users, color: 'text-violet-500', permission: 'personnel.view' },
+      { title: 'Equipment', to: '/equipment', icon: Monitor, color: 'text-sky-500', permission: 'equipment.view' },
+      { title: 'ISP Accounts', to: '/isp-accounts', icon: Wifi, color: 'text-emerald-600', permission: 'isp_accounts.view' },
     ],
   },
   {
@@ -87,14 +87,14 @@ const navGroups: NavGroup[] = [
     items: [
       {
         title: 'Stakeholder Profile',
-        to: officeScopedPath('/portal/stakeholder-profiles', 'stakeholder_profile.view_all', 'stakeholder_profile.view'),
+        to: officeScopedPath('/stakeholder-profiles', 'stakeholder_profile.view_all', 'stakeholder_profile.view'),
         icon: School,
         color: 'text-amber-600',
         permission: ['stakeholder_profile.view', 'stakeholder_profile.view_all'],
       },
       {
         title: 'Internet Connectivity',
-        to: officeScopedPath('/portal/internet-connectivity-surveys', 'internet_connectivity.view_all', 'internet_connectivity.view'),
+        to: officeScopedPath('/internet-connectivity-surveys', 'internet_connectivity.view_all', 'internet_connectivity.view'),
         icon: Signal,
         color: 'text-teal-600',
         permission: ['internet_connectivity.view', 'internet_connectivity.view_all'],
@@ -104,17 +104,17 @@ const navGroups: NavGroup[] = [
   {
     title: 'Libraries',
     items: [
-      { title: 'Reference Data', to: '/portal/reference-data', icon: Library, color: 'text-cyan-500', permission: 'reference-data.manage' },
-      { title: 'Offices', to: '/portal/offices', icon: Building2, color: 'text-orange-500', permission: 'office.view' },
+      { title: 'Reference Data', to: '/reference-data', icon: Library, color: 'text-cyan-500', permission: 'reference-data.manage' },
+      { title: 'Offices', to: '/offices', icon: Building2, color: 'text-orange-500', permission: 'office.view' },
     ],
   },
   {
     title: 'Administration',
     items: [
-      { title: 'Users', to: '/portal/users', icon: UserCog, color: 'text-violet-500', permission: 'users.manage' },
-      { title: 'Roles', to: '/portal/roles', icon: ShieldCheck, color: 'text-emerald-500', permission: 'roles.manage' },
-      { title: 'Audit Log', to: '/portal/audit-log', icon: History, color: 'text-indigo-500', permission: 'audit_log.view' },
-      { title: 'Settings', to: '/portal/settings', icon: Settings, color: 'text-fuchsia-500', permission: SETTINGS_PERMISSIONS },
+      { title: 'Users', to: '/users', icon: UserCog, color: 'text-violet-500', permission: 'users.manage' },
+      { title: 'Roles', to: '/roles', icon: ShieldCheck, color: 'text-emerald-500', permission: 'roles.manage' },
+      { title: 'Audit Log', to: '/audit-log', icon: History, color: 'text-indigo-500', permission: 'audit_log.view' },
+      { title: 'Settings', to: '/settings', icon: Settings, color: 'text-fuchsia-500', permission: SETTINGS_PERMISSIONS },
     ],
   },
 ]
@@ -193,7 +193,7 @@ export function ManagementLayout() {
     await logout()
     setLoggingOut(false)
     setLogoutConfirmOpen(false)
-    navigate('/portal/login')
+    navigate('/login')
   }
 
   function handleItemEnter(title: string, e: React.MouseEvent<HTMLElement>) {
@@ -332,7 +332,7 @@ export function ManagementLayout() {
                       </div>
                     </div>
                     <Link
-                      to="/portal/profile"
+                      to="/profile"
                       className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       onClick={() => setUserMenuOpen(false)}
                     >

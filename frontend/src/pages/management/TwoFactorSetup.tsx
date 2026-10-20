@@ -86,9 +86,9 @@ export function TwoFactorSetup() {
 
   if (!setupToken) {
     return (
-      <AuthLayout backTo="/portal/login" backLabel="Back to Sign In">
+      <AuthLayout backTo="/login" backLabel="Back to Sign In">
         <Alert type="error">Your setup session has expired. Please log in again.</Alert>
-        <Link to="/portal/login" className="mt-4 inline-flex items-center gap-1 text-sm text-primary-600 hover:underline">
+        <Link to="/login" className="mt-4 inline-flex items-center gap-1 text-sm text-primary-600 hover:underline">
           <ArrowLeft className="h-4 w-4" />
           Back to Sign In
         </Link>
@@ -98,7 +98,7 @@ export function TwoFactorSetup() {
 
   if (recoveryCodes) {
     return (
-      <AuthLayout backTo="/portal/login" backLabel="Back to Sign In">
+      <AuthLayout backTo="/login" backLabel="Back to Sign In">
         <div className="mb-5">
           <h2 className="text-2xl font-bold text-gray-900">Save your recovery codes</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -123,7 +123,7 @@ export function TwoFactorSetup() {
 
         <Button className="w-full" size="lg" disabled={!codesSaved} onClick={() => {
             completeSignIn?.()
-            navigate('/portal/dashboard')
+            navigate('/dashboard')
           }}>
           Continue to Dashboard
         </Button>
@@ -132,7 +132,7 @@ export function TwoFactorSetup() {
   }
 
   return (
-    <AuthLayout backTo="/portal/login" backLabel="Back to Sign In">
+    <AuthLayout backTo="/login" backLabel="Back to Sign In">
       <div className="mb-5">
         <h2 className="text-2xl font-bold text-gray-900">Set up two-factor authentication</h2>
         <p className="mt-1 text-sm text-gray-500">
@@ -142,7 +142,7 @@ export function TwoFactorSetup() {
       </div>
 
       {errorMessage && (
-        <Alert type="error" className="mb-4">
+        <Alert id="two-factor-error" type="error" className="mb-4">
           {errorMessage}
         </Alert>
       )}
@@ -168,7 +168,14 @@ export function TwoFactorSetup() {
             </div>
 
             <form onSubmit={handleConfirm} className="space-y-4">
-              <OtpInput label="Enter the 6-digit code from your app" value={code} onChange={setCode} error={!!errorMessage} autoFocus />
+              <OtpInput
+                label="Enter the 6-digit code from your app"
+                value={code}
+                onChange={setCode}
+                error={!!errorMessage}
+                aria-describedby="two-factor-error"
+                autoFocus
+              />
               <Button
                 type="submit"
                 className="w-full"

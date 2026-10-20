@@ -360,7 +360,7 @@ export function UserList() {
             <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
               {user.is_self ? (
                 <Link
-                  to="/portal/profile"
+                  to="/profile"
                   className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm text-gray-700 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                   title="Your own account is managed from your profile"
                 >

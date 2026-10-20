@@ -67,7 +67,7 @@ export function PersonnelEdit() {
     setFormError(null)
     try {
       const response = await personnelService.update(personnel.id, toPersonnelPayload(form))
-      navigate('/portal/personnel', { state: { flash: response.message } })
+      navigate('/personnel', { state: { flash: response.message } })
     } catch (e) {
       setErrors(extractFieldErrors(e))
       setFormError(extractError(e, 'Unable to save this personnel record. Please try again.'))
@@ -84,7 +84,7 @@ export function PersonnelEdit() {
     setDeleting(true)
     try {
       await personnelService.remove(personnel.id)
-      navigate('/portal/personnel', { state: { flash: 'Personnel record deleted.' } })
+      navigate('/personnel', { state: { flash: 'Personnel record deleted.' } })
     } catch (e) {
       setFormError(extractError(e, 'Unable to delete this personnel record.'))
       setDeleteOpen(false)
@@ -97,7 +97,7 @@ export function PersonnelEdit() {
   if (!personnel || !form) {
     return (
       <div>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/portal/personnel')} aria-label="Back to personnel">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/personnel')} aria-label="Back to personnel">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <Alert type="error" className="mt-4">
@@ -111,7 +111,7 @@ export function PersonnelEdit() {
     <div>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/portal/personnel')} aria-label="Back to personnel" className="mt-0.5">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/personnel')} aria-label="Back to personnel" className="mt-0.5">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0">
@@ -147,7 +147,7 @@ export function PersonnelEdit() {
 
         {canEdit && (
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={() => navigate('/portal/personnel')}>
+            <Button variant="outline" onClick={() => navigate('/personnel')}>
               Cancel
             </Button>
             <Button type="submit" isLoading={saving} disabled={!options}>

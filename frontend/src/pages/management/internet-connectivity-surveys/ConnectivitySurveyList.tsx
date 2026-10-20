@@ -68,7 +68,7 @@ export function ConnectivitySurveyList() {
             aria-label={`${row.original.has_survey ? 'Edit' : 'Start'} the internet connectivity survey of ${row.original.office_name}`}
             onClick={(event) => {
               event.stopPropagation()
-              navigate(`/portal/internet-connectivity-surveys/${row.original.id}`)
+              navigate(`/internet-connectivity-surveys/${row.original.id}`)
             }}
             rightIcon={<ArrowRight className="h-4 w-4 text-primary-600" />}
           >
@@ -134,7 +134,7 @@ export function ConnectivitySurveyList() {
         perPage={perPage}
         onPerPageChange={setPerPage}
         emptyMessage="No offices found."
-        onRowClick={(row) => navigate(`/portal/internet-connectivity-surveys/${row.id}`)}
+        onRowClick={(row) => navigate(`/internet-connectivity-surveys/${row.id}`)}
       />
     </div>
   )

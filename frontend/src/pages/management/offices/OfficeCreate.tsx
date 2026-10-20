@@ -25,7 +25,7 @@ export function OfficeCreate() {
     setFormError(null)
     try {
       const office = await officeService.create(toOfficePayload(form))
-      navigate('/portal/offices', { state: { flash: `"${office.office_name}" was added.` } })
+      navigate('/offices', { state: { flash: `"${office.office_name}" was added.` } })
     } catch (error) {
       const fieldErrors = isValidationError(error) ? extractFieldErrors(error) : null
       setErrors(fieldErrors ?? {})
@@ -37,7 +37,7 @@ export function OfficeCreate() {
   return (
     <div>
       <div className="mb-4 flex items-start gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/portal/offices')} aria-label="Back to offices" className="mt-1">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/offices')} aria-label="Back to offices" className="mt-1">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
@@ -56,7 +56,7 @@ export function OfficeCreate() {
         <OfficeFields value={form} onChange={(patch) => setForm((current) => ({ ...current, ...patch }))} errors={errors} disabled={saving} />
 
         <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" onClick={() => navigate('/portal/offices')} disabled={saving}>
+          <Button variant="outline" onClick={() => navigate('/offices')} disabled={saving}>
             Cancel
           </Button>
           <Button type="submit" isLoading={saving}>
