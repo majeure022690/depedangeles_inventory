@@ -12,6 +12,7 @@ use App\Http\Resources\Management\UserResource;
 use App\Models\Office;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\PrimeUserSync;
 use App\Services\UserRoleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -41,9 +42,11 @@ class UserController extends Controller
         'created_at' => 'created_at',
     ];
 
-    public function index(Request $request, UserRoleService $userRoleService): JsonResponse
+    public function index(Request $request, UserRoleService $userRoleService, PrimeUserSync $primeSync): JsonResponse
     {
         $this->authorize('viewAny', User::class);
+
+        $primeSync->runThrottled();
 
         $search = $request->string('search')->trim()->toString();
         $role = $request->string('role')->toString();

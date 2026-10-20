@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\Permission;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Database\Schema\Blueprint;
@@ -9,6 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 class PrimeLoginTest extends TestCase
@@ -110,5 +112,29 @@ class PrimeLoginTest extends TestCase
         $this->assertFalse(User::where('email', 'b@deped.gov.ph')->exists());
         $this->assertSame('Renamed Three', $existing->fresh()->name);
         $this->assertFalse($existing->fresh()->is_active);
+    }
+
+    public function test_users_page_reflects_prime_changes_on_load(): void
+    {
+        $admin = User::factory()->create();
+        $admin->givePermissionTo(Permission::UsersView->value);
+        $this->primeUser();
+        $local = User::factory()->create(['email' => 'juan@deped.gov.ph', 'name' => 'Old Name']);
+
+        $this->actingAs($admin)->getJson('/api/users?search=juan')->assertOk()->assertJsonPath('data.0.name', 'Juan Dela Cruz');
+
+        $activity = Activity::where('subject_id', $local->id)->latest('id')->firstOrFail();
+        $this->assertSame('Synced from PRIME', $activity->description);
+        $this->assertNull($activity->causer_id);
+    }
+
+    public function test_users_page_still_loads_when_prime_is_down(): void
+    {
+        $admin = User::factory()->create();
+        $admin->givePermissionTo(Permission::UsersView->value);
+        config(['database.connections.external_users' => ['driver' => 'mysql', 'host' => '127.0.0.1', 'port' => 1, 'database' => 'x']]);
+        DB::purge('external_users');
+
+        $this->actingAs($admin)->getJson('/api/users')->assertOk();
     }
 }
