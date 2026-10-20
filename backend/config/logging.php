@@ -126,7 +126,7 @@ return [
         'security' => [
             'driver' => 'daily',
             'path' => storage_path('logs/security.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('SECURITY_LOG_LEVEL', 'info'),
             'max_files' => env('LOG_DAILY_DAYS', 90),
             'replace_placeholders' => true,
         ],

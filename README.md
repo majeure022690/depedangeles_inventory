@@ -77,7 +77,9 @@ Gotchas:
 
 ### Production build
 
-`cd frontend && npm run build` produces `frontend/dist/`. Vite bakes `VITE_*` values in at build time, so fill in `frontend/.env.production` (from `.env.production.example`) first. Backend production values are templated in `backend/.env.production.example`. The web server serves `dist/` and proxies `/api`, `/sanctum` and `/equipment/*/edit` (QR-code links) to the backend.
+`cd frontend && npm run build` produces `frontend/dist/`. Vite bakes `VITE_*` values in at build time, so fill in `frontend/.env.production` (from `.env.production.example`) first. Backend production values are templated in `backend/.env.production.example`. Production is single-origin: `frontend/Dockerfile` builds an nginx image (`frontend/docker/default.conf.template`) that serves `dist/` with the security headers/CSP and proxies `/api`, `/sanctum` and `/storage` to the backend; everything else, including `/equipment/{id}/edit` from printed QR labels, falls through to the SPA. `APP_URL`, `FRONTEND_URL` and `VITE_API_URL` are all that one origin, and `SESSION_DOMAIN` stays empty (host-only cookies).
+
+On any network-reachable deploy, `APP_ENV` must be exactly `production` and `APP_DEBUG=false`: JSON error masking and reCAPTCHA's fail-closed rejection of the test/blank secret both key on `APP_ENV=production`, so any other value (`prod`, `staging`, ...) leaks exception detail and accepts the test secret.
 
 ## Running tests
 
