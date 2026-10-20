@@ -106,6 +106,9 @@ export function LocationPicker({ latitude, longitude, onChange, disabled = false
           />
         )}
         
+        {/* Fit map to boundary on initial load */}
+        <BoundaryFitter boundaryData={boundaryData} />
+        
         {/* Update map center when coordinates change */}
         <MapUpdater position={position} />
         
@@ -142,6 +145,23 @@ function MapUpdater({ position }: { position: [number, number] }) {
   useEffect(() => {
     map.setView(position, map.getZoom())
   }, [position, map])
+  
+  return null
+}
+
+/** Component to fit map bounds to Angeles City boundary on initial load */
+function BoundaryFitter({ boundaryData }: { boundaryData: GeoJSONData | null }) {
+  const map = useMap()
+  
+  useEffect(() => {
+    if (boundaryData && boundaryData.features.length > 0) {
+      // Create a GeoJSON layer to calculate bounds
+      const geoJsonLayer = L.geoJSON(boundaryData as never)
+      const bounds = geoJsonLayer.getBounds()
+      // Fit the map to the boundary with some padding
+      map.fitBounds(bounds, { padding: [30, 30] })
+    }
+  }, [boundaryData, map])
   
   return null
 }
