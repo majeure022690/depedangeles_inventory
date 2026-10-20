@@ -94,4 +94,21 @@ class PrimeLoginTest extends TestCase
 
         $this->postJson('/api/login', ['email' => $user->email, 'password' => 'LocalPass123!'])->assertOk();
     }
+
+    public function test_sync_command_imports_active_users_and_deactivates_refused_ones(): void
+    {
+        DB::connection('external_users')->table('users')->insert([
+            ['full_name' => 'Active One', 'email_address' => 'a@deped.gov.ph', 'password' => Hash::make('x'), 'user_status' => 'Active'],
+            ['full_name' => 'Gone Two', 'email_address' => 'b@deped.gov.ph', 'password' => Hash::make('x'), 'user_status' => 'Deactivated'],
+            ['full_name' => 'Renamed Three', 'email_address' => 'c@deped.gov.ph', 'password' => Hash::make('x'), 'user_status' => 'Deactivated'],
+        ]);
+        $existing = User::factory()->create(['email' => 'c@deped.gov.ph', 'name' => 'Old Name']);
+
+        $this->artisan('users:sync-external')->assertSuccessful();
+
+        $this->assertTrue(User::where('email', 'a@deped.gov.ph')->value('is_active'));
+        $this->assertFalse(User::where('email', 'b@deped.gov.ph')->exists());
+        $this->assertSame('Renamed Three', $existing->fresh()->name);
+        $this->assertFalse($existing->fresh()->is_active);
+    }
 }

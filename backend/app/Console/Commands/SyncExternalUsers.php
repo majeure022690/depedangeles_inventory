@@ -10,35 +10,48 @@ class SyncExternalUsers extends Command
 {
     protected $signature = 'users:sync-external';
 
-    protected $description = 'Import active PRIME users that do not exist locally yet';
+    protected $description = 'Import new active PRIME users and sync names and deactivations of existing ones';
 
     public function handle(): int
     {
-        $synced = 0;
-        $skipped = 0;
+        $created = 0;
+        $updated = 0;
+        $deactivated = 0;
 
         ExternalUserAuthService::users()
-            ->where('user_status', ExternalUserAuthService::ACTIVE_STATUS)
             ->orderBy('user_id')
-            ->each(function (object $primeUser) use (&$synced, &$skipped) {
-                if (User::where('email', $primeUser->email_address)->exists()) {
-                    $skipped++;
+            ->each(function (object $primeUser) use (&$created, &$updated, &$deactivated) {
+                $active = $primeUser->user_status === ExternalUserAuthService::ACTIVE_STATUS;
+                $local = User::where('email', $primeUser->email_address)->first();
+
+                if (! $local) {
+                    if ($active) {
+                        User::create([
+                            'name' => $primeUser->full_name,
+                            'email' => $primeUser->email_address,
+                            'password' => $primeUser->password,
+                            'is_active' => true,
+                        ]);
+                        $created++;
+                    }
 
                     return;
                 }
 
-                User::create([
-                    'name' => $primeUser->full_name,
-                    'email' => $primeUser->email_address,
-                    'password' => $primeUser->password,
-                    'is_active' => true,
-                ]);
+                $local->name = $primeUser->full_name;
 
-                $synced++;
+                if (! $active && $local->is_active) {
+                    $local->is_active = false;
+                    $deactivated++;
+                }
+
+                if ($local->isDirty()) {
+                    $local->save();
+                    $updated++;
+                }
             });
 
-        $this->info("Synced {$synced} new users.");
-        $this->info("Skipped {$skipped} existing users.");
+        $this->info("Created {$created}, updated {$updated} (of which {$deactivated} deactivated).");
 
         return self::SUCCESS;
     }
