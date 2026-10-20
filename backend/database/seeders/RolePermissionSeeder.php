@@ -58,12 +58,11 @@ class RolePermissionSeeder extends Seeder
             ],
             'viewer' => [
                 'label' => 'Viewer',
-                'description' => 'Read-only access to Personnel, Equipment, ISP account, Stakeholder Profile, and '.
+                'description' => 'Read-only access to Personnel, Equipment, Stakeholder Profile, and '.
                     'Internet Connectivity Survey records.',
                 'permissions' => [
                     PermissionEnum::PersonnelView->value,
                     PermissionEnum::EquipmentView->value,
-                    PermissionEnum::IspAccountsView->value,
                     PermissionEnum::StakeholderProfileView->value,
                     PermissionEnum::InternetConnectivityView->value,
                 ],

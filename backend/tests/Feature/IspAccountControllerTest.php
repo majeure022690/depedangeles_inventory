@@ -221,12 +221,13 @@ class IspAccountControllerTest extends TestCase
         $this->assertDatabaseHas('activity_log', ['description' => 'isp_account.deleted', 'subject_id' => $ispAccount->id]);
     }
 
-    public function test_viewer_can_read_but_cannot_write_or_delete(): void
+    public function test_viewer_has_no_isp_account_access(): void
     {
         $viewer = $this->userWithRole('viewer');
         $ispAccount = $this->makeIspAccount();
 
-        $this->actingAs($viewer)->getJson("/api/isp-accounts/{$ispAccount->id}")->assertOk();
+        $this->actingAs($viewer)->getJson('/api/isp-accounts')->assertForbidden();
+        $this->actingAs($viewer)->getJson("/api/isp-accounts/{$ispAccount->id}")->assertForbidden();
         $this->actingAs($viewer)->postJson('/api/isp-accounts', $this->validPayload())->assertForbidden();
         $this->actingAs($viewer)->putJson("/api/isp-accounts/{$ispAccount->id}", $this->validPayload())->assertForbidden();
         $this->actingAs($viewer)->deleteJson("/api/isp-accounts/{$ispAccount->id}")->assertForbidden();
@@ -242,7 +243,7 @@ class IspAccountControllerTest extends TestCase
         $this->makeIspAccount(['isp_provider_id' => $pldtId, 'isp_billing_account_no' => 'BA-AAA', 'inactive_contract' => false]);
         $this->makeIspAccount(['isp_provider_id' => $globeId, 'isp_billing_account_no' => 'BA-BBB', 'inactive_contract' => true]);
 
-        $user = $this->userWithRole('viewer');
+        $user = $this->userWithRole('encoder');
 
         $this->actingAs($user)->getJson('/api/isp-accounts?search=AAA')
             ->assertOk()
@@ -263,7 +264,7 @@ class IspAccountControllerTest extends TestCase
 
     public function test_options_ship_form_filter_and_speed_test_lists(): void
     {
-        $response = $this->actingAs($this->userWithRole('viewer'))->getJson('/api/isp-accounts/options')
+        $response = $this->actingAs($this->userWithRole('encoder'))->getJson('/api/isp-accounts/options')
             ->assertOk()
             ->assertJsonStructure(['data' => [
                 'form' => ['isp_provider', 'school_level_coverage', 'subscription_type', 'isp_connection_type',
@@ -319,7 +320,7 @@ class IspAccountControllerTest extends TestCase
         $this->assertSame('Asia/Manila', $speedTest->tested_at->timezoneName);
         $this->assertTrue($speedTest->tested_at->equalTo(CarbonImmutable::parse('2026-10-19T02:30:00Z')));
 
-        $this->actingAs($this->userWithRole('viewer'))->getJson("/api/isp-accounts/{$ispAccount->id}")
+        $this->actingAs($this->userWithRole('encoder'))->getJson("/api/isp-accounts/{$ispAccount->id}")
             ->assertOk()
             ->assertJsonPath('data.speed_tests.0.tested_at', '2026-10-19T02:30:00.000000Z');
 
@@ -378,7 +379,7 @@ class IspAccountControllerTest extends TestCase
         IspSpeedTest::factory()->count(2)->create(['isp_account_id' => $ispAccount->id]);
         IspSubscriptionCost::factory()->count(2)->create(['isp_account_id' => $ispAccount->id]);
 
-        $this->actingAs($this->userWithRole('viewer'))->getJson("/api/isp-accounts/{$ispAccount->id}")
+        $this->actingAs($this->userWithRole('encoder'))->getJson("/api/isp-accounts/{$ispAccount->id}")
             ->assertOk()
             ->assertJsonPath('data.isp', 'PLDT')
             ->assertJsonPath('data.isp_provider_id', $ispAccount->isp_provider_id)

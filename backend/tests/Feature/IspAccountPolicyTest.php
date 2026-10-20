@@ -30,15 +30,15 @@ class IspAccountPolicyTest extends TestCase
         return IspAccount::factory()->create();
     }
 
-    public function test_viewer_can_view_but_not_create_or_edit_or_delete(): void
+    public function test_viewer_has_no_isp_account_access(): void
     {
         $this->seed(RolePermissionSeeder::class);
         $viewer = User::factory()->create();
         $viewer->assignRole('viewer');
         $account = $this->makeIspAccount();
 
-        $this->assertTrue($viewer->can('viewAny', IspAccount::class));
-        $this->assertTrue($viewer->can('view', $account));
+        $this->assertFalse($viewer->can('viewAny', IspAccount::class));
+        $this->assertFalse($viewer->can('view', $account));
         $this->assertFalse($viewer->can('create', IspAccount::class));
         $this->assertFalse($viewer->can('update', $account));
         $this->assertFalse($viewer->can('delete', $account));
