@@ -296,7 +296,6 @@ export function RoleList() {
         rows={visibleRoles}
         rowKey={(row) => row.id}
         loading={loading}
-        error={loadError}
         page={1}
         onPageChange={() => {}}
         emptyMessage={search ? 'No roles match this search.' : 'No roles found.'}
