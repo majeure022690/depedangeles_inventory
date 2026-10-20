@@ -282,6 +282,34 @@ class Equipment extends Model
         }
     }
 
+    /**
+     * Items issued (as accountable officer or end user) to personnel within
+     * the user's data scope.
+     *
+     * @param  Builder<Equipment>  $query
+     */
+    public function scopeVisibleTo(Builder $query, User $user): void
+    {
+        $personnelIds = $user->scopedPersonnelIds();
+
+        if ($personnelIds === null) {
+            return;
+        }
+
+        $query->where(fn (Builder $query) => $query
+            ->whereIn($query->qualifyColumn('current_accountable_officer_id'), $personnelIds)
+            ->orWhereIn($query->qualifyColumn('current_end_user_id'), $personnelIds));
+    }
+
+    public function isVisibleTo(User $user): bool
+    {
+        $personnelIds = $user->scopedPersonnelIds();
+
+        return $personnelIds === null
+            || in_array((int) $this->current_accountable_officer_id, $personnelIds, true)
+            || in_array((int) $this->current_end_user_id, $personnelIds, true);
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

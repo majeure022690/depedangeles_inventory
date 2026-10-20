@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Management;
 
+use App\Enums\DataScope;
 use App\Enums\Permission as PermissionEnum;
 use App\Models\Role;
 use App\Services\RoleService;
@@ -35,6 +36,7 @@ class UpdateRoleRequest extends FormRequest
             ],
             'label' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'data_scope' => ['sometimes', Rule::enum(DataScope::class)],
             'permissions' => ['array'],
             'permissions.*' => ['string', new Enum(PermissionEnum::class)],
         ];
@@ -72,14 +74,6 @@ class UpdateRoleRequest extends FormRequest
 
             if ($this->input('name') !== $role->name) {
                 $validator->errors()->add('name', __("The :label role's name cannot be changed.", ['label' => $role->label]));
-            }
-
-            if (! empty($this->input('permissions', []))) {
-                $validator->errors()->add('permissions', __(
-                    'The :label role must always have zero permissions — it is the deny-by-default '.
-                    'role for accounts that have not been given access yet.',
-                    ['label' => $role->label],
-                ));
             }
         });
     }

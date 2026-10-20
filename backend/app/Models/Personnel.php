@@ -58,7 +58,7 @@ use Spatie\Activitylog\Support\LogOptions;
     'mobile_1', 'mobile_2', 'deped_email', 'personal_email', 'date_hired',
     'non_deped_funded', 'fund_source', 'inactive', 'separation_date',
     'separation_cause', 'transferred_from', 'transferred_to',
-    'position_id', 'ro_office_id', 'sdo_office_id',
+    'position_id', 'ro_office_id', 'sdo_office_id', 'office_id',
 ])]
 class Personnel extends Model
 {
@@ -148,6 +148,14 @@ class Personnel extends Model
     }
 
     /**
+     * @return BelongsTo<Office, $this>
+     */
+    public function office(): BelongsTo
+    {
+        return $this->belongsTo(Office::class);
+    }
+
+    /**
      * Currently-employed personnel only (excludes separated/transferred-out
      * records, which are retained for historical accountability lookups).
      *
@@ -197,7 +205,7 @@ class Personnel extends Model
                 'mobile_1', 'mobile_2', 'deped_email', 'personal_email', 'date_hired',
                 'non_deped_funded', 'fund_source', 'inactive', 'separation_date',
                 'separation_cause', 'transferred_from', 'transferred_to',
-                'position_id', 'ro_office_id', 'sdo_office_id',
+                'position_id', 'ro_office_id', 'sdo_office_id', 'office_id',
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()

@@ -11,6 +11,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Management\StorePersonnelRequest;
 use App\Http\Requests\Management\UpdatePersonnelRequest;
 use App\Http\Resources\Management\PersonnelResource;
+use App\Models\Office;
 use App\Models\Personnel;
 use App\Models\PersonnelLibrary;
 use App\Models\Position;
@@ -69,7 +70,7 @@ class PersonnelController extends Controller
             ->search($request->string('search')->toString() ?: null)
             ->when($status === 'active', fn ($query) => $query->active())
             ->when($status === 'inactive', fn ($query) => $query->where('inactive', true))
-            ->with(['personnelPosition:id,name', 'roOffice:id,name', 'sdoOffice:id,name']);
+            ->with(['personnelPosition:id,name', 'roOffice:id,name', 'sdoOffice:id,name', 'office:id,office_name']);
 
         if (! $this->applySort($query, $request, self::SORTABLE)) {
             $query->orderBy('last_name')->orderBy('first_name');
@@ -90,6 +91,8 @@ class PersonnelController extends Controller
             'data' => [
                 ...$this->referenceOptions(self::TIER1_FORM_MODELS),
                 ...$this->libraryOptions(PersonnelLibrary::class, self::TIER2_FORM_TYPES),
+                'office' => Office::query()->active()->get(['id', 'office_name'])
+                    ->map(fn (Office $office) => ['value' => $office->id, 'label' => $office->office_name])->all(),
                 'teachers_funding_source' => $this->libraryOptionsById(PersonnelLibrary::class, PersonnelLibraryType::TeachersFundingSource),
             ],
             'message' => 'Success',
@@ -137,6 +140,6 @@ class PersonnelController extends Controller
 
     private function resource(Personnel $personnel): PersonnelResource
     {
-        return new PersonnelResource($personnel->fresh(['personnelPosition:id,name', 'roOffice:id,name', 'sdoOffice:id,name']) ?? $personnel);
+        return new PersonnelResource($personnel->fresh(['personnelPosition:id,name', 'roOffice:id,name', 'sdoOffice:id,name', 'office:id,office_name']) ?? $personnel);
     }
 }

@@ -111,6 +111,7 @@ class EquipmentController extends Controller
         $this->authorize('viewAny', Equipment::class);
 
         $query = Equipment::query()
+            ->visibleTo($request->user())
             ->search($request->string('search')->toString() ?: null)
             ->condition($request->filled('condition') ? $request->integer('condition') : null)
             ->category($request->filled('category') ? $request->integer('category') : null)

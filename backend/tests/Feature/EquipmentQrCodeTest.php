@@ -134,7 +134,7 @@ class EquipmentQrCodeTest extends TestCase
     {
         $this->seed(RolePermissionSeeder::class);
         $user = User::factory()->create();
-        $user->assignRole('viewer');
+        $user->assignRole('encoder');
 
         $equipment = Equipment::factory()->create([
             'disposition_status' => 'Normal',
@@ -151,7 +151,7 @@ class EquipmentQrCodeTest extends TestCase
     {
         $this->seed(RolePermissionSeeder::class);
         $user = User::factory()->create();
-        $user->assignRole('viewer');
+        $user->assignRole('encoder');
 
         $equipment = Equipment::factory()->create([
             'property_no' => "PN\"1\r\nX-Injected: yes/é",

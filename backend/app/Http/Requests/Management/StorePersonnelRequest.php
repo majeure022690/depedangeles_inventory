@@ -51,6 +51,7 @@ class StorePersonnelRequest extends FormRequest
             'position_id' => ['nullable', 'integer', Rule::exists('positions', 'id')->where('is_active', true)],
             'ro_office_id' => ['nullable', 'integer', Rule::exists('ro_offices', 'id')->where('is_active', true)],
             'sdo_office_id' => ['nullable', 'integer', Rule::exists('sdo_offices', 'id')->where('is_active', true)],
+            'office_id' => ['nullable', 'integer', Rule::exists('offices', 'id')],
 
             'oic' => ['boolean'],
             'oic_office' => ['nullable', 'string', 'max:255'],

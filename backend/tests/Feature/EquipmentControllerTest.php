@@ -186,7 +186,7 @@ class EquipmentControllerTest extends TestCase
         $equipment->transactions()->create(['transaction_type' => 'Beginning Inventory']);
         $equipment->transactions()->create(['transaction_type' => 'Issuance/Transfer', 'accountable_officer_id' => $officer->id]);
 
-        $this->actingAs($this->userWithRole('viewer'))->getJson("/api/equipment/{$equipment->id}")
+        $this->actingAs($this->userWithRole('encoder'))->getJson("/api/equipment/{$equipment->id}")
             ->assertOk()
             ->assertJsonPath('data.id', $equipment->id)
             ->assertJsonPath('data.item', 'Laptop')
@@ -208,7 +208,7 @@ class EquipmentControllerTest extends TestCase
         $this->makeEquipment(['property_no' => 'A-2', 'equipment_condition_id' => $forRepairId, 'equipment_category_id' => $lowValueId, 'disposition_status' => 'For Disposal']);
         $this->makeEquipment(['property_no' => null]);
 
-        $user = $this->userWithRole('viewer');
+        $user = $this->userWithRole('encoder');
 
         $this->actingAs($user)->getJson('/api/equipment')
             ->assertOk()

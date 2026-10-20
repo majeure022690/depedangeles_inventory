@@ -11,9 +11,9 @@ use App\Models\EquipmentTransaction;
 use App\Models\IspAccount;
 use App\Models\Personnel;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 /**
  * A personalized summary of what the user may otherwise see: each section
@@ -39,8 +39,8 @@ class DashboardController extends Controller
         $data = [];
 
         if ($user->hasPermissionTo(Permission::EquipmentView)) {
-            $data['equipment'] = $this->equipmentSummary();
-            $data['recent_transactions'] = $this->recentTransactions();
+            $data['equipment'] = $this->equipmentSummary($user);
+            $data['recent_transactions'] = $this->recentTransactions($user);
         }
 
         if ($user->hasPermissionTo(Permission::PersonnelView)) {
@@ -57,18 +57,19 @@ class DashboardController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function equipmentSummary(): array
+    private function equipmentSummary(User $user): array
     {
         $now = now();
+        $visible = fn () => Equipment::query()->visibleTo($user);
 
         return [
-            'total' => Equipment::query()->count(),
-            'by_condition' => $this->countsByReferenceJoin('equipment_conditions', 'equipment_condition_id'),
-            'by_category' => $this->countsByReferenceJoin('equipment_categories', 'equipment_category_id'),
-            'by_disposition_status' => $this->countsByRawSelect('disposition_status as value, count(*) as aggregate', 'disposition_status'),
-            'total_acquisition_cost' => (float) Equipment::query()->sum('acquisition_cost'),
-            'non_functional_count' => Equipment::query()->where('non_functional', true)->count(),
-            'warranty_expiring_soon_count' => Equipment::query()
+            'total' => $visible()->count(),
+            'by_condition' => $this->countsByReferenceJoin($visible(), 'equipment_conditions', 'equipment_condition_id'),
+            'by_category' => $this->countsByReferenceJoin($visible(), 'equipment_categories', 'equipment_category_id'),
+            'by_disposition_status' => $this->countsByRawSelect($visible(), 'disposition_status as value, count(*) as aggregate', 'disposition_status'),
+            'total_acquisition_cost' => (float) $visible()->sum('acquisition_cost'),
+            'non_functional_count' => $visible()->where('non_functional', true)->count(),
+            'warranty_expiring_soon_count' => $visible()
                 ->where('under_warranty', true)
                 ->whereBetween('end_warranty_date', [$now->toDateString(), $now->addDays(self::EXPIRING_SOON_DAYS)->toDateString()])
                 ->count(),
@@ -107,9 +108,13 @@ class DashboardController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function recentTransactions(): array
+    private function recentTransactions(User $user): array
     {
         return EquipmentTransaction::query()
+            ->when(
+                $user->scopedPersonnelIds() !== null,
+                fn ($query) => $query->whereHas('equipment', fn ($equipment) => $equipment->visibleTo($user)),
+            )
             ->with([
                 'equipment:id,property_no,item_type_id',
                 'equipment.itemType:id,name',
@@ -139,17 +144,17 @@ class DashboardController extends Controller
 
     /**
      * {value, count} rows grouped on a plain equipment column, largest
-     * first. Built on DB::table() (so soft-deleted rows are filtered by
-     * hand); `literal-string` keeps request input out of the raw SQL.
+     * first, over the caller's visible equipment. `literal-string` keeps
+     * request input out of the raw SQL.
      *
+     * @param  Builder<Equipment>  $visible
      * @param  literal-string  $selectRaw
      * @param  literal-string  $groupBy
      * @return array<int, array{value: string, count: int}>
      */
-    private function countsByRawSelect(string $selectRaw, string $groupBy): array
+    private function countsByRawSelect(Builder $visible, string $selectRaw, string $groupBy): array
     {
-        return DB::table('equipment')
-            ->whereNull('deleted_at')
+        return $visible->toBase()
             ->selectRaw($selectRaw)
             ->groupBy($groupBy)
             ->orderByDesc('aggregate')
@@ -162,15 +167,15 @@ class DashboardController extends Controller
      * {value, count} rows for a Tier 1 FK, grouped by the reference row's
      * name. The inner join leaves out equipment with no value set.
      *
+     * @param  Builder<Equipment>  $visible
      * @param  literal-string  $refTable
      * @param  literal-string  $fkColumn
      * @return array<int, array{value: string, count: int}>
      */
-    private function countsByReferenceJoin(string $refTable, string $fkColumn): array
+    private function countsByReferenceJoin(Builder $visible, string $refTable, string $fkColumn): array
     {
-        return DB::table('equipment')
+        return $visible->toBase()
             ->join($refTable, "equipment.{$fkColumn}", '=', "{$refTable}.id")
-            ->whereNull('equipment.deleted_at')
             ->selectRaw("{$refTable}.name as value, count(*) as aggregate")
             ->groupBy("{$refTable}.name")
             ->orderByDesc('aggregate')

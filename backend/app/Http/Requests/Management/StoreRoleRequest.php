@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Management;
 
+use App\Enums\DataScope;
 use App\Enums\Permission as PermissionEnum;
 use App\Models\Role;
 use App\Services\RoleService;
@@ -42,6 +43,7 @@ class StoreRoleRequest extends FormRequest
             'name' => ['required', 'string', 'max:255', 'alpha_dash', 'regex:/^[a-z0-9_-]+$/', Rule::unique('roles', 'name')],
             'label' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'data_scope' => ['sometimes', Rule::enum(DataScope::class)],
             'permissions' => ['array'],
             'permissions.*' => ['string', new Enum(PermissionEnum::class)],
         ];

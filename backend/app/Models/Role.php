@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DataScope;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -19,8 +20,9 @@ use Spatie\Permission\Models\Role as SpatieRole;
  * @property string $guard_name
  * @property string $label
  * @property string|null $description
+ * @property DataScope $data_scope
  */
-#[Fillable(['name', 'guard_name', 'label', 'description'])]
+#[Fillable(['name', 'guard_name', 'label', 'description', 'data_scope'])]
 class Role extends SpatieRole
 {
     /**
@@ -52,6 +54,11 @@ class Role extends SpatieRole
         }
 
         return $role;
+    }
+
+    protected function casts(): array
+    {
+        return ['data_scope' => DataScope::class];
     }
 
     public function isProtected(): bool

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Management;
 
+use App\Enums\DataScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Management\StoreRoleRequest;
 use App\Http\Requests\Management\UpdateRoleRequest;
@@ -54,6 +55,7 @@ class RoleController extends Controller
                 'name' => $request->validated('name'),
                 'label' => $request->validated('label'),
                 'description' => $request->validated('description'),
+                'data_scope' => $request->validated('data_scope', DataScope::Own->value),
             ],
             $request->validated('permissions', []),
         );
@@ -75,6 +77,7 @@ class RoleController extends Controller
                 'name' => $request->validated('name'),
                 'label' => $request->validated('label'),
                 'description' => $request->validated('description'),
+                'data_scope' => $request->validated('data_scope', $role->data_scope->value),
             ],
             $request->validated('permissions', []),
         );

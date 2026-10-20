@@ -15,7 +15,7 @@ class EquipmentPolicy
 
     public function view(User $user, Equipment $equipment): bool
     {
-        return $user->hasPermissionTo(Permission::EquipmentView);
+        return $user->hasPermissionTo(Permission::EquipmentView) && $equipment->isVisibleTo($user);
     }
 
     public function create(User $user): bool
@@ -25,7 +25,7 @@ class EquipmentPolicy
 
     public function update(User $user, Equipment $equipment): bool
     {
-        return $user->hasPermissionTo(Permission::EquipmentEdit);
+        return $user->hasPermissionTo(Permission::EquipmentEdit) && $equipment->isVisibleTo($user);
     }
 
     /**
@@ -34,7 +34,7 @@ class EquipmentPolicy
      */
     public function delete(User $user, Equipment $equipment): bool
     {
-        $allowed = $user->hasPermissionTo(Permission::EquipmentDelete);
+        $allowed = $user->hasPermissionTo(Permission::EquipmentDelete) && $equipment->isVisibleTo($user);
 
         if (! $allowed) {
             activity()
@@ -68,7 +68,7 @@ class EquipmentPolicy
      */
     public function createTransaction(User $user, Equipment $equipment): bool
     {
-        $allowed = $user->hasPermissionTo(Permission::EquipmentTransactionsCreate);
+        $allowed = $user->hasPermissionTo(Permission::EquipmentTransactionsCreate) && $equipment->isVisibleTo($user);
 
         if (! $allowed) {
             activity()

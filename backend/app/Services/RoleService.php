@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\DataScope;
 use App\Enums\Permission as PermissionEnum;
 use App\Models\Role;
 use App\Models\User;
@@ -81,6 +82,8 @@ final class RoleService
         // otherwise — see Role::SUPER_ADMINISTRATOR's doc-comment for why
         // this specific role must always grant all permissions.
         if ($role->isProtected()) {
+            $attributes['data_scope'] = DataScope::All->value;
+
             if ($attributes['name'] !== $role->name) {
                 throw ValidationException::withMessages([
                     'name' => __("The :label role's name cannot be changed.", ['label' => $role->label]),
@@ -113,7 +116,7 @@ final class RoleService
             $this->guardAgainstLockout($actor, $role, $permissionValues);
 
             $before = [
-                'attributes' => $role->only(['name', 'label', 'description']),
+                'attributes' => $role->only(['name', 'label', 'description', 'data_scope']),
                 'permissions' => $role->permissions()->pluck('name')->sort()->values()->all(),
             ];
 
@@ -128,7 +131,7 @@ final class RoleService
                 ->withChanges([
                     'old' => $before,
                     'attributes' => [
-                        'attributes' => $role->only(['name', 'label', 'description']),
+                        'attributes' => $role->only(['name', 'label', 'description', 'data_scope']),
                         'permissions' => collect($permissionValues)->sort()->values()->all(),
                     ],
                 ])

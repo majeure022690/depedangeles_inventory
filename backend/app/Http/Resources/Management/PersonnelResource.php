@@ -34,6 +34,8 @@ class PersonnelResource extends JsonResource
             'ro_division' => $this->whenLoaded('roOffice', fn () => $this->roOffice?->name),
             'sdo_office_id' => $this->sdo_office_id,
             'division_unit' => $this->whenLoaded('sdoOffice', fn () => $this->sdoOffice?->name),
+            'office_id' => $this->office_id,
+            'office' => $this->whenLoaded('office', fn () => $this->office?->office_name),
             'oic' => $this->oic,
             'oic_office' => $this->oic_office,
             'mobile_1' => $this->mobile_1,

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DataScope;
 use App\Notifications\ResetPasswordNotification;
 use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
@@ -87,6 +88,46 @@ class User extends Authenticatable
     public function office(): BelongsTo
     {
         return $this->belongsTo(Office::class);
+    }
+
+    /** @var list<int>|null */
+    private ?array $scopedPersonnelIds = null;
+
+    /**
+     * The widest scope among the user's roles; Own when they have none.
+     */
+    public function dataScope(): DataScope
+    {
+        return $this->roles
+            ->map(fn (Role $role) => $role->data_scope)
+            ->sortByDesc(fn (DataScope $scope) => $scope->rank())
+            ->first() ?? DataScope::Own;
+    }
+
+    /**
+     * Personnel whose records this user's data scope reaches: their own
+     * record (DepEd email = account email) or everyone at their office.
+     * Null means no restriction.
+     *
+     * @return list<int>|null
+     */
+    public function scopedPersonnelIds(): ?array
+    {
+        $scope = $this->dataScope();
+
+        if ($scope === DataScope::All) {
+            return null;
+        }
+
+        return $this->scopedPersonnelIds ??= Personnel::query()
+            ->when(
+                $scope === DataScope::School,
+                fn ($query) => $query->where('office_id', $this->office_id ?? 0),
+                fn ($query) => $query->whereRaw('lower(deped_email) = ?', [mb_strtolower($this->email)]),
+            )
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     /**

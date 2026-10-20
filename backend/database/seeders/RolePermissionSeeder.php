@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\DataScope;
 use App\Enums\Permission as PermissionEnum;
 use App\Models\Role;
 use Illuminate\Database\Seeder;
@@ -58,6 +59,7 @@ class RolePermissionSeeder extends Seeder
             ],
             'viewer' => [
                 'label' => 'Viewer',
+                'data_scope' => DataScope::Own,
                 'description' => 'Read-only access to Personnel, Equipment, Stakeholder Profile, and '.
                     'Internet Connectivity Survey records.',
                 'permissions' => [
@@ -84,7 +86,7 @@ class RolePermissionSeeder extends Seeder
         foreach ($roles as $name => $definition) {
             $role = Role::query()->updateOrCreate(
                 ['name' => $name, 'guard_name' => 'web'],
-                ['label' => $definition['label'], 'description' => $definition['description']],
+                ['label' => $definition['label'], 'description' => $definition['description'], 'data_scope' => $definition['data_scope'] ?? DataScope::All],
             );
 
             $role->syncPermissions($definition['permissions']);
