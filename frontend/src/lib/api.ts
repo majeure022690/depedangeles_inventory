@@ -23,9 +23,12 @@ export async function ensureCsrfCookie(): Promise<void> {
 }
 
 /** Registered from AuthContext once it mounts — kept out of this module's own import graph. */
-let onUnauthorized: (() => void) | null = null
+let onUnauthorized: ((message: string | undefined) => void) | null = null
 
-export function registerUnauthorizedHandler(handler: () => void): void {
+/** Message the backend's EnforceIdleTimeout middleware sends with its 401. */
+export const IDLE_TIMEOUT_MESSAGE = 'Your session has expired due to inactivity.'
+
+export function registerUnauthorizedHandler(handler: (message: string | undefined) => void): void {
   onUnauthorized = handler
 }
 
@@ -33,7 +36,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      onUnauthorized?.()
+      const message = error.response.data?.message
+      onUnauthorized?.(typeof message === 'string' ? message : undefined)
     }
     return Promise.reject(error)
   },

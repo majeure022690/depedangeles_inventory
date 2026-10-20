@@ -23,12 +23,9 @@ const column = gridColumnHelper<Role>()
 
 const emptyForm: RolePayload = { name: '', label: '', description: '', permissions: [] }
 
-// The server only restricts *who* edits roles (roles.manage), not which permissions they may grant.
-const canGrantAny = () => true
-
 export function RoleList() {
   usePageTitle('Roles')
-  const { fetchUser } = useAuth()
+  const { can, fetchUser } = useAuth()
 
   const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<PermissionInfo[]>([])
@@ -68,6 +65,12 @@ export function RoleList() {
   const [formError, setFormError] = useState<string | null>(null)
 
   const isProtected = editing?.is_protected ?? false
+
+  // Grant ceiling (server re-checks with a 422 on `permissions`): you may only newly grant permissions you hold; ones the role already has may stay.
+  const canGrant = useMemo(() => {
+    const existing = new Set(editing?.permissions ?? [])
+    return (permission: string) => can(permission) || existing.has(permission)
+  }, [can, editing])
 
   function openCreate() {
     setEditing(null)
@@ -342,7 +345,7 @@ export function RoleList() {
                 available={permissions}
                 value={form.permissions}
                 onChange={(next) => setForm((f) => ({ ...f, permissions: next }))}
-                canGrant={canGrantAny}
+                canGrant={canGrant}
                 locked={isProtected}
                 lockedMessage="Protected deny-by-default role: it must always have zero permissions. Only its label and description can be changed."
               />

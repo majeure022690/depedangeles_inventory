@@ -54,6 +54,11 @@ export function TwoFactorSetup() {
       setRecoveryCodes(result.recoveryCodes)
     } catch (error) {
       if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
+        const tokenError = error.response.data.errors?.setup_token?.[0]
+        if (tokenError) {
+          navigate('/login', { replace: true, state: { signInError: tokenError } })
+          return
+        }
         setErrorMessage(Object.values(error.response.data.errors).flat()[0] ?? 'Invalid verification code.')
       } else {
         setErrorMessage('Something went wrong. Please try again.')

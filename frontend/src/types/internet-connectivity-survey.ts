@@ -15,9 +15,10 @@ export interface ConnectivitySurveyOfficeRow {
  * `InternetConnectivitySurveyResource`. `available_isps`/`subscribed_isps`
  * are isp_providers ids; `mobile_signal_types`/`coverage_areas` are
  * connectivity_libraries ids; `electricity_sources` stakeholder_libraries ids.
+ * Before the first save, GET returns an unsaved blank: `id` and `updated_at` are null.
  */
 export interface InternetConnectivitySurvey {
-  id: number
+  id: number | null
   office_id: number
   has_isp_in_area: boolean | null
   available_isps: number[] | null

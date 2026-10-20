@@ -21,9 +21,10 @@ export interface StakeholderProfileOfficeRow {
  * `StakeholderProfileResource`. The four checkbox-group fields are arrays of
  * `stakeholder_libraries` ids; `complete_address` is read-only, built
  * server-side from street + PSGC barangay/municipality/province.
+ * Before the first save, GET returns an unsaved blank: `id` and `updated_at` are null.
  */
 export interface StakeholderProfile {
-  id: number
+  id: number | null
   office_id: number
   governance_level: string | null
   ro: string | null

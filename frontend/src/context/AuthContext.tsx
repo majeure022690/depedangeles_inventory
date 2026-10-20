@@ -1,7 +1,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 
-import { api, ensureCsrfCookie, registerUnauthorizedHandler } from '@/lib/api'
+import { api, ensureCsrfCookie, IDLE_TIMEOUT_MESSAGE, registerUnauthorizedHandler } from '@/lib/api'
 import type { ApiResponse } from '@/types/api'
 import type { AuthUser } from '@/types/auth'
 
@@ -29,13 +29,25 @@ const GUEST_ONLY_PATHS = ['/login', '/forgot-password', '/reset-password', '/2fa
 
 const isGuestOnlyPath = (pathname: string) => GUEST_ONLY_PATHS.includes(pathname.replace(/\/+$/, '') || '/')
 
+let leavingForLogin = false
+
+/**
+ * Mid-session 401 (deactivated, 2FA reset by an admin, server-side idle
+ * timeout): hard-navigate to /login so no stale in-memory data survives.
+ */
+function leaveForLogin(message: string | undefined) {
+  if (leavingForLogin) return
+  leavingForLogin = true
+  window.location.replace(message === IDLE_TIMEOUT_MESSAGE ? '/login?reason=idle' : '/login')
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [initialized, setInitialized] = useState(false)
 
   const fetchUser = useCallback(async (): Promise<boolean> => {
     try {
-      const { data } = await api.get<ApiResponse<AuthUser>>('/user', {
+      const { data } = await api.get<ApiResponse<AuthUser> | { message?: string }>('/user', {
         // Silence the console 401 on the boot probe — when the user is not
         // authenticated this is expected and handled by the catch below.
         validateStatus: (status) => status < 500,
@@ -43,6 +55,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data && 'data' in data) {
         setUser(data.data)
         return true
+      }
+      // The boot probe never runs on guest pages; an app page that finds the
+      // session idled out server-side says why on the login screen.
+      if (data?.message === IDLE_TIMEOUT_MESSAGE) {
+        leaveForLogin(IDLE_TIMEOUT_MESSAGE)
+        return false
       }
       setUser(null)
       return false
@@ -115,9 +133,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    registerUnauthorizedHandler(() => {
-      setUser(null)
-      setInitialized(true)
+    registerUnauthorizedHandler((message) => {
+      if (isGuestOnlyPath(window.location.pathname)) {
+        setUser(null)
+        setInitialized(true)
+        return
+      }
+      leaveForLogin(message)
     })
   }, [])
 

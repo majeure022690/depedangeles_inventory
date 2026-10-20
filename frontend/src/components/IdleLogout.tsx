@@ -6,29 +6,39 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } f
 import { api } from '@/lib/api'
 
 const LAST_ACTIVITY_KEY = 'dictis:last-activity'
+// Shared across tabs so only one tab sends each heartbeat.
+const LAST_PING_KEY = 'dictis:last-ping'
 const CHANNEL_NAME = 'dictis-session'
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'click', 'keydown', 'wheel', 'scroll', 'touchstart', 'touchmove', 'pointerdown', 'pointermove'] as const
 const WRITE_INTERVAL_MS = 1000
 const IDLE_LOGIN_URL = '/login?reason=idle'
 const LOGIN_URL = '/login'
 
-function readSharedActivity(): number {
+function readShared(key: string): number {
   try {
-    return Number(localStorage.getItem(LAST_ACTIVITY_KEY)) || 0
+    return Number(localStorage.getItem(key)) || 0
   } catch {
     return 0
   }
 }
 
-function writeSharedActivity(time: number) {
+function writeShared(key: string, time: number) {
   try {
-    localStorage.setItem(LAST_ACTIVITY_KEY, String(time))
+    localStorage.setItem(key, String(time))
   } catch {
     return
   }
 }
 
+const readSharedActivity = () => readShared(LAST_ACTIVITY_KEY)
+const writeSharedActivity = (time: number) => writeShared(LAST_ACTIVITY_KEY, time)
+
 function warningWindowMs(timeoutMs: number): number {
+  return Math.min(60_000, Math.floor(timeoutMs / 2))
+}
+
+/** The server idles a session out after timeoutMs without API requests, so local activity must reach it well before then. */
+function heartbeatIntervalMs(timeoutMs: number): number {
   return Math.min(60_000, Math.floor(timeoutMs / 2))
 }
 
@@ -40,13 +50,27 @@ export function IdleLogout() {
   const signingOut = useRef(false)
   const warningOpen = useRef(false)
   const channel = useRef<BroadcastChannel | null>(null)
+  const lastPing = useRef(0)
+
+  const markPinged = useCallback(() => {
+    const now = Date.now()
+    lastPing.current = now
+    writeShared(LAST_PING_KEY, now)
+  }, [])
+
+  // A 401 here (server already idled the session out) is handled by the api interceptor.
+  const ping = useCallback(() => {
+    markPinged()
+    api.get('/session-settings').catch(() => undefined)
+  }, [markPinged])
 
   useEffect(() => {
+    markPinged()
     api
       .get<{ data: { idle_timeout_seconds: number } }>('/session-settings')
       .then(({ data }) => setTimeoutMs(Math.max(10, data.data.idle_timeout_seconds) * 1000))
       .catch(() => setTimeoutMs(15 * 60 * 1000))
-  }, [])
+  }, [markPinged])
 
   const leave = useCallback((url: string = IDLE_LOGIN_URL) => {
     window.location.replace(url)
@@ -85,7 +109,8 @@ export function IdleLogout() {
     writeSharedActivity(now)
     warningOpen.current = false
     setSecondsLeft(null)
-  }, [])
+    ping()
+  }, [ping])
 
   const check = useCallback(() => {
     if (timeoutMs === null || signingOut.current) return
@@ -102,7 +127,14 @@ export function IdleLogout() {
     const warn = remaining <= warningWindowMs(timeoutMs)
     warningOpen.current = warn
     setSecondsLeft(warn ? Math.ceil(remaining / 1000) : null)
-  }, [signOut, timeoutMs])
+
+    // Heartbeat only when some tab saw activity since the last ping (by any tab), so idle tabs don't keep the session alive.
+    const pingedAt = Math.max(lastPing.current, readShared(LAST_PING_KEY))
+    lastPing.current = pingedAt
+    if (!warn && latest > pingedAt && Date.now() - pingedAt >= heartbeatIntervalMs(timeoutMs)) {
+      ping()
+    }
+  }, [ping, signOut, timeoutMs])
 
   useEffect(() => {
     if (timeoutMs === null) return

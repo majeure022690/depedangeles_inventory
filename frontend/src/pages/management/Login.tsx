@@ -19,14 +19,16 @@ export function Login() {
   const location = useLocation()
   const executeRecaptcha = useRecaptcha()
   useShowRecaptchaBadge()
-  const resetSuccess = Boolean((location.state as { resetSuccess?: boolean } | null)?.resetSuccess)
+  const navState = location.state as { resetSuccess?: boolean; signInError?: string } | null
+  const resetSuccess = Boolean(navState?.resetSuccess)
   const signedOutIdle = new URLSearchParams(location.search).get('reason') === 'idle'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  // Seeded by the 2FA pages when their pending sign-in token is rejected.
+  const [errorMessage, setErrorMessage] = useState<string | null>(navState?.signInError ?? null)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()

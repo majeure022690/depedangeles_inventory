@@ -11,10 +11,13 @@ export interface RoleSummary {
 /**
  * One row of `GET /api/users` (`UserResource` with roles and office loaded).
  * List rows carry no `permissions`; `is_self` marks the acting user's own row.
+ * `can_manage` is false on your own row and on anyone holding permissions you
+ * don't; edit, deactivate, delete and 2FA reset all 403 for those rows.
  */
 export interface ManagedUser extends Omit<AuthUser, 'permissions' | 'is_self'> {
   role_details: RoleSummary[]
   is_self: boolean
+  can_manage: boolean
 }
 
 /** `GET /api/users/options`: only roles the acting user may assign, and active offices. */

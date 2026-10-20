@@ -1,4 +1,4 @@
-import { Filter, Pencil, Plus, RotateCcw, ShieldCheck, ShieldOff, Trash2, UserRound } from 'lucide-react'
+import { Filter, Lock, Pencil, Plus, RotateCcw, ShieldCheck, ShieldOff, Trash2, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -127,8 +127,8 @@ export function UserList() {
   }
 
   function openEdit(user: ManagedUser) {
-    // The server rejects self-edits (422); your own account is managed from your profile.
-    if (user.is_self) return
+    // Self-edits (422) and accounts above your tier (403) are rejected server-side; your own account is managed from your profile.
+    if (user.is_self || !user.can_manage) return
     setEditing(user)
     setForm({
       name: user.name,
@@ -367,6 +367,15 @@ export function UserList() {
                   <UserRound className="h-4 w-4 text-primary-600" aria-hidden="true" />
                   My profile
                 </Link>
+              ) : !user.can_manage ? (
+                <span
+                  className="inline-flex h-8 items-center gap-1.5 px-3 text-xs text-gray-500"
+                  title="This account holds permissions you do not have, so you cannot manage it"
+                >
+                  <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                  Restricted
+                  <span className="sr-only">: this account holds permissions you do not have, so you cannot manage it</span>
+                </span>
               ) : (
                 <>
                   <Button variant="ghost" size="sm" onClick={() => openEdit(user)} aria-label={`Edit ${user.name}`} title="Edit">

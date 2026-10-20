@@ -47,6 +47,12 @@ export function TwoFactorVerify() {
       }
     } catch (error) {
       if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
+        const tokenError = error.response.data.errors?.two_fa_token?.[0]
+        if (tokenError) {
+          // The pending sign-in is dead (expired, or too many failed attempts): start over.
+          navigate('/login', { replace: true, state: { signInError: tokenError } })
+          return
+        }
         setErrorMessage(Object.values(error.response.data.errors).flat()[0] ?? 'Invalid code.')
       } else {
         setErrorMessage('Something went wrong. Please try again.')
