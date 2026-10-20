@@ -9,6 +9,7 @@ import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/Dat
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/Dialog'
 import { FilterChips, FilterSearch, FilterSelect, type FilterChip } from '@/components/ui/FilterControls'
 import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { SelectPicker } from '@/components/ui/SelectPicker'
 import { Switch } from '@/components/ui/Switch'
 import { useAuth } from '@/context/AuthContext'
@@ -18,7 +19,7 @@ import { extractError, extractFieldErrors, isValidationError } from '@/lib/error
 import { roleService } from '@/services/roleService'
 import { userService, type UpdateUserPayload } from '@/services/userService'
 import type { Role } from '@/types/role'
-import type { ManagedUser, RoleSummary, UserOptions } from '@/types/user'
+import type { ManagedUser, UserOptions } from '@/types/user'
 
 const column = gridColumnHelper<ManagedUser>()
 
@@ -40,11 +41,11 @@ interface FormState {
   current_password: string
   office_id: number | null
   is_active: boolean
-  role_ids: number[]
+  role_id: number | null
 }
 
 function emptyForm(): FormState {
-  return { name: '', email: '', password: '', password_confirmation: '', current_password: '', office_id: null, is_active: true, role_ids: [] }
+  return { name: '', email: '', password: '', password_confirmation: '', current_password: '', office_id: null, is_active: true, role_id: null }
 }
 
 const emptyFilters = { search: '', role: '', is_active: '', office_id: '' }
@@ -53,7 +54,7 @@ type FilterKey = keyof typeof emptyFilters
 
 export function UserList() {
   usePageTitle('Users')
-  const { fetchUser } = useAuth()
+  const { can, fetchUser } = useAuth()
 
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
@@ -96,16 +97,19 @@ export function UserList() {
   const [options, setOptions] = useState<UserOptions>({ roles: [], offices: [] })
   const [optionsError, setOptionsError] = useState<string | null>(null)
 
+  const canViewRoles = can('roles.view')
+
   useEffect(() => {
     userService
       .options()
       .then(setOptions)
       .catch((loadError: unknown) => setOptionsError(extractError(loadError, 'Unable to load roles and offices.')))
+    if (!canViewRoles) return
     roleService
       .list()
       .then(setAllRoles)
       .catch(() => setAllRoles([]))
-  }, [])
+  }, [canViewRoles])
 
   const officePickerOptions = useMemo(() => options.offices.map((o) => ({ label: o.label, value: String(o.value) })), [options.offices])
 
@@ -139,7 +143,7 @@ export function UserList() {
       current_password: '',
       office_id: user.office_id,
       is_active: user.is_active,
-      role_ids: [...user.role_ids],
+      role_id: user.role?.id ?? null,
     })
     setErrors({})
     setFormError(null)
@@ -154,26 +158,24 @@ export function UserList() {
     return [...officePickerOptions, { label: `${label} (inactive)`, value: String(office.id) }]
   }, [editing, officePickerOptions])
 
-  // Roles the user already holds but this admin may not assign stay listed (locked) so saving doesn't strip them.
   const editingSelf = editing?.is_self === true
   const needsCurrentPassword = editingSelf && form.email.trim() !== editing?.email
 
-  const roleChoices = useMemo<(RoleSummary & { locked: boolean })[]>(() => {
-    const assignable = options.roles.map((role) => ({ ...role, locked: false }))
-    const assignableIds = new Set(options.roles.map((role) => role.id))
-    const held = (editing?.role_details ?? []).filter((role) => !assignableIds.has(role.id)).map((role) => ({ ...role, locked: true }))
-    return [...assignable, ...held]
+  // The user's current role stays selectable even if it is not in the assignable list, so opening the form doesn't blank it.
+  const roleChoices = useMemo(() => {
+    const choices = options.roles.map((role) => ({ label: role.label, value: role.id }))
+    const current = editing?.role
+    if (current && !options.roles.some((role) => role.id === current.id)) choices.push({ label: current.label, value: current.id })
+    return choices
   }, [options.roles, editing])
-
-  function toggleRole(id: number, checked: boolean) {
-    setForm((prev) => ({
-      ...prev,
-      role_ids: checked ? (prev.role_ids.includes(id) ? prev.role_ids : [...prev.role_ids, id]) : prev.role_ids.filter((r) => r !== id),
-    }))
-  }
 
   async function handleSave(event: FormEvent) {
     event.preventDefault()
+    if (form.role_id === null) {
+      setErrors({ role_id: 'Choose a role.' })
+      setFormError('Please correct the highlighted fields.')
+      return
+    }
     setSaving(true)
     setErrors({})
     setFormError(null)
@@ -183,7 +185,7 @@ export function UserList() {
       email: form.email,
       office_id: form.office_id,
       is_active: form.is_active,
-      role_ids: form.role_ids,
+      role_id: form.role_id,
     }
 
     try {
@@ -266,7 +268,8 @@ export function UserList() {
   }
 
   const officeLabel = (id: string) => options.offices.find((o) => String(o.value) === id)?.label ?? 'Office'
-  const roleLabel = (name: string) => allRoles.find((r) => r.name === name)?.label ?? name
+  const filterRoles = allRoles.length > 0 ? allRoles : options.roles
+  const roleLabel = (name: string) => filterRoles.find((r) => r.name === name)?.label ?? name
 
   const activeChips: FilterChip<FilterKey>[] = [
     { key: 'search' as const, label: `Search: ${appliedFilters.search}`, removable: true },
@@ -307,12 +310,7 @@ export function UserList() {
       column.display({
         id: 'roles',
         header: 'Role',
-        cell: ({ row }) =>
-          row.original.role_details.length === 0 ? (
-            <span className="text-gray-500">No role</span>
-          ) : (
-            row.original.role_details.map((role) => role.label).join(', ')
-          ),
+        cell: ({ row }) => row.original.role?.label ?? <span className="text-gray-500">No role</span>,
       }),
       column.display({
         id: 'office',
@@ -359,7 +357,7 @@ export function UserList() {
         meta: { align: 'right' },
         cell: ({ row }) => {
           const user = row.original
-          if (!user.can_edit && !user.can_manage) return null
+          if (!user.can_edit && !user.can_delete && !user.can_reset_two_factor) return null
           return (
             <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
               {user.can_edit && (
@@ -367,7 +365,7 @@ export function UserList() {
                   <Pencil className="h-4 w-4 text-primary-600" aria-hidden="true" />
                 </Button>
               )}
-              {user.can_manage && user.two_factor_enabled && (
+              {user.can_reset_two_factor && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -378,7 +376,7 @@ export function UserList() {
                   <ShieldOff className="h-4 w-4 text-warning-600" aria-hidden="true" />
                 </Button>
               )}
-              {user.can_manage && (
+              {user.can_delete && (
                 <Button variant="ghost" size="sm" onClick={() => setDeleting(user)} aria-label={`Delete user ${user.name}`} title="Delete user">
                   <UserX className="h-4 w-4 text-error-600" aria-hidden="true" />
                 </Button>
@@ -400,11 +398,13 @@ export function UserList() {
           <h1 className="text-xl font-bold text-gray-900">Users</h1>
           <p className="text-sm text-gray-600">Portal accounts, the school or office each belongs to, and the roles that decide what they can do.</p>
         </div>
-        <div className="page-actions">
-          <Button leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate} size="sm">
-            New User
-          </Button>
-        </div>
+        {can('users.create') && (
+          <div className="page-actions">
+            <Button leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate} size="sm">
+              New User
+            </Button>
+          </div>
+        )}
       </div>
 
       {successMessage && (
@@ -425,7 +425,7 @@ export function UserList() {
           </div>
           <FilterSelect label="Role" value={roleFilter} onChange={setRoleFilter} className="lg:col-span-3">
             <option value="">All roles</option>
-            {allRoles.map((role) => (
+            {filterRoles.map((role) => (
               <option key={role.id} value={role.name}>
                 {role.label}
               </option>
@@ -473,7 +473,6 @@ export function UserList() {
         rows={users}
         rowKey={(row) => row.id}
         loading={loading}
-        error={error}
         meta={meta}
         page={page}
         onPageChange={setPage}
@@ -492,7 +491,7 @@ export function UserList() {
           <DialogTitle>{editing ? 'Edit User' : 'New User'}</DialogTitle>
           <DialogDescription>
             {editing
-              ? 'A user may hold several roles; what they can do is everything those roles grant together.'
+              ? 'Each user holds one role, which decides what they can see and do.'
               : 'Accounts are created by an administrator. The new user sets up two-factor authentication on first sign-in.'}
           </DialogDescription>
 
@@ -565,40 +564,17 @@ export function UserList() {
               error={errors.office_id}
             />
 
-            <fieldset aria-describedby={errors.role_ids ? 'user-roles-error' : undefined} aria-invalid={errors.role_ids ? true : undefined}>
-              <legend className="mb-2 block text-sm font-medium text-gray-700">Roles</legend>
-              {roleChoices.length === 0 ? (
-                <p className="text-sm text-gray-500">There are no roles you can assign.</p>
-              ) : (
-                <div className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
-                  {roleChoices.map((role) => (
-                    <label
-                      key={role.id}
-                      htmlFor={`user-role-${role.id}`}
-                      className="flex items-center gap-2 text-sm text-gray-700 select-none"
-                      title={role.locked ? 'You cannot assign or remove this role: it grants permissions you do not have.' : undefined}
-                    >
-                      <input
-                        id={`user-role-${role.id}`}
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-2 focus:ring-primary-500/30"
-                        checked={form.role_ids.includes(role.id)}
-                        disabled={role.locked}
-                        onChange={(e) => toggleRole(role.id, e.target.checked)}
-                      />
-                      {role.label}
-                      {role.locked && <span className="text-xs text-gray-500">(locked)</span>}
-                    </label>
-                  ))}
-                </div>
-              )}
-              <p className="mt-2 text-xs text-gray-500">No role means the account can sign in but reach nothing.</p>
-              {errors.role_ids && (
-                <p id="user-roles-error" className="mt-1 text-xs text-error-600">
-                  {errors.role_ids}
-                </p>
-              )}
-            </fieldset>
+            <Select
+              id="user-role"
+              label="Role"
+              required
+              placeholder="Select role"
+              options={roleChoices}
+              value={form.role_id ?? ''}
+              error={errors.role_id}
+              hint={roleChoices.length === 0 ? 'There are no roles you can assign.' : undefined}
+              onChange={(e) => setForm((f) => ({ ...f, role_id: e.target.value ? Number(e.target.value) : null }))}
+            />
 
             <Switch
               id="user-is-active"

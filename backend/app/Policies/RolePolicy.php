@@ -26,18 +26,19 @@ class RolePolicy
      * denial — not just delete — is logged for the privilege-escalation
      * forensic trail, matching EquipmentPolicy::delete's shape.
      *
-     * Reading roles is also open to users.manage holders, who assign them
-     * (read-only widening for the SPA's user editor, approved by auth).
+     * Reading roles is also open to users.create and users.edit holders,
+     * who need the role list for the user form (read-only widening for
+     * the SPA's user editor).
      */
     public function viewAny(User $user): bool
     {
-        $allowed = $user->hasAnyPermission([Permission::RolesManage, Permission::UsersManage]);
+        $allowed = $user->hasAnyPermission([Permission::RolesView, Permission::UsersCreate, Permission::UsersEdit]);
 
         if (! $allowed) {
             activity()
                 ->causedBy($user)
                 ->event('authorization.denied')
-                ->withProperties(['permission' => Permission::RolesManage->value])
+                ->withProperties(['permission' => Permission::RolesView->value])
                 ->log('authorization.denied');
         }
 
@@ -46,14 +47,14 @@ class RolePolicy
 
     public function view(User $user, Role $role): bool
     {
-        $allowed = $user->hasAnyPermission([Permission::RolesManage, Permission::UsersManage]);
+        $allowed = $user->hasAnyPermission([Permission::RolesView, Permission::UsersCreate, Permission::UsersEdit]);
 
         if (! $allowed) {
             activity()
                 ->causedBy($user)
                 ->performedOn($role)
                 ->event('authorization.denied')
-                ->withProperties(['permission' => Permission::RolesManage->value])
+                ->withProperties(['permission' => Permission::RolesView->value])
                 ->log('authorization.denied');
         }
 
@@ -62,13 +63,13 @@ class RolePolicy
 
     public function create(User $user): bool
     {
-        $allowed = $user->hasPermissionTo(Permission::RolesManage);
+        $allowed = $user->hasPermissionTo(Permission::RolesCreate);
 
         if (! $allowed) {
             activity()
                 ->causedBy($user)
                 ->event('authorization.denied')
-                ->withProperties(['permission' => Permission::RolesManage->value])
+                ->withProperties(['permission' => Permission::RolesCreate->value])
                 ->log('authorization.denied');
         }
 
@@ -77,14 +78,14 @@ class RolePolicy
 
     public function update(User $user, Role $role): bool
     {
-        $allowed = $user->hasPermissionTo(Permission::RolesManage);
+        $allowed = $user->hasPermissionTo(Permission::RolesEdit);
 
         if (! $allowed) {
             activity()
                 ->causedBy($user)
                 ->performedOn($role)
                 ->event('authorization.denied')
-                ->withProperties(['permission' => Permission::RolesManage->value])
+                ->withProperties(['permission' => Permission::RolesEdit->value])
                 ->log('authorization.denied');
         }
 
@@ -93,14 +94,14 @@ class RolePolicy
 
     public function delete(User $user, Role $role): bool
     {
-        $allowed = $user->hasPermissionTo(Permission::RolesManage);
+        $allowed = $user->hasPermissionTo(Permission::RolesDelete);
 
         if (! $allowed) {
             activity()
                 ->causedBy($user)
                 ->performedOn($role)
                 ->event('authorization.denied')
-                ->withProperties(['permission' => Permission::RolesManage->value])
+                ->withProperties(['permission' => Permission::RolesDelete->value])
                 ->log('authorization.denied');
         }
 

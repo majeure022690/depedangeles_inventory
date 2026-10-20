@@ -13,36 +13,34 @@ use Spatie\Permission\Models\Permission;
 
 /**
  * The only sanctioned entry point for creating, editing, or deleting
- * roles (the roles.manage admin screen — RoleController). RolePolicy only
- * answers "does this actor hold roles.manage"; every business-rule
- * invariant around a specific mutation — the protected 'pending' role,
- * "a role still assigned to users can't be deleted", and the
- * self-escalation/last-holder lockout guards on editing a role's
- * permission set — is enforced here, the same split UserRoleService
- * already established for user role assignment.
+ * roles (RoleController). RolePolicy only answers "does this actor hold
+ * the specific roles.* permission"; every business-rule invariant around a
+ * specific mutation — the protected Super Administrator role, "a role
+ * still assigned to users can't be deleted", and the self-escalation/
+ * last-holder lockout guards on editing a role's permission set — is
+ * enforced here, the same split UserRoleService already established for
+ * user role assignment.
  *
- * Two of the permissions this app defines are "sensitive" in a way no
- * other permission is: RolesManage and UsersManage are the only two
- * permissions that gate the ability to change *anyone's* access,
- * including one's own. Editing a role's permission set to strip either of
- * these off is therefore held to a stricter standard than any other
- * permission edit — see guardAgainstLockout() below.
+ * Roles.edit and users.edit are the only two permissions that gate the
+ * ability to change *anyone's* access, including one's own. Editing a
+ * role's permission set to strip either of these off is therefore held to
+ * a stricter standard than any other permission edit — see
+ * guardAgainstLockout() below.
  */
 final class RoleService
 {
     /**
      * Permissions whose removal from a role triggers the lockout guards
      * below. Deliberately just these two — see this class's doc-comment
-     * and Permission::RolesManage's doc-comment for why they're a
-     * different category of risk than e.g. removing equipment.delete
-     * from a role (which can never lock anyone out of the admin
-     * screens that would let them undo the mistake).
+     * for why they're a different category of risk than e.g. removing
+     * equipment.delete from a role (which can never lock anyone out of the
+     * admin screens that would let them undo the mistake).
      *
      * @var array<int, PermissionEnum>
      */
     private const SENSITIVE_PERMISSIONS = [
-        PermissionEnum::RolesManage,
-        PermissionEnum::UsersManage,
+        PermissionEnum::RolesEdit,
+        PermissionEnum::UsersEdit,
     ];
 
     /**
@@ -77,11 +75,11 @@ final class RoleService
     public function update(User $actor, Role $role, array $attributes, array $permissionValues): void
     {
         // Belt-and-suspenders: UpdateRoleRequest already blocks renaming/
-        // depriving 'pending' of its zero-permission set at the HTTP
-        // layer (where it surfaces as a field error), but
-        // this Service is the one place the invariant must hold for every
-        // caller, HTTP or otherwise — see Role::PENDING's doc-comment for
-        // why this specific role can never be allowed to grant anything.
+        // changing the Super Administrator role's permissions at the HTTP
+        // layer (where it surfaces as a field error), but this Service is
+        // the one place the invariant must hold for every caller, HTTP or
+        // otherwise — see Role::SUPER_ADMINISTRATOR's doc-comment for why
+        // this specific role must always grant all permissions.
         if ($role->isProtected()) {
             if ($attributes['name'] !== $role->name) {
                 throw ValidationException::withMessages([
@@ -89,11 +87,15 @@ final class RoleService
                 ]);
             }
 
-            if ($permissionValues !== []) {
+            $allPermissions = array_map(fn (PermissionEnum $p) => $p->value, PermissionEnum::cases());
+            sort($allPermissions);
+            $sortedPayload = $permissionValues;
+            sort($sortedPayload);
+
+            if ($sortedPayload !== $allPermissions) {
                 throw ValidationException::withMessages([
                     'permissions' => __(
-                        'The :label role must always have zero permissions — it is the deny-by-default '.
-                        'role for accounts that have not been given access yet.',
+                        'The :label role must always have every permission. It cannot be reduced.',
                         ['label' => $role->label],
                     ),
                 ]);
@@ -139,7 +141,7 @@ final class RoleService
         if ($role->isProtected()) {
             throw ValidationException::withMessages([
                 'role' => __(
-                    'The :label role cannot be deleted — it is the deny-by-default role for accounts that have not been given access yet.',
+                    'The :label role cannot be deleted — it must always exist.',
                     ['label' => $role->label],
                 ),
             ]);

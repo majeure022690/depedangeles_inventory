@@ -15,7 +15,6 @@ export interface AuthUser {
   is_active: boolean
   two_factor_enabled: boolean
   roles: string[]
-  role_ids: number[]
   permissions: string[]
   is_self?: boolean
   created_at: string

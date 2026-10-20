@@ -74,23 +74,18 @@ enum Permission: string
     // Backend's reference-data admin screen authorizes against.
     case ReferenceDataManage = 'reference-data.manage';
 
-    // Assigning an EXISTING role to a user (the users.manage admin
-    // screen — UserController/UserRoleService).
-    case UsersManage = 'users.manage';
+    // User management (the users.manage admin screen).
+    case UsersView = 'users.view';
+    case UsersCreate = 'users.create';
+    case UsersEdit = 'users.edit';
+    case UsersDelete = 'users.delete';
+    case UsersResetTwoFactor = 'users.reset_two_factor';
 
-    // Creating/editing/deleting ROLES themselves — i.e. deciding which
-    // permissions a role bundle grants (RoleController/RoleService).
-    // Deliberately a SEPARATE permission from UsersManage, not folded
-    // into it: assigning a user an existing, already-vetted role is a
-    // materially less sensitive act than being able to grant that role
-    // (or any role) NEW permissions, which is effectively a privilege-
-    // escalation capability — a UsersManage holder should not
-    // automatically be able to redefine what every role means. Only
-    // 'admin' is seeded with this permission (see
-    // RolePermissionSeeder); it rides along automatically via
-    // PermissionEnum::cases() the same way every other permission does
-    // for that role.
-    case RolesManage = 'roles.manage';
+    // Role management (creating/editing/deleting role definitions).
+    case RolesView = 'roles.view';
+    case RolesCreate = 'roles.create';
+    case RolesEdit = 'roles.edit';
+    case RolesDelete = 'roles.delete';
 
     // Stakeholder Profile (one row PER OFFICE — see
     // App\Models\StakeholderProfile — not a global singleton). No
@@ -196,7 +191,9 @@ enum Permission: string
             self::StakeholderProfileView, self::StakeholderProfileEdit, self::StakeholderProfileViewAll => 'Stakeholder Profile',
             self::InternetConnectivityView, self::InternetConnectivityEdit,
             self::InternetConnectivityViewAll => 'Internet Connectivity',
-            self::ReferenceDataManage, self::UsersManage, self::RolesManage, self::AuditLogView,
+            self::ReferenceDataManage, self::UsersView, self::UsersCreate, self::UsersEdit, 
+            self::UsersDelete, self::UsersResetTwoFactor, self::RolesView, self::RolesCreate, 
+            self::RolesEdit, self::RolesDelete, self::AuditLogView,
             self::SecuritySettingsManage, self::EmailLogManage => 'Administration',
         };
     }

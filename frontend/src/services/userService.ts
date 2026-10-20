@@ -7,7 +7,7 @@ export interface UpdateUserPayload {
   email: string
   office_id: number | null
   is_active: boolean
-  role_ids: number[]
+  role_id: number
 }
 
 export interface StoreUserPayload extends UpdateUserPayload {

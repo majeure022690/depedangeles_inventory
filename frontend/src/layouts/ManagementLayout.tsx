@@ -111,8 +111,8 @@ const navGroups: NavGroup[] = [
   {
     title: 'Administration',
     items: [
-      { title: 'Users', to: '/users', icon: UserCog, color: 'text-violet-500', permission: 'users.manage' },
-      { title: 'Roles', to: '/roles', icon: ShieldCheck, color: 'text-emerald-500', permission: 'roles.manage' },
+      { title: 'Users', to: '/users', icon: UserCog, color: 'text-violet-500', permission: 'users.view' },
+      { title: 'Roles', to: '/roles', icon: ShieldCheck, color: 'text-emerald-500', permission: 'roles.view' },
       { title: 'Audit Log', to: '/audit-log', icon: History, color: 'text-indigo-500', permission: 'audit_log.view' },
       { title: 'Settings', to: '/settings', icon: Settings, color: 'text-fuchsia-500', permission: SETTINGS_PERMISSIONS },
     ],

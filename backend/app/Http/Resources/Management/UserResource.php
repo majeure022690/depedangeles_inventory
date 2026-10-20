@@ -33,6 +33,14 @@ class UserResource extends JsonResource
             'two_factor_enabled' => $this->hasTwoFactorEnabled(),
             'roles' => $this->whenLoaded('roles', fn () => $this->roles->pluck('name')),
             'role_ids' => $this->whenLoaded('roles', fn () => $this->roles->pluck('id')),
+            'role' => $this->whenLoaded('roles', fn () => {
+                $firstRole = $this->roles->first();
+                return $firstRole ? [
+                    'id' => $firstRole->id,
+                    'name' => $firstRole->name,
+                    'label' => $firstRole->label,
+                ] : null;
+            }),
             // For the users admin list, which shows labels, not machine names.
             'role_details' => $this->whenLoaded('roles', fn () => $this->roles->map(fn (Model $role) => [
                 'id' => $role->getKey(),
@@ -53,9 +61,13 @@ class UserResource extends JsonResource
                 array_key_exists('can_edit', $this->resource->getAttributes()),
                 fn () => (bool) $this->resource->getAttribute('can_edit'),
             ),
-            'can_manage' => $this->when(
-                array_key_exists('can_manage', $this->resource->getAttributes()),
-                fn () => (bool) $this->resource->getAttribute('can_manage'),
+            'can_delete' => $this->when(
+                array_key_exists('can_delete', $this->resource->getAttributes()),
+                fn () => (bool) $this->resource->getAttribute('can_delete'),
+            ),
+            'can_reset_two_factor' => $this->when(
+                array_key_exists('can_reset_two_factor', $this->resource->getAttributes()),
+                fn () => (bool) $this->resource->getAttribute('can_reset_two_factor'),
             ),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

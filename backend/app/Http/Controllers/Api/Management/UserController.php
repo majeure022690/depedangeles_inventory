@@ -101,7 +101,7 @@ class UserController extends Controller
                 'office_id' => $request->validated('office_id'),
                 'is_active' => $request->validated('is_active', true),
             ],
-            $request->validated('role_ids', []),
+            [$request->validated('role_id')],
         );
 
         $user->load(['roles:id,name,label', 'office:id,office_name,school_id']);
@@ -126,7 +126,7 @@ class UserController extends Controller
                 'office_id' => $request->validated('office_id'),
                 'is_active' => $request->validated('is_active', $user->is_active),
             ],
-            $request->validated('role_ids', []),
+            [$request->validated('role_id')],
         );
 
         $user = $user->fresh(['roles:id,name,label', 'office:id,office_name,school_id']) ?? $user;
@@ -166,8 +166,8 @@ class UserController extends Controller
     }
 
     /**
-     * Mirrors UserPolicy: `can_edit` is update, `can_manage` is
-     * delete/resetTwoFactor (deactivate included), so the SPA can hide
+     * Mirrors UserPolicy: `can_edit` is update, `can_delete` is delete,
+     * `can_reset_two_factor` is resetTwoFactor, so the SPA can hide
      * actions the Policy would refuse.
      *
      * @param  Collection<int, User>  $users
@@ -175,13 +175,16 @@ class UserController extends Controller
     private function flagManageable(User $actor, Collection $users, UserRoleService $userRoleService): void
     {
         $exceeding = $userRoleService->idsExceedingActor($actor, $users->pluck('id')->all());
-        $managesUsers = $actor->hasPermissionTo(Permission::UsersManage);
+        $canEdit = $actor->hasPermissionTo(Permission::UsersEdit);
+        $canDelete = $actor->hasPermissionTo(Permission::UsersDelete);
+        $canResetTwoFactor = $actor->hasPermissionTo(Permission::UsersResetTwoFactor);
 
-        $users->each(function (User $user) use ($actor, $exceeding, $managesUsers): void {
-            $canEdit = $managesUsers && ! in_array($user->id, $exceeding, true);
+        $users->each(function (User $user) use ($actor, $exceeding, $canEdit, $canDelete, $canResetTwoFactor): void {
+            $withinTier = ! in_array($user->id, $exceeding, true);
 
-            $user->setAttribute('can_edit', $canEdit);
-            $user->setAttribute('can_manage', $canEdit && ! $actor->is($user));
+            $user->setAttribute('can_edit', $canEdit && $withinTier);
+            $user->setAttribute('can_delete', $canDelete && $withinTier && ! $actor->is($user));
+            $user->setAttribute('can_reset_two_factor', $canResetTwoFactor && $withinTier && ! $actor->is($user) && $user->hasTwoFactorEnabled());
         });
     }
 }

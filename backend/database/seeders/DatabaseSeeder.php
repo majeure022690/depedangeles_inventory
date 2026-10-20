@@ -45,7 +45,7 @@ class DatabaseSeeder extends Seeder
             $testUser->forceFill(['password' => Hash::make('D3pEd-Angeles!2026')])->save();
         }
 
-        $testUser->assignRole('admin');
+        $testUser->syncRoles(['super_administrator']);
 
         // The 13 Tier 1/Tier 2 reference tables from the lookup-
         // normalization ADR. Supersedes the old LookupSeeder/`lookups`

@@ -18,9 +18,15 @@ class TrustedDeviceService
         $days = SecuritySettings::get('trusted_device_days');
 
         // Holders of the permissions that change anyone's access always
-        // need the code (rwatch keys this off role names; inventory never
-        // checks a role name).
-        if ($days <= 0 || $user->hasAnyPermission([Permission::RolesManage->value, Permission::UsersManage->value])) {
+        // need the code.
+        if ($days <= 0 || $user->hasAnyPermission([
+            Permission::RolesCreate->value,
+            Permission::RolesEdit->value,
+            Permission::RolesDelete->value,
+            Permission::UsersEdit->value,
+            Permission::UsersDelete->value,
+            Permission::UsersResetTwoFactor->value,
+        ])) {
             return 0;
         }
 

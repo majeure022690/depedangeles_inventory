@@ -153,11 +153,11 @@ export function App() {
                 <Route path="reference-data/:table" element={<ReferenceDataTable />} />
               </Route>
 
-              <Route element={<RequirePermission permission="users.manage" />}>
+              <Route element={<RequirePermission permission="users.view" />}>
                 <Route path="users" element={<UserList />} />
               </Route>
 
-              <Route element={<RequirePermission permission="roles.manage" />}>
+              <Route element={<RequirePermission permission="roles.view" />}>
                 <Route path="roles" element={<RoleList />} />
               </Route>
 

@@ -17,27 +17,27 @@ class UserPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasPermissionTo(Permission::UsersManage);
+        return $user->hasPermissionTo(Permission::UsersView);
     }
 
     public function create(User $user): bool
     {
-        return $user->hasPermissionTo(Permission::UsersManage);
+        return $user->hasPermissionTo(Permission::UsersCreate);
     }
 
     public function update(User $user, User $target): bool
     {
-        return $user->hasPermissionTo(Permission::UsersManage) && $this->withinTier($user, $target);
+        return $user->hasPermissionTo(Permission::UsersEdit) && $this->withinTier($user, $target);
     }
 
     public function delete(User $user, User $target): bool
     {
-        return $user->hasPermissionTo(Permission::UsersManage) && ! $user->is($target) && $this->withinTier($user, $target);
+        return $user->hasPermissionTo(Permission::UsersDelete) && ! $user->is($target) && $this->withinTier($user, $target);
     }
 
     public function resetTwoFactor(User $user, User $target): bool
     {
-        return $user->hasPermissionTo(Permission::UsersManage) && ! $user->is($target) && $this->withinTier($user, $target);
+        return $user->hasPermissionTo(Permission::UsersResetTwoFactor) && ! $user->is($target) && $this->withinTier($user, $target);
     }
 
     private function withinTier(User $user, User $target): bool

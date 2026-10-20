@@ -7,7 +7,7 @@ use App\Models\Role;
 use App\Models\User;
 
 /**
- * Expects RolePermissionSeeder to have run (pending/viewer/encoder/admin).
+ * Expects RolePermissionSeeder to have run (super_administrator/system_administrator/encoder/viewer).
  */
 trait CreatesUsersWithRoles
 {

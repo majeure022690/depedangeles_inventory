@@ -18,7 +18,7 @@ class StoreUserRequest extends FormRequest
 
     /**
      * Accounts are admin-created (there is no self-registration).
-     * `role_ids` may be empty: an account with no roles reaches nothing.
+     * `role_id` is required: every user must have exactly one role.
      * Which roles the actor may hand out (permission-tier separation) is
      * enforced by UserRoleService::createUser(), not duplicated here.
      *
@@ -32,8 +32,7 @@ class StoreUserRequest extends FormRequest
             'password' => ['required', 'string', 'confirmed', Password::defaults()],
             'office_id' => ['nullable', 'integer', Rule::exists('offices', 'id')],
             'is_active' => ['sometimes', 'boolean'],
-            'role_ids' => ['present', 'array'],
-            'role_ids.*' => ['integer', 'distinct', Rule::exists('roles', 'id')],
+            'role_id' => ['required', 'integer', Rule::exists('roles', 'id')],
         ];
     }
 
@@ -45,8 +44,7 @@ class StoreUserRequest extends FormRequest
         return [
             'office_id' => 'office',
             'is_active' => 'active status',
-            'role_ids' => 'roles',
-            'role_ids.*' => 'role',
+            'role_id' => 'role',
         ];
     }
 }

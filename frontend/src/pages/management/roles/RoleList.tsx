@@ -1,4 +1,4 @@
-import { Lock, Pencil, Plus, ShieldCheck, Trash2, Users as UsersIcon } from 'lucide-react'
+import { Eye, Lock, Pencil, Plus, ShieldCheck, Trash2, Users as UsersIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 
 import { PermissionPicker } from '@/components/management/PermissionPicker'
@@ -64,7 +64,11 @@ export function RoleList() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
 
+  const canCreate = can('roles.create')
+  const canEdit = can('roles.edit')
+  const canDelete = can('roles.delete')
   const isProtected = editing?.is_protected ?? false
+  const readOnly = editing !== null && !canEdit
 
   // Grant ceiling (server re-checks with a 422 on `permissions`): you may only newly grant permissions you hold; ones the role already has may stay.
   const canGrant = useMemo(() => {
@@ -103,6 +107,7 @@ export function RoleList() {
 
   async function handleSave(event: FormEvent) {
     event.preventDefault()
+    if (readOnly) return
     setSaving(true)
     setErrors({})
     setFormError(null)
@@ -111,8 +116,7 @@ export function RoleList() {
       name: form.name.trim(),
       label: form.label.trim(),
       description: form.description?.trim() ? form.description.trim() : null,
-      // A protected role must always have zero permissions; never send any for it.
-      permissions: isProtected ? [] : form.permissions,
+      permissions: form.permissions,
     }
 
     try {
@@ -230,10 +234,16 @@ export function RoleList() {
         meta: { align: 'right' },
         cell: ({ row }) => (
           <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="sm" onClick={() => openEdit(row.original)} aria-label={`Edit ${row.original.label} role`} title="Edit role">
-              <Pencil className="h-4 w-4 text-primary-600" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => openEdit(row.original)}
+              aria-label={`${canEdit ? 'Edit' : 'View'} ${row.original.label} role`}
+              title={canEdit ? 'Edit role' : 'View role'}
+            >
+              {canEdit ? <Pencil className="h-4 w-4 text-primary-600" aria-hidden="true" /> : <Eye className="h-4 w-4 text-primary-600" aria-hidden="true" />}
             </Button>
-            {!row.original.is_protected && (
+            {canDelete && !row.original.is_protected && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -250,7 +260,7 @@ export function RoleList() {
     ],
     // openEdit only reads state setters and services.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [permissions.length],
+    [permissions.length, canEdit, canDelete],
   )
 
   return (
@@ -258,13 +268,15 @@ export function RoleList() {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Roles</h1>
-          <p className="text-sm text-gray-600">Each role is a set of permissions. A user can hold several roles; they can do everything those roles grant together.</p>
+          <p className="text-sm text-gray-600">Each role is a set of permissions. Every user holds one role, which decides what they can see and do.</p>
         </div>
-        <div className="page-actions">
-          <Button leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate} size="sm">
-            New Role
-          </Button>
-        </div>
+        {canCreate && (
+          <div className="page-actions">
+            <Button leftIcon={<Plus className="h-4 w-4" />} onClick={openCreate} size="sm">
+              New Role
+            </Button>
+          </div>
+        )}
       </div>
 
       {successMessage && (
@@ -303,8 +315,12 @@ export function RoleList() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent size="xl">
-          <DialogTitle>{editing ? 'Edit Role' : 'New Role'}</DialogTitle>
-          <DialogDescription>Pick what people with this role can see and do. Which school or office they belong to is set on each user account.</DialogDescription>
+          <DialogTitle>{readOnly ? 'View Role' : editing ? 'Edit Role' : 'New Role'}</DialogTitle>
+          <DialogDescription>
+            {readOnly
+              ? 'What people with this role can see and do. You can view roles but not change them.'
+              : 'Pick what people with this role can see and do. Which school or office they belong to is set on each user account.'}
+          </DialogDescription>
 
           <form onSubmit={handleSave} className="space-y-3" noValidate>
             {formError && <Alert type="error">{formError}</Alert>}
@@ -315,6 +331,7 @@ export function RoleList() {
                 required
                 value={form.label}
                 error={errors.label}
+                disabled={readOnly}
                 onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
               />
               <Input
@@ -323,7 +340,7 @@ export function RoleList() {
                 autoComplete="off"
                 value={form.name}
                 error={errors.name}
-                disabled={isProtected}
+                disabled={readOnly || isProtected}
                 hint={isProtected ? "This role's name is fixed and cannot be changed." : 'Lowercase letters, numbers, dashes and underscores only.'}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               />
@@ -333,6 +350,7 @@ export function RoleList() {
               rows={2}
               value={form.description ?? ''}
               error={errors.description}
+              disabled={readOnly}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             />
 
@@ -346,19 +364,25 @@ export function RoleList() {
                 value={form.permissions}
                 onChange={(next) => setForm((f) => ({ ...f, permissions: next }))}
                 canGrant={canGrant}
-                locked={isProtected}
-                lockedMessage="Protected deny-by-default role: it must always have zero permissions. Only its label and description can be changed."
+                locked={readOnly || isProtected}
+                lockedMessage={
+                  isProtected
+                    ? 'Protected role: it always has every permission and its name cannot be changed.'
+                    : 'You can view this role but not change its permissions.'
+                }
               />
             )}
             {errors.permissions && <Alert type="error">{errors.permissions}</Alert>}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
+                {readOnly ? 'Close' : 'Cancel'}
               </Button>
-              <Button type="submit" isLoading={saving} disabled={detailLoading}>
-                {editing ? 'Save Changes' : 'Create Role'}
-              </Button>
+              {!readOnly && (
+                <Button type="submit" isLoading={saving} disabled={detailLoading}>
+                  {editing ? 'Save Changes' : 'Create Role'}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </DialogContent>

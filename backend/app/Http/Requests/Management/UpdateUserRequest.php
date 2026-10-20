@@ -19,10 +19,8 @@ class UpdateUserRequest extends FormRequest
     }
 
     /**
-     * `role_ids` replaces the user's whole role set (a user can hold
-     * several roles); `present` rather than `required` so an empty array,
-     * stripping every role, is a deliberate valid choice. No password
-     * field: a user who lost theirs uses the forgot-password flow.
+     * `role_id` replaces the user's role (a user holds exactly one role).
+     * No password field: a user who lost theirs uses the forgot-password flow.
      *
      * @return array<string, mixed>
      */
@@ -38,8 +36,7 @@ class UpdateUserRequest extends FormRequest
             ],
             'office_id' => ['nullable', 'integer', Rule::exists('offices', 'id')],
             'is_active' => ['sometimes', 'boolean'],
-            'role_ids' => ['present', 'array'],
-            'role_ids.*' => ['integer', 'distinct', Rule::exists('roles', 'id')],
+            'role_id' => ['required', 'integer', Rule::exists('roles', 'id')],
         ];
 
         if ($this->isSelfEdit()) {

@@ -93,28 +93,28 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
         Route::delete('/reference-data/{table}/{id}', [ReferenceDataController::class, 'destroy'])->where('table', '[a-z-]+')->whereNumber('id');
     });
 
-    // Administration: account management (users.manage; UserPolicy and UserRoleService re-check).
-    Route::middleware($can(P::UsersManage))->group(function () {
-        Route::get('/users/options', [UserController::class, 'options']);
-        Route::get('/users', [UserController::class, 'index']);
-        Route::post('/users', [UserController::class, 'store']);
-        Route::put('/users/{user}', [UserController::class, 'update'])->middleware('throttle:user-update')->whereNumber('user');
-        Route::delete('/users/{user}', [UserController::class, 'destroy'])->whereNumber('user');
-        Route::post('/users/{user}/2fa/reset', [UserController::class, 'resetTwoFactor'])->whereNumber('user');
+    // Administration: account management (users.* permissions; UserPolicy and UserRoleService re-check).
+    Route::middleware($can(P::UsersView, P::UsersCreate, P::UsersEdit, P::UsersDelete, P::UsersResetTwoFactor))->group(function () use ($can) {
+        Route::get('/users/options', [UserController::class, 'options'])->middleware($can(P::UsersView, P::UsersCreate, P::UsersEdit));
+        Route::get('/users', [UserController::class, 'index'])->middleware($can(P::UsersView));
+        Route::post('/users', [UserController::class, 'store'])->middleware($can(P::UsersCreate));
+        Route::put('/users/{user}', [UserController::class, 'update'])->middleware('throttle:user-update', $can(P::UsersEdit))->whereNumber('user');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->middleware($can(P::UsersDelete))->whereNumber('user');
+        Route::post('/users/{user}/2fa/reset', [UserController::class, 'resetTwoFactor'])->middleware($can(P::UsersResetTwoFactor))->whereNumber('user');
     });
 
-    // Administration: reading roles and the permission catalog (roles.manage or users.manage).
-    Route::middleware($can(P::RolesManage, P::UsersManage))->group(function () {
+    // Administration: reading roles and the permission catalog (roles.view or users.create/users.edit).
+    Route::middleware($can(P::RolesView, P::UsersCreate, P::UsersEdit))->group(function () {
         Route::get('/permissions', [PermissionController::class, 'index']);
         Route::get('/roles', [RoleController::class, 'index']);
         Route::get('/roles/{role}', [RoleController::class, 'show'])->whereNumber('role');
     });
 
-    // Administration: defining roles (roles.manage; RoleService enforces the lockout guards).
-    Route::middleware($can(P::RolesManage))->group(function () {
-        Route::post('/roles', [RoleController::class, 'store']);
-        Route::put('/roles/{role}', [RoleController::class, 'update'])->whereNumber('role');
-        Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->whereNumber('role');
+    // Administration: defining roles (roles.create/edit/delete; RoleService enforces the lockout guards).
+    Route::middleware($can(P::RolesCreate, P::RolesEdit, P::RolesDelete))->group(function () use ($can) {
+        Route::post('/roles', [RoleController::class, 'store'])->middleware($can(P::RolesCreate));
+        Route::put('/roles/{role}', [RoleController::class, 'update'])->middleware($can(P::RolesEdit))->whereNumber('role');
+        Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->middleware($can(P::RolesDelete))->whereNumber('role');
     });
 
     // Administration: read-only audit trail.

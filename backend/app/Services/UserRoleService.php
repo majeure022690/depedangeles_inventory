@@ -197,7 +197,7 @@ final class UserRoleService
      * for role changes: an actor can never delete their own account
      * (self-escalation-adjacent — the Index.vue UI never offers the
      * action against the acting user's own row either), and the last
-     * remaining holder of `users.manage` can never be deleted, under the
+     * remaining holder of `users.edit` can never be deleted, under the
      * same lockForUpdate() chokepoint lock syncRoles() uses to close the
      * TOCTOU race between two concurrent removals.
      *
@@ -219,19 +219,19 @@ final class UserRoleService
         $this->guardTargetWithinTier($actor, $target);
 
         DB::transaction(function () use ($actor, $target): void {
-            Permission::where('name', PermissionEnum::UsersManage->value)->lockForUpdate()->first();
+            Permission::where('name', PermissionEnum::UsersEdit->value)->lockForUpdate()->first();
 
-            if ($target->hasPermissionTo(PermissionEnum::UsersManage)) {
-                $remainingUsersManageHolders = User::query()
+            if ($target->hasPermissionTo(PermissionEnum::UsersEdit)) {
+                $remainingUsersEditHolders = User::query()
                     ->whereKeyNot($target->id)
-                    ->whereHas('roles.permissions', fn ($query) => $query->where('name', PermissionEnum::UsersManage->value))
+                    ->whereHas('roles.permissions', fn ($query) => $query->where('name', PermissionEnum::UsersEdit->value))
                     ->count();
 
-                if ($remainingUsersManageHolders === 0) {
+                if ($remainingUsersEditHolders === 0) {
                     throw ValidationException::withMessages([
                         'user' => __(
-                            'Cannot delete :name: they are the only remaining user who can manage users. '.
-                            'Assign another user a role that can manage users first.',
+                            'Cannot delete :name: they are the only remaining user who can edit users. '.
+                            'Assign another user a role that can edit users first.',
                             ['name' => $target->name],
                         ),
                     ]);
@@ -281,30 +281,30 @@ final class UserRoleService
             // whichever commits second always recounts against the
             // first's already-committed state instead of a stale
             // pre-write snapshot.
-            Permission::where('name', PermissionEnum::UsersManage->value)->lockForUpdate()->first();
+            Permission::where('name', PermissionEnum::UsersEdit->value)->lockForUpdate()->first();
 
             if ($actor->is($target)) {
                 $this->guardAgainstSelfLockout($target, $roleIds);
             }
 
-            $targetCurrentlyGrantsUsersManage = $target->hasPermissionTo(PermissionEnum::UsersManage);
+            $targetCurrentlyGrantsUsersEdit = $target->hasPermissionTo(PermissionEnum::UsersEdit);
 
-            $newRolesGrantUsersManage = Role::query()
+            $newRolesGrantUsersEdit = Role::query()
                 ->whereIn('id', $roleIds)
-                ->whereHas('permissions', fn ($query) => $query->where('name', PermissionEnum::UsersManage->value))
+                ->whereHas('permissions', fn ($query) => $query->where('name', PermissionEnum::UsersEdit->value))
                 ->exists();
 
-            if ($targetCurrentlyGrantsUsersManage && ! $newRolesGrantUsersManage) {
-                $remainingUsersManageHolders = User::query()
+            if ($targetCurrentlyGrantsUsersEdit && ! $newRolesGrantUsersEdit) {
+                $remainingUsersEditHolders = User::query()
                     ->whereKeyNot($target->id)
-                    ->whereHas('roles.permissions', fn ($query) => $query->where('name', PermissionEnum::UsersManage->value))
+                    ->whereHas('roles.permissions', fn ($query) => $query->where('name', PermissionEnum::UsersEdit->value))
                     ->count();
 
-                if ($remainingUsersManageHolders === 0) {
+                if ($remainingUsersEditHolders === 0) {
                     throw ValidationException::withMessages([
                         'role_ids' => __(
-                            'Cannot change these roles: :name is the only remaining user who can manage users. '.
-                            'Assign another user a role that can manage users first.',
+                            'Cannot change these roles: :name is the only remaining user who can edit users. '.
+                            'Assign another user a role that can edit users first.',
                             ['name' => $target->name],
                         ),
                     ]);
@@ -322,7 +322,7 @@ final class UserRoleService
      */
     private function guardAgainstSelfLockout(User $self, array $roleIds): void
     {
-        foreach ([PermissionEnum::UsersManage, PermissionEnum::RolesManage] as $permission) {
+        foreach ([PermissionEnum::UsersEdit, PermissionEnum::RolesEdit] as $permission) {
             if (! $self->hasPermissionTo($permission) || $self->hasDirectPermission($permission)) {
                 continue;
             }
