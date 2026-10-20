@@ -330,8 +330,12 @@ class SystemLogController extends Controller
         }
 
         foreach ($allowed as $path) {
-            if (is_file($path) && is_readable($path)) {
-                return $path;
+            try {
+                if (is_file($path) && is_readable($path)) {
+                    return $path;
+                }
+            } catch (ErrorException) {
+                // Outside open_basedir on shared hosting: treat as absent.
             }
         }
 
