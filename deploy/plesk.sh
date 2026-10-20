@@ -16,11 +16,12 @@ NODE_BIN="$(ls -d /opt/plesk/node/*/bin 2>/dev/null | sort -V | tail -n 1 || tru
 [ -f "$ROOT/frontend/.env.production" ] || { echo "Missing frontend/.env.production" >&2; exit 1; }
 
 cd "$ROOT/backend"
-if [ -f /usr/lib/plesk-9.0/composer.phar ]; then
-    "$PHP" /usr/lib/plesk-9.0/composer.phar install --no-dev --optimize-autoloader --no-interaction
-else
-    "$PHP" "$(command -v composer)" install --no-dev --optimize-autoloader --no-interaction
+if [ ! -f composer.phar ]; then
+    "$PHP" -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+    "$PHP" composer-setup.php --quiet
+    rm -f composer-setup.php
 fi
+"$PHP" composer.phar install --no-dev --optimize-autoloader --no-interaction
 "$PHP" artisan migrate --force
 [ -e public/storage ] || "$PHP" artisan storage:link
 "$PHP" artisan optimize
