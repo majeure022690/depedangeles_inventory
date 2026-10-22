@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Settings;
 
+use App\Enums\Permission;
 use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -24,12 +26,14 @@ class ProfileUpdateTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seed(RolePermissionSeeder::class);
         Storage::fake('public');
     }
 
     private function user(array $attributes = []): User
     {
-        return User::factory()->create(['password' => Hash::make(self::PASSWORD), ...$attributes]);
+        return User::factory()->create(['password' => Hash::make(self::PASSWORD), ...$attributes])
+            ->givePermissionTo(Permission::EquipmentView->value);
     }
 
     public function test_name_can_be_changed_without_the_current_password(): void

@@ -2,6 +2,14 @@
 
 All notable changes to this project, in terms of user/developer impact. Entries up to 2026-07-15 were reconstructed from migration filename timestamps and source file modification times, before the project had git history; they are accurate to the day where backed by a migration timestamp, and entries reconstructed from file mtimes alone are noted as such. Later entries cite their commits.
 
+## 2026-10-22
+
+On `iris-staging`; no migration. Covered by `backend/tests/Feature/Auth/NoAccessGateTest.php`.
+
+### Security
+
+- **Accounts with no permissions can no longer sign in.** PRIME is the division-wide directory, so a first-time PRIME login used to create the local user and then walk them through 2FA enrollment into an app where they could see nothing. Now, after a valid password and the `is_active` check, a user holding zero permissions (no role, or only roles that grant none) gets `403 {code: "no_access"}` and the SPA shows "Your account doesn't have access to DICTIS yet. Please contact the Division ICT Unit." on `/login`. No session, 2FA enrollment, trusted-device bypass or recovery codes happen first. The local record is still created/synced so an admin can assign a role; the person then signs in again and enrolls in 2FA. Wrong passwords and inactive accounts still get the generic 422. The same 403 comes from the three pre-session 2FA endpoints (which also drop the pending token) and from every authenticated route, which signs out a user who has lost their last permission. Refusals are logged to the `security` channel and audited as `auth.no_access` (at most once per user and stage per hour). See [`docs/architecture.md`](docs/architecture.md#no-access-refusal).
+
 ## 2026-10-19 — Decoupled SPA conversion
 
 The whole app moved from the Inertia/Vue monolith to a Laravel JSON API (`backend/`) plus a React SPA (`frontend/`), mirroring the sibling project rwatch. Decision: [`docs/architecture-decisions/decoupled-spa-stack.md`](docs/architecture-decisions/decoupled-spa-stack.md); execution and deviations: [`decoupled-spa-stack-plan.md`](docs/architecture-decisions/decoupled-spa-stack-plan.md). Commits `ea3b08a`..`1d7732b` on `iris-staging`; migrations `2026_10_19_000001`-`000012`. Features and data are unchanged.

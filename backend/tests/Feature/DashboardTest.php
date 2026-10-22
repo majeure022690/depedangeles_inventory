@@ -33,12 +33,14 @@ class DashboardTest extends TestCase
         $this->getJson('/api/dashboard/summary')->assertUnauthorized();
     }
 
-    public function test_a_user_with_no_role_gets_an_empty_summary(): void
+    public function test_a_user_with_no_permissions_is_signed_out_instead_of_getting_a_summary(): void
     {
         $this->actingAs(User::factory()->create())
             ->getJson('/api/dashboard/summary')
-            ->assertOk()
-            ->assertExactJson(['data' => [], 'message' => 'Success']);
+            ->assertForbidden()
+            ->assertJsonPath('code', 'no_access');
+
+        $this->assertGuest('web');
     }
 
     public function test_pending_user_gets_every_section_omitted(): void

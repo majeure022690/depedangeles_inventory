@@ -1,5 +1,5 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, Info } from 'lucide-react'
-import { type ReactNode } from 'react'
+import { type ReactNode, type Ref } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -8,6 +8,9 @@ interface AlertProps {
   children: ReactNode
   className?: string
   id?: string
+  role?: 'status' | 'alert'
+  ref?: Ref<HTMLDivElement>
+  tabIndex?: number
 }
 
 const config = {
@@ -17,12 +20,12 @@ const config = {
   error: { icon: AlertCircle, className: 'bg-error-50 text-error-800 border-error-200' },
 }
 
-export function Alert({ type = 'info', children, className, id }: AlertProps) {
+export function Alert({ type = 'info', children, className, id, role, ref, tabIndex }: AlertProps) {
   const { icon: Icon, className: typeClassName } = config[type]
 
   return (
-    <div id={id} className={cn('flex items-start gap-2 rounded-lg border px-3 py-2 text-sm', typeClassName, className)}>
-      <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+    <div ref={ref} id={id} role={role} tabIndex={tabIndex} className={cn('flex items-start gap-2 rounded-lg border px-3 py-2 text-sm', typeClassName, className)}>
+      <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <div>{children}</div>
     </div>
   )

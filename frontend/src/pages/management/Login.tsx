@@ -1,16 +1,19 @@
 import { isAxiosError } from 'axios'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { AuthLayout } from '@/components/management/AuthLayout'
-import { useAuth } from '@/context/AuthContext'
+import { clearNoAccessNotice, NO_ACCESS_REASON, readNoAccessNotice, useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRecaptcha } from '@/hooks/useRecaptcha'
 import { useShowRecaptchaBadge } from '@/hooks/useShowRecaptchaBadge'
+import { isNoAccessError } from '@/lib/api'
 import type { ApiValidationError } from '@/types/api'
+
+const NO_ACCESS_FALLBACK = "Your account doesn't have access to DICTIS yet. Please contact the Division ICT Unit."
 
 export function Login() {
   usePageTitle('User Login')
@@ -19,9 +22,10 @@ export function Login() {
   const location = useLocation()
   const executeRecaptcha = useRecaptcha()
   useShowRecaptchaBadge()
-  const navState = location.state as { resetSuccess?: boolean; signInError?: string } | null
+  const navState = location.state as { resetSuccess?: boolean; signInError?: string; noAccess?: string } | null
   const resetSuccess = Boolean(navState?.resetSuccess)
-  const signedOutIdle = new URLSearchParams(location.search).get('reason') === 'idle'
+  const reason = new URLSearchParams(location.search).get('reason')
+  const signedOutIdle = reason === 'idle'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -29,11 +33,31 @@ export function Login() {
   const [loading, setLoading] = useState(false)
   // Seeded by the 2FA pages when their pending sign-in token is rejected.
   const [errorMessage, setErrorMessage] = useState<string | null>(navState?.signInError ?? null)
+  const signedOutNoAccess = reason === NO_ACCESS_REASON
+  const [noAccessNotice, setNoAccessNotice] = useState<string | null>(
+    () => navState?.noAccess ?? (signedOutNoAccess ? (readNoAccessNotice() ?? NO_ACCESS_FALLBACK) : null),
+  )
+
+  const noAccessRef = useRef<HTMLDivElement>(null)
+  const noAccessOnMount = useRef(noAccessNotice !== null)
+
+  useEffect(() => {
+    if (signedOutNoAccess) clearNoAccessNotice()
+  }, [signedOutNoAccess])
+
+  useEffect(() => {
+    if (noAccessOnMount.current) noAccessRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    if (navState?.noAccess) navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
+  }, [location.pathname, location.search, navState?.noAccess, navigate])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setLoading(true)
     setErrorMessage(null)
+    setNoAccessNotice(null)
 
     try {
       const recaptchaToken = await executeRecaptcha('admin_login')
@@ -47,7 +71,9 @@ export function Login() {
         navigate('/2fa/verify', { state: { twoFaToken: result.twoFaToken, trustDeviceDays: result.trustDeviceDays } })
       }
     } catch (error) {
-      if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
+      if (isNoAccessError(error)) {
+        setNoAccessNotice(error.response.data.message)
+      } else if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
         setErrorMessage(Object.values(error.response.data.errors).flat()[0] ?? 'Invalid credentials.')
       } else {
         setErrorMessage('Something went wrong. Please try again.')
@@ -70,7 +96,13 @@ export function Login() {
         </Alert>
       )}
 
-      {signedOutIdle && !errorMessage && (
+      {noAccessNotice && (
+        <Alert ref={noAccessRef} tabIndex={-1} type="info" role="alert" className="mb-4 focus:outline-none">
+          {noAccessNotice}
+        </Alert>
+      )}
+
+      {signedOutIdle && !errorMessage && !noAccessNotice && (
         <Alert type="info" className="mb-4">
           You were signed out because there was no activity for a while. Please sign in again.
         </Alert>

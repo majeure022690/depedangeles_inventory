@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\Permission;
 use App\Models\Office;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -22,7 +23,7 @@ class AuthenticationTest extends TestCase
 
     public function test_user_can_login_with_valid_credentials(): void
     {
-        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')]);
+        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')])->givePermissionTo(Permission::EquipmentView->value);
 
         $response = $this->postJson('/api/login', [
             'email' => $user->email,
@@ -103,14 +104,39 @@ class AuthenticationTest extends TestCase
         );
     }
 
-    public function test_pending_user_gets_an_empty_permission_list(): void
+    public function test_user_without_permissions_cannot_log_in(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')]);
+
+        $this->postJson('/api/login', ['email' => $user->email, 'password' => 'CorrectHorse123!'])
+            ->assertForbidden()
+            ->assertJsonPath('code', 'no_access')
+            ->assertJsonMissingPath('setup_token')
+            ->assertJsonMissingPath('two_fa_token');
+
+        $this->assertGuest();
+    }
+
+    public function test_user_whose_roles_are_all_removed_is_signed_out_on_reload(): void
     {
         $user = User::factory()->create();
-        $user->assignRole('pending');
+        $user->assignRole('viewer');
 
-        $this->actingAs($user)->getJson('/api/user')
-            ->assertOk()
-            ->assertJsonPath('data.permissions', []);
+        $this->actingAs($user)->getJson('/api/user')->assertOk();
+
+        $user->fresh()->syncRoles([]);
+        $this->app['auth']->forgetGuards();
+
+        $this->actingAs($user->fresh())->getJson('/api/user')
+            ->assertForbidden()
+            ->assertExactJson([
+                'code' => 'no_access',
+                'message' => "Your account doesn't have access to DICTIS yet. Please contact the Division ICT Unit.",
+            ]);
+
+        $this->assertGuest('web');
+        $this->app['auth']->forgetGuards();
+        $this->getJson('/api/user')->assertUnauthorized();
     }
 
     public function test_unauthenticated_user_cannot_fetch_profile(): void
@@ -124,7 +150,7 @@ class AuthenticationTest extends TestCase
         // sharing a session cookie; forgetGuards() makes the 'web' guard
         // re-read each new request's session instead of reusing the
         // instance bound to the first one.
-        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')]);
+        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')])->givePermissionTo(Permission::EquipmentView->value);
 
         $setupToken = $this->postJson('/api/login', [
             'email' => $user->email,

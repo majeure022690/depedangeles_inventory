@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/Input'
 import { OtpInput } from '@/components/ui/OtpInput'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { isNoAccessError } from '@/lib/api'
 import type { ApiValidationError } from '@/types/api'
 
 export function TwoFactorVerify() {
@@ -46,6 +47,10 @@ export function TwoFactorVerify() {
         navigate('/dashboard')
       }
     } catch (error) {
+      if (isNoAccessError(error)) {
+        navigate('/login', { replace: true, state: { noAccess: error.response.data.message } })
+        return
+      }
       if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
         const tokenError = error.response.data.errors?.two_fa_token?.[0]
         if (tokenError) {

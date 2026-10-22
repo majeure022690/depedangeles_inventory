@@ -53,10 +53,10 @@ The local `users` table acts as a cache/shadow:
 
 ## Admin Workflow
 
-1. User from main system logs in for first time
-2. User appears in Users list automatically
+1. User from main system logs in for first time. With no role yet, sign-in is refused with a 403 "Your account doesn't have access to DICTIS yet" notice (see `docs/architecture.md`, "No-access refusal")
+2. User appears in Users list automatically (the local record is created/synced even though sign-in was refused)
 3. Admin assigns role & verifies office
-4. User can now access inventory system features
+4. User signs in again, enrolls in 2FA, and can now access inventory system features
 
 ## Frontend Changes Needed
 

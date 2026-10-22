@@ -9,9 +9,10 @@ use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Ends the session of a deactivated account on its next request. User's
- * `saved` hook already deletes database-driver sessions on deactivation;
- * this covers every other session driver.
+ * Ends the session of a deactivated account, or one left with no
+ * permissions, on its next request. User's `saved` hook already deletes
+ * database-driver sessions on deactivation; this covers every other
+ * session driver.
  */
 class EnsureUserIsActive
 {
@@ -19,7 +20,11 @@ class EnsureUserIsActive
     {
         $user = $request->user();
 
-        if ($user !== null && ! $user->is_active) {
+        if ($user === null) {
+            return $next($request);
+        }
+
+        if (! $user->is_active) {
             LoginSession::end($request);
 
             Log::channel('security')->warning('Session ended for inactive account', [
@@ -28,6 +33,10 @@ class EnsureUserIsActive
             ]);
 
             return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
+        if (! $user->hasAppAccess()) {
+            return LoginSession::refuseWithoutAccess($user, $request, 'session');
         }
 
         return $next($request);

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { OtpInput } from '@/components/ui/OtpInput'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { isNoAccessError } from '@/lib/api'
 import { twoFactorService } from '@/services/twoFactorService'
 import type { ApiValidationError } from '@/types/api'
 
@@ -38,9 +39,15 @@ export function TwoFactorSetup() {
         setQrCode(result.qr_code)
         setSecret(result.secret)
       })
-      .catch(() => setErrorMessage('Unable to start two-factor setup. Please log in again.'))
+      .catch((error: unknown) => {
+        if (isNoAccessError(error)) {
+          navigate('/login', { replace: true, state: { noAccess: error.response.data.message } })
+          return
+        }
+        setErrorMessage('Unable to start two-factor setup. Please log in again.')
+      })
       .finally(() => setLoadingSetup(false))
-  }, [setupToken])
+  }, [navigate, setupToken])
 
   async function handleConfirm(e: FormEvent) {
     e.preventDefault()
@@ -53,6 +60,10 @@ export function TwoFactorSetup() {
       setCompleteSignIn(() => result.completeSignIn)
       setRecoveryCodes(result.recoveryCodes)
     } catch (error) {
+      if (isNoAccessError(error)) {
+        navigate('/login', { replace: true, state: { noAccess: error.response.data.message } })
+        return
+      }
       if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
         const tokenError = error.response.data.errors?.setup_token?.[0]
         if (tokenError) {

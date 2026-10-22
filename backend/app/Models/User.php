@@ -143,6 +143,11 @@ class User extends Authenticatable
         return $this->two_factor_confirmed_at !== null;
     }
 
+    public function hasAppAccess(): bool
+    {
+        return $this->getAllPermissions()->isNotEmpty();
+    }
+
     public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
     {
         $this->notify(new ResetPasswordNotification($token));

@@ -5,12 +5,16 @@ namespace App\Services;
 use App\Http\Middleware\EnforceIdleTimeout;
 use App\Http\Resources\Management\UserResource;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class LoginSession
 {
+    public const NO_ACCESS = 'no_access';
+
     /**
      * @return array<string, mixed>
      */
@@ -32,8 +36,34 @@ class LoginSession
             ->getData(true);
     }
 
+    public static function refuseWithoutAccess(User $user, Request $request, string $stage): JsonResponse
+    {
+        self::end($request);
+
+        Log::channel('security')->warning('Sign-in refused: account has no permissions', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'ip' => $request->ip(),
+            'stage' => $stage,
+        ]);
+
+        if (Cache::add("no_access_audited:{$user->id}:{$stage}", true, now()->addHour())) {
+            activity()
+                ->performedOn($user)
+                ->causedBy($user)
+                ->event('auth.no_access')
+                ->withProperties(['stage' => $stage, 'ip' => $request->ip()])
+                ->log('auth.no_access');
+        }
+
+        return response()->json([
+            'code' => self::NO_ACCESS,
+            'message' => "Your account doesn't have access to DICTIS yet. Please contact the Division ICT Unit.",
+        ], 403);
+    }
+
     /**
-     * Server-initiated sign-out (deactivated account, idle timeout).
+     * Server-initiated sign-out (deactivated account, no permissions, idle timeout).
      */
     public static function end(Request $request): void
     {

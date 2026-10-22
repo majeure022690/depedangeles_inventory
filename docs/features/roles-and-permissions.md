@@ -66,6 +66,8 @@ All under `permission:users.manage`, re-checked by `UserPolicy` and `UserRoleSer
 
 Prefer **deactivating** (`is_active = false`) over deleting: a deactivated user cannot log in (same "Invalid credentials" as a wrong password), loses their trusted devices, and keeps clean attribution in the audit trail.
 
+**A user needs at least one permission to sign in.** Someone with no role (typically a first-time PRIME login, which creates the local record automatically) or only roles that grant no permissions gets a `no_access` 403 at login, and a signed-in user whose last permission-granting role is removed is signed out on their next request. To grant access, assign a role here; the person then signs in again and enrolls in 2FA. Detail: [No-access refusal](../architecture.md#no-access-refusal).
+
 ## Guards
 
 `RoleService`:

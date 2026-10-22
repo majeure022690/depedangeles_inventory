@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\Permission;
 use App\Http\Controllers\Api\Auth\TwoFactorController;
 use App\Models\User;
+use App\Services\TrustedDeviceService;
 use App\Services\TwoFactorAuthService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -47,7 +49,7 @@ class TwoFactorAuthenticationTest extends TestCase
             'two_factor_secret' => $secret,
             'two_factor_recovery_codes' => $tfa->hashRecoveryCodes($recoveryCodes ?? $tfa->generateRecoveryCodes()),
             'two_factor_confirmed_at' => now(),
-        ]);
+        ])->givePermissionTo(Permission::EquipmentView->value);
     }
 
     private function loginAndGetVerifyToken(User $user): string
@@ -60,7 +62,7 @@ class TwoFactorAuthenticationTest extends TestCase
 
     public function test_new_user_must_complete_two_factor_setup_before_a_session_is_established(): void
     {
-        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')]);
+        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')])->givePermissionTo(Permission::EquipmentView->value);
 
         $setupToken = $this->loginAndGetSetupToken($user);
 
@@ -87,7 +89,7 @@ class TwoFactorAuthenticationTest extends TestCase
 
     public function test_setup_confirm_rejects_an_invalid_code(): void
     {
-        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')]);
+        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')])->givePermissionTo(Permission::EquipmentView->value);
         $setupToken = $this->loginAndGetSetupToken($user);
 
         $this->postJson('/api/2fa/setup', ['setup_token' => $setupToken])->assertOk();
@@ -120,7 +122,7 @@ class TwoFactorAuthenticationTest extends TestCase
     public function test_factory_twofactorconfirmed_state_logs_in_through_the_verify_step(): void
     {
         $secret = (new TwoFactorAuthService)->generateSecret();
-        $user = User::factory()->twoFactorConfirmed($secret)->create(['password' => Hash::make('CorrectHorse123!')]);
+        $user = User::factory()->twoFactorConfirmed($secret)->create(['password' => Hash::make('CorrectHorse123!')])->givePermissionTo(Permission::EquipmentView->value);
 
         $this->postJson('/api/2fa/verify', [
             'two_fa_token' => $this->loginAndGetVerifyToken($user),
@@ -262,7 +264,7 @@ class TwoFactorAuthenticationTest extends TestCase
 
     public function test_setup_token_cannot_be_used_on_the_verify_endpoint(): void
     {
-        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')]);
+        $user = User::factory()->create(['password' => Hash::make('CorrectHorse123!')])->givePermissionTo(Permission::EquipmentView->value);
         $setupToken = $this->loginAndGetSetupToken($user);
 
         $this->postJson('/api/2fa/verify', [
@@ -299,6 +301,49 @@ class TwoFactorAuthenticationTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('two_fa_token');
 
         $this->assertGuest();
+    }
+
+    public function test_a_user_whose_permissions_are_removed_mid_login_cannot_finish_two_factor(): void
+    {
+        $secret = (new TwoFactorAuthService)->generateSecret();
+        $user = $this->createEnrolledUser($secret);
+        $token = $this->loginAndGetVerifyToken($user);
+
+        $user->revokePermissionTo(Permission::EquipmentView->value);
+
+        $response = $this->postJson('/api/2fa/verify', [
+            'two_fa_token' => $token,
+            'code' => $this->currentCodeFor($secret),
+            'remember_device' => true,
+        ])->assertForbidden()->assertJsonPath('code', 'no_access');
+
+        $this->assertNull($response->getCookie(TrustedDeviceService::COOKIE, false));
+        $this->assertSame(0, $user->trustedDevices()->count());
+        $this->assertGuest('web');
+
+        $user->givePermissionTo(Permission::EquipmentView->value);
+
+        $this->postJson('/api/2fa/verify', [
+            'two_fa_token' => $token,
+            'code' => $this->currentCodeFor($secret),
+        ])->assertUnprocessable()->assertJsonValidationErrors('two_fa_token');
+    }
+
+    public function test_a_recovery_code_is_not_spent_when_access_was_removed_mid_login(): void
+    {
+        $codes = (new TwoFactorAuthService)->generateRecoveryCodes();
+        $user = $this->createEnrolledUser((new TwoFactorAuthService)->generateSecret(), $codes);
+        $token = $this->loginAndGetVerifyToken($user);
+
+        $user->revokePermissionTo(Permission::EquipmentView->value);
+
+        $this->postJson('/api/2fa/verify', [
+            'two_fa_token' => $token,
+            'recovery_code' => $codes[0],
+        ])->assertForbidden()->assertJsonPath('code', 'no_access');
+
+        $this->assertCount(count($codes), $user->fresh()->two_factor_recovery_codes);
+        $this->assertGuest('web');
     }
 
     public function test_a_totp_code_cannot_be_replayed(): void

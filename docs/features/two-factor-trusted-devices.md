@@ -25,6 +25,8 @@ Pre-session (throttle `two-factor-verify`, keyed by the pending user):
 | `POST /api/2fa/setup/confirm` | `setup_token`, `code` | `UserResource` envelope (now logged in) plus `data.recovery_codes` — shown once |
 | `POST /api/2fa/verify` | `two_fa_token`, `code` **or** `recovery_code`, optional `remember_device` | `UserResource` envelope; `warning` when ≤ 2 recovery codes remain; sets the `dictis_trusted_device` cookie when `remember_device` and trusting is allowed |
 
+All three return **403 `{code: "no_access", message}`** instead if the pending user now holds no permissions, and discard the setup/2FA token so the user must restart at login. See [No-access refusal](../architecture.md#no-access-refusal).
+
 Authenticated:
 
 | Method + path | Body | Response |

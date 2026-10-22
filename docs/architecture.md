@@ -28,7 +28,7 @@ Adopted from rwatch as-is:
 
 - Envelope `{ data, message }`. Lists use Laravel's paginator shape (`data`, `meta`, `links`).
 - `per_page` defaults to 20, clamped to 1..100. `sort` + `direction=asc|desc` work only for each endpoint's whitelisted sort keys; anything else falls back to the endpoint's default order.
-- Status codes: `201` create, `204` delete, `401` unauthenticated, `403` forbidden, `409` conflict (e.g. deleting an office, role or reference-data row still in use), `422` validation (`errors` keyed by field), `429` rate-limited.
+- Status codes: `201` create, `204` delete, `401` unauthenticated, `403` forbidden (policy/permission 403s carry no `code` field; the one 403 that does is `code: "no_access"`, see [No-access refusal](#no-access-refusal)), `409` conflict (e.g. deleting an office, role or reference-data row still in use), `422` validation (`errors` keyed by field), `429` rate-limited.
 - Form dropdowns come from a sibling `GET /api/<resource>/options` endpoint (registered before `/<resource>/{id}`), not embedded in the resource. Options are `{value, label}`; Tier 1 reference values are ids, Tier 2 values are strings, PSGC/multi-select values are ids (see [reference data](features/reference-data.md)).
 - Exceptions always render as JSON (`shouldRenderJsonWhen(fn () => true)`). In production, any status outside 401/403/404/405/409/422/429 becomes a generic `"An unexpected error occurred."` so stack traces and SQL never leak.
 
@@ -39,7 +39,7 @@ Adopted from rwatch as-is:
 - `App.tsx` — the whole route table, every page lazy-loaded. `/` redirects to `/dashboard`; `/equipment/:id/edit` is the QR alias.
 - `layouts/ManagementLayout.tsx` — sidebar (`NAV_GROUPS`), each item gated by a permission. The two office-scoped items (Stakeholder Profile, Internet Connectivity) compute their link from the user: the cross-office list for `.view_all` holders, otherwise the user's own `/:officeId` page, otherwise hidden.
 - `router/Guards.tsx` — `GuestOnly`, `RequireAuth`, `RequirePermission`.
-- `lib/api.ts` — the axios instance (`withCredentials`, `withXSRFToken`, base `VITE_API_URL/api`); a 401 from any call drops the client back to login.
+- `lib/api.ts` — the axios instance (`withCredentials`, `withXSRFToken`, base `VITE_API_URL/api`); a 401 from any call drops the client back to login, and a `no_access` 403 does the same with a notice ([No-access refusal](#no-access-refusal)).
 - `services/<feature>Service.ts` (API calls), `types/<feature>.ts`, `pages/management/<feature>/`, `components/<feature>/<Feature>Fields.tsx` (form body shared by create and edit), `components/ui/*` (rwatch's primitives), `components/forms/*` (shared form helpers).
 - `lib/errors.ts` maps a 422 `errors` object onto form fields; lists use `DataGrid` + `hooks/useServerTable.ts`.
 
@@ -61,7 +61,7 @@ In development the SPA calls `http://localhost:8000` directly (cross-origin; COR
 There is no self-registration, email verification, passkey, or self-service account deletion: accounts are created by a `users.manage` holder, and deactivated with `users.is_active` rather than deleted so audit attribution stays intact. (Self-registration was the PII-exposure path a 2026-07 security review flagged; removing it outright replaced the old `pending`-role mitigation.)
 
 1. The SPA calls `GET /sanctum/csrf-cookie`, then `POST /api/login` with `email`, `password`, `recaptcha_token` (reCAPTCHA v3; Google's test secret is refused when `APP_ENV=production`). Wrong password and inactive account give the same `"Invalid credentials."` 422 and a `security` log entry.
-2. Credentials are checked, then the session is **logged straight back out** — a password alone never yields a session. The response is one of:
+2. Credentials are checked, then `is_active`, then whether the user holds any permission at all (none: the `no_access` 403 below, and nothing further happens). Then the session is **logged straight back out** — a password alone never yields a session. The response is one of:
    - `{requires_2fa_setup: true, setup_token}` — user has no confirmed 2FA (every new or reset account). Token lives in cache 30 min.
    - `{requires_2fa: true, two_fa_token, trust_device_days}` — token lives in cache 5 min.
    - the `UserResource` directly, if the browser presents a valid `dictis_trusted_device` cookie for that user.
@@ -70,6 +70,28 @@ There is no self-registration, email verification, passkey, or self-service acco
 5. `GET /api/user` restores the session on reload; `POST /api/logout` invalidates it. `IdleLogout` signs the user out after `idle_timeout_seconds` (from `GET /api/session-settings`) of inactivity across all tabs.
 
 Trusted devices, recovery codes, admin 2FA reset and the permission-based "always require the code" rule are described in [`features/two-factor-trusted-devices.md`](features/two-factor-trusted-devices.md). Password reset: `POST /api/forgot-password` emails a link to `FRONTEND_URL/reset-password?token&email`; `POST /api/reset-password` sets the password and deletes all of that user's sessions. Password policy everywhere: min 12, mixed case, numbers, symbols.
+
+### No-access refusal
+
+An account holding **zero permissions** (none direct, none through any role: no role yet, or only roles that grant none) cannot sign in. `User::hasAppAccess()` is the check; `LoginSession::refuseWithoutAccess()` builds the response:
+
+```
+403 {"code": "no_access", "message": "Your account doesn't have access to DICTIS yet. Please contact the Division ICT Unit."}
+```
+
+**Why:** PRIME is the division-wide directory, so any division employee can pass the password check, and a first-time PRIME login creates/syncs the local user record before anyone has given it a role. Without this check that user would be walked through 2FA enrollment into an empty app. The local record is still created/synced, so it shows up in Users for an admin to act on.
+
+Where it is returned, and the ordering that matters:
+
+- **`POST /api/login`** — only after a valid password and after the `is_active` check. A wrong password or an inactive account still gets the generic `"Invalid credentials."` 422, so the 403 never tells someone without the password anything about the account. It comes before any session, 2FA setup token or challenge, trusted-device bypass, or recovery codes: a no-access user never enrolls an authenticator or receives recovery codes.
+- **`POST /api/2fa/setup`, `/api/2fa/setup/confirm`, `/api/2fa/verify`** — re-checked because roles can be removed between login and the 2FA step. These also discard the pending setup/2FA token (and any cached setup secret), so the user must start again at login.
+- **Every authenticated route**, via `EnsureUserIsActive`, which ends the session. The inactive check still runs first there (deactivated: 401). This catches a signed-in user whose last role is removed.
+
+**Audit:** every refusal writes a `security` log warning (`user_id`, `email`, `ip`, `stage`). An `auth.no_access` activity entry (properties `stage`, `ip`; `stage` is one of `login`, `two_factor_setup`, `two_factor_setup_confirm`, `two_factor_verify`, `session`) is written at most once per user and stage per hour, so retries or an open tab polling the API don't flood the permanent audit trail.
+
+**Granting access:** an admin assigns a role in Users; the person then signs in again and enrolls in 2FA as usual.
+
+**Frontend:** the message is shown as an info notice on `/login`. On the login and 2FA pages the 403 lands the user on `/login` with the notice; from anywhere else `lib/api.ts`/`AuthContext` hard-redirects to `/login?reason=no_access` (message carried in `sessionStorage`, with a built-in fallback text).
 
 ### Rate limiters and security settings
 
@@ -85,7 +107,7 @@ Named limiters (`AppServiceProvider::configureRateLimiting()`):
 
 The `*_per_minute`/`*_per_hour` values, `trusted_device_days` and `idle_timeout_seconds` are rows in `system_settings`, read through `App\Services\SecuritySettings` (which holds the defaults and min/max bounds) and editable at `/settings` by `security_settings.manage` holders. rwatch's `export` limiter and its setting were dropped: inventory has no export feature (add it back with the feature, not before).
 
-`App\Http\Middleware\SecurityHeaders` is appended globally: `nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`, a `default-src 'self'` CSP with `frame-ancestors 'none'`, `Permissions-Policy` denying geolocation/camera/microphone (no QR scanner exists, so `camera=()`), `Cache-Control: no-store, private` on `api/*`, and HSTS in production. Auth events (failed logins, 2FA failures/enrolment, device trust, admin 2FA resets) go to the dedicated `security` log channel.
+`App\Http\Middleware\SecurityHeaders` is appended globally: `nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`, a `default-src 'self'` CSP with `frame-ancestors 'none'`, `Permissions-Policy` denying geolocation/camera/microphone (no QR scanner exists, so `camera=()`), `Cache-Control: no-store, private` on `api/*`, and HSTS in production. Auth events (failed logins, 2FA failures/enrolment, device trust, admin 2FA resets, no-access refusals) go to the dedicated `security` log channel.
 
 ## Authorization model: granular permissions, never role names
 
@@ -109,7 +131,7 @@ The `*_per_minute`/`*_per_hour` values, `trusted_device_days` and `idle_timeout_
 `spatie/laravel-activitylog` replaced the custom `audit_logs` table. Existing `audit_logs` rows were copied into `activity_log` by migration `2026_10_19_000004` (tagged `properties.migrated_from_audit_log_id`) and the old table is dropped once that copy has been verified (`2026_10_19_000012`).
 
 - **Model CRUD** comes from the `LogsActivity` trait on Personnel, Equipment, IspAccount, Office, StakeholderProfile and InternetConnectivitySurvey (fillable attributes, dirty-only, empty changes skipped), User (`name`, `email`, `avatar_path`, `office_id`, `is_active` only — never passwords or 2FA columns), and the 13 reference-data models (`App\Concerns\LogsReferenceDataActivity`, which also records the registry `table` key). `event` is `created`/`updated`/`deleted`; `description` is `<resource>.<event>` (e.g. `equipment.updated`). Equipment excludes its `current_*` pointers, which are audited as transactions instead. The two one-row-per-office models log `updated` only.
-- **Non-CRUD events** use `activity()->event('<dotted.name>')`: `equipment.transaction.recorded`, `isp_account.speed_test.recorded`, `isp_account.subscription_cost.recorded`, `role.created|updated|deleted`, `user.roles_changed`, `user.two_factor_reset`, `authorization.denied`.
+- **Non-CRUD events** use `activity()->event('<dotted.name>')`: `equipment.transaction.recorded`, `isp_account.speed_test.recorded`, `isp_account.subscription_cost.recorded`, `role.created|updated|deleted`, `user.roles_changed`, `user.two_factor_reset`, `authorization.denied`, `auth.no_access` (deduplicated per user and stage per hour, see [No-access refusal](#no-access-refusal)).
 - **Denials:** `authorization.denied` is logged by the Policies for the most consequential actions (delete on Personnel/Equipment/ISP Accounts/Offices, Equipment `createTransaction`, every `RolePolicy` ability), and by `bootstrap/app.php` when the route-level `permission:` fast fail rejects a *write*, since that request never reaches the Policy. Route-level read denials are not logged.
 - **Attribution survives account deletion.** `activity_log.causer_id` has no FK, and an `Activity::creating` hook in `AppServiceProvider` (the single place this is written) stamps `properties.actor_snapshot` = `{name, email}` on every row with a user causer.
 - **Retention:** `activitylog:clean` is deliberately **not** scheduled and `clean_after_days` is `null`. Inventory's audit trail has always been permanent; pruning (rwatch's default) would quietly reverse that.

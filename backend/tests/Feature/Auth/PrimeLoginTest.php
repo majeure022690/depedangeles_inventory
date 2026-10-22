@@ -49,21 +49,45 @@ class PrimeLoginTest extends TestCase
         return $this->postJson('/api/login', ['email' => 'juan@deped.gov.ph', 'password' => $password]);
     }
 
-    public function test_active_prime_user_logs_in_and_is_synced_locally(): void
+    public function test_first_prime_login_without_permissions_is_refused_but_synced_locally(): void
     {
         $this->primeUser();
 
-        $this->login()->assertOk()->assertJsonPath('requires_2fa_setup', true);
+        $this->login()
+            ->assertForbidden()
+            ->assertExactJson([
+                'code' => 'no_access',
+                'message' => "Your account doesn't have access to DICTIS yet. Please contact the Division ICT Unit.",
+            ]);
+
+        $this->assertGuest();
+        $this->assertFalse(session()->has(auth()->guard('web')->getName()));
 
         $user = User::where('email', 'juan@deped.gov.ph')->firstOrFail();
         $this->assertSame('Juan Dela Cruz', $user->name);
         $this->assertTrue($user->is_active);
+        $this->assertFalse($user->hasTwoFactorEnabled());
+
+        $activity = Activity::where('event', 'auth.no_access')->sole();
+        $this->assertSame($user->id, $activity->subject_id);
+        $this->assertSame('login', $activity->properties['stage']);
+    }
+
+    public function test_prime_login_proceeds_to_two_factor_once_a_role_is_granted(): void
+    {
+        $this->primeUser();
+        $this->login()->assertForbidden();
+
+        User::where('email', 'juan@deped.gov.ph')->firstOrFail()->assignRole('viewer');
+
+        $this->login()->assertOk()->assertJsonPath('requires_2fa_setup', true)->assertJsonStructure(['setup_token']);
+        $this->assertGuest();
     }
 
     public function test_sync_keeps_the_local_office(): void
     {
         $this->primeUser();
-        $local = User::factory()->create(['email' => 'juan@deped.gov.ph']);
+        $local = User::factory()->create(['email' => 'juan@deped.gov.ph'])->givePermissionTo(Permission::EquipmentView->value);
         $officeId = $local->office_id;
 
         $this->login()->assertOk();
@@ -92,7 +116,7 @@ class PrimeLoginTest extends TestCase
 
     public function test_local_only_account_still_logs_in(): void
     {
-        $user = User::factory()->create(['password' => Hash::make('LocalPass123!')]);
+        $user = User::factory()->create(['password' => Hash::make('LocalPass123!')])->givePermissionTo(Permission::EquipmentView->value);
 
         $this->postJson('/api/login', ['email' => $user->email, 'password' => 'LocalPass123!'])->assertOk();
     }
@@ -131,7 +155,7 @@ class PrimeLoginTest extends TestCase
     public function test_current_user_picks_up_a_prime_name_change_on_reload(): void
     {
         $this->primeUser();
-        $user = User::factory()->create(['email' => 'juan@deped.gov.ph', 'name' => 'Old Name']);
+        $user = User::factory()->create(['email' => 'juan@deped.gov.ph', 'name' => 'Old Name'])->givePermissionTo(Permission::EquipmentView->value);
 
         $this->actingAs($user)->getJson('/api/user')->assertOk()->assertJsonPath('data.name', 'Juan Dela Cruz');
     }
@@ -139,7 +163,7 @@ class PrimeLoginTest extends TestCase
     public function test_current_user_deactivated_in_prime_is_signed_out_on_reload(): void
     {
         $this->primeUser(status: 'Deactivated');
-        $user = User::factory()->create(['email' => 'juan@deped.gov.ph']);
+        $user = User::factory()->create(['email' => 'juan@deped.gov.ph'])->givePermissionTo(Permission::EquipmentView->value);
 
         $this->actingAs($user)->getJson('/api/user')->assertUnauthorized();
         $this->assertFalse($user->fresh()->is_active);

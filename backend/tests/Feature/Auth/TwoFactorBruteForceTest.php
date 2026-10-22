@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\Permission;
 use App\Http\Controllers\Api\Auth\TwoFactorController;
 use App\Models\User;
 use App\Services\SecuritySettings;
 use App\Services\TwoFactorAuthService;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Testing\TestResponse;
@@ -31,6 +33,7 @@ class TwoFactorBruteForceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seed(RolePermissionSeeder::class);
 
         // Isolate the limits under test from the per-minute limiter.
         SecuritySettings::update('two_factor_verify_rate_limit_per_minute', 20);
@@ -48,7 +51,7 @@ class TwoFactorBruteForceTest extends TestCase
             'two_factor_secret' => $this->secret,
             'two_factor_recovery_codes' => $tfa->hashRecoveryCodes($this->recoveryCodes),
             'two_factor_confirmed_at' => now(),
-        ]);
+        ])->givePermissionTo(Permission::EquipmentView->value);
     }
 
     private function verifyToken(User $user): string

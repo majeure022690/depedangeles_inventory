@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Enums\Permission;
 use App\Models\SystemSetting;
 use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -81,7 +83,8 @@ class RateLimitingTest extends TestCase
 
     public function test_password_confirming_actions_are_limited_per_user(): void
     {
-        $user = User::factory()->create();
+        $this->seed(RolePermissionSeeder::class);
+        $user = User::factory()->create()->givePermissionTo(Permission::EquipmentView->value);
 
         for ($i = 0; $i < 6; $i++) {
             $this->actingAs($user)->postJson('/api/2fa/recovery-codes/regenerate', ['current_password' => 'wrong-password'])

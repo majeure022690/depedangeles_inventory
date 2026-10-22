@@ -41,6 +41,10 @@ class TwoFactorController extends Controller
             ]);
         }
 
+        if (! $user->hasAppAccess()) {
+            return $this->refuseWithoutAccess($user, $request, 'two_factor_setup', $request->string('setup_token')->value(), "2fa_setup_secret:{$userId}");
+        }
+
         $tfa = new TwoFactorAuthService;
         $secret = $tfa->generateSecret();
 
@@ -63,6 +67,10 @@ class TwoFactorController extends Controller
             throw ValidationException::withMessages([
                 'setup_token' => __('Your setup session has expired. Please log in again.'),
             ]);
+        }
+
+        if (! $user->hasAppAccess()) {
+            return $this->refuseWithoutAccess($user, $request, 'two_factor_setup_confirm', $setupToken, "2fa_setup_secret:{$userId}");
         }
 
         $secret = Cache::get("2fa_setup_secret:{$userId}");
@@ -109,6 +117,10 @@ class TwoFactorController extends Controller
             throw ValidationException::withMessages([
                 'two_fa_token' => __('Your session has expired. Please log in again.'),
             ]);
+        }
+
+        if (! $user->hasAppAccess()) {
+            return $this->refuseWithoutAccess($user, $request, 'two_factor_verify', $twoFaToken);
         }
 
         $tfa = new TwoFactorAuthService;
@@ -265,6 +277,15 @@ class TwoFactorController extends Controller
         throw ValidationException::withMessages([
             'two_fa_token' => __('Too many failed attempts. Please log in again.'),
         ]);
+    }
+
+    private function refuseWithoutAccess(User $user, Request $request, string $stage, string ...$cacheKeys): JsonResponse
+    {
+        foreach ($cacheKeys as $key) {
+            Cache::forget($key);
+        }
+
+        return LoginSession::refuseWithoutAccess($user, $request, $stage);
     }
 
     private static function failuresKey(int $userId): string

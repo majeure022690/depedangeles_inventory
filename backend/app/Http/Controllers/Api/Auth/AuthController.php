@@ -77,6 +77,10 @@ class AuthController extends Controller
             ]);
         }
 
+        if (! $user->hasAppAccess()) {
+            return LoginSession::refuseWithoutAccess($user, $request, 'login');
+        }
+
         Auth::logout();
 
         if ($user->hasTwoFactorEnabled()) {

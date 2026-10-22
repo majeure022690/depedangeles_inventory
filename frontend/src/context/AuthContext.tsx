@@ -1,7 +1,14 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 
-import { api, ensureCsrfCookie, IDLE_TIMEOUT_MESSAGE, registerUnauthorizedHandler } from '@/lib/api'
+import {
+  api,
+  ensureCsrfCookie,
+  IDLE_TIMEOUT_MESSAGE,
+  isNoAccessResponse,
+  registerNoAccessHandler,
+  registerUnauthorizedHandler,
+} from '@/lib/api'
 import type { ApiResponse } from '@/types/api'
 import type { AuthUser } from '@/types/auth'
 
@@ -29,7 +36,36 @@ const GUEST_ONLY_PATHS = ['/login', '/forgot-password', '/reset-password', '/2fa
 
 const isGuestOnlyPath = (pathname: string) => GUEST_ONLY_PATHS.includes(pathname.replace(/\/+$/, '') || '/')
 
+const NO_ACCESS_NOTICE_KEY = 'dictis.noAccessNotice'
+
+export const NO_ACCESS_REASON = 'no_access'
+
+export function readNoAccessNotice(): string | null {
+  try {
+    return window.sessionStorage.getItem(NO_ACCESS_NOTICE_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function clearNoAccessNotice(): void {
+  try {
+    window.sessionStorage.removeItem(NO_ACCESS_NOTICE_KEY)
+  } catch {
+    return
+  }
+}
+
+function storeNoAccessNotice(message: string): void {
+  try {
+    window.sessionStorage.setItem(NO_ACCESS_NOTICE_KEY, message)
+  } catch {
+    return
+  }
+}
+
 let leavingForLogin = false
+let leavingForNoAccess = false
 
 /**
  * Mid-session 401 (deactivated, 2FA reset by an admin, server-side idle
@@ -39,6 +75,15 @@ function leaveForLogin() {
   if (leavingForLogin) return
   leavingForLogin = true
   window.location.replace('/login')
+}
+
+/** Like leaveForLogin, but wins over a plain 401 redirect already in flight so the notice is shown. */
+function leaveForLoginWithoutAccess(message: string) {
+  storeNoAccessNotice(message)
+  if (leavingForNoAccess) return
+  leavingForNoAccess = true
+  leavingForLogin = true
+  window.location.replace(`/login?reason=${NO_ACCESS_REASON}`)
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -55,6 +100,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data && 'data' in data) {
         setUser(data.data)
         return true
+      }
+      if (isNoAccessResponse(data)) {
+        if (isGuestOnlyPath(window.location.pathname)) {
+          setUser(null)
+        } else {
+          leaveForLoginWithoutAccess(data.message)
+        }
+        return false
       }
       // The boot probe never runs on guest pages; an app page that finds the
       // session idled out server-side says why on the login screen.
@@ -140,6 +193,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
       leaveForLogin()
+    })
+    registerNoAccessHandler((message) => {
+      if (isGuestOnlyPath(window.location.pathname)) {
+        setUser(null)
+        setInitialized(true)
+        return false
+      }
+      leaveForLoginWithoutAccess(message)
+      return true
     })
   }, [])
 
