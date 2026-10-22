@@ -18,7 +18,7 @@ class RolePermissionSeeder extends Seeder
     private const SYSTEM_ADMIN_EXCLUDED = ['roles.create', 'roles.edit', 'roles.delete'];
 
     /**
-     * @return array<string, array{label: string, description: string, permissions: array<int, string>}>
+     * @return array<string, array{label: string, description: string, data_scope?: DataScope, permissions: array<int, string>}>
      */
     private static function roleDefinitions(): array
     {

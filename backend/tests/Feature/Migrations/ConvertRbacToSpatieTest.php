@@ -11,9 +11,8 @@ use Tests\TestCase;
 
 /**
  * Rolls 2026_10_19_000002 back to the hand-rolled RBAC schema, seeds it
- * with non-sequential ids (replacing the rows later migrations add), and
- * re-runs up() to prove ids and grants carry over unchanged
- * (decoupled-spa-stack ADR §7).
+ * with non-sequential ids, and re-runs up() to prove ids and grants carry
+ * over unchanged (decoupled-spa-stack ADR §7).
  */
 class ConvertRbacToSpatieTest extends TestCase
 {
@@ -29,10 +28,6 @@ class ConvertRbacToSpatieTest extends TestCase
      */
     private function seedLegacyRbac(): array
     {
-        foreach (['permission_role', 'role_user', 'roles', 'permissions'] as $table) {
-            DB::table($table)->delete();
-        }
-
         DB::table('permissions')->insert([
             ['id' => 5, 'name' => 'equipment.view', 'created_at' => now(), 'updated_at' => now()],
             ['id' => 9, 'name' => 'equipment.transactions.create', 'created_at' => now(), 'updated_at' => now()],

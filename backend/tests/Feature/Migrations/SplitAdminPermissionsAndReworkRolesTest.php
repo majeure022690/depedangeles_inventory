@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Migrations;
 
+use App\Enums\Permission;
 use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -27,14 +29,6 @@ class SplitAdminPermissionsAndReworkRolesTest extends TestCase
      */
     private function seedLegacyState(): array
     {
-        $this->migration()->down();
-
-        DB::table('model_has_roles')->delete();
-        DB::table('model_has_permissions')->delete();
-        DB::table('role_has_permissions')->delete();
-        DB::table('roles')->delete();
-        DB::table('permissions')->delete();
-
         $permissions = ['equipment.view', 'equipment.edit', 'users.manage', 'roles.manage', 'audit_log.view'];
         foreach ($permissions as $i => $name) {
             DB::table('permissions')->insert(['id' => 10 + $i, 'name' => $name, 'guard_name' => 'web']);
@@ -178,15 +172,35 @@ class SplitAdminPermissionsAndReworkRolesTest extends TestCase
         $this->migration()->up();
     }
 
-    public function test_up_is_safe_on_an_unseeded_database(): void
+    public function test_fresh_migrations_leave_roles_and_permissions_empty(): void
     {
-        $this->migration()->down();
-        DB::table('roles')->delete();
-        DB::table('permissions')->delete();
+        foreach (['permissions', 'roles', 'role_has_permissions', 'model_has_roles', 'model_has_permissions'] as $table) {
+            $this->assertSame(0, DB::table($table)->count(), $table);
+        }
+    }
 
+    public function test_up_and_down_insert_nothing_on_an_empty_database(): void
+    {
         $this->migration()->up();
+        $this->assertSame(0, DB::table('permissions')->count());
+        $this->assertSame(0, DB::table('roles')->count());
 
-        $this->assertSame([...self::ROLES_SPLIT, ...self::USERS_SPLIT], DB::table('permissions')->orderBy('name')->pluck('name')->all());
-        $this->assertSame(['system_administrator'], DB::table('roles')->pluck('name')->all());
+        $this->migration()->down();
+        $this->assertSame(0, DB::table('permissions')->count());
+        $this->assertSame(0, DB::table('roles')->count());
+    }
+
+    public function test_fresh_migrate_and_seed_yields_exactly_the_seeded_roles_and_permissions(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $this->assertEqualsCanonicalizing(
+            array_map(fn (Permission $permission) => $permission->value, Permission::cases()),
+            DB::table('permissions')->pluck('name')->all(),
+        );
+        $this->assertSame(
+            ['super_administrator', 'system_administrator', 'encoder', 'viewer'],
+            DB::table('roles')->orderBy('id')->pluck('name')->all(),
+        );
     }
 }

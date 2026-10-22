@@ -10,6 +10,7 @@ use Spatie\Permission\PermissionRegistrar;
  * `admin` to `super_administrator` (same id), adds `system_administrator`,
  * drops `pending`, and reduces every model to a single role. Works on the
  * raw Spatie tables so it does not depend on App\Enums\Permission.
+ * Does nothing on a fresh database; RolePermissionSeeder owns that data.
  */
 return new class extends Migration
 {
@@ -48,6 +49,10 @@ return new class extends Migration
 
     public function up(): void
     {
+        if (! $this->hasLegacyData()) {
+            return;
+        }
+
         DB::transaction(function () {
             foreach (self::SPLITS as $legacy => $replacements) {
                 $this->splitPermission($legacy, $replacements);
@@ -89,6 +94,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! $this->hasConvertedData()) {
+            return;
+        }
+
         DB::transaction(function () {
             foreach (self::SPLITS as $legacy => $replacements) {
                 $this->mergePermissions($replacements, $legacy);
@@ -117,6 +126,34 @@ return new class extends Migration
         });
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    private function hasLegacyData(): bool
+    {
+        return $this->anyPermission(array_keys(self::SPLITS))
+            || $this->anyRole([self::LEGACY_ADMIN['name'], self::LEGACY_PENDING['name']]);
+    }
+
+    private function hasConvertedData(): bool
+    {
+        return $this->anyPermission(array_merge(...array_values(self::SPLITS)))
+            || $this->anyRole([self::SUPER_ADMIN['name'], self::SYSTEM_ADMIN['name']]);
+    }
+
+    /**
+     * @param  array<int, string>  $names
+     */
+    private function anyPermission(array $names): bool
+    {
+        return DB::table('permissions')->whereIn('name', $names)->where('guard_name', self::GUARD)->exists();
+    }
+
+    /**
+     * @param  array<int, string>  $names
+     */
+    private function anyRole(array $names): bool
+    {
+        return DB::table('roles')->whereIn('name', $names)->where('guard_name', self::GUARD)->exists();
     }
 
     /**
@@ -170,7 +207,7 @@ return new class extends Migration
                 ->havingRaw('COUNT(*) = ?', [count($replacements)])
                 ->pluck('role_id');
             foreach ($roleIds as $roleId) {
-                $this->grantToRole((int) $roleId, collect([$legacyId]));
+                $this->grantToRole((int) $roleId, [$legacyId]);
             }
 
             $directHolders = DB::table('model_has_permissions')
@@ -219,11 +256,11 @@ return new class extends Migration
     }
 
     /**
-     * @param  Collection<int, int|string>  $permissionIds
+     * @param  iterable<int|string>  $permissionIds
      */
-    private function grantToRole(int $roleId, Collection $permissionIds): void
+    private function grantToRole(int $roleId, iterable $permissionIds): void
     {
-        DB::table('role_has_permissions')->insertOrIgnore($permissionIds->map(fn ($id) => [
+        DB::table('role_has_permissions')->insertOrIgnore(collect($permissionIds)->map(fn ($id) => [
             'permission_id' => (int) $id,
             'role_id' => $roleId,
         ])->values()->all());
