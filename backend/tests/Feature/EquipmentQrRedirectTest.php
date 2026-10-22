@@ -19,7 +19,7 @@ class EquipmentQrRedirectTest extends TestCase
         config(['app.frontend_url' => 'https://dictis.example.gov.ph/']);
         $equipment = Equipment::factory()->create();
 
-        $this->assertSame(url("/equipment/{$equipment->id}/edit"), $equipment->fresh()->qr_code);
+        $this->assertSame(rtrim((string) config('app.url'), '/')."/equipment/{$equipment->id}/edit", $equipment->fresh()?->qr_code);
 
         $this->get("/equipment/{$equipment->id}/edit")
             ->assertRedirect("https://dictis.example.gov.ph/equipment/{$equipment->id}/edit");

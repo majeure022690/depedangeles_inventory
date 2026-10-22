@@ -11,6 +11,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRecaptcha } from '@/hooks/useRecaptcha'
 import { useShowRecaptchaBadge } from '@/hooks/useShowRecaptchaBadge'
 import { isNoAccessError } from '@/lib/api'
+import { isTooManyRequests, TOO_MANY_ATTEMPTS_MESSAGE } from '@/lib/errors'
 import type { ApiValidationError } from '@/types/api'
 
 const NO_ACCESS_FALLBACK = "Your account doesn't have access to DICTIS yet. Please contact the Division ICT Unit."
@@ -73,6 +74,8 @@ export function Login() {
     } catch (error) {
       if (isNoAccessError(error)) {
         setNoAccessNotice(error.response.data.message)
+      } else if (isTooManyRequests(error)) {
+        setErrorMessage(TOO_MANY_ATTEMPTS_MESSAGE)
       } else if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
         setErrorMessage(Object.values(error.response.data.errors).flat()[0] ?? 'Invalid credentials.')
       } else {

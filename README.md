@@ -77,9 +77,58 @@ Gotchas:
 
 ### Production build
 
-`cd frontend && npm run build` produces `frontend/dist/`. Vite bakes `VITE_*` values in at build time, so fill in `frontend/.env.production` (from `.env.production.example`) first. Backend production values are templated in `backend/.env.production.example`. Production is single-origin: `frontend/Dockerfile` builds an nginx image (`frontend/docker/default.conf.template`) that serves `dist/` with the security headers/CSP and proxies `/api`, `/sanctum` and `/storage` to the backend; everything else, including `/equipment/{id}/edit` from printed QR labels, falls through to the SPA. `APP_URL`, `FRONTEND_URL` and `VITE_API_URL` are all that one origin, and `SESSION_DOMAIN` stays empty (host-only cookies). Set the backend's `TRUSTED_PROXIES` to the nginx container (plus any TLS load balancer in front), never `*` — otherwise clients can spoof `X-Forwarded-For` and bypass the IP-keyed rate limiters.
+`cd frontend && npm run build` produces `frontend/dist/`. Vite bakes `VITE_*` values in at build time, so fill in `frontend/.env.production` (from `.env.production.example`) first. Backend production values are templated in `backend/.env.production.example`.
 
-**Plesk (Apache, no Docker):** set the domain's document root to `backend/public`, create `backend/.env` (from `backend/.env.production.example`) and `frontend/.env.production` on the server, then set the Git repository's additional deployment actions to `sh deploy/plesk.sh`. The script installs Composer dependencies, migrates, builds the SPA and copies `dist/` into `backend/public`, where `.htaccess` sends `/api`, `/sanctum` and `/up` to Laravel and every other GET to `index.html`, with the same security headers as the nginx config. Run `php artisan key:generate` once if `APP_KEY` is empty.
+**Production runs on Plesk.** Plesk's nginx sits in front of Apache, with no Docker. The site is single-origin: the SPA and the API are served from the same host.
+- **Setup.** Set the domain's document root to `backend/public`. Create `backend/.env` (from `backend/.env.production.example`) and `frontend/.env.production` on the server. Then set the Git repository's additional deployment actions to `sh deploy/plesk.sh`.
+- **What the deploy script does.** It installs Composer dependencies, migrates, builds the SPA and copies `dist/` into `backend/public`. It fails if `backend/public/index.html` is missing afterwards, because SPA paths would otherwise fall through to Laravel's QR redirect route and loop.
+- **Routing.** In `backend/public`, `.htaccess` sends `/api`, `/sanctum` and `/up` to Laravel, and every other GET (including `/equipment/{id}/edit` from printed QR labels) to `index.html`, with the security headers/CSP.
+- **Origin and cookies.** `APP_URL`, `FRONTEND_URL` and `VITE_API_URL` are all that one origin, and `SESSION_DOMAIN` stays empty (host-only cookies).
+- **First deploy.** Run `php artisan key:generate` once if `APP_KEY` is empty.
+- **Once, after the 2026-10-23 deploy: check stored QR URLs.** Run `php artisan equipment:regenerate-qr-codes` (a dry run listing rows whose `qr_code` doesn't point at `APP_URL`, old -> new). Review the list: a row pointing at a foreign host may be a phishing label and must be physically reprinted. Then run it again with `--force` to rewrite them (each rewrite is audited). Details: [`docs/features/equipment.md`](docs/features/equipment.md#non-obvious-design-decisions).
+
+#### Web server rate limiting
+
+Plesk's nginx limits each client IP before requests reach PHP. It's a backstop for traffic Laravel doesn't throttle: unauthenticated 401s, `permission:` denials, and `/sanctum/csrf-cookie`.
+
+**The limits:**
+- 30 req/s with a burst of 150 on `/api/*`, `/sanctum/*` and `/up`.
+- 180 req/min with a burst of 60 on `/api/login`, `/api/forgot-password`, `/api/reset-password`, `/api/2fa/*` and `/sanctum/csrf-cookie`.
+
+Both are looser than Laravel's own limiters, so the app's limits still decide normal lockouts.
+
+**What clients get when limited:** a `429` with `{"message":"Too Many Attempts."}` and `Retry-After: 10`. Laravel's own 429s, with their exact `Retry-After`, pass through unchanged unless the generated vhost intercepts them (see Install).
+
+**Accepted gap:** IPv6 clients are keyed per address, not per /64, so an IPv6 client rotating addresses within its /64 gets fresh buckets. The app's per-account limits still apply.
+
+- **Install.** This needs root SSH.
+  - Copy `deploy/nginx/dictis-rate-limit.http.conf` to `/etc/nginx/conf.d/dictis-rate-limit.conf`.
+  - Paste `deploy/nginx/dictis-rate-limit.server.conf` into Domains > *domain* > Apache & nginx Settings > Additional nginx directives.
+  - Run `nginx -t && systemctl reload nginx`.
+  - Then check the generated vhost: `grep -nE 'error_page|proxy_intercept_errors' /var/www/vhosts/system/<domain>/conf/nginx.conf`.
+    - An `error_page` inside a `location` stops the server-level `error_page 429` from applying there, and clients get nginx's HTML 429 instead of the JSON body. If so, turn off the domain's custom error documents.
+    - `proxy_intercept_errors on` makes nginx replace Laravel's own 429 (and its `Retry-After`) with the proxy's.
+  - Without root access, or with Plesk's nginx turned off, use the host's or Cloudflare's rate limiting instead.
+- **Required: check the client IP Laravel sees.** Do this after the first deploy, and whenever the proxy chain changes. If Laravel sees the server's address instead of the client's, every IP-keyed limiter (login, password reset, 2FA) shares one bucket. One person's failed logins then lock everyone out.
+  - From a known external IP, sign in with a wrong password, or sign in and out.
+  - Then check `ip` in the newest entry of `backend/storage/logs/security.log`. It must be your external IP.
+  - If it shows the server's own address, the preferred fix is Apache `mod_remoteip`, with `RemoteIPHeader X-Forwarded-For` and `RemoteIPInternalProxy <the address security.log showed>`, and `TRUSTED_PROXIES` left empty. Plesk's nginx usually connects to Apache from the server IP on :7080/:7081.
+  - The fallback is `TRUSTED_PROXIES=<the exact address security.log showed>`, never a guessed `127.0.0.1`.
+  - Either way, every local process connecting from that address is then trusted to set `X-Forwarded-For`. On shared Plesk hosting that includes other tenants, so only do this on a single-tenant server.
+- **Required: check the access log.** The nginx access log must show real client IPs, not a proxy or load balancer address.
+- **Tune.**
+  1. Roll out in dry-run first: uncomment `limit_req_dry_run on;` and reload nginx.
+  2. Watch Plesk's `proxy_error_log` for `limiting requests` lines.
+  3. If a legitimate shared office IP shows up, raise `burst` first, or add that single public address to the `geo $dictis_rl_exempt` block. Use /32 only, never private or load-balancer ranges.
+  4. Then turn dry-run back off: re-comment the line, reload nginx, and confirm with the burst test below that it now returns `429`s.
+- **Verify.** Run this from an IP that isn't exempt and isn't your office's shared NAT, because it briefly throttles everyone behind that IP. The first command shows `200`s followed by `429`s. The last two must return `404`, because Apache would otherwise accept `/index.php/...` path info (including percent-encoded spellings of it) and skip the per-path limits:
+
+  ```bash
+  seq 1 200 | xargs -P 10 -I{} curl -s -o /dev/null -w "%{http_code}\n" https://dictis.example.gov.ph/sanctum/csrf-cookie | sort | uniq -c
+  curl -si https://dictis.example.gov.ph/sanctum/csrf-cookie | grep -iE '^HTTP|^retry-after|message'
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST https://dictis.example.gov.ph/index.php/api/login
+  curl -s -o /dev/null -w "%{http_code}\n" --path-as-is https://dictis.example.gov.ph/index.ph%70/api/login
+  ```
 
 On any network-reachable deploy, `APP_ENV` must be exactly `production` and `APP_DEBUG=false`: JSON error masking and reCAPTCHA's fail-closed rejection of the test/blank secret both key on `APP_ENV=production`, so any other value (`prod`, `staging`, ...) leaks exception detail and accepts the test secret.
 

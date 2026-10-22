@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input'
 import { AuthLayout } from '@/components/management/AuthLayout'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { ensureCsrfCookie, api } from '@/lib/api'
+import { isTooManyRequests, TOO_MANY_ATTEMPTS_MESSAGE } from '@/lib/errors'
 import type { ApiValidationError } from '@/types/api'
 
 export function ResetPassword() {
@@ -44,6 +45,8 @@ export function ResetPassword() {
     } catch (error) {
       if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
         setErrorMessage(Object.values(error.response.data.errors).flat()[0] ?? 'This reset link is invalid or has expired.')
+      } else if (isTooManyRequests(error)) {
+        setErrorMessage(TOO_MANY_ATTEMPTS_MESSAGE)
       } else {
         setErrorMessage('Something went wrong. Please try again.')
       }

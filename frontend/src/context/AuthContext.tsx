@@ -1,3 +1,4 @@
+import { isAxiosError } from 'axios'
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 
@@ -26,6 +27,8 @@ interface AuthContextValue {
   verifyTwoFactor: (twoFaToken: string, payload: { code?: string; recoveryCode?: string; rememberDevice?: boolean }) => Promise<string | undefined>
   logout: () => Promise<void>
   fetchUser: () => Promise<boolean>
+  sessionStatus: SessionStatus
+  retrySession: () => void
   can: (permission: string) => boolean
   hasRole: (role: string) => boolean
 }
@@ -86,44 +89,97 @@ function leaveForLoginWithoutAccess(message: string) {
   window.location.replace(`/login?reason=${NO_ACCESS_REASON}`)
 }
 
+type SessionProbe =
+  | { kind: 'user'; user: AuthUser }
+  | { kind: 'signed_out' }
+  | { kind: 'leaving' }
+  | { kind: 'unavailable'; retryAfterMs: number }
+
+export type SessionStatus = 'ok' | 'retrying' | 'unavailable'
+
+const BOOT_PROBE_RETRIES = 2
+const DEFAULT_RETRY_MS = 3000
+const MAX_RETRY_MS = 10000
+
+function retryDelayMs(retryAfter: unknown): number {
+  const seconds = Number(retryAfter)
+  if (!Number.isFinite(seconds) || seconds <= 0) return DEFAULT_RETRY_MS
+  return Math.min(Math.max(seconds * 1000, 1000), MAX_RETRY_MS)
+}
+
+const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
+
+async function probeSession(): Promise<SessionProbe> {
+  try {
+    const response = await api.get<ApiResponse<AuthUser> | { message?: string }>('/user', {
+      // Silence the console 401 on the boot probe; an unauthenticated visitor is expected here.
+      validateStatus: (status) => status < 500,
+    })
+    const { data, status } = response
+    if (data && 'data' in data) {
+      return { kind: 'user', user: data.data }
+    }
+    if (isNoAccessResponse(data)) {
+      if (isGuestOnlyPath(window.location.pathname)) return { kind: 'signed_out' }
+      leaveForLoginWithoutAccess(data.message)
+      return { kind: 'leaving' }
+    }
+    // The boot probe never runs on guest pages; an app page that finds the
+    // session idled out server-side says why on the login screen.
+    if (data?.message === IDLE_TIMEOUT_MESSAGE) {
+      leaveForLogin()
+      return { kind: 'leaving' }
+    }
+    if (status === 401) return { kind: 'signed_out' }
+    return { kind: 'unavailable', retryAfterMs: retryDelayMs(response.headers['retry-after']) }
+  } catch (error) {
+    const retryAfter: unknown = isAxiosError(error) ? error.response?.headers['retry-after'] : undefined
+    return { kind: 'unavailable', retryAfterMs: retryDelayMs(retryAfter) }
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [initialized, setInitialized] = useState(false)
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>('ok')
+
+  const applyProbe = useCallback((result: SessionProbe) => {
+    if (result.kind === 'user') setUser(result.user)
+    else if (result.kind === 'signed_out') setUser(null)
+  }, [])
 
   const fetchUser = useCallback(async (): Promise<boolean> => {
-    try {
-      const { data } = await api.get<ApiResponse<AuthUser> | { message?: string }>('/user', {
-        // Silence the console 401 on the boot probe — when the user is not
-        // authenticated this is expected and handled by the catch below.
-        validateStatus: (status) => status < 500,
-      })
-      if (data && 'data' in data) {
-        setUser(data.data)
-        return true
+    const result = await probeSession()
+    applyProbe(result)
+    if (result.kind !== 'unavailable') setSessionStatus('ok')
+    setInitialized(true)
+    return result.kind === 'user'
+  }, [applyProbe])
+
+  const bootSession = useCallback(async () => {
+    for (let attempt = 0; ; attempt++) {
+      const result = await probeSession()
+      if (result.kind !== 'unavailable') {
+        applyProbe(result)
+        setSessionStatus('ok')
+        setInitialized(true)
+        return
       }
-      if (isNoAccessResponse(data)) {
-        if (isGuestOnlyPath(window.location.pathname)) {
-          setUser(null)
-        } else {
-          leaveForLoginWithoutAccess(data.message)
-        }
-        return false
+      if (attempt >= BOOT_PROBE_RETRIES) {
+        setSessionStatus('unavailable')
+        setInitialized(true)
+        return
       }
-      // The boot probe never runs on guest pages; an app page that finds the
-      // session idled out server-side says why on the login screen.
-      if (data?.message === IDLE_TIMEOUT_MESSAGE) {
-        leaveForLogin()
-        return false
-      }
-      setUser(null)
-      return false
-    } catch {
-      setUser(null)
-      return false
-    } finally {
-      setInitialized(true)
+      setSessionStatus('retrying')
+      await wait(result.retryAfterMs)
     }
-  }, [])
+  }, [applyProbe])
+
+  const retrySession = useCallback(() => {
+    setSessionStatus('retrying')
+    setInitialized(false)
+    void bootSession()
+  }, [bootSession])
 
   const login = useCallback(async (email: string, password: string, recaptchaToken: string): Promise<LoginResult> => {
     await ensureCsrfCookie()
@@ -144,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { status: 'requires_2fa_setup', setupToken: data.setup_token }
     }
     setUser(data.data)
+    setSessionStatus('ok')
     setInitialized(true)
     return { status: 'authenticated' }
   }, [])
@@ -160,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       recoveryCodes: recovery_codes,
       completeSignIn: () => {
         setUser(userData)
+        setSessionStatus('ok')
         setInitialized(true)
       },
     }
@@ -173,6 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       remember_device: payload.rememberDevice ?? false,
     })
     setUser(data.data)
+    setSessionStatus('ok')
     setInitialized(true)
     return data.warning
   }, [])
@@ -181,6 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.post('/logout')
     } finally {
+      setSessionStatus('ok')
       setUser(null)
     }
   }, [])
@@ -224,15 +284,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (fetched) return
     setFetched(true)
-    fetchUser()
-  }, [fetchUser, fetched, location.pathname])
+    void bootSession()
+  }, [bootSession, fetched, location.pathname])
 
   const can = useCallback((permission: string) => user?.permissions.includes(permission) ?? false, [user])
   const hasRole = useCallback((role: string) => user?.roles.includes(role) ?? false, [user])
 
   return (
     <AuthContext.Provider
-      value={{ user, initialized, isAuthenticated: user !== null, login, confirmTwoFactorSetup, verifyTwoFactor, logout, fetchUser, can, hasRole }}
+      value={{ user, initialized, isAuthenticated: user !== null, login, confirmTwoFactorSetup, verifyTwoFactor, logout, fetchUser, sessionStatus, retrySession, can, hasRole }}
     >
       {children}
     </AuthContext.Provider>

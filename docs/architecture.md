@@ -54,7 +54,7 @@ Browser (localhost:5173/...)
      -> Model (LogsActivity writes the audit row) -> JsonResource { data, message }
 ```
 
-In development the SPA calls `http://localhost:8000` directly (cross-origin; CORS is restricted to `FRONTEND_URL` with `supports_credentials`). In production the frontend web server serves `dist/` and reverse-proxies `/api`, `/sanctum` and `/equipment/*/edit` to the backend, so the browser sees one origin. **Browse `localhost`, never `127.0.0.1`**: the session/XSRF cookies are scoped to `SESSION_DOMAIN=localhost` and are silently not sent otherwise, which looks like "every request is 401".
+In development the SPA calls `http://localhost:8000` directly (cross-origin; CORS is restricted to `FRONTEND_URL` with `supports_credentials`). In production (Plesk: nginx in front of Apache) `deploy/plesk.sh` copies `dist/` into `backend/public`, and `.htaccess` sends `/api`, `/sanctum` and `/up` to Laravel and every other GET to `index.html`, so the browser sees one origin (README, "Production build"). **Browse `localhost`, never `127.0.0.1`**: the session/XSRF cookies are scoped to `SESSION_DOMAIN=localhost` and are silently not sent otherwise, which looks like "every request is 401".
 
 ## Authentication flow
 
@@ -67,7 +67,7 @@ There is no self-registration, email verification, passkey, or self-service acco
    - the `UserResource` directly, if the browser presents a valid `dictis_trusted_device` cookie for that user.
 3. Setup: `POST /api/2fa/setup` returns `{qr_code, secret}`; `POST /api/2fa/setup/confirm` with a TOTP `code` stores the secret, logs the user in and returns the user plus one-time `recovery_codes`.
 4. Verify: `POST /api/2fa/verify` with `code` *or* `recovery_code` (single-use, hashed; a warning is returned when two or fewer remain), plus optional `remember_device`. Success calls `LoginSession::complete()`: `Auth::login`, session regenerate, `security` log, `UserResource` with `permissions`.
-5. `GET /api/user` restores the session on reload; `POST /api/logout` invalidates it. `IdleLogout` signs the user out after `idle_timeout_seconds` (from `GET /api/session-settings`) of inactivity across all tabs.
+5. `GET /api/user` restores the session on reload; `POST /api/logout` invalidates it. The SPA's boot probe (`AuthContext`) treats a 429 or 5xx as temporary, not as signed out: it retries up to 2 times, waiting for `Retry-After` (clamped to 1-10 s, default 3 s), and `RequireAuth` shows a "server is busy" notice with a "Try again" button instead of redirecting to login. Only a 401 signs the user out, so a rate-limit spike can't log everyone off. Auth pages (login, 2FA setup/verify, forgot/reset password) show the shared `TOO_MANY_ATTEMPTS_MESSAGE` from `lib/errors.ts` on a 429. `IdleLogout` signs the user out after `idle_timeout_seconds` (from `GET /api/session-settings`) of inactivity across all tabs.
 
 Trusted devices, recovery codes, admin 2FA reset and the permission-based "always require the code" rule are described in [`features/two-factor-trusted-devices.md`](features/two-factor-trusted-devices.md). Password reset: `POST /api/forgot-password` emails a link to `FRONTEND_URL/reset-password?token&email`; `POST /api/reset-password` sets the password and deletes all of that user's sessions. Password policy everywhere: min 12, mixed case, numbers, symbols.
 
@@ -111,7 +111,18 @@ The `*_per_minute`/`*_per_hour` values, `trusted_device_days` and `idle_timeout_
 
 rwatch's `export` limiter and its setting were dropped: inventory has no export feature (add it back with the feature, not before).
 
+In production, Plesk's nginx also rate-limits per client IP before PHP, as a backstop for traffic these limiters never see (unauthenticated 401s, `permission:` denials, `/sanctum/csrf-cookie`): `deploy/nginx/` and the README's "Web server rate limiting" section.
+
 `App\Http\Middleware\SecurityHeaders` is appended globally: `nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`, a `default-src 'self'` CSP with `frame-ancestors 'none'`, `Permissions-Policy` denying geolocation/camera/microphone (no QR scanner exists, so `camera=()`), `Cache-Control: no-store, private` on `api/*`, and HSTS in production. Auth events (failed logins, 2FA failures/enrolment, device trust, admin 2FA resets, no-access refusals, security setting changes, failed password re-confirmations) go to the dedicated `security` log channel.
+
+### Trusted proxy headers
+
+`TRUSTED_PROXIES` (`config('app.trusted_proxies')`) lists the proxies whose `X-Forwarded-*` headers Laravel believes; empty means none are trusted and every forwarded header is ignored. `TRUSTED_PROXY_HEADERS` (`config('app.trusted_proxy_headers')`, default `for`) is a comma list of `for`, `host`, `port`, `proto`, `prefix` choosing which of those headers are honoured once a proxy is trusted. Both are applied in `AppServiceProvider::configureTrustedProxies()` rather than `bootstrap/app.php`'s `trustProxies()`, because that callback runs before config and `.env` are loaded.
+
+- **Why only `X-Forwarded-For` by default:** Laravel's default trusts every `X-Forwarded-*` header from a trusted proxy. A proxy that passes a client's `X-Forwarded-Host`/`Proto` through unchanged would then let the client choose the host and scheme of generated URLs, which is how a forged host could end up in a printed QR label (see [Equipment QR codes stay stable](#equipment-qr-codes-stay-stable)). Add a header only if the proxy always overwrites it.
+- Unknown names are dropped, and an empty or all-unknown list falls back to `for`, never to "all headers" (a zero bitmask would make `TrustProxies` trust everything).
+- On Plesk, `TRUSTED_PROXIES` normally stays empty (use Apache `mod_remoteip` if Laravel sees the server's address), so this setting has no effect there. See `backend/.env.production.example` and the README's required client-IP check.
+- Tests: `backend/tests/Feature/Security/TrustedProxyHeadersTest.php`.
 
 ## Authorization model: granular permissions, never role names
 
@@ -152,7 +163,7 @@ Admin UI: [`features/audit-log.md`](features/audit-log.md).
 
 ## Equipment QR codes stay stable
 
-Printed QR labels encode `equipment.qr_code` (`APP_URL/equipment/{id}/edit`, set by `EquipmentObserver`) and are long-lived physical objects, so that URL must keep working forever. The backend's single web route `GET /equipment/{equipment}/edit` 302-redirects to `FRONTEND_URL/equipment/{id}/edit` (only ever to the configured frontend origin, so it is not an open redirect), and the SPA has an alias route for deployments where the frontend host receives the scan. Stored `qr_code` values are never rewritten.
+Printed QR labels encode `equipment.qr_code` (`APP_URL/equipment/{id}/edit`, set by `EquipmentObserver` via `Equipment::qrCodeUrl()`, which always uses `APP_URL` and never the request host) and are long-lived physical objects, so that URL must keep working forever. The backend's single web route `GET /equipment/{id}/edit` (`equipment.edit`, `backend/routes/web.php`) 302-redirects to `FRONTEND_URL/equipment/{id}/edit` (only ever to the configured frontend origin, so it is not an open redirect), and the SPA has an alias route for deployments where the frontend host receives the scan. On Plesk (single-origin), `backend/public/.htaccess` serves the SPA's `index.html` for a scanned label and the SPA route `equipment/:id/edit` handles it, so the Laravel redirect route only runs when no SPA build is present. That is also why `deploy/plesk.sh` fails if `index.html` is missing: same-origin, the redirect would point back at itself and loop. Stored `qr_code` values are only rewritten by the audited `equipment:regenerate-qr-codes` command, run by hand after review ([`features/equipment.md`](features/equipment.md#non-obvious-design-decisions)).
 
 ## Three data-access patterns
 

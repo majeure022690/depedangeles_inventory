@@ -219,7 +219,7 @@ class EquipmentController extends Controller
         $this->authorize('view', $equipment);
 
         // EquipmentObserver fills qr_code as soon as the row has an id.
-        $data = $equipment->qr_code ?? route('equipment.edit', $equipment);
+        $data = $equipment->qr_code ?? $equipment->qrCodeUrl();
 
         $result = (new Builder(
             writer: new PngWriter,

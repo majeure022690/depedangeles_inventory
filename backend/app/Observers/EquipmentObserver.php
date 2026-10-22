@@ -10,7 +10,7 @@ use App\Models\Equipment;
  * Auto-populates Equipment::$qr_code — see the QR CODE note on the
  * Equipment model for why that column is never user-writable.
  *
- * Encodes a URL to the record's edit page (`route('equipment.edit', ...)`),
+ * Encodes a URL to the record's edit page (Equipment::qrCodeUrl()),
  * not just the bare property_no: scanning the printed tag in the field
  * should take whoever scans it straight to the live record (current
  * condition, accountable officer, transaction history, ...), not merely
@@ -46,7 +46,7 @@ class EquipmentObserver
         // this very observer, which would otherwise re-fire on its own
         // save and recurse.
         $equipment->forceFill([
-            'qr_code' => route('equipment.edit', $equipment),
+            'qr_code' => $equipment->qrCodeUrl(),
         ])->saveQuietly();
     }
 }

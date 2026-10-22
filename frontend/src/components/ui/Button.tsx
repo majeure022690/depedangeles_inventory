@@ -1,10 +1,11 @@
 import { Loader2 } from 'lucide-react'
-import { type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { type ButtonHTMLAttributes, type ReactNode, type Ref } from 'react'
 
 import { cn } from '@/lib/utils'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode
+  ref?: Ref<HTMLButtonElement>
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'link'
   size?: 'sm' | 'md' | 'lg'
   fullWidth?: boolean

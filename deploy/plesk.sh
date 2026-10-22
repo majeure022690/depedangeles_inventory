@@ -32,5 +32,7 @@ npm run build
 
 rm -rf "$ROOT/backend/public/assets"
 cp -R dist/. "$ROOT/backend/public/"
+# Without index.html, SPA paths fall through to Laravel's same-origin QR redirect and loop.
+[ -f "$ROOT/backend/public/index.html" ] || { echo "SPA build missing index.html" >&2; exit 1; }
 
 echo "Deploy finished."

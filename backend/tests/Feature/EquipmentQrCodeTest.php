@@ -62,7 +62,7 @@ class EquipmentQrCodeTest extends TestCase
         $equipment = Equipment::where('property_no', 'AC-2026-IT-LT-000123')->firstOrFail();
 
         $this->assertNotNull($equipment->qr_code);
-        $this->assertSame(route('equipment.edit', $equipment), $equipment->qr_code);
+        $this->assertSame($equipment->qrCodeUrl(), $equipment->qr_code);
     }
 
     public function test_qr_code_is_not_accepted_as_user_input(): void
@@ -78,7 +78,7 @@ class EquipmentQrCodeTest extends TestCase
 
         $equipment = Equipment::where('property_no', 'AC-2026-IT-LT-000123')->firstOrFail();
 
-        $this->assertSame(route('equipment.edit', $equipment), $equipment->qr_code);
+        $this->assertSame($equipment->qrCodeUrl(), $equipment->qr_code);
     }
 
     public function test_qr_code_is_backfilled_on_update_for_a_record_that_predates_the_feature(): void
@@ -128,7 +128,7 @@ class EquipmentQrCodeTest extends TestCase
             $this->makeEquipmentPayload(['property_no' => 'AC-2020-IT-LT-000001']),
         )->assertOk();
 
-        $this->assertSame(route('equipment.edit', $equipment), $equipment->fresh()->qr_code);
+        $this->assertSame($equipment->qrCodeUrl(), $equipment->fresh()->qr_code);
     }
 
     public function test_qr_code_image_endpoint_returns_a_png_for_a_user_with_equipment_view(): void

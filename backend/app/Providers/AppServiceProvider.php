@@ -89,9 +89,7 @@ class AppServiceProvider extends ServiceProvider
             app()->isProduction(),
         );
 
-        if ($proxies = config('app.trusted_proxies')) {
-            TrustProxies::at($proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
-        }
+        $this->configureTrustedProxies();
 
         Password::defaults(fn () => Password::min(12)->mixedCase()->numbers()->symbols());
 
@@ -100,6 +98,42 @@ class AppServiceProvider extends ServiceProvider
 
             return rtrim(config('app.frontend_url'), '/')."/reset-password?{$query}";
         });
+    }
+
+    /**
+     * Lives here rather than in bootstrap/app.php's trustProxies() because
+     * that callback runs before config and .env are loaded.
+     */
+    public function configureTrustedProxies(): void
+    {
+        $proxies = config('app.trusted_proxies');
+
+        if (! is_string($proxies) || trim($proxies) === '') {
+            return;
+        }
+
+        TrustProxies::at(trim($proxies) === '*' ? '*' : array_map('trim', explode(',', $proxies)));
+        TrustProxies::withHeaders(self::trustedProxyHeaders((string) config('app.trusted_proxy_headers', 'for')));
+    }
+
+    public static function trustedProxyHeaders(string $names): int
+    {
+        $map = [
+            'for' => Request::HEADER_X_FORWARDED_FOR,
+            'host' => Request::HEADER_X_FORWARDED_HOST,
+            'port' => Request::HEADER_X_FORWARDED_PORT,
+            'proto' => Request::HEADER_X_FORWARDED_PROTO,
+            'prefix' => Request::HEADER_X_FORWARDED_PREFIX,
+        ];
+
+        $headers = 0;
+
+        foreach (explode(',', strtolower($names)) as $name) {
+            $headers |= $map[trim($name)] ?? 0;
+        }
+
+        // Zero would make TrustProxies fall back to trusting every header.
+        return $headers ?: Request::HEADER_X_FORWARDED_FOR;
     }
 
     protected function configureRateLimiting(): void

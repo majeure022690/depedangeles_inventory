@@ -10,6 +10,7 @@ import { OtpInput } from '@/components/ui/OtpInput'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { isNoAccessError } from '@/lib/api'
+import { isTooManyRequests, TOO_MANY_ATTEMPTS_MESSAGE } from '@/lib/errors'
 import { twoFactorService } from '@/services/twoFactorService'
 import type { ApiValidationError } from '@/types/api'
 
@@ -44,7 +45,7 @@ export function TwoFactorSetup() {
           navigate('/login', { replace: true, state: { noAccess: error.response.data.message } })
           return
         }
-        setErrorMessage('Unable to start two-factor setup. Please log in again.')
+        setErrorMessage(isTooManyRequests(error) ? TOO_MANY_ATTEMPTS_MESSAGE : 'Unable to start two-factor setup. Please log in again.')
       })
       .finally(() => setLoadingSetup(false))
   }, [navigate, setupToken])
@@ -71,6 +72,8 @@ export function TwoFactorSetup() {
           return
         }
         setErrorMessage(Object.values(error.response.data.errors).flat()[0] ?? 'Invalid verification code.')
+      } else if (isTooManyRequests(error)) {
+        setErrorMessage(TOO_MANY_ATTEMPTS_MESSAGE)
       } else {
         setErrorMessage('Something went wrong. Please try again.')
       }

@@ -10,7 +10,7 @@ The ICT asset register for the division office: property number, item/spec detai
 - `App\Models\EquipmentTransaction` — append-only log, one row per accountability/lifecycle event. `belongsTo(Personnel)` three ways (`accountableOfficer`, `endUser`, `receivedBy`) plus `belongsTo(User)` as `recordedBy` — the system user who entered it, distinct from the Personnel it's about.
 - `App\Services\EquipmentAccountabilityService` — the only sanctioned way to record a transaction and move the `current_*` pointers, atomically in one DB transaction.
 - `App\Policies\EquipmentPolicy` — `viewAny`/`view`/`create`/`update`/`delete` plus `createTransaction`, each checked against its own `Permission` case.
-- `App\Observers\EquipmentObserver` — fills `qr_code` with `route('equipment.edit', $equipment)` once the row has an id (see QR below).
+- `App\Observers\EquipmentObserver` — fills `qr_code` with `Equipment::qrCodeUrl()` once the row has an id (see QR below).
 
 Audit: create/update/delete come from `LogsActivity` (`equipment.created|updated|deleted`, `current_*` excluded); recording a transaction logs `equipment.transaction.recorded`.
 
@@ -81,13 +81,19 @@ Form body: `components/equipment/EquipmentFields.tsx`; history and transaction f
 - `backend/app/Services/EquipmentAccountabilityService.php`, `backend/app/Exceptions/AccountabilitySyncRequiredException.php`
 - `backend/app/Policies/EquipmentPolicy.php`
 - `backend/routes/web.php` — the QR redirect route
+- `backend/app/Console/Commands/RegenerateEquipmentQrCodes.php` — `equipment:regenerate-qr-codes`
 
 ## Non-obvious design decisions
 
 - **Accountability sync guard.** `Equipment`'s `updating` hook throws `AccountabilitySyncRequiredException` if `current_accountable_officer_id`/`current_end_user_id` is dirty outside `Equipment::withAccountabilitySync()` — the closure `EquipmentAccountabilityService::recordTransaction()` runs inside. A controller (now or later) cannot drift the pointers out of sync with the log. The guard fires only on `UPDATE`, not `CREATE`: initial creation (factories, seeders, a future import) has no prior holder to reconcile.
 - **"Last transaction wins," always.** `current_*` is overwritten to match the new transaction, including `null` when the transaction names no one. No per-transaction-type branching, so the invariant stays trivial.
 - **`equipment.transactions.create` is its own permission**, separate from `equipment.edit`: reassigning accountability for a physical asset is more sensitive than editing its description. `encoder` holds both, but a role can hold one without the other.
-- **QR labels must outlive the URL scheme.** Labels encode `APP_URL/equipment/{id}/edit`. That path stayed valid through the SPA conversion via the backend redirect and the SPA alias; stored `qr_code` values were not rewritten. Don't change the observer's URL without a plan for already-printed labels.
+- **QR labels must outlive the URL scheme.** Labels encode `APP_URL/equipment/{id}/edit`. That path stayed valid through the SPA conversion via the backend redirect and the SPA alias. Don't change the observer's URL without a plan for already-printed labels.
+- **QR URLs come from `APP_URL`, never the request host.** The observer and the `/qr-code` fallback both use `Equipment::qrCodeUrl()`. Until 2026-10-23 the observer used `route('equipment.edit')`, which takes its host from the incoming request, so a spoofed `Host`/`X-Forwarded-Host` on a create request could store a foreign URL that then got printed on a physical label. That is a phishing vector which outlives any server-side fix. (For the same reason, trusted proxies now honour only `X-Forwarded-For` by default: see [`architecture.md`](../architecture.md#trusted-proxy-headers).)
+- **Existing rows: `php artisan equipment:regenerate-qr-codes`.** Run it once after deploying that change (see the README's Plesk steps), and again if `APP_URL` ever changes.
+  - Without flags it's a dry run. It lists every row whose `qr_code` isn't `qrCodeUrl()`, soft-deleted rows included, as `#id property_no: old -> new`, and changes nothing.
+  - `--force` rewrites those rows and writes one `equipment.qr_code.regenerated` activity row each, keeping the old value in `properties.old.qr_code`.
+  - Review the dry run before forcing. A mismatch can be harmless, e.g. a row created before `APP_URL` changed. A row pointing at a host the division never used should be treated as a possible phishing label: find it and physically reprint it, don't just rewrite the database. Any rewritten row's printed label still encodes the old URL until it is reprinted.
 - **No `employee_id = 9999` "unknown officer" placeholder.** Unknown/unassigned is a `null` FK, not a sentinel Personnel row.
 
 ## Future considerations

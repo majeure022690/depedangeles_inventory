@@ -5,6 +5,11 @@
 
     RewriteEngine On
 
+    # Path info after index.php would bypass the web server's per-path rate limits.
+    RewriteCond %{ENV:REDIRECT_STATUS} ^$
+    RewriteCond %{REQUEST_URI} index\.php/ [NC]
+    RewriteRule ^ - [R=404,L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

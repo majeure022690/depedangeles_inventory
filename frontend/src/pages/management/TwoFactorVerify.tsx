@@ -12,6 +12,7 @@ import { OtpInput } from '@/components/ui/OtpInput'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { isNoAccessError } from '@/lib/api'
+import { isTooManyRequests, TOO_MANY_ATTEMPTS_MESSAGE } from '@/lib/errors'
 import type { ApiValidationError } from '@/types/api'
 
 export function TwoFactorVerify() {
@@ -59,6 +60,8 @@ export function TwoFactorVerify() {
           return
         }
         setErrorMessage(Object.values(error.response.data.errors).flat()[0] ?? 'Invalid code.')
+      } else if (isTooManyRequests(error)) {
+        setErrorMessage(TOO_MANY_ATTEMPTS_MESSAGE)
       } else {
         setErrorMessage('Something went wrong. Please try again.')
       }

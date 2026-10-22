@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { AuthLayout } from '@/components/management/AuthLayout'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { ensureCsrfCookie, api } from '@/lib/api'
+import { isTooManyRequests, TOO_MANY_ATTEMPTS_MESSAGE } from '@/lib/errors'
 import type { ApiValidationError } from '@/types/api'
 
 export function ForgotPassword() {
@@ -29,8 +30,8 @@ export function ForgotPassword() {
     } catch (error) {
       if (isAxiosError<ApiValidationError>(error) && error.response?.status === 422) {
         setErrorMessage(Object.values(error.response.data.errors).flat()[0] ?? 'Something went wrong. Please try again.')
-      } else if (isAxiosError(error) && error.response?.status === 429) {
-        setErrorMessage('Too many requests. Please wait a moment before trying again.')
+      } else if (isTooManyRequests(error)) {
+        setErrorMessage(TOO_MANY_ATTEMPTS_MESSAGE)
       } else {
         setErrorMessage('Something went wrong. Please try again.')
       }

@@ -61,6 +61,10 @@ return [
     // Leave empty when PHP is reached directly, or per-IP rate limits can be spoofed.
     'trusted_proxies' => env('TRUSTED_PROXIES'),
 
+    // X-Forwarded-* headers honoured from those proxies: comma list of
+    // for, host, port, proto, prefix. Only add one the proxy always overwrites.
+    'trusted_proxy_headers' => env('TRUSTED_PROXY_HEADERS', 'for'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

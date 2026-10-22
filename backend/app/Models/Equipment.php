@@ -310,6 +310,14 @@ class Equipment extends Model
             || in_array((int) $this->current_end_user_id, $personnelIds, true);
     }
 
+    /**
+     * Built from APP_URL, never the request's Host: this URL is printed on physical asset labels.
+     */
+    public function qrCodeUrl(): string
+    {
+        return rtrim((string) config('app.url'), '/').route('equipment.edit', $this, absolute: false);
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

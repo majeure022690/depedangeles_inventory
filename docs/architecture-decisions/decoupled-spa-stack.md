@@ -22,6 +22,8 @@ The first step is already done. The Laravel app now lives in `backend/` (commit 
 
 In production the frontend's web server serves the SPA and reverse-proxies `/api` and `/sanctum` to the backend, so the browser sees a single origin. This is the same as rwatch's `frontend/docker/default.conf.template`.
 
+*Note (2026-10-23): production runs on Plesk (nginx in front of Apache), not a Docker nginx. `deploy/plesk.sh` copies the built SPA into `backend/public`, and `.htaccess` routes `/api`, `/sanctum` and `/up` to Laravel. The single origin is unchanged.*
+
 ### 2. Backend layout mirrors rwatch's audience namespacing
 
 - `routes/api.php` only `require`s `routes/api/auth.php` and `routes/api/management.php`. There is **no `public.php`**: inventory has no unauthenticated portal.

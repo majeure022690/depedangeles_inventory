@@ -12,7 +12,7 @@ return [
 
     'allowed_headers' => ['Content-Type', 'X-Requested-With', 'X-XSRF-TOKEN', 'Accept', 'Authorization'],
 
-    'exposed_headers' => [],
+    'exposed_headers' => ['Retry-After'],
 
     'max_age' => 0,
 

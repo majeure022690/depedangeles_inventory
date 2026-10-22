@@ -2,6 +2,24 @@
 
 All notable changes to this project, in terms of user/developer impact. Entries up to 2026-07-15 were reconstructed from migration filename timestamps and source file modification times, before the project had git history; they are accurate to the day where backed by a migration timestamp, and entries reconstructed from file mtimes alone are noted as such. Later entries cite their commits.
 
+## 2026-10-23
+
+On `iris-staging`; no migrations. Covered by `backend/tests/Feature/{EquipmentQrCodeHostTest,RegenerateEquipmentQrCodesTest}.php` and `Security/TrustedProxyHeadersTest.php`.
+
+### Security
+
+- **QR labels always encode `APP_URL`.** `Equipment::qrCodeUrl()` replaced `route('equipment.edit')`, which took its host from the request, so a spoofed `Host`/`X-Forwarded-Host` could get a foreign URL printed on an asset label. New one-off command `php artisan equipment:regenerate-qr-codes`: a dry run by default (lists mismatched rows, soft-deleted included), `--force` rewrites them and audits each as `equipment.qr_code.regenerated` with the old value. Run it once after deploy (README Plesk steps); reprint any label that points at a foreign host. See [`docs/features/equipment.md`](docs/features/equipment.md#non-obvious-design-decisions).
+- **Trusted proxies honour only `X-Forwarded-For` by default.** New `TRUSTED_PROXY_HEADERS` (comma list of `for`, `host`, `port`, `proto`, `prefix`; default `for`) opts others in, so a client can't spoof Host or Proto through a trusted proxy. See [`docs/architecture.md`](docs/architecture.md#trusted-proxy-headers).
+- **Web-server rate limiting for Plesk's nginx** (`deploy/nginx/`), a per-IP backstop ahead of PHP. Install, verification and the required client-IP check are in the README's "Web server rate limiting" section.
+- **`/index.php/...` path info now returns 404** (`backend/public/.htaccess`), since it would otherwise reach Laravel while skipping nginx's per-path limits. The rule matches the decoded `REQUEST_URI` on the original request (`REDIRECT_STATUS` empty), so percent-encoded variants like `/index.ph%70/...` and `/%69ndex.php/...` are caught too. An earlier `THE_REQUEST`-based rule missed them. Verified on Apache 2.4.58.
+
+### Changed
+
+- **A 429 or 5xx no longer signs the SPA user out on load.** The boot session probe retries up to 2 times (honouring `Retry-After`), then shows a "server is busy" notice with a retry button. Auth pages show the shared "Too many attempts" message on a 429. See [`docs/architecture.md`](docs/architecture.md#authentication-flow).
+- **Plesk is the only production setup.** The Docker deploy path (`frontend/Dockerfile`, `frontend/docker/default.conf.template`, `frontend/.dockerignore`) was removed; the README, `.env.production.example` files and the stack ADR now describe Plesk (nginx in front of Apache, SPA copied into `backend/public` by `deploy/plesk.sh`).
+- **`deploy/plesk.sh` fails the deploy if `backend/public/index.html` is missing** after copying the SPA build. Without it, SPA paths fall through to Laravel's same-origin QR redirect route and loop.
+- **CORS exposes `Retry-After`** (`backend/config/cors.php`), so the SPA can read it in cross-origin dev. Production is single-origin and doesn't need it.
+
 ## 2026-10-22
 
 On `iris-staging`; no migrations. Covered by `backend/tests/Feature/Auth/NoAccessGateTest.php`, `Auth/TrustedDeviceTest.php`, `Management/{SecuritySettingTest,SystemLogTest,EmailLogTest,PasswordConfirmedSettingsTest}.php`, and `Security/PermissionBoundaryTest.php`.

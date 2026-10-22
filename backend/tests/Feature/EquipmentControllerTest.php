@@ -105,7 +105,7 @@ class EquipmentControllerTest extends TestCase
         $equipment = Equipment::findOrFail($response->json('data.id'));
         $this->assertNull($equipment->current_accountable_officer_id);
         $this->assertNull($equipment->current_end_user_id);
-        $this->assertSame(route('equipment.edit', $equipment), $response->json('data.qr_code'));
+        $this->assertSame($equipment->qrCodeUrl(), $response->json('data.qr_code'));
 
         $this->assertDatabaseHas('activity_log', [
             'subject_type' => Equipment::class,
