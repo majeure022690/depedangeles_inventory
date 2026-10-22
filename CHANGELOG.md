@@ -14,6 +14,19 @@ On `iris-staging`; no migrations. Covered by `backend/tests/Feature/Auth/NoAcces
 - **Security setting changes and log clears need the password again.** `PUT /api/settings/security` and `DELETE /api/settings/system-logs/errors`, `/settings/system-logs/slow-queries` and `/settings/email-log` now require `current_password`. A missing or wrong password returns 422 under `errors.current_password`, and nothing changes or is audited. They use the `password-confirm` limiter (6/min per user, shared with profile updates and recovery-code regeneration), which replaces the old `throttle:10,1` on the three clears. Security setting changes are also written to the `security` log channel (`user_id`, `ip`, `key`, `old`, `new`) alongside the existing `security_setting.updated` audit row, and failed re-confirmations are logged there too. In the SPA these actions open a "Confirm your password" dialog (`components/ui/PasswordConfirmDialog.tsx`). See [`docs/architecture.md`](docs/architecture.md#rate-limiters-and-security-settings).
 - **Refused requests no longer spend rate-limit budget.** `EnsureUserIsActive`, `EnforceIdleTimeout` and the `permission:` middleware now run before `throttle:*`, so denied, inactive and idle-expired requests don't count against `password-confirm` or `authenticated-api`. Route-level `authorization.denied` audit rows now record the raw route `parameters` (even for a non-existent record) and get their subject bound by the exception handler. See [`docs/architecture.md`](docs/architecture.md#audit-logging).
 
+## 2026-10-20
+
+On `iris-staging`. Commits `95d7977` (backend, under an unrelated "wip: roles rework" message) and `babbbbb` (frontend). Migration `2026_10_20_170000`. Covered by `backend/tests/Feature/EquipmentDataScopeTest.php`.
+
+### Added
+
+- **Role data scope (`own` / `school` / `all`).** Each role now limits which Equipment rows its permissions reach: items currently issued to the user's own Personnel record (matched by DepEd email), items issued to anyone at the user's school or office, or everything. The scope applies to the Equipment list, show/QR/edit/delete/transactions (an out-of-scope id gets 403) and the dashboard's equipment figures and recent transactions. Personnel, ISP Accounts and the other modules are not scoped. Existing roles were set to `all`, except `viewer`, which was set to `own`. `super_administrator` is always `all`. The Roles screen has a "Data scope" column and select. See [`docs/features/roles-and-permissions.md`](docs/features/roles-and-permissions.md#data-scope).
+- **Personnel "School/office"** (`personnel.office_id`, nullable FK to `offices`). The `school` scope uses it. It's on the Personnel form and in `PersonnelResource` (`office_id`, `office`), and `/api/personnel/options` gained an `office` list.
+
+### Fixed
+
+- The Super Administrator role can be saved again. `UpdateRoleRequest` still required that role to have zero permissions, a rule left over from the removed `pending` role.
+
 ## 2026-10-19 — Decoupled SPA conversion
 
 The whole app moved from the Inertia/Vue monolith to a Laravel JSON API (`backend/`) plus a React SPA (`frontend/`), mirroring the sibling project rwatch. Decision: [`docs/architecture-decisions/decoupled-spa-stack.md`](docs/architecture-decisions/decoupled-spa-stack.md); execution and deviations: [`decoupled-spa-stack-plan.md`](docs/architecture-decisions/decoupled-spa-stack-plan.md). Commits `ea3b08a`..`1d7732b` on `iris-staging`; migrations `2026_10_19_000001`-`000012`. Features and data are unchanged.

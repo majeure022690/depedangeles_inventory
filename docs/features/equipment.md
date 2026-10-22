@@ -31,6 +31,8 @@ All under `auth:sanctum` + `throttle:authenticated-api`. Controllers: `Api\Manag
 
 There is no update or delete endpoint for transactions, by design.
 
+The list and every per-record action (show, QR, update, delete, transactions) are also limited by the role's [data scope](roles-and-permissions.md#data-scope). Under `own`/`school` a user only reaches items currently issued to personnel within their scope, and an out-of-scope id gets 403. `POST` and `/options` are not scoped.
+
 **Request fields** (`StoreEquipmentRequest`; Update is the same with `property_no` unique-ignoring itself). Required: `item_type_id`, `brand_id`, `equipment_category_id`, `equipment_classification_id`, `equipment_condition_id` (active Tier 1 ids), `uom`, `mode_acquisition`, `source_acquisition`, `source_fund`, `allotment_class`, `disposition_status` (active Tier 2 values). Optional: `property_no` (unique), `old_property_no`, `serial_number`, `model`, `specifications`, `non_dcp`, `dcp_package`, `dcp_year`, `gl_sl_code`, `uacs`, `acquisition_cost`, `received_date`, `estimated_useful_life`, `donor`, `pm_plan`, `equipment_location`, `non_functional`, `remarks`, `under_warranty`, `end_warranty_date`, `supplier`. The `current_*` pointers are never accepted.
 
 **Transaction fields:** `transaction_type` (required, Tier 2), `accountable_officer_id`, `end_user_id`, `received_by_id` (Personnel ids), `date_assigned_accountable_officer`, `date_assigned_end_user`, `date_received_new_accountable`, `supporting_documents1`/`supporting_documents2` (Tier 2 supporting-document types), `or_si_dr_iar_no`, `par_ics_rrsp_rs_wmr_no`.
