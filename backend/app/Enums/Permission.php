@@ -190,8 +190,8 @@ enum Permission: string
             self::StakeholderProfileView, self::StakeholderProfileEdit, self::StakeholderProfileViewAll => 'Stakeholder Profile',
             self::InternetConnectivityView, self::InternetConnectivityEdit,
             self::InternetConnectivityViewAll => 'Internet Connectivity',
-            self::ReferenceDataManage, self::UsersView, self::UsersEdit, 
-            self::UsersResetTwoFactor, self::RolesView, self::RolesCreate, 
+            self::ReferenceDataManage, self::UsersView, self::UsersEdit,
+            self::UsersResetTwoFactor, self::RolesView, self::RolesCreate,
             self::RolesEdit, self::RolesDelete, self::AuditLogView,
             self::SecuritySettingsManage, self::EmailLogManage => 'Administration',
         };

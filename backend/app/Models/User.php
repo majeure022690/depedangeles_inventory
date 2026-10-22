@@ -8,6 +8,7 @@ use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -34,6 +35,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property int|null $office_id
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
+ * @property-read EloquentCollection<int, Role> $roles
  */
 #[Fillable(['name', 'email', 'password', 'office_id', 'avatar_path', 'is_active'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
@@ -119,7 +121,7 @@ class User extends Authenticatable
             return null;
         }
 
-        return $this->scopedPersonnelIds ??= Personnel::query()
+        return $this->scopedPersonnelIds ??= array_values(Personnel::query()
             ->when(
                 $scope === DataScope::School,
                 fn ($query) => $query->where('office_id', $this->office_id ?? 0),
@@ -127,7 +129,7 @@ class User extends Authenticatable
             )
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
-            ->all();
+            ->all());
     }
 
     /**

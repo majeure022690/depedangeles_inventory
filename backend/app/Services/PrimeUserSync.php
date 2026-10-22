@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use stdClass;
 use Throwable;
 
 final class PrimeUserSync
@@ -22,7 +23,7 @@ final class PrimeUserSync
     {
         $prime = ExternalUserAuthService::users()
             ->get(self::COLUMNS)
-            ->keyBy(fn (object $row) => mb_strtolower($row->email_address));
+            ->keyBy(fn (stdClass $row) => mb_strtolower($row->email_address));
 
         $locals = User::query()->get()->keyBy(fn (User $user) => mb_strtolower($user->email));
 
@@ -71,7 +72,7 @@ final class PrimeUserSync
     /**
      * @return 'created'|'updated'|'deactivated'|null
      */
-    private function apply(object $row, ?User $local): ?string
+    private function apply(stdClass $row, ?User $local): ?string
     {
         $active = $row->user_status === ExternalUserAuthService::ACTIVE_STATUS;
 

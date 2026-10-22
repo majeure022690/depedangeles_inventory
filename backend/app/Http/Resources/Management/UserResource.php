@@ -35,6 +35,7 @@ class UserResource extends JsonResource
             'role_ids' => $this->whenLoaded('roles', fn () => $this->roles->pluck('id')),
             'role' => $this->whenLoaded('roles', function () {
                 $firstRole = $this->roles->first();
+
                 return $firstRole ? [
                     'id' => $firstRole->id,
                     'name' => $firstRole->name,

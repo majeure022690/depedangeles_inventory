@@ -113,7 +113,7 @@ class DashboardController extends Controller
         return EquipmentTransaction::query()
             ->when(
                 $user->scopedPersonnelIds() !== null,
-                fn ($query) => $query->whereHas('equipment', fn ($equipment) => $equipment->visibleTo($user)),
+                fn ($query) => $query->whereIn('equipment_id', Equipment::query()->visibleTo($user)->select('id')),
             )
             ->with([
                 'equipment:id,property_no,item_type_id',
