@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\EquipmentLibraryType;
+use App\Enums\Permission;
 use App\Enums\PersonnelLibraryType;
 use App\Models\Equipment;
 use App\Models\EquipmentLibrary;
@@ -37,7 +38,7 @@ class ReferenceDataControllerTest extends TestCase
 
     private function admin(): User
     {
-        return $this->userWithRole('admin');
+        return $this->userWithPermissions([Permission::ReferenceDataManage]);
     }
 
     private function encoder(): User

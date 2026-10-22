@@ -47,7 +47,7 @@ class SessionTerminationTest extends TestCase
         $this->storeSessionFor($other, 'other-session');
 
         app(UserRoleService::class)->updateUser(
-            $this->userWithRole('admin'),
+            $this->userWithRole('system_administrator'),
             $target,
             ['name' => $target->name, 'email' => $target->email, 'is_active' => false],
             $target->roles()->pluck('roles.id')->all(),
@@ -66,7 +66,7 @@ class SessionTerminationTest extends TestCase
         ]);
         $this->storeSessionFor($target, 'target-session');
 
-        app(UserRoleService::class)->resetTwoFactor($this->userWithRole('admin'), $target);
+        app(UserRoleService::class)->resetTwoFactor($this->userWithRole('system_administrator'), $target);
 
         $this->assertDatabaseMissing('sessions', ['id' => 'target-session']);
     }
@@ -83,7 +83,7 @@ class SessionTerminationTest extends TestCase
 
     public function test_a_deactivated_user_with_a_live_session_gets_401_and_is_logged_out(): void
     {
-        $user = $this->userWithRole('admin');
+        $user = $this->userWithRole('viewer');
 
         $this->actingAs($user)->getJson('/api/user')->assertOk();
 
@@ -100,7 +100,7 @@ class SessionTerminationTest extends TestCase
     public function test_an_idle_session_is_ended_server_side(): void
     {
         SecuritySettings::update('idle_timeout_seconds', 60);
-        $user = $this->userWithRole('admin');
+        $user = $this->userWithRole('viewer');
 
         $this->actingAs($user)->getJson('/api/user')->assertOk();
 
@@ -117,7 +117,7 @@ class SessionTerminationTest extends TestCase
     public function test_activity_within_the_timeout_keeps_the_session_alive(): void
     {
         SecuritySettings::update('idle_timeout_seconds', 60);
-        $user = $this->userWithRole('admin');
+        $user = $this->userWithRole('viewer');
 
         $this->actingAs($user)->getJson('/api/session-settings')->assertOk();
 

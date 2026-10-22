@@ -255,7 +255,7 @@ class EquipmentControllerTest extends TestCase
         $this->actingAs($this->encoder())->deleteJson("/api/equipment/{$equipment->id}")->assertForbidden();
         $this->assertNotSoftDeleted('equipment', ['id' => $equipment->id]);
 
-        $this->actingAs($this->userWithRole('admin'))->deleteJson("/api/equipment/{$equipment->id}")->assertNoContent();
+        $this->actingAs($this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentDelete]))->deleteJson("/api/equipment/{$equipment->id}")->assertNoContent();
         $this->assertSoftDeleted('equipment', ['id' => $equipment->id]);
         $this->assertDatabaseHas('activity_log', ['subject_id' => $equipment->id, 'subject_type' => Equipment::class, 'event' => 'deleted']);
     }
@@ -337,7 +337,7 @@ class EquipmentControllerTest extends TestCase
         $equipment = $this->makeEquipment();
         $equipment->transactions()->create(['transaction_type' => 'Beginning Inventory']);
         $transaction = EquipmentTransaction::sole();
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentEdit, Permission::EquipmentDelete, Permission::EquipmentTransactionsCreate]);
 
         $this->actingAs($admin)->putJson("/api/equipment/{$equipment->id}/transactions/{$transaction->id}", [])->assertNotFound();
         $this->actingAs($admin)->deleteJson("/api/equipment/{$equipment->id}/transactions/{$transaction->id}")->assertNotFound();

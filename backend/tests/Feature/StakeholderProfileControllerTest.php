@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\EquipmentLibraryType;
+use App\Enums\Permission;
 use App\Enums\StakeholderLibraryType;
 use App\Models\EquipmentLibrary;
 use App\Models\Office;
@@ -132,7 +133,7 @@ class StakeholderProfileControllerTest extends TestCase
     {
         $office = $this->createOffice(['office_name' => 'Angeles ES', 'school_id' => 107022]);
 
-        $this->actingAs($this->userWithRole('admin'))->getJson("/api/stakeholder-profiles/{$office->id}")
+        $this->actingAs($this->userWithPermissions([Permission::StakeholderProfileViewAll]))->getJson("/api/stakeholder-profiles/{$office->id}")
             ->assertOk()
             ->assertJsonPath('data.office', ['id' => $office->id, 'office_name' => 'Angeles ES', 'school_id' => 107022]);
     }
@@ -160,7 +161,7 @@ class StakeholderProfileControllerTest extends TestCase
     {
         $office = $this->createOffice();
         // No office of their own: view_all must not depend on one.
-        $user = $this->userAt('admin', null);
+        $user = $this->userWithPermissions([Permission::StakeholderProfileViewAll]);
 
         $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk();
         $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", ['ro' => 'III'])->assertOk();
@@ -172,7 +173,7 @@ class StakeholderProfileControllerTest extends TestCase
     {
         $office = $this->createOffice();
 
-        $this->actingAs($this->userWithRole('admin'))->getJson('/api/stakeholder-profiles')->assertOk();
+        $this->actingAs($this->userWithPermissions([Permission::StakeholderProfileViewAll]))->getJson('/api/stakeholder-profiles')->assertOk();
         $this->actingAs($this->userAt('encoder', $office))->getJson('/api/stakeholder-profiles')->assertForbidden();
     }
 
@@ -182,7 +183,7 @@ class StakeholderProfileControllerTest extends TestCase
         $withoutProfile = $this->createOffice(['office_name' => 'No Profile ES']);
         StakeholderProfile::create(['office_id' => $withProfile->id, 'sdo' => 'SDO Angeles City']);
 
-        $response = $this->actingAs($this->userWithRole('admin'))->getJson('/api/stakeholder-profiles')
+        $response = $this->actingAs($this->userWithPermissions([Permission::StakeholderProfileViewAll]))->getJson('/api/stakeholder-profiles')
             ->assertOk()
             ->assertJsonStructure(['data' => [['id', 'office_name', 'office_type', 'school_id', 'has_profile', 'updated_at']], 'meta', 'links']);
 
@@ -191,7 +192,7 @@ class StakeholderProfileControllerTest extends TestCase
         $this->assertNotNull($rows->firstWhere('id', $withProfile->id)['updated_at']);
         $this->assertFalse($rows->firstWhere('id', $withoutProfile->id)['has_profile']);
 
-        $this->actingAs($this->userWithRole('admin'))->getJson('/api/stakeholder-profiles?search=No%20Profile')
+        $this->actingAs($this->userWithPermissions([Permission::StakeholderProfileViewAll]))->getJson('/api/stakeholder-profiles?search=No%20Profile')
             ->assertJsonPath('meta.total', 1)
             ->assertJsonPath('data.0.id', $withoutProfile->id);
     }
@@ -203,7 +204,7 @@ class StakeholderProfileControllerTest extends TestCase
     public function test_index_still_shows_not_started_after_show_but_nothing_saved(): void
     {
         $office = $this->createOffice(['office_name' => 'Just Viewed ES']);
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithPermissions([Permission::StakeholderProfileViewAll]);
 
         $this->actingAs($admin)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk();
         $this->assertDatabaseMissing('stakeholder_profiles', ['office_id' => $office->id]);
@@ -215,14 +216,14 @@ class StakeholderProfileControllerTest extends TestCase
         $this->assertNull($row['updated_at']);
     }
 
-    public function test_pending_role_gets_403_without_creating_a_row(): void
+    public function test_holder_of_an_unrelated_permission_gets_403_without_creating_a_row(): void
     {
         $office = $this->createOffice();
-        $user = $this->userAt('pending', $office);
+        $user = $this->userWithPermissions([Permission::EquipmentView], ['office_id' => $office->id]);
 
-        $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")->assertForbidden();
-        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", [])->assertForbidden();
-        $this->actingAs($user)->getJson('/api/stakeholder-profiles/options')->assertForbidden();
+        $this->actingAs($user)->getJson("/api/stakeholder-profiles/{$office->id}")->assertForbidden()->assertJsonMissingPath('code');
+        $this->actingAs($user)->putJson("/api/stakeholder-profiles/{$office->id}", [])->assertForbidden()->assertJsonMissingPath('code');
+        $this->actingAs($user)->getJson('/api/stakeholder-profiles/options')->assertForbidden()->assertJsonMissingPath('code');
 
         $this->assertSame(0, StakeholderProfile::count());
     }
@@ -377,7 +378,7 @@ class StakeholderProfileControllerTest extends TestCase
     public function test_an_office_that_was_only_viewed_can_still_be_deleted(): void
     {
         $office = $this->createOffice();
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithPermissions([Permission::StakeholderProfileViewAll, Permission::OfficeDelete]);
 
         $this->actingAs($admin)->getJson("/api/stakeholder-profiles/{$office->id}")->assertOk();
         $this->actingAs($admin)->deleteJson("/api/offices/{$office->id}")->assertNoContent();
@@ -387,7 +388,7 @@ class StakeholderProfileControllerTest extends TestCase
     public function test_an_office_with_a_saved_row_is_still_protected_from_deletion(): void
     {
         $office = $this->createOffice();
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithPermissions([Permission::StakeholderProfileViewAll, Permission::OfficeDelete]);
 
         $this->actingAs($admin)->putJson("/api/stakeholder-profiles/{$office->id}", ['ro' => 'III'])->assertOk();
         $this->actingAs($admin)->deleteJson("/api/offices/{$office->id}")->assertStatus(409);
@@ -397,7 +398,7 @@ class StakeholderProfileControllerTest extends TestCase
     public function test_there_is_no_create_or_delete_route(): void
     {
         $office = $this->createOffice();
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithPermissions([Permission::StakeholderProfileViewAll]);
 
         $this->actingAs($admin)->postJson('/api/stakeholder-profiles', ['office_id' => $office->id])->assertStatus(405);
         $this->actingAs($admin)->deleteJson("/api/stakeholder-profiles/{$office->id}")->assertStatus(405);

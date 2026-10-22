@@ -2,12 +2,7 @@
 
 namespace Tests\Feature\Security;
 
-use App\Models\Equipment;
-use App\Models\IspAccount;
-use App\Models\ItemType;
-use App\Models\Office;
-use App\Models\Personnel;
-use App\Models\Role;
+use App\Enums\Permission;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,82 +13,28 @@ use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 /**
- * Every management route must refuse a zero-permission `pending` user.
- * The route list is read live, so a new endpoint that forgets its
- * permission gate fails here instead of shipping open.
+ * Guest refusal and denial auditing for management routes. Per-route
+ * permission denial is covered by UnrelatedPermissionBoundaryTest.
  */
 class PermissionBoundaryTest extends TestCase
 {
     use RefreshDatabase;
 
-    /**
-     * Authenticated-only by design: the dashboard omits every section
-     * instead of 403ing.
-     */
-    private const OPEN_TO_ANY_USER = ['GET api/dashboard/summary'];
-
-    public function test_every_management_route_is_forbidden_for_a_pending_user(): void
-    {
-        $this->seed(RolePermissionSeeder::class);
-
-        $pending = User::factory()->create();
-        $pending->assignRole(Role::PENDING);
-
-        $target = User::factory()->create();
-        $parameters = [
-            'personnel' => Personnel::factory()->create()->id,
-            'equipment' => Equipment::factory()->create()->id,
-            'ispAccount' => IspAccount::factory()->create()->id,
-            'office' => Office::create(['office_name' => 'Boundary ES'])->id,
-            'user' => $target->id,
-            'role' => Role::where('name', 'viewer')->value('id'),
-            'table' => 'item-types',
-            'id' => ItemType::create(['name' => 'Boundary', 'sort_order' => 0, 'is_active' => true])->id,
-        ];
-
-        $checked = 0;
-
-        foreach ($this->managementRoutes() as $route) {
-            foreach (array_diff($route->methods(), ['HEAD']) as $method) {
-                $key = $method.' '.$route->uri();
-
-                if (in_array($key, self::OPEN_TO_ANY_USER, true)) {
-                    continue;
-                }
-
-                $uri = preg_replace_callback('/\{(\w+)\??\}/', function (array $match) use ($parameters, $key) {
-                    $this->assertArrayHasKey($match[1], $parameters, "No fixture for {{$match[1]}} in {$key}");
-
-                    return (string) $parameters[$match[1]];
-                }, $route->uri());
-
-                $this->actingAs($pending)->json($method, '/'.$uri)
-                    ->assertForbidden();
-
-                $checked++;
-            }
-        }
-
-        $this->assertGreaterThan(50, $checked);
-        $this->assertNotNull($target->fresh());
-    }
-
     public function test_route_level_denials_are_audited_but_throttled_per_user(): void
     {
         $this->seed(RolePermissionSeeder::class);
 
-        $pending = User::factory()->create();
-        $pending->assignRole(Role::PENDING);
+        $user = User::factory()->create()->givePermissionTo(Permission::PersonnelView->value);
 
         foreach (range(1, 15) as $ignored) {
-            $this->actingAs($pending)->postJson('/api/offices', [])->assertForbidden();
+            $this->actingAs($user)->postJson('/api/offices', [])->assertForbidden()->assertJsonMissingPath('code');
         }
 
-        $this->assertSame(10, Activity::where('event', 'authorization.denied')->where('causer_id', $pending->id)->count());
+        $this->assertSame(10, Activity::where('event', 'authorization.denied')->where('causer_id', $user->id)->count());
 
         $this->travel(61)->seconds();
-        $this->actingAs($pending)->postJson('/api/offices', [])->assertForbidden();
-        $this->assertSame(11, Activity::where('event', 'authorization.denied')->where('causer_id', $pending->id)->count());
+        $this->actingAs($user)->postJson('/api/offices', [])->assertForbidden();
+        $this->assertSame(11, Activity::where('event', 'authorization.denied')->where('causer_id', $user->id)->count());
     }
 
     public function test_every_management_route_rejects_guests(): void

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\EquipmentLibraryType;
+use App\Enums\Permission;
 use App\Models\Brand;
 use App\Models\EquipmentCategory;
 use App\Models\EquipmentClassification;
@@ -215,7 +216,7 @@ class IspAccountControllerTest extends TestCase
     {
         $ispAccount = $this->makeIspAccount();
 
-        $this->actingAs($this->userWithRole('admin'))->deleteJson("/api/isp-accounts/{$ispAccount->id}")->assertNoContent();
+        $this->actingAs($this->userWithPermissions([Permission::IspAccountsView, Permission::IspAccountsDelete]))->deleteJson("/api/isp-accounts/{$ispAccount->id}")->assertNoContent();
 
         $this->assertSoftDeleted($ispAccount);
         $this->assertDatabaseHas('activity_log', ['description' => 'isp_account.deleted', 'subject_id' => $ispAccount->id]);
@@ -365,7 +366,7 @@ class IspAccountControllerTest extends TestCase
         $ispAccount = $this->makeIspAccount();
         $speedTest = IspSpeedTest::factory()->create(['isp_account_id' => $ispAccount->id]);
         $cost = IspSubscriptionCost::factory()->create(['isp_account_id' => $ispAccount->id]);
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithPermissions([Permission::IspAccountsView, Permission::IspAccountsEdit, Permission::IspAccountsDelete]);
 
         $this->actingAs($admin)->putJson("/api/isp-accounts/{$ispAccount->id}/speed-tests/{$speedTest->id}", [])->assertNotFound();
         $this->actingAs($admin)->deleteJson("/api/isp-accounts/{$ispAccount->id}/speed-tests/{$speedTest->id}")->assertNotFound();

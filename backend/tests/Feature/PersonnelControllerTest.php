@@ -174,7 +174,7 @@ class PersonnelControllerTest extends TestCase
 
     public function test_update_and_soft_delete_are_audited(): void
     {
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithPermissions([Permission::PersonnelView, Permission::PersonnelEdit, Permission::PersonnelDelete]);
         $person = Personnel::factory()->create(['employee_id' => 'EMP-200', 'last_name' => 'Original']);
 
         $this->actingAs($admin)->putJson("/api/personnel/{$person->id}", [
@@ -247,7 +247,7 @@ class PersonnelControllerTest extends TestCase
             'date_hired' => '2020-06-01',
         ]);
 
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithPermissions([Permission::PersonnelView]);
 
         $this->actingAs($admin)->getJson('/api/personnel')
             ->assertOk()
@@ -286,8 +286,8 @@ class PersonnelControllerTest extends TestCase
         $this->actingAs($this->userWithPermissions([Permission::PersonnelCreate]))
             ->getJson('/api/personnel/options')->assertOk();
 
-        $this->actingAs($this->userWithRole('pending'))
-            ->getJson('/api/personnel/options')->assertForbidden();
+        $this->actingAs($this->userWithPermissions([Permission::EquipmentView]))
+            ->getJson('/api/personnel/options')->assertForbidden()->assertJsonMissingPath('code');
     }
 
     public function test_index_filters_by_search_and_status_and_paginates(): void

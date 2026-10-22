@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\Permission;
 use App\Models\InternetConnectivitySurvey;
 use App\Models\Office;
 use App\Models\StakeholderProfile;
@@ -31,7 +32,7 @@ class OfficeControllerTest extends TestCase
 
     private function admin(): User
     {
-        return $this->userWithRole('admin');
+        return $this->userWithPermissions([Permission::OfficeView, Permission::OfficeCreate, Permission::OfficeEdit, Permission::OfficeDelete]);
     }
 
     /**
@@ -83,7 +84,7 @@ class OfficeControllerTest extends TestCase
      */
     public static function nonAdminRoles(): array
     {
-        return ['encoder' => ['encoder'], 'viewer' => ['viewer'], 'pending' => ['pending']];
+        return ['encoder' => ['encoder'], 'viewer' => ['viewer']];
     }
 
     #[DataProvider('nonAdminRoles')]

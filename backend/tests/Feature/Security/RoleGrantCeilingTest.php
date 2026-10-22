@@ -13,7 +13,7 @@ use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 /**
- * Owner decision (L1): a roles.manage holder may only grant permissions
+ * Owner decision (L1): a roles.create/roles.edit holder may only grant permissions
  * they hold themselves, on create and update. Permissions a role already
  * has may be kept or removed. Full admins hold everything, so they're
  * unaffected.
@@ -28,27 +28,27 @@ class RoleGrantCeilingTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
-    private function rolesManageOnlyActor(): User
+    private function roleEditorActor(): User
     {
-        return $this->userWithPermissions([PermissionEnum::RolesManage, PermissionEnum::EquipmentView]);
+        return $this->userWithPermissions([PermissionEnum::RolesCreate, PermissionEnum::RolesEdit, PermissionEnum::EquipmentView]);
     }
 
     public function test_store_rejects_granting_a_permission_the_actor_does_not_hold(): void
     {
-        $this->actingAs($this->rolesManageOnlyActor())->postJson('/api/roles', [
+        $this->actingAs($this->roleEditorActor())->postJson('/api/roles', [
             'name' => 'escalated',
             'label' => 'Escalated',
-            'permissions' => [PermissionEnum::EquipmentView->value, PermissionEnum::UsersManage->value],
+            'permissions' => [PermissionEnum::EquipmentView->value, PermissionEnum::UsersEdit->value],
         ])->assertUnprocessable()
             ->assertJsonValidationErrors(['permissions'])
-            ->assertJsonFragment(['You can only grant permissions you hold yourself. You do not hold: users.manage.']);
+            ->assertJsonFragment(['You can only grant permissions you hold yourself. You do not hold: users.edit.']);
 
         $this->assertNull(Role::where('name', 'escalated')->first());
     }
 
     public function test_store_allows_permissions_within_the_actors_own_set(): void
     {
-        $this->actingAs($this->rolesManageOnlyActor())->postJson('/api/roles', [
+        $this->actingAs($this->roleEditorActor())->postJson('/api/roles', [
             'name' => 'reader',
             'label' => 'Reader',
             'permissions' => [PermissionEnum::EquipmentView->value],
@@ -60,10 +60,10 @@ class RoleGrantCeilingTest extends TestCase
         $role = Role::where('name', 'viewer')->firstOrFail();
         $before = $role->permissions()->pluck('name')->sort()->values()->all();
 
-        $this->actingAs($this->rolesManageOnlyActor())->putJson("/api/roles/{$role->id}", [
+        $this->actingAs($this->roleEditorActor())->putJson("/api/roles/{$role->id}", [
             'name' => 'viewer',
             'label' => $role->label,
-            'permissions' => [...$before, PermissionEnum::UsersManage->value],
+            'permissions' => [...$before, PermissionEnum::UsersEdit->value],
         ])->assertUnprocessable()->assertJsonValidationErrors(['permissions']);
 
         $this->assertSame($before, $role->fresh()->permissions()->pluck('name')->sort()->values()->all());
@@ -75,7 +75,7 @@ class RoleGrantCeilingTest extends TestCase
         $role->givePermissionTo([PermissionEnum::EquipmentView->value, PermissionEnum::EquipmentDelete->value, PermissionEnum::OfficeDelete->value]);
 
         // Relabel, keep equipment.delete (not held by the actor), drop office.delete.
-        $this->actingAs($this->rolesManageOnlyActor())->putJson("/api/roles/{$role->id}", [
+        $this->actingAs($this->roleEditorActor())->putJson("/api/roles/{$role->id}", [
             'name' => 'ops',
             'label' => 'Operations',
             'permissions' => [PermissionEnum::EquipmentView->value, PermissionEnum::EquipmentDelete->value],
@@ -89,7 +89,7 @@ class RoleGrantCeilingTest extends TestCase
 
     public function test_a_full_admin_can_grant_any_permission(): void
     {
-        $this->actingAs($this->userWithRole('admin'))->postJson('/api/roles', [
+        $this->actingAs($this->userWithRole('super_administrator'))->postJson('/api/roles', [
             'name' => 'everything',
             'label' => 'Everything',
             'permissions' => array_map(fn (PermissionEnum $p) => $p->value, PermissionEnum::cases()),
@@ -98,12 +98,12 @@ class RoleGrantCeilingTest extends TestCase
 
     public function test_service_backstop_rejects_unheld_grants(): void
     {
-        $actor = $this->rolesManageOnlyActor();
+        $actor = $this->roleEditorActor();
 
         $this->expectException(ValidationException::class);
 
         try {
-            app(RoleService::class)->create($actor, ['name' => 'x', 'label' => 'X', 'description' => null], [PermissionEnum::RolesManage->value, PermissionEnum::AuditLogView->value]);
+            app(RoleService::class)->create($actor, ['name' => 'x', 'label' => 'X', 'description' => null], [PermissionEnum::RolesDelete->value, PermissionEnum::AuditLogView->value]);
         } finally {
             $this->assertNull(Role::where('name', 'x')->first());
         }

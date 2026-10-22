@@ -43,9 +43,9 @@ class DashboardTest extends TestCase
         $this->assertGuest('web');
     }
 
-    public function test_pending_user_gets_every_section_omitted(): void
+    public function test_holder_of_only_unrelated_permissions_gets_every_section_omitted(): void
     {
-        $response = $this->actingAs($this->userWithRole('pending'))
+        $response = $this->actingAs($this->userWithPermissions([Permission::OfficeView, Permission::AuditLogView]))
             ->getJson('/api/dashboard/summary')
             ->assertOk();
 
@@ -113,7 +113,7 @@ class DashboardTest extends TestCase
         // Inactive contracts count toward neither the cost nor the alert.
         IspAccount::factory()->create(['inactive_contract' => true, 'cost_per_month' => 999999, 'contract_end_date' => now()->addDays(1)->toDateString()]);
 
-        $response = $this->actingAs($this->userWithRole('admin'))
+        $response = $this->actingAs($this->userWithPermissions([Permission::EquipmentView, Permission::PersonnelView, Permission::IspAccountsView]))
             ->getJson('/api/dashboard/summary')
             ->assertOk()
             ->assertJsonPath('data.equipment.total', 4)

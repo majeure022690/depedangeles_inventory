@@ -29,15 +29,15 @@ class PermissionCatalogTest extends TestCase
         $this->assertSame(0, PermissionModel::where('guard_name', '!=', 'web')->count());
     }
 
-    public function test_security_settings_manage_is_seeded_to_admin_only(): void
+    public function test_security_settings_manage_is_seeded_to_the_administrator_roles_only(): void
     {
-        $this->assertSame(['admin'], $this->holdersOf(Permission::SecuritySettingsManage));
+        $this->assertEqualsCanonicalizing(['super_administrator', 'system_administrator'], $this->holdersOf(Permission::SecuritySettingsManage));
     }
 
-    public function test_email_log_manage_is_seeded_to_admin_only(): void
+    public function test_email_log_manage_is_seeded_to_the_administrator_roles_only(): void
     {
         $this->assertSame('email_log.manage', Permission::EmailLogManage->value);
-        $this->assertSame(['admin'], $this->holdersOf(Permission::EmailLogManage));
+        $this->assertEqualsCanonicalizing(['super_administrator', 'system_administrator'], $this->holdersOf(Permission::EmailLogManage));
     }
 
     /**
@@ -51,9 +51,23 @@ class PermissionCatalogTest extends TestCase
             ->all();
     }
 
-    public function test_pending_role_grants_nothing(): void
+    public function test_seeded_roles_and_their_permission_sets(): void
     {
-        $this->assertSame(0, Role::where('name', Role::PENDING)->firstOrFail()->permissions()->count());
+        $all = array_map(fn (Permission $permission) => $permission->value, Permission::cases());
+        $roleWrites = [Permission::RolesCreate->value, Permission::RolesEdit->value, Permission::RolesDelete->value];
+
+        $this->assertEqualsCanonicalizing(['super_administrator', 'system_administrator', 'encoder', 'viewer'], Role::pluck('name')->all());
+        $this->assertEqualsCanonicalizing($all, $this->permissionsOf('super_administrator'));
+        $this->assertEqualsCanonicalizing(array_values(array_diff($all, $roleWrites)), $this->permissionsOf('system_administrator'));
+        $this->assertNotContains(Permission::IspAccountsView->value, $this->permissionsOf('viewer'));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function permissionsOf(string $role): array
+    {
+        return Role::where('name', $role)->firstOrFail()->permissions()->pluck('name')->all();
     }
 
     public function test_every_permission_has_one_of_the_picker_groups(): void

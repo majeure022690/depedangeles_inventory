@@ -37,11 +37,13 @@ class SystemLogTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach ($this->originals as $path => $contents) {
-            $contents === null ? @unlink($path) : file_put_contents($path, $contents);
+        try {
+            foreach ($this->originals as $path => $contents) {
+                $contents === null ? @unlink($path) : file_put_contents($path, $contents);
+            }
+        } finally {
+            parent::tearDown();
         }
-
-        parent::tearDown();
     }
 
     private function errorLogPath(): string

@@ -179,10 +179,10 @@ class TwoFactorAuthenticationTest extends TestCase
         ])->assertStatus(422);
     }
 
-    public function test_users_manage_holder_can_reset_two_factor_for_another_user(): void
+    public function test_reset_two_factor_holder_can_reset_two_factor_for_another_user(): void
     {
         $admin = User::factory()->create(['password' => Hash::make('AdminPass123!')]);
-        $admin->assignRole('admin');
+        $admin->assignRole('system_administrator');
 
         $target = $this->createEnrolledUser((new TwoFactorAuthService)->generateSecret());
         $target->trustedDevices()->create(['token_hash' => hash('sha256', 'device'), 'expires_at' => now()->addDays(30)]);
@@ -204,7 +204,7 @@ class TwoFactorAuthenticationTest extends TestCase
     public function test_reset_two_factor_requires_the_admins_current_password(): void
     {
         $admin = User::factory()->create(['password' => Hash::make('AdminPass123!')]);
-        $admin->assignRole('admin');
+        $admin->assignRole('system_administrator');
         $target = $this->createEnrolledUser((new TwoFactorAuthService)->generateSecret());
 
         $this->actingAs($admin)->postJson("/api/users/{$target->id}/2fa/reset", [
@@ -217,7 +217,7 @@ class TwoFactorAuthenticationTest extends TestCase
     public function test_admin_cannot_reset_their_own_two_factor(): void
     {
         $admin = $this->createEnrolledUser((new TwoFactorAuthService)->generateSecret());
-        $admin->assignRole('admin');
+        $admin->assignRole('system_administrator');
 
         $this->actingAs($admin)->postJson("/api/users/{$admin->id}/2fa/reset", [
             'current_password' => 'CorrectHorse123!',
@@ -226,7 +226,7 @@ class TwoFactorAuthenticationTest extends TestCase
         $this->assertTrue($admin->fresh()->hasTwoFactorEnabled());
     }
 
-    public function test_user_without_users_manage_cannot_reset_two_factor_for_another_user(): void
+    public function test_user_without_reset_two_factor_permission_cannot_reset_it_for_another_user(): void
     {
         $user = User::factory()->create(['password' => Hash::make('UserPass123!')]);
         $user->assignRole('encoder');

@@ -54,8 +54,7 @@ class EmailLogTest extends TestCase
         EmailMessage::query()->create(['recipients' => 'a@example.test', 'subject' => 'Hello', 'type' => 'Password reset', 'status' => EmailMessage::STATUS_SENT, 'provider_message_id' => 're_123']);
         EmailMessage::query()->create(['recipients' => 'b@example.test', 'subject' => 'Newer', 'type' => null, 'status' => EmailMessage::STATUS_SENDING]);
 
-        $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin = $this->userWithOnly(Permission::EmailLogManage);
 
         $response = $this->actingAs($admin)->getJson('/api/settings/email-log?page=1')
             ->assertOk()
@@ -104,7 +103,7 @@ class EmailLogTest extends TestCase
         }
 
         $this->assertSame(1, EmailMessage::query()->count());
-        $this->assertTrue(Role::findByName('admin', 'web')->hasPermissionTo(Permission::EmailLogManage->value));
+        $this->assertTrue(Role::findByName('system_administrator', 'web')->hasPermissionTo(Permission::EmailLogManage->value));
     }
 
     public function test_guests_are_rejected(): void

@@ -27,7 +27,7 @@ class ReferenceDataPolicyTest extends TestCase
     private function admin(): User
     {
         $user = User::factory()->create();
-        $user->assignRole('admin');
+        $user->assignRole('system_administrator');
 
         return $user;
     }
@@ -40,7 +40,7 @@ class ReferenceDataPolicyTest extends TestCase
         return $user;
     }
 
-    public function test_division_ict_admin_role_has_reference_data_manage(): void
+    public function test_system_administrator_role_has_reference_data_manage(): void
     {
         $this->seed(RolePermissionSeeder::class);
 

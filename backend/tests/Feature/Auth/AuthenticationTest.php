@@ -99,7 +99,7 @@ class AuthenticationTest extends TestCase
             ->assertJsonMissingPath('data.two_factor_recovery_codes');
 
         $this->assertEqualsCanonicalizing(
-            ['personnel.view', 'equipment.view', 'isp_accounts.view', 'stakeholder_profile.view', 'internet_connectivity.view'],
+            ['personnel.view', 'equipment.view', 'stakeholder_profile.view', 'internet_connectivity.view'],
             $response->json('data.permissions'),
         );
     }

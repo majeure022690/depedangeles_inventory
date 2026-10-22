@@ -63,25 +63,11 @@ class IspAccountPolicyTest extends TestCase
     {
         $this->seed(RolePermissionSeeder::class);
         $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin->assignRole('system_administrator');
         $account = $this->makeIspAccount();
 
         $this->assertTrue($admin->can('create', IspAccount::class));
         $this->assertTrue($admin->can('update', $account));
         $this->assertTrue($admin->can('delete', $account));
-    }
-
-    public function test_pending_user_can_do_nothing(): void
-    {
-        $this->seed(RolePermissionSeeder::class);
-        $pending = User::factory()->create();
-        $pending->assignRole('pending');
-        $account = $this->makeIspAccount();
-
-        $this->assertFalse($pending->can('viewAny', IspAccount::class));
-        $this->assertFalse($pending->can('view', $account));
-        $this->assertFalse($pending->can('create', IspAccount::class));
-        $this->assertFalse($pending->can('update', $account));
-        $this->assertFalse($pending->can('delete', $account));
     }
 }

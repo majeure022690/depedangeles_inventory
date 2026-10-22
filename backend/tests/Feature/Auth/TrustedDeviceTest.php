@@ -86,14 +86,17 @@ class TrustedDeviceTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_holders_of_roles_manage_or_users_manage_always_need_the_code(): void
+    public function test_holders_of_any_access_changing_permission_always_need_the_code(): void
     {
-        $rolesManageOnly = Role::create(['name' => 'role-editor', 'label' => 'Role Editor']);
-        $rolesManageOnly->givePermissionTo(Permission::RolesManage->value);
-        $usersManageOnly = Role::create(['name' => 'account-manager', 'label' => 'Account Manager']);
-        $usersManageOnly->givePermissionTo(Permission::UsersManage->value);
+        $roles = ['super_administrator', 'system_administrator'];
 
-        foreach (['admin', 'role-editor', 'account-manager'] as $role) {
+        foreach ([Permission::RolesCreate, Permission::RolesEdit, Permission::RolesDelete, Permission::UsersEdit, Permission::UsersResetTwoFactor] as $permission) {
+            $role = Role::create(['name' => str_replace(['.', '_'], '-', $permission->value).'-only', 'label' => $permission->label()]);
+            $role->givePermissionTo([$permission->value, Permission::EquipmentView->value]);
+            $roles[] = $role->name;
+        }
+
+        foreach ($roles as $role) {
             $user = $this->enrolledUser($role);
 
             $login = $this->login($user)->assertJsonPath('trust_device_days', 0);
@@ -105,12 +108,12 @@ class TrustedDeviceTest extends TestCase
         }
     }
 
-    public function test_an_existing_trust_stops_working_once_the_user_gains_users_manage(): void
+    public function test_an_existing_trust_stops_working_once_the_user_gains_users_edit(): void
     {
         $user = $this->enrolledUser('encoder');
         $token = $this->trustDevice($user);
 
-        $user->assignRole('admin');
+        $user->syncRoles('system_administrator');
 
         $this->withCookie(TrustedDeviceService::COOKIE, $token);
         $this->login($user)->assertJsonPath('requires_2fa', true)->assertJsonPath('trust_device_days', 0);

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\Permission;
 use App\Models\Office;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -29,7 +30,7 @@ class AuditLogControllerTest extends TestCase
 
     private function admin(): User
     {
-        return $this->userWithRole('admin');
+        return $this->userWithPermissions([Permission::AuditLogView]);
     }
 
     private function record(string $description, ?Model $subject = null, ?User $causer = null, ?Carbon $createdAt = null, ?string $event = null): Activity
@@ -74,7 +75,7 @@ class AuditLogControllerTest extends TestCase
      */
     public static function nonAdminRoles(): array
     {
-        return ['encoder' => ['encoder'], 'viewer' => ['viewer'], 'pending' => ['pending']];
+        return ['encoder' => ['encoder'], 'viewer' => ['viewer']];
     }
 
     #[DataProvider('nonAdminRoles')]

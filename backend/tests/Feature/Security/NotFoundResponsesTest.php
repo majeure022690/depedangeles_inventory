@@ -30,7 +30,7 @@ class NotFoundResponsesTest extends TestCase
 
     public function test_unknown_ids_are_404_on_every_bound_management_route(): void
     {
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithRole('super_administrator');
 
         $requests = [
             ['GET', '/api/personnel/999999'],
@@ -70,7 +70,7 @@ class NotFoundResponsesTest extends TestCase
 
     public function test_soft_deleted_records_are_404(): void
     {
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithRole('super_administrator');
 
         $person = Personnel::factory()->create();
         $equipment = Equipment::factory()->create();

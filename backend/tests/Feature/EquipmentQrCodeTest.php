@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\Permission;
 use App\Models\Brand;
 use App\Models\Equipment;
 use App\Models\EquipmentCategory;
@@ -172,13 +173,14 @@ class EquipmentQrCodeTest extends TestCase
     public function test_qr_code_image_endpoint_is_forbidden_without_equipment_view(): void
     {
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('pending');
+        $user = User::factory()->create()->givePermissionTo(Permission::PersonnelView->value);
 
         $equipment = Equipment::factory()->create([
             'disposition_status' => 'Normal',
         ]);
 
-        $this->actingAs($user)->getJson("/api/equipment/{$equipment->id}/qr-code")->assertForbidden();
+        $this->actingAs($user)->getJson("/api/equipment/{$equipment->id}/qr-code")
+            ->assertForbidden()
+            ->assertJsonMissingPath('code');
     }
 }

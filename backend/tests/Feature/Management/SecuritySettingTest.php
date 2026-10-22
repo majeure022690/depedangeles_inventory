@@ -39,7 +39,7 @@ class SecuritySettingTest extends TestCase
 
     public function test_admin_can_read_and_update_security_settings(): void
     {
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithOnly(Permission::SecuritySettingsManage);
 
         $response = $this->actingAs($admin)->getJson('/api/settings/security')
             ->assertOk()
@@ -67,7 +67,7 @@ class SecuritySettingTest extends TestCase
 
     public function test_each_effective_change_is_audited_with_old_and_new_values(): void
     {
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithOnly(Permission::SecuritySettingsManage);
 
         $this->actingAs($admin)->putJson('/api/settings/security', [
             'setting_key' => 'trusted_device_days',
@@ -105,7 +105,7 @@ class SecuritySettingTest extends TestCase
             'value' => 7,
         ])->assertForbidden();
 
-        $this->actingAs($this->userWithRole('admin'))->putJson('/api/settings/security', [
+        $this->actingAs($this->userWithOnly(Permission::SecuritySettingsManage))->putJson('/api/settings/security', [
             'setting_key' => 'trusted_device_days',
             'value' => 99,
         ])->assertStatus(422);
@@ -115,7 +115,7 @@ class SecuritySettingTest extends TestCase
 
     public function test_security_settings_require_the_permission(): void
     {
-        foreach (['viewer', 'encoder', 'pending'] as $role) {
+        foreach (['viewer', 'encoder'] as $role) {
             $user = $this->userWithRole($role);
 
             $this->actingAs($user)->getJson('/api/settings/security')->assertForbidden();
@@ -128,9 +128,9 @@ class SecuritySettingTest extends TestCase
         $this->assertDatabaseMissing('system_settings', ['key' => 'login_rate_limit_per_minute']);
     }
 
-    public function test_users_manage_or_roles_manage_alone_cannot_reach_security_settings(): void
+    public function test_user_and_role_management_permissions_alone_cannot_reach_security_settings(): void
     {
-        foreach ([Permission::UsersManage, Permission::RolesManage] as $permission) {
+        foreach ([Permission::UsersView, Permission::UsersEdit, Permission::UsersResetTwoFactor, Permission::RolesView, Permission::RolesCreate, Permission::RolesEdit, Permission::RolesDelete] as $permission) {
             $this->actingAs($this->userWithOnly($permission))->getJson('/api/settings/security')->assertForbidden();
         }
     }
@@ -149,7 +149,7 @@ class SecuritySettingTest extends TestCase
 
     public function test_values_outside_the_allowed_range_or_unknown_keys_are_rejected(): void
     {
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithOnly(Permission::SecuritySettingsManage);
 
         $this->actingAs($admin)->putJson('/api/settings/security', [
             'setting_key' => 'login_rate_limit_per_minute',
@@ -170,17 +170,17 @@ class SecuritySettingTest extends TestCase
 
     public function test_idle_timeout_defaults_to_fifteen_minutes_and_is_readable_by_any_signed_in_user(): void
     {
-        $pending = $this->userWithRole('pending');
+        $viewer = $this->userWithRole('viewer');
 
         $this->getJson('/api/session-settings')->assertUnauthorized();
-        $this->actingAs($pending)->getJson('/api/session-settings')
+        $this->actingAs($viewer)->getJson('/api/session-settings')
             ->assertOk()
             ->assertExactJson(['data' => ['idle_timeout_seconds' => 900], 'message' => 'Success']);
     }
 
     public function test_idle_timeout_can_be_set_down_to_ten_seconds_but_no_lower(): void
     {
-        $admin = $this->userWithRole('admin');
+        $admin = $this->userWithOnly(Permission::SecuritySettingsManage);
 
         $this->actingAs($admin)->putJson('/api/settings/security', ['setting_key' => 'idle_timeout_seconds', 'value' => 9])
             ->assertStatus(422);
