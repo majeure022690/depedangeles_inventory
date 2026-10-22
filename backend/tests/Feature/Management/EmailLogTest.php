@@ -80,7 +80,7 @@ class EmailLogTest extends TestCase
         EmailMessage::query()->create(['recipients' => 'a@example.test', 'subject' => 'Hello', 'type' => null, 'status' => EmailMessage::STATUS_SENT]);
         $admin = $this->userWithOnly(Permission::EmailLogManage);
 
-        $this->actingAs($admin)->deleteJson('/api/settings/email-log')
+        $this->actingAs($admin)->deleteJson('/api/settings/email-log', ['current_password' => 'password'])
             ->assertOk()
             ->assertJsonPath('message', 'Email log cleared.');
 
@@ -88,6 +88,26 @@ class EmailLogTest extends TestCase
         $activity = Activity::query()->where('event', 'email_log.cleared')->sole();
         $this->assertSame($admin->id, $activity->causer_id);
         $this->assertSame(1, $activity->properties['entries']);
+    }
+
+    public function test_clearing_the_email_log_requires_the_current_password(): void
+    {
+        EmailMessage::query()->create(['recipients' => 'a@example.test', 'subject' => 'Hello', 'type' => null, 'status' => EmailMessage::STATUS_SENT]);
+        $admin = $this->userWithOnly(Permission::EmailLogManage);
+        $auditRows = Activity::query()->count();
+
+        $this->actingAs($admin)->deleteJson('/api/settings/email-log')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_password');
+        $this->actingAs($admin)->deleteJson('/api/settings/email-log', ['current_password' => 'wrong-password'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_password');
+
+        $this->assertSame(1, EmailMessage::query()->count());
+        $this->assertSame($auditRows, Activity::query()->count());
+
+        $this->actingAs($admin)->deleteJson('/api/settings/email-log', ['current_password' => 'password'])->assertOk();
+        $this->assertSame(0, EmailMessage::query()->count());
     }
 
     public function test_email_log_needs_its_own_permission(): void
@@ -99,7 +119,7 @@ class EmailLogTest extends TestCase
 
         foreach ([$settingsOnly, $viewer] as $user) {
             $this->actingAs($user)->getJson('/api/settings/email-log')->assertForbidden();
-            $this->actingAs($user)->deleteJson('/api/settings/email-log')->assertForbidden();
+            $this->actingAs($user)->deleteJson('/api/settings/email-log', ['current_password' => 'password'])->assertForbidden();
         }
 
         $this->assertSame(1, EmailMessage::query()->count());

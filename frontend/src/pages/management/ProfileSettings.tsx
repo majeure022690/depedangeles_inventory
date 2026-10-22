@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/Input'
 import { ImageCropDialog } from '@/components/ImageCropDialog'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { isTooManyRequests, TOO_MANY_ATTEMPTS_MESSAGE } from '@/lib/errors'
 import { profileService } from '@/services/profileService'
 import { twoFactorService } from '@/services/twoFactorService'
 
@@ -83,7 +84,9 @@ export function ProfileSettings() {
     } catch (requestError) {
       const fallback = 'Unable to update your profile.'
       let messageText = fallback
-      if (isAxiosError<{ message?: string; errors?: Record<string, string[]> }>(requestError)) {
+      if (isTooManyRequests(requestError)) {
+        messageText = TOO_MANY_ATTEMPTS_MESSAGE
+      } else if (isAxiosError<{ message?: string; errors?: Record<string, string[]> }>(requestError)) {
         const validationMessage = requestError.response?.data?.errors
           ? Object.values(requestError.response.data.errors).flat()[0]
           : undefined
@@ -133,7 +136,9 @@ export function ProfileSettings() {
       handle2faModalOpenChange(false)
     } catch (requestError) {
       const fallback = 'Unable to regenerate recovery codes.'
-      if (isAxiosError<{ message?: string; errors?: Record<string, string[]> }>(requestError)) {
+      if (isTooManyRequests(requestError)) {
+        setTwoFaModalError(TOO_MANY_ATTEMPTS_MESSAGE)
+      } else if (isAxiosError<{ message?: string; errors?: Record<string, string[]> }>(requestError)) {
         const validationMessage = requestError.response?.data?.errors
           ? Object.values(requestError.response.data.errors).flat()[0]
           : undefined

@@ -127,24 +127,24 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     // Administration: sign-in and session security settings.
     Route::middleware($can(P::SecuritySettingsManage))->group(function () {
         Route::get('/settings/security', [SecuritySettingController::class, 'index']);
-        Route::put('/settings/security', [SecuritySettingController::class, 'update']);
+        Route::put('/settings/security', [SecuritySettingController::class, 'update'])->middleware('throttle:password-confirm');
     });
 
     // Administration: error and slow-query logs (redacted; downloads and clears tighter-throttled).
     Route::middleware($can(P::SecuritySettingsManage))->group(function () {
         Route::get('/settings/system-logs/errors', [SystemLogController::class, 'errorLogs']);
         Route::get('/settings/system-logs/errors/download', [SystemLogController::class, 'downloadErrorLogs'])->middleware('throttle:10,1');
-        Route::delete('/settings/system-logs/errors', [SystemLogController::class, 'clearErrorLogs'])->middleware('throttle:10,1');
+        Route::delete('/settings/system-logs/errors', [SystemLogController::class, 'clearErrorLogs'])->middleware('throttle:password-confirm');
 
         Route::get('/settings/system-logs/slow-queries', [SystemLogController::class, 'slowQueryLogs']);
         Route::get('/settings/system-logs/slow-queries/status', [SystemLogController::class, 'slowQueryStatus']);
         Route::get('/settings/system-logs/slow-queries/download', [SystemLogController::class, 'downloadSlowQueryLogs'])->middleware('throttle:10,1');
-        Route::delete('/settings/system-logs/slow-queries', [SystemLogController::class, 'clearSlowQueryLogs'])->middleware('throttle:10,1');
+        Route::delete('/settings/system-logs/slow-queries', [SystemLogController::class, 'clearSlowQueryLogs'])->middleware('throttle:password-confirm');
     });
 
     // Administration: outgoing email log (holds recipient addresses, so its own permission).
     Route::middleware($can(P::EmailLogManage))->group(function () {
         Route::get('/settings/email-log', [EmailLogController::class, 'index']);
-        Route::delete('/settings/email-log', [EmailLogController::class, 'clear'])->middleware('throttle:10,1');
+        Route::delete('/settings/email-log', [EmailLogController::class, 'clear'])->middleware('throttle:password-confirm');
     });
 });

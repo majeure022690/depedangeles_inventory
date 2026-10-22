@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
+import { PasswordConfirmDialog } from '@/components/ui/PasswordConfirmDialog'
 import { useAuth } from '@/context/AuthContext'
 import { securitySettingService, type SecuritySetting } from '@/services/securitySettingService'
 
@@ -13,7 +14,8 @@ export function SecuritySettingsPanel() {
   const { can } = useAuth()
   const [settings, setSettings] = useState<SecuritySetting[]>([])
   const [loading, setLoading] = useState(true)
-  const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [pending, setPending] = useState<SecuritySetting | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -35,19 +37,18 @@ export function SecuritySettingsPanel() {
     if (canManage) loadSettings()
   }, [canManage])
 
-  async function saveSetting(setting: SecuritySetting) {
-    setSavingKey(setting.key)
+  function requestSave(setting: SecuritySetting) {
     setMessage(null)
     setError(null)
-    try {
-      const updated = await securitySettingService.update(setting.key, setting.value)
-      setSettings((current) => current.map((item) => (item.key === updated.key ? updated : item)))
-      setMessage(`${updated.label} updated.`)
-    } catch (requestError) {
-      setError(isAxiosError(requestError) ? requestError.response?.data?.message ?? 'Unable to update security setting.' : 'Unable to update security setting.')
-    } finally {
-      setSavingKey(null)
-    }
+    setPending(setting)
+    setConfirmOpen(true)
+  }
+
+  async function saveSetting(currentPassword: string) {
+    if (!pending) return
+    const updated = await securitySettingService.update(pending.key, pending.value, currentPassword)
+    setSettings((current) => current.map((item) => (item.key === updated.key ? updated : item)))
+    setMessage(`${updated.label} updated.`)
   }
 
   if (!canManage) return null
@@ -88,13 +89,22 @@ export function SecuritySettingsPanel() {
                       setSettings((current) => current.map((item) => item.key === setting.key ? { ...item, value } : item))
                     }}
                   />
-                  <Button size="sm" isLoading={savingKey === setting.key} onClick={() => saveSetting(setting)}>Save</Button>
+                  <Button size="sm" onClick={() => requestSave(setting)}>Save</Button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </CardContent>
+
+      <PasswordConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirm={saveSetting}
+        description={pending ? `Enter your password to set ${pending.label} to ${pending.value}.` : ''}
+        confirmText="Save"
+        fallbackError="Unable to update security setting."
+      />
     </Card>
   )
 }

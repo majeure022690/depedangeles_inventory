@@ -15,6 +15,12 @@ export function extractError(error: unknown, fallback = 'Something went wrong. P
   return fallback
 }
 
+export const TOO_MANY_ATTEMPTS_MESSAGE = 'Too many attempts. Please wait a minute and try again.'
+
+export function isTooManyRequests(error: unknown): boolean {
+  return isAxiosError(error) && error.response?.status === 429
+}
+
 /** True for a Laravel 422 validation response. */
 export function isValidationError(error: unknown): error is AxiosError<ApiValidationError> {
   return isAxiosError(error) && error.response?.status === 422

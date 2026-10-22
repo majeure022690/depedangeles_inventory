@@ -18,5 +18,5 @@ export interface EmailLogPage {
 
 export const emailLogService = {
   list: (page: number) => api.get<EmailLogPage>('/settings/email-log', { params: { page } }).then((r) => r.data),
-  clear: () => api.delete('/settings/email-log'),
+  clear: (currentPassword: string) => api.delete('/settings/email-log', { data: { current_password: currentPassword } }),
 }

@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Api\Management;
 
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Management\UpdateSecuritySettingRequest;
 use App\Models\SystemSetting;
 use App\Services\SecuritySettings;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Route `permission:` middleware is only the fast fail; each action
@@ -29,14 +30,11 @@ class SecuritySettingController extends Controller
         ]);
     }
 
-    public function update(Request $request): JsonResponse
+    public function update(UpdateSecuritySettingRequest $request): JsonResponse
     {
         Gate::authorize(Permission::SecuritySettingsManage->value);
 
-        $validated = $request->validate([
-            'setting_key' => ['required', 'string'],
-            'value' => ['required', 'integer'],
-        ]);
+        $validated = $request->validated();
 
         $key = (string) $validated['setting_key'];
         $old = collect(SecuritySettings::all())->firstWhere('key', $key)['value'] ?? null;
@@ -45,6 +43,14 @@ class SecuritySettingController extends Controller
 
         if ($old !== $setting['value']) {
             $row = SystemSetting::query()->where('key', $key)->firstOrFail();
+
+            Log::channel('security')->info('Security setting updated', [
+                'user_id' => $request->user()->id,
+                'ip' => $request->ip(),
+                'key' => $key,
+                'old' => $old,
+                'new' => $setting['value'],
+            ]);
 
             activity()
                 ->causedBy($request->user())

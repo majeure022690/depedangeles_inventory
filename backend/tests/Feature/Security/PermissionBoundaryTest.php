@@ -37,6 +37,19 @@ class PermissionBoundaryTest extends TestCase
         $this->assertSame(11, Activity::where('event', 'authorization.denied')->where('causer_id', $user->id)->count());
     }
 
+    public function test_route_level_denials_keep_the_requested_id_even_when_it_does_not_exist(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $user = User::factory()->create()->givePermissionTo(Permission::PersonnelView->value);
+
+        $this->actingAs($user)->putJson('/api/roles/999999', [])->assertForbidden();
+
+        $denied = Activity::where('event', 'authorization.denied')->where('causer_id', $user->id)->sole();
+        $this->assertNull($denied->subject_id);
+        $this->assertSame(['role' => '999999'], $denied->properties['parameters']);
+    }
+
     public function test_every_management_route_rejects_guests(): void
     {
         foreach ($this->managementRoutes() as $route) {

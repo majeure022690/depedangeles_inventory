@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Api\Management;
 
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Management\ClearSystemLogRequest;
 use App\Services\LogRedactor;
 use App\Services\SlowQueryLog;
 use ErrorException;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -83,7 +83,7 @@ class SystemLogController extends Controller
         return $this->redactedDownload($logPath, LogRedactor::redact(...), 'laravel_error_log_'.now()->format('Y-m-d_His').'.txt');
     }
 
-    public function clearErrorLogs(Request $request): JsonResponse
+    public function clearErrorLogs(ClearSystemLogRequest $request): JsonResponse
     {
         $this->authorize(Permission::SecuritySettingsManage->value);
 
@@ -159,7 +159,7 @@ class SystemLogController extends Controller
         return $this->redactedDownload($logPath, $this->redactSlowLine(...), 'slow_query_log_'.app()->environment().'_'.now()->format('Y-m-d_His').'.txt');
     }
 
-    public function clearSlowQueryLogs(Request $request): JsonResponse
+    public function clearSlowQueryLogs(ClearSystemLogRequest $request): JsonResponse
     {
         $this->authorize(Permission::SecuritySettingsManage->value);
 

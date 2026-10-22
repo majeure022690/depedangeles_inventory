@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TOTP two-factor authentication is **mandatory for every account**, ported from rwatch (pragmarx/google2fa). A password alone never produces a session: a user without 2FA is sent through enrollment at login. "Trust this device" lets a user skip the code on a browser they have already verified, for a configurable number of days, except holders of the access-changing permissions, who always need the code.
+TOTP two-factor authentication is **mandatory for every account**, ported from rwatch (pragmarx/google2fa). A password alone never produces a session: a user without 2FA is sent through enrollment at login. "Trust this device" lets a user skip the code on a browser they have already verified, for a configurable number of days, except holders of high-impact permissions (access changes, security settings, audit and email logs), who always need the code.
 
 This replaced the Fortify-based optional 2FA and its "remember this device for 30 days" extension (2026-07-14). Migration `2026_10_19_000008` re-encoded confirmed Fortify secrets and recovery codes into the format this code reads, so enrolled users kept their authenticator; unconfirmed enrollments were cleared, and every previously trusted device was forgotten once (`2026_10_19_000007` replaced the table and cookie). The login sequence itself is in [`docs/architecture.md`](../architecture.md#authentication-flow).
 
@@ -32,10 +32,12 @@ Authenticated:
 | Method + path | Body | Response |
 |---|---|---|
 | `POST /api/2fa/recovery-codes/regenerate` (throttle `password-confirm`) | `current_password` | `{data: {recovery_codes}}` — replaces all previous codes |
-| `GET /api/trusted-devices` | — | `{data: [{id, label, ip_address, trusted_at, last_used_at, expires_at, is_current}], meta: {trust_device_days}}` (unexpired only) |
-| `DELETE /api/trusted-devices/{id}` | — | revokes one; clears the cookie if it was this browser |
+| `GET /api/trusted-devices` | — | `{data: [{id, label, ip_address, trusted_at, last_used_at, expires_at, is_current, is_honoured}], meta: {trust_device_days}}` — see below |
+| `DELETE /api/trusted-devices/{id}` | — | revokes one (honoured or not); clears the cookie if it was this browser |
 | `DELETE /api/trusted-devices` | — | revokes all, clears the cookie |
-| `POST /api/users/{id}/2fa/reset` (`users.manage`) | admin's `current_password` | clears the user's 2FA so they re-enroll at next login — see [roles-and-permissions.md](roles-and-permissions.md#users) |
+| `POST /api/users/{id}/2fa/reset` (`users.reset_two_factor`) | admin's `current_password` | clears the user's 2FA so they re-enroll at next login — see [roles-and-permissions.md](roles-and-permissions.md#users) |
+
+`GET /api/trusted-devices` lists every device whose stored `expires_at` hasn't passed, including ones not currently honoured (`is_honoured: false`): devices older than the current `trusted_device_days` cap, every device when the setting is 0, and every device when the user holds an `ALWAYS_REQUIRE_CODE` permission. `expires_at` is the effective expiry: for an honoured device, the earlier of its stored `expires_at` and `created_at + trusted_device_days`; for a non-honoured device, its stored `expires_at`, i.e. the latest date it could become valid again. `meta.trust_device_days` is the value `days()` returns for this user, so it is 0 for users who always need the code. The card on `/profile` marks non-honoured rows "Not currently trusted" and shows "Sign out all devices" whenever any row exists.
 
 There is deliberately **no "disable 2FA"** endpoint. A user who loses their authenticator uses a recovery code or asks an admin to reset it.
 
@@ -49,8 +51,8 @@ There is deliberately **no "disable 2FA"** endpoint. A user who loses their auth
 
 - **Mandatory, not opt-in.** The data is DepEd staff PII and asset records; rwatch's model was adopted wholesale rather than keeping optional 2FA.
 - **Trust is a DB-backed hashed token, not a bare signed cookie.** The cookie (`httpOnly`, `secure` per session config) holds a random 64-char token; only its SHA-256 is stored, scoped to the user. The DB row is the source of truth, so a device can be revoked individually, and all of a user's devices are revoked automatically when their password or 2FA secret changes or the account is deactivated (`User::booted()`).
-- **No trust for the access-changing permissions.** `TrustedDeviceService::days()` returns 0 for anyone holding `roles.manage` or `users.manage`: those accounts can grant access to everything else, so their code is always required. rwatch keys this on role names; inventory keys it on permissions, per the no-role-name-checks rule.
-- **Trust window is a setting**, `trusted_device_days` (0-30, default 30, 0 disables the option), edited at `/settings` (`security_settings.manage`).
+- **No trust for high-impact permissions.** `TrustedDeviceService::days()` returns 0, so the code is always required, for anyone holding a permission in `TrustedDeviceService::ALWAYS_REQUIRE_CODE`. That constant is the list to edit. It covers three kinds of permission. Some change anyone's access (`roles.create`, `roles.edit`, `roles.delete`, `users.edit`, `users.reset_two_factor`). One weakens sign-in controls (`security_settings.manage`, which could itself lengthen or disable device trust). Others read or erase the record of what happened (`audit_log.view`, `email_log.manage`). A stolen trusted-device cookie plus a password must not be enough for any of these. rwatch keys this on role names; inventory keys it on permissions, per the no-role-name-checks rule. When you add a permission of the same kind, add it to the constant and to the `trusted_device_days` description in `SecuritySettings`.
+- **Trust window is a setting**, `trusted_device_days` (0-30, default 30, 0 disables the option), edited at `/settings` (`security_settings.manage`). It applies to devices that are already trusted, not just new ones: `findValid()` accepts a device only while it is younger than the *current* setting **and** before its own `expires_at`. Lowering the setting therefore cuts existing trust short straight away, which is what an admin responding to an incident expects. Raising it never lengthens an existing device's trust, because `expires_at` was fixed when the device was trusted. Setting it to 0 stops all trusted devices from being honoured. Non-honoured devices are still listed and revocable because they can become valid again (the setting is raised back, or the user loses the permission that forces the code) until their stored `expires_at`, so a user must be able to kill them now rather than wait.
 - **Recovery codes are case-insensitive.** Input is upper-cased before `Hash::check`; the Fortify migration upper-cased the old mixed-case codes before hashing so they kept working.
 
 ## Open follow-ups

@@ -32,7 +32,7 @@ class SecuritySettings
         'trusted_device_days' => [
             'value' => 30,
             'label' => 'Trusted device days',
-            'description' => 'How many days "Trust this device" skips the authenticator code at sign-in. Set to 0 to turn the option off. Users who can manage roles or users always need the code.',
+            'description' => 'How many days "Trust this device" skips the authenticator code at sign-in. Set to 0 to turn the option off. Users who can manage roles, users, security settings or the email log, or view the audit log, always need the code.',
             'min' => 0,
             'max' => 30,
         ],

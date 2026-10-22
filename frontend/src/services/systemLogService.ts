@@ -51,13 +51,15 @@ function timestampedFilename(prefix: string): string {
 export const systemLogService = {
   errorLogs: () =>
     api.get<ApiResponse<{ logs: ErrorLogEntry[]; stats: ErrorLogStats }>>('/settings/system-logs/errors').then((r) => r.data.data),
-  clearErrorLogs: () => api.delete<{ message: string }>('/settings/system-logs/errors').then((r) => r.data),
+  clearErrorLogs: (currentPassword: string) =>
+    api.delete<{ message: string }>('/settings/system-logs/errors', { data: { current_password: currentPassword } }).then((r) => r.data),
   downloadErrorLogs: () => downloadFile('/settings/system-logs/errors/download', timestampedFilename('laravel_error_log')),
 
   slowQueryLogs: () =>
     api.get<ApiResponse<{ logs: string[]; enabled: boolean; stats: SlowQueryStats }>>('/settings/system-logs/slow-queries').then((r) => r.data.data),
   slowQueryStatus: () =>
     api.get<ApiResponse<{ variables: SlowQueryVariables }>>('/settings/system-logs/slow-queries/status').then((r) => r.data.data),
-  clearSlowQueryLogs: () => api.delete<{ message: string }>('/settings/system-logs/slow-queries').then((r) => r.data),
+  clearSlowQueryLogs: (currentPassword: string) =>
+    api.delete<{ message: string }>('/settings/system-logs/slow-queries', { data: { current_password: currentPassword } }).then((r) => r.data),
   downloadSlowQueryLogs: () => downloadFile('/settings/system-logs/slow-queries/download', timestampedFilename('slow_query_log')),
 }

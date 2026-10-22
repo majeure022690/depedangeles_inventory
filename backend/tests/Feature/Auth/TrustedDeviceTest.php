@@ -10,6 +10,7 @@ use App\Services\TrustedDeviceService;
 use App\Services\TwoFactorAuthService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Testing\TestResponse;
@@ -88,9 +89,20 @@ class TrustedDeviceTest extends TestCase
 
     public function test_holders_of_any_access_changing_permission_always_need_the_code(): void
     {
+        $this->assertEqualsCanonicalizing([
+            Permission::RolesCreate,
+            Permission::RolesEdit,
+            Permission::RolesDelete,
+            Permission::UsersEdit,
+            Permission::UsersResetTwoFactor,
+            Permission::SecuritySettingsManage,
+            Permission::AuditLogView,
+            Permission::EmailLogManage,
+        ], TrustedDeviceService::ALWAYS_REQUIRE_CODE);
+
         $roles = ['super_administrator', 'system_administrator'];
 
-        foreach ([Permission::RolesCreate, Permission::RolesEdit, Permission::RolesDelete, Permission::UsersEdit, Permission::UsersResetTwoFactor] as $permission) {
+        foreach (TrustedDeviceService::ALWAYS_REQUIRE_CODE as $permission) {
             $role = Role::create(['name' => str_replace(['.', '_'], '-', $permission->value).'-only', 'label' => $permission->label()]);
             $role->givePermissionTo([$permission->value, Permission::EquipmentView->value]);
             $roles[] = $role->name;
@@ -117,6 +129,184 @@ class TrustedDeviceTest extends TestCase
 
         $this->withCookie(TrustedDeviceService::COOKIE, $token);
         $this->login($user)->assertJsonPath('requires_2fa', true)->assertJsonPath('trust_device_days', 0);
+        $this->assertGuest();
+    }
+
+    public function test_an_existing_trust_stops_working_once_the_user_gains_security_settings_manage(): void
+    {
+        $user = $this->enrolledUser('encoder');
+        $token = $this->trustDevice($user);
+
+        $role = Role::create(['name' => 'settings-custom', 'label' => 'Settings custom']);
+        $role->givePermissionTo([Permission::SecuritySettingsManage->value, Permission::EquipmentView->value]);
+        $user->syncRoles($role->name);
+
+        $this->withCookie(TrustedDeviceService::COOKIE, $token);
+        $this->login($user)->assertJsonPath('requires_2fa', true)->assertJsonPath('trust_device_days', 0);
+        $this->assertGuest();
+    }
+
+    public function test_lowering_trusted_device_days_caps_existing_devices(): void
+    {
+        $user = $this->enrolledUser('encoder');
+        $token = $this->trustDevice($user);
+        $this->setTrustedDeviceDays(7);
+
+        $this->travel(8)->days();
+        $this->withCookie(TrustedDeviceService::COOKIE, $token);
+        $this->login($user)->assertJsonPath('requires_2fa', true)->assertJsonPath('trust_device_days', 7);
+        $this->assertGuest();
+    }
+
+    public function test_lowering_trusted_device_days_keeps_devices_inside_the_new_window(): void
+    {
+        $user = $this->enrolledUser('encoder');
+        $token = $this->trustDevice($user);
+        $this->setTrustedDeviceDays(7);
+
+        $this->travel(6)->days();
+        $this->withCookie(TrustedDeviceService::COOKIE, $token);
+        $this->login($user)->assertJsonMissingPath('requires_2fa')->assertJsonPath('data.email', $user->email);
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_raising_trusted_device_days_does_not_extend_existing_devices(): void
+    {
+        $user = $this->enrolledUser('encoder');
+        $this->setTrustedDeviceDays(7);
+        $token = $this->trustDevice($user);
+        $this->setTrustedDeviceDays(30);
+
+        $this->travel(8)->days();
+        $this->withCookie(TrustedDeviceService::COOKIE, $token);
+        $this->login($user)->assertJsonPath('requires_2fa', true)->assertJsonPath('trust_device_days', 30);
+        $this->assertGuest();
+    }
+
+    public function test_a_capped_trust_ends_exactly_n_days_after_it_was_granted(): void
+    {
+        $this->freezeSecond();
+        $user = $this->enrolledUser('encoder');
+        $grantedAt = now()->toImmutable();
+        $token = $this->trustDevice($user);
+        $this->setTrustedDeviceDays(7);
+        $this->withCookie(TrustedDeviceService::COOKIE, $token);
+
+        $this->travelTo($grantedAt->addDays(7)->subSecond());
+        $this->login($user)->assertJsonMissingPath('requires_2fa');
+        $this->signOut();
+
+        $this->travelTo($grantedAt->addDays(7));
+        $this->login($user)->assertJsonPath('requires_2fa', true);
+        $this->assertGuest();
+    }
+
+    public function test_an_uncapped_trust_ends_exactly_at_its_original_expiry(): void
+    {
+        $this->freezeSecond();
+        $user = $this->enrolledUser('encoder');
+        $grantedAt = now()->toImmutable();
+        $token = $this->trustDevice($user);
+        $this->withCookie(TrustedDeviceService::COOKIE, $token);
+
+        $this->travelTo($grantedAt->addDays(30)->subSecond());
+        $this->login($user)->assertJsonMissingPath('requires_2fa');
+        $this->signOut();
+
+        $this->travelTo($grantedAt->addDays(30));
+        $this->login($user)->assertJsonPath('requires_2fa', true);
+        $this->assertGuest();
+    }
+
+    public function test_turning_the_feature_off_and_on_again_revives_devices_still_inside_the_window(): void
+    {
+        $user = $this->enrolledUser('encoder');
+        $token = $this->trustDevice($user);
+        $this->withCookie(TrustedDeviceService::COOKIE, $token);
+
+        $this->setTrustedDeviceDays(0);
+        $this->login($user)->assertJsonPath('requires_2fa', true)->assertJsonPath('trust_device_days', 0);
+        $this->assertSame(1, $user->trustedDevices()->count());
+
+        $this->setTrustedDeviceDays(30);
+        $this->login($user)->assertJsonMissingPath('requires_2fa');
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_losing_the_last_always_require_code_permission_revives_earlier_trust(): void
+    {
+        $user = $this->enrolledUser('encoder');
+        $token = $this->trustDevice($user);
+        $role = Role::create(['name' => 'audit-custom', 'label' => 'Audit custom']);
+        $role->givePermissionTo([Permission::AuditLogView->value, Permission::EquipmentView->value]);
+        $this->withCookie(TrustedDeviceService::COOKIE, $token);
+
+        $user->syncRoles($role->name);
+        $this->login($user)->assertJsonPath('requires_2fa', true)->assertJsonPath('trust_device_days', 0);
+        $this->assertSame(1, $user->trustedDevices()->count());
+
+        $user->syncRoles('encoder');
+        $this->login($user)->assertJsonMissingPath('requires_2fa');
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_the_device_list_shows_the_capped_expiry_and_flags_devices_past_the_cap(): void
+    {
+        $this->freezeSecond();
+        $user = $this->enrolledUser('encoder');
+        $grantedAt = now()->toImmutable();
+        $this->trustDevice($user);
+
+        $list = $this->actingAs($user)->getJson('/api/trusted-devices')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.is_honoured', true);
+        $this->assertTrue(Carbon::parse($list->json('data.0.expires_at'))->equalTo($grantedAt->addDays(30)));
+
+        $this->setTrustedDeviceDays(7);
+        $list = $this->actingAs($user)->getJson('/api/trusted-devices')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('meta.trust_device_days', 7)->assertJsonPath('data.0.is_honoured', true);
+        $this->assertTrue(Carbon::parse($list->json('data.0.expires_at'))->equalTo($grantedAt->addDays(7)));
+
+        $this->travelTo($grantedAt->addDays(7));
+        $this->flushSession();
+        $list = $this->actingAs($user)->getJson('/api/trusted-devices')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.is_honoured', false);
+        $this->assertTrue(Carbon::parse($list->json('data.0.expires_at'))->equalTo($grantedAt->addDays(30)));
+
+        $this->travelTo($grantedAt->addDays(30));
+        $this->flushSession();
+        $this->actingAs($user)->getJson('/api/trusted-devices')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_the_device_list_keeps_devices_that_are_not_honoured_while_the_user_always_needs_the_code(): void
+    {
+        $user = $this->enrolledUser('encoder');
+        $this->trustDevice($user);
+
+        $role = Role::create(['name' => 'settings-custom', 'label' => 'Settings custom']);
+        $role->givePermissionTo([Permission::SecuritySettingsManage->value, Permission::EquipmentView->value]);
+        $user->syncRoles($role->name);
+
+        $this->actingAs($user)->getJson('/api/trusted-devices')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.is_honoured', false)
+            ->assertJsonPath('meta.trust_device_days', 0);
+    }
+
+    public function test_a_device_that_is_not_honoured_can_still_be_revoked_before_it_comes_back(): void
+    {
+        $user = $this->enrolledUser('encoder');
+        $token = $this->trustDevice($user);
+        $user->givePermissionTo(Permission::AuditLogView->value);
+
+        $this->actingAs($user)->getJson('/api/trusted-devices')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.is_honoured', false);
+        $this->actingAs($user)->deleteJson('/api/trusted-devices')->assertOk();
+        $this->assertSame(0, $user->trustedDevices()->count());
+
+        $user->revokePermissionTo(Permission::AuditLogView->value);
+        $this->signOut();
+        $this->withCookie(TrustedDeviceService::COOKIE, $token);
+        $this->login($user)->assertJsonPath('requires_2fa', true)->assertJsonPath('trust_device_days', 30);
         $this->assertGuest();
     }
 
@@ -228,10 +418,16 @@ class TrustedDeviceTest extends TestCase
         return $token;
     }
 
+    private function setTrustedDeviceDays(int $days): void
+    {
+        SystemSetting::query()->updateOrCreate(['key' => 'trusted_device_days'], ['value' => (string) $days, 'type' => 'integer']);
+    }
+
     private function signOut(): void
     {
         $this->app['auth']->guard('web')->logout();
         $this->app['auth']->forgetGuards();
+        $this->app['auth']->shouldUse('web');
         $this->flushSession();
     }
 }

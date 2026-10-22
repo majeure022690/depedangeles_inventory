@@ -1,12 +1,18 @@
 <?php
 
+use App\Http\Middleware\EnforceIdleTimeout;
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Exceptions\BackedEnumCaseNotFoundException;
+use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Routing\Route;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
@@ -31,6 +37,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'permission' => PermissionMiddleware::class,
         ]);
+        // A denied request must not spend the user's throttle budget (e.g. password-confirm),
+        // and an inactive or idle-expired session is ended before any permission check.
+        $middleware->prependToPriorityList(ThrottleRequests::class, EnsureUserIsActive::class);
+        $middleware->prependToPriorityList(ThrottleRequests::class, EnforceIdleTimeout::class);
+        $middleware->prependToPriorityList(ThrottleRequests::class, PermissionMiddleware::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(fn () => true);
@@ -43,7 +54,18 @@ return Application::configure(basePath: dirname(__DIR__))
             // Throttled per user so a scripted loop can't flood the audit trail.
             if ($user !== null && ! $request->isMethodSafe()
                 && RateLimiter::attempt('authorization-denied-audit:'.$user->getAuthIdentifier(), 10, fn () => true, 60)) {
-                $subject = collect($request->route()?->parameters() ?? [])->first(fn ($value) => $value instanceof Model);
+                $route = $request->route();
+
+                // The permission check runs ahead of SubstituteBindings, so bind here for the audit subject.
+                if ($route instanceof Route) {
+                    try {
+                        app('router')->substituteBindings($route);
+                        app('router')->substituteImplicitBindings($route);
+                    } catch (ModelNotFoundException|BackedEnumCaseNotFoundException) {
+                    }
+                }
+
+                $subject = collect($route?->parameters() ?? [])->first(fn ($value) => $value instanceof Model);
 
                 activity()
                     ->causedBy($user)
@@ -52,6 +74,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     ->withProperties([
                         'permission' => implode('|', $e->getRequiredPermissions()),
                         'route' => $request->method().' '.$request->path(),
+                        'parameters' => $route?->originalParameters() ?? [],
                     ])
                     ->log('authorization.denied');
             }

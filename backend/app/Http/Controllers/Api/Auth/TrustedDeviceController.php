@@ -17,6 +17,7 @@ class TrustedDeviceController extends Controller
     {
         $user = $request->user();
         $currentId = $this->devices->current($user, $request)?->id;
+        $days = $this->devices->days($user);
 
         return response()->json([
             'data' => $user->trustedDevices()
@@ -29,11 +30,12 @@ class TrustedDeviceController extends Controller
                     'ip_address' => $device->last_used_ip ?? $device->ip_address,
                     'trusted_at' => $device->created_at,
                     'last_used_at' => $device->last_used_at,
-                    'expires_at' => $device->expires_at,
+                    'expires_at' => $this->devices->expiresAt($device, $days),
                     'is_current' => $device->id === $currentId,
+                    'is_honoured' => $this->devices->isHonoured($device, $days),
                 ])
                 ->values(),
-            'meta' => ['trust_device_days' => $this->devices->days($user)],
+            'meta' => ['trust_device_days' => $days],
             'message' => 'Success',
         ]);
     }

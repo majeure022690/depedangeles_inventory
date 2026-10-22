@@ -56,7 +56,7 @@ What this drops, and why:
   - the `role:` middleware ("Administrator only" route classification);
   - `config('rabieswatch.two_factor_always_required_roles')`.
 
-  Their inventory equivalents use permissions. `TrustedDeviceService::days()` returns 0, meaning the authenticator code is always required, for any user holding `roles.manage` or `users.manage`.
+  Their inventory equivalents use permissions. `TrustedDeviceService::days()` returns 0, meaning the authenticator code is always required, for any user holding `roles.manage` or `users.manage`. *(Since widened: roles/users were split into finer permissions, and the list now lives in `TrustedDeviceService::ALWAYS_REQUIRE_CODE`, which also covers security settings, the audit log and the email log. See [`features/two-factor-trusted-devices.md`](../features/two-factor-trusted-devices.md#design-decisions).)*
 - The existing RBAC guards in `RoleService`/`UserRoleService` are kept as-is on top of Spatie's tables: no self-escalation, last-holder lockout under a row lock on the sensitive `permissions` row, and `users.manage` permission-tier separation. The protected `pending` role is also kept. `App\Models\Role extends Spatie\Permission\Models\Role` and keeps inventory's `label`/`description` columns. `App\Models\Permission` is deleted; Spatie's model is used directly. The custom `Gate::before` hook and `User::permissionNames()`/`assignRole()`/`removeRole()`/`hasPermissionTo()` are deleted in favor of Spatie's `HasRoles` trait.
 
 ### 6. Audit: spatie/laravel-activitylog replaces `audit_logs`

@@ -8,6 +8,7 @@ export interface TrustedDevice {
   last_used_at: string | null
   expires_at: string
   is_current: boolean
+  is_honoured: boolean
 }
 
 export const trustedDeviceService = {

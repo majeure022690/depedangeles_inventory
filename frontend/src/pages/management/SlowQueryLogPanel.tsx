@@ -6,7 +6,7 @@ import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { PasswordConfirmDialog } from '@/components/ui/PasswordConfirmDialog'
 import { useAuth } from '@/context/AuthContext'
 import { systemLogService, type SlowQueryStats, type SlowQueryVariables } from '@/services/systemLogService'
 
@@ -21,7 +21,6 @@ export function SlowQueryLogPanel() {
   const [loading, setLoading] = useState(true)
   const [reversed, setReversed] = useState(true)
   const [downloading, setDownloading] = useState(false)
-  const [clearing, setClearing] = useState(false)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -56,17 +55,9 @@ export function SlowQueryLogPanel() {
     }
   }
 
-  async function handleClear() {
-    setClearing(true)
-    try {
-      await systemLogService.clearSlowQueryLogs()
-      setClearConfirmOpen(false)
-      await load()
-    } catch {
-      setError('Unable to clear the slow query log.')
-    } finally {
-      setClearing(false)
-    }
+  async function handleClear(currentPassword: string) {
+    await systemLogService.clearSlowQueryLogs(currentPassword)
+    void load()
   }
 
   if (!canManage) return null
@@ -136,14 +127,15 @@ export function SlowQueryLogPanel() {
         )}
       </CardContent>
 
-      <ConfirmDialog
+      <PasswordConfirmDialog
+        title="Clear slow query log?"
         open={clearConfirmOpen}
         onOpenChange={setClearConfirmOpen}
         onConfirm={handleClear}
-        title="Clear slow query log?"
-        description="This permanently erases the current slow query log. This cannot be undone."
+        description="This permanently erases the current slow query log and cannot be undone. Enter your password to clear it."
         confirmText="Clear Log"
-        loading={clearing}
+        confirmVariant="danger"
+        fallbackError="Unable to clear the slow query log."
       />
     </Card>
   )

@@ -63,6 +63,8 @@ export function TrustedDevicesCard() {
     }
   }
 
+  const noneHonoured = trustDays === 0 && devices.length > 0 && devices.every((device) => !device.is_honoured)
+
   return (
     <Card>
       <CardHeader>
@@ -90,31 +92,38 @@ export function TrustedDevicesCard() {
         ) : devices.length === 0 ? (
           <p className="text-sm text-gray-500">No trusted devices.</p>
         ) : (
-          <ul className="divide-y divide-gray-100">
-            {devices.map((device) => (
-              <li key={device.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-                    {device.label}
-                    {device.is_current && <Badge color="primary">This browser</Badge>}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Last used {formatDate(device.last_used_at)}
-                    {device.ip_address ? ` from ${device.ip_address}` : ''} · Trusted until {formatDate(device.expires_at)}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  leftIcon={<LogOut className="h-4 w-4" />}
-                  isLoading={busyId === device.id}
-                  onClick={() => revoke(device.id)}
-                >
-                  Sign out
-                </Button>
-              </li>
-            ))}
-          </ul>
+          <>
+            {noneHonoured && (
+              <p className="mb-2 text-sm text-gray-500">Your account always requires the 2FA code, so these devices won't skip it. You can still sign them out.</p>
+            )}
+            <ul className="divide-y divide-gray-100">
+              {devices.map((device) => (
+                <li key={device.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className={`flex flex-wrap items-center gap-2 text-sm font-medium ${device.is_honoured ? 'text-gray-900' : 'text-gray-600'}`}>
+                      {device.label}
+                      {device.is_current && <Badge color="primary">This browser</Badge>}
+                      {!device.is_honoured && <Badge>Not currently trusted</Badge>}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Last used {formatDate(device.last_used_at)}
+                      {device.ip_address ? ` from ${device.ip_address}` : ''} ·{' '}
+                      {device.is_honoured ? 'Trusted until' : 'Could be trusted again until'} {formatDate(device.expires_at)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    leftIcon={<LogOut className="h-4 w-4" />}
+                    isLoading={busyId === device.id}
+                    onClick={() => revoke(device.id)}
+                  >
+                    Sign out
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </CardContent>
 

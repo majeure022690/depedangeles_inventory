@@ -56,6 +56,7 @@ class SecuritySettingTest extends TestCase
         $this->actingAs($admin)->putJson('/api/settings/security', [
             'setting_key' => 'login_rate_limit_per_minute',
             'value' => 8,
+            'current_password' => 'password',
         ])->assertOk()->assertJsonPath('data.value', 8);
 
         $this->assertDatabaseHas('system_settings', [
@@ -72,11 +73,13 @@ class SecuritySettingTest extends TestCase
         $this->actingAs($admin)->putJson('/api/settings/security', [
             'setting_key' => 'trusted_device_days',
             'value' => 7,
+            'current_password' => 'password',
         ])->assertOk();
 
         $activity = Activity::query()->where('event', 'security_setting.updated')->sole();
         $this->assertSame('security_setting.updated', $activity->description);
         $this->assertSame($admin->id, $activity->causer_id);
+        $this->assertSame(['name' => $admin->name, 'email' => $admin->email], $activity->properties['actor_snapshot']);
         $this->assertSame(SystemSetting::class, $activity->subject_type);
         $this->assertSame(['trusted_device_days' => 30], $activity->attribute_changes['old']);
         $this->assertSame(['trusted_device_days' => 7], $activity->attribute_changes['attributes']);
@@ -84,6 +87,7 @@ class SecuritySettingTest extends TestCase
         $this->actingAs($admin)->putJson('/api/settings/security', [
             'setting_key' => 'trusted_device_days',
             'value' => 0,
+            'current_password' => 'password',
         ])->assertOk();
 
         $latest = Activity::query()->where('event', 'security_setting.updated')->latest('id')->firstOrFail();
@@ -94,8 +98,31 @@ class SecuritySettingTest extends TestCase
         $this->actingAs($admin)->putJson('/api/settings/security', [
             'setting_key' => 'trusted_device_days',
             'value' => 0,
+            'current_password' => 'password',
         ])->assertOk();
         $this->assertSame(2, Activity::query()->where('event', 'security_setting.updated')->count());
+    }
+
+    public function test_updating_a_setting_requires_the_current_password(): void
+    {
+        $admin = $this->userWithOnly(Permission::SecuritySettingsManage);
+        $payload = ['setting_key' => 'trusted_device_days', 'value' => 7];
+        $auditRows = Activity::query()->count();
+
+        $this->actingAs($admin)->putJson('/api/settings/security', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_password');
+        $this->actingAs($admin)->putJson('/api/settings/security', $payload + ['current_password' => 'wrong-password'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_password');
+
+        $this->assertSame($auditRows, Activity::query()->count());
+        $this->assertDatabaseMissing('system_settings', ['key' => 'trusted_device_days']);
+
+        $this->actingAs($admin)->putJson('/api/settings/security', $payload + ['current_password' => 'password'])
+            ->assertOk()
+            ->assertJsonPath('data.value', 7);
+        $this->assertSame(1, Activity::query()->where('event', 'security_setting.updated')->count());
     }
 
     public function test_rejected_updates_are_not_audited_as_changes(): void
@@ -103,11 +130,13 @@ class SecuritySettingTest extends TestCase
         $this->actingAs($this->userWithRole('viewer'))->putJson('/api/settings/security', [
             'setting_key' => 'trusted_device_days',
             'value' => 7,
+            'current_password' => 'password',
         ])->assertForbidden();
 
         $this->actingAs($this->userWithOnly(Permission::SecuritySettingsManage))->putJson('/api/settings/security', [
             'setting_key' => 'trusted_device_days',
             'value' => 99,
+            'current_password' => 'password',
         ])->assertStatus(422);
 
         $this->assertSame(0, Activity::query()->where('event', 'security_setting.updated')->count());
@@ -122,6 +151,7 @@ class SecuritySettingTest extends TestCase
             $this->actingAs($user)->putJson('/api/settings/security', [
                 'setting_key' => 'login_rate_limit_per_minute',
                 'value' => 8,
+                'current_password' => 'password',
             ])->assertForbidden();
         }
 
@@ -154,6 +184,7 @@ class SecuritySettingTest extends TestCase
         $this->actingAs($admin)->putJson('/api/settings/security', [
             'setting_key' => 'login_rate_limit_per_minute',
             'value' => 1000,
+            'current_password' => 'password',
         ])->assertStatus(422);
 
         // public_api_rate_limit_per_minute is an rwatch public-portal key
@@ -162,6 +193,7 @@ class SecuritySettingTest extends TestCase
             $this->actingAs($admin)->putJson('/api/settings/security', [
                 'setting_key' => $key,
                 'value' => 5,
+                'current_password' => 'password',
             ])->assertStatus(422);
 
             $this->assertDatabaseMissing('system_settings', ['key' => $key]);
@@ -182,11 +214,11 @@ class SecuritySettingTest extends TestCase
     {
         $admin = $this->userWithOnly(Permission::SecuritySettingsManage);
 
-        $this->actingAs($admin)->putJson('/api/settings/security', ['setting_key' => 'idle_timeout_seconds', 'value' => 9])
+        $this->actingAs($admin)->putJson('/api/settings/security', ['setting_key' => 'idle_timeout_seconds', 'value' => 9, 'current_password' => 'password'])
             ->assertStatus(422);
-        $this->actingAs($admin)->putJson('/api/settings/security', ['setting_key' => 'idle_timeout_seconds', 'value' => 7201])
+        $this->actingAs($admin)->putJson('/api/settings/security', ['setting_key' => 'idle_timeout_seconds', 'value' => 7201, 'current_password' => 'password'])
             ->assertStatus(422);
-        $this->actingAs($admin)->putJson('/api/settings/security', ['setting_key' => 'idle_timeout_seconds', 'value' => 10])
+        $this->actingAs($admin)->putJson('/api/settings/security', ['setting_key' => 'idle_timeout_seconds', 'value' => 10, 'current_password' => 'password'])
             ->assertOk()->assertJsonPath('data.value', 10);
 
         $this->actingAs($admin)->getJson('/api/session-settings')->assertJsonPath('data.idle_timeout_seconds', 10);

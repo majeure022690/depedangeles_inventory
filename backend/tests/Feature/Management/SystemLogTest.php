@@ -186,7 +186,7 @@ class SystemLogTest extends TestCase
         file_put_contents($this->errorLogPath(), "[2026-01-01 10:00:00] local.ERROR: Something broke\n");
         $admin = $this->admin();
 
-        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/errors')
+        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/errors', ['current_password' => 'password'])
             ->assertOk()
             ->assertJsonPath('message', 'Error log cleared successfully.');
 
@@ -215,7 +215,7 @@ class SystemLogTest extends TestCase
         $this->assertStringContainsString('From the daily log', $download->streamedContent());
         $this->assertStringNotContainsString('Security event', $download->streamedContent());
 
-        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/errors')->assertOk();
+        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/errors', ['current_password' => 'password'])->assertOk();
 
         $this->assertSame('', file_get_contents($this->dailyLogPath()));
         $this->assertStringContainsString('Old single log', (string) file_get_contents($this->errorLogPath()));
@@ -279,7 +279,7 @@ class SystemLogTest extends TestCase
         $this->assertSame('text/plain; charset=UTF-8', $download->headers->get('Content-Type'));
         $this->assertStringContainsString('# Query_time: 2.000000', $download->streamedContent());
 
-        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/slow-queries')
+        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/slow-queries', ['current_password' => 'password'])
             ->assertOk()
             ->assertJsonPath('message', 'Slow query log cleared successfully.');
 
@@ -308,7 +308,7 @@ class SystemLogTest extends TestCase
             ->assertJsonPath('data.stats.log_path', 'Not found');
 
         $this->actingAs($admin)->getJson('/api/settings/system-logs/slow-queries/download')->assertNotFound();
-        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/slow-queries')->assertNotFound();
+        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/slow-queries', ['current_password' => 'password'])->assertNotFound();
         $this->assertSame(0, Activity::query()->where('event', 'system_log.slow_queries_cleared')->count());
     }
 
@@ -320,6 +320,47 @@ class SystemLogTest extends TestCase
             ->assertOk()
             ->assertJsonStructure(['data' => ['variables' => ['slow_query_log', 'slow_query_log_file', 'long_query_time', 'log_queries_not_using_indexes', 'app_slow_query_threshold_ms']]])
             ->assertJsonPath('data.variables.app_slow_query_threshold_ms', '750');
+    }
+
+    public function test_clearing_the_error_log_requires_the_current_password(): void
+    {
+        file_put_contents($this->errorLogPath(), "[2026-01-01 10:00:00] local.ERROR: Keep me\n");
+        $admin = $this->admin();
+        $auditRows = Activity::query()->count();
+
+        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/errors')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_password');
+        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/errors', ['current_password' => 'wrong-password'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_password');
+
+        $this->assertStringContainsString('Keep me', (string) file_get_contents($this->errorLogPath()));
+        $this->assertSame($auditRows, Activity::query()->count());
+
+        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/errors', ['current_password' => 'password'])->assertOk();
+        $this->assertSame('', file_get_contents($this->errorLogPath()));
+    }
+
+    public function test_clearing_the_slow_query_log_requires_the_current_password(): void
+    {
+        config(['database.slow_query_ms' => 500]);
+        SlowQueryLog::record($this->slowQuery(2000));
+        $admin = $this->admin();
+        $auditRows = Activity::query()->count();
+
+        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/slow-queries')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_password');
+        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/slow-queries', ['current_password' => 'wrong-password'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_password');
+
+        $this->assertStringContainsString('# Query_time:', (string) file_get_contents(SlowQueryLog::path()));
+        $this->assertSame($auditRows, Activity::query()->count());
+
+        $this->actingAs($admin)->deleteJson('/api/settings/system-logs/slow-queries', ['current_password' => 'password'])->assertOk();
+        $this->assertSame('', file_get_contents(SlowQueryLog::path()));
     }
 
     public function test_every_system_log_route_requires_security_settings_manage(): void

@@ -1,11 +1,11 @@
 import { CheckCircle2, Clock, ExternalLink, Mail, RefreshCw, Trash2, XCircle } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Pagination } from '@/components/ui/Pagination'
+import { PasswordConfirmDialog } from '@/components/ui/PasswordConfirmDialog'
 import { extractError } from '@/lib/errors'
 import { emailLogService, type EmailLogEntry, type EmailLogPage } from '@/services/emailLogService'
 
@@ -17,7 +17,8 @@ export function EmailLogPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [clearOpen, setClearOpen] = useState(false)
-  const [clearing, setClearing] = useState(false)
+  const clearedRef = useRef(false)
+  const headingRef = useRef<HTMLHeadingElement>(null)
 
   const load = useCallback(async (target: number) => {
     setLoading(true)
@@ -35,18 +36,18 @@ export function EmailLogPanel() {
     load(page)
   }, [load, page])
 
-  async function handleClear() {
-    setClearing(true)
-    try {
-      await emailLogService.clear()
-      setClearOpen(false)
-      if (page === 1) await load(1)
-      else setPage(1)
-    } catch (e) {
-      setError(extractError(e))
-    } finally {
-      setClearing(false)
-    }
+  async function handleClear(currentPassword: string) {
+    await emailLogService.clear(currentPassword)
+    clearedRef.current = true
+    if (page === 1) void load(1)
+    else setPage(1)
+  }
+
+  function handleClearCloseAutoFocus(event: Event) {
+    if (!clearedRef.current) return
+    event.preventDefault()
+    clearedRef.current = false
+    headingRef.current?.focus()
   }
 
   const entries = log?.data ?? []
@@ -58,7 +59,9 @@ export function EmailLogPanel() {
           <div className="flex items-start gap-3">
             <span className="rounded-lg bg-primary-600 p-2 text-white"><Mail className="h-5 w-5" /></span>
             <div>
-              <h2 className="font-semibold text-gray-900">Email log</h2>
+              <h2 ref={headingRef} tabIndex={-1} className="rounded-sm font-semibold text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2">
+                Email log
+              </h2>
               <p className="mt-1 text-sm text-gray-500">
                 Emails the system sent, such as password reset links. Only the recipient and subject are kept, never the message body.
               </p>
@@ -117,14 +120,16 @@ export function EmailLogPanel() {
         )}
       </CardContent>
 
-      <ConfirmDialog
+      <PasswordConfirmDialog
+        title="Clear email log?"
         open={clearOpen}
         onOpenChange={setClearOpen}
         onConfirm={handleClear}
-        title="Clear email log?"
-        description="This permanently removes every entry from the email log. Emails already sent are not affected, and the mail provider keeps its own records."
+        onCloseAutoFocus={handleClearCloseAutoFocus}
+        description="This permanently removes every entry from the email log. Emails already sent are not affected, and the mail provider keeps its own records. Enter your password to clear it."
         confirmText="Clear Log"
-        loading={clearing}
+        confirmVariant="danger"
+        fallbackError="Unable to clear the email log."
       />
     </Card>
   )

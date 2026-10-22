@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Management;
 
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Management\ClearEmailLogRequest;
 use App\Http\Resources\Management\EmailMessageResource;
 use App\Models\EmailMessage;
 use Illuminate\Http\JsonResponse;
@@ -38,7 +39,7 @@ class EmailLogController extends Controller
         ]);
     }
 
-    public function clear(Request $request): JsonResponse
+    public function clear(ClearEmailLogRequest $request): JsonResponse
     {
         $this->authorize(Permission::EmailLogManage->value);
 
