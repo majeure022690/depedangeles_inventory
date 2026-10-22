@@ -16,7 +16,6 @@ use App\Services\PrimeUserSync;
 use App\Services\UserRoleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -105,15 +104,16 @@ class UserController extends Controller
     {
         $this->authorize('update', $user);
 
+        $validated = $request->safe();
+
         $userRoleService->updateUser(
             $request->user(),
             $user,
             [
-                // Name and email are managed by PRIME and not updated here
-                'office_id' => $request->validated('office_id'),
-                'is_active' => $request->validated('is_active', $user->is_active),
+                'office_id' => $validated->filled('office_id') ? $validated->integer('office_id') : null,
+                'is_active' => $validated->has('is_active') ? $validated->boolean('is_active') : $user->is_active,
             ],
-            [$request->validated('role_id')],
+            [$validated->integer('role_id')],
         );
 
         $user = $user->fresh(['roles:id,name,label', 'office:id,office_name,school_id']) ?? $user;
@@ -124,7 +124,7 @@ class UserController extends Controller
             ->response();
     }
 
-    public function destroy(Request $request, User $user, UserRoleService $userRoleService): Response
+    public function destroy(Request $request, User $user, UserRoleService $userRoleService): JsonResponse
     {
         // User deletion is disabled - all users are managed through PRIME
         return response()->json([

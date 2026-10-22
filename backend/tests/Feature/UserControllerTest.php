@@ -59,8 +59,8 @@ class UserControllerTest extends TestCase
 
     private function assertRefusedWith(TestResponse $response, string $fragment): void
     {
-        $response->assertUnprocessable();
-        $this->assertStringContainsString($fragment, collect($response->json('errors'))->flatten()->implode(' '));
+        $response->assertUnprocessable()->assertJsonValidationErrors('role_id');
+        $this->assertStringContainsString($fragment, implode(' ', $response->json('errors.role_id')));
     }
 
     // Authorization
@@ -352,10 +352,12 @@ class UserControllerTest extends TestCase
         $actor = User::factory()->create();
         $actor->givePermissionTo(array_map(fn (PermissionEnum $case) => $case->value, PermissionEnum::cases()));
 
-        $this->expectException(ValidationException::class);
-
         try {
             app(UserRoleService::class)->syncRoles($actor, $soleAdmin, [$this->roleId('viewer')]);
+            $this->fail('Expected a ValidationException for the sole users.edit holder.');
+        } catch (ValidationException $e) {
+            $this->assertSame(['role_id'], array_keys($e->errors()));
+            $this->assertStringContainsString('only remaining user', implode(' ', $e->errors()['role_id']));
         } finally {
             $this->assertSame(['system_administrator'], $soleAdmin->fresh()->roles()->pluck('name')->all());
             $this->assertNull(Activity::where('event', 'user.roles_changed')->first());
@@ -392,7 +394,8 @@ class UserControllerTest extends TestCase
             app(UserRoleService::class)->syncRoles($this->systemAdmin(), $target, [$this->roleId(Role::SUPER_ADMINISTRATOR)]);
             $this->fail('Expected a ValidationException naming the offending role/permission.');
         } catch (ValidationException $e) {
-            $message = collect($e->errors())->flatten()->implode(' ');
+            $this->assertSame(['role_id'], array_keys($e->errors()));
+            $message = implode(' ', $e->errors()['role_id']);
             $this->assertStringContainsString('Super Administrator', $message);
             $this->assertStringContainsString(PermissionEnum::RolesCreate->value, $message);
         }

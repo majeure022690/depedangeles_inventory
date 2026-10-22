@@ -172,7 +172,7 @@ final class UserRoleService
     }
 
     /**
-     * @param  array{name: string, email: string, office_id?: int|null, is_active?: bool}  $attributes
+     * @param  array{name?: string, email?: string, office_id?: int|null, is_active?: bool}  $attributes
      * @param  array<int, int>  $roleIds
      */
     public function updateUser(User $actor, User $target, array $attributes, array $roleIds): void
@@ -302,7 +302,7 @@ final class UserRoleService
 
                 if ($remainingUsersEditHolders === 0) {
                     throw ValidationException::withMessages([
-                        'role_ids' => __(
+                        'role_id' => __(
                             'Cannot change these roles: :name is the only remaining user who can edit users. '.
                             'Assign another user a role that can edit users first.',
                             ['name' => $target->name],
@@ -334,7 +334,7 @@ final class UserRoleService
 
             if (! $newRolesGrant) {
                 throw ValidationException::withMessages([
-                    'role_ids' => __(
+                    'role_id' => __(
                         'You cannot remove :permission from your own account — this change would lock you out of it. '.
                         'Have another :permission holder make this change instead.',
                         ['permission' => $permission->value],
@@ -451,7 +451,7 @@ final class UserRoleService
             ->implode(', ');
 
         throw ValidationException::withMessages([
-            'role_ids' => __(
+            'role_id' => __(
                 'Cannot assign these roles: :roles grant permission(s) you do not hold yourself (:permissions). '.
                 'You can only assign roles whose permissions do not exceed your own.',
                 [
