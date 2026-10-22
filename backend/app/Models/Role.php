@@ -10,10 +10,10 @@ use Spatie\Permission\Models\Role as SpatieRole;
 
 /**
  * A role is a named, admin-configurable bundle of permissions, never a
- * branch in application code. RolePermissionSeeder seeds four starting
- * roles (pending / viewer / encoder / admin); RoleService lets a
- * roles.manage holder create, edit and delete roles from there. The
- * permission catalog itself stays code-defined in App\Enums\Permission.
+ * branch in application code. RolePermissionSeeder seeds the starting
+ * roles; RoleService creates, edits and deletes them for holders of
+ * roles.create/edit/delete. The permission catalog itself stays
+ * code-defined in App\Enums\Permission.
  *
  * @property int $id
  * @property string $name

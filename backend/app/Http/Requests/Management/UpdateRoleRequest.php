@@ -43,11 +43,9 @@ class UpdateRoleRequest extends FormRequest
     }
 
     /**
-     * Protected-'pending'-role guard (see Role::PENDING's doc-comment):
-     * surfaced as field errors (not a silent no-op), the same way
-     * UpdateUserRequest's self-escalation
-     * guard does. RoleService::update() re-checks both invariants for
-     * any caller that isn't this HTTP route.
+     * Grant ceiling and the Super Administrator rename block, surfaced as
+     * field errors. RoleService::update() re-checks both for any other
+     * caller.
      */
     public function withValidator(Validator $validator): void
     {

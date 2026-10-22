@@ -17,11 +17,11 @@ use Illuminate\Http\Response;
 use Illuminate\Validation\ValidationException;
 
 /**
- * The roles.manage admin screen. Reading roles is also open to
- * users.manage holders (they assign roles). Every mutation invariant
- * (protected `pending` role, no deleting an assigned role, lockout and
- * self-escalation guards) lives in RoleService, which also writes the
- * `role.*` activity rows.
+ * Role definitions (roles.view/create/edit/delete; reading is also open
+ * to users.edit holders, who assign roles). Every mutation invariant
+ * (protected Super Administrator role, no deleting an assigned role,
+ * lockout and grant-ceiling guards) lives in RoleService, which also
+ * writes the `role.*` activity rows.
  */
 class RoleController extends Controller
 {
@@ -88,7 +88,7 @@ class RoleController extends Controller
     }
 
     /**
-     * The protected `pending` role and roles still assigned to users
+     * The Super Administrator role and roles still assigned to users
      * cannot be deleted: RoleService refuses, answered here as 409.
      */
     public function destroy(Request $request, Role $role, RoleService $roleService): Response|JsonResponse

@@ -10,8 +10,8 @@ use App\Services\UserRoleService;
  * "Can this actor manage this account". Account-specific actions also
  * require the target-tier rule (the target's effective permissions are a
  * subset of the actor's own), which UserRoleService re-checks as a
- * backstop alongside its other invariants (self-escalation, last
- * users.manage holder, permission-tier separation on role assignment).
+ * backstop alongside its other invariants (self-lockout, last users.edit
+ * holder, permission-tier separation on role assignment).
  */
 class UserPolicy
 {

@@ -15,54 +15,26 @@ use Spatie\Activitylog\Support\CauserResolver;
 use Spatie\Permission\Models\Permission;
 
 /**
- * The only sanctioned entry point for the users.manage admin screen's
- * full CRUD — creating admin-provisioned accounts (createUser()),
- * updating profile + role set together (updateUser()), removing
- * accounts (deleteUser()), and changing just the role set (syncRoles(),
- * still called on its own by updateUser() and directly by earlier
- * callers). A user can hold several roles (Spatie's model_has_roles), so
+ * The only entry point for changing an account or its role set.
  * syncRoles() replaces a user's entire role set in one call.
  *
- * Audit: account CRUD rows come from User's LogsActivity (attributed to
- * the actor via CauserResolver::withCauser()); every role-set change,
- * including the initial set on creation and the removal on deletion, is
- * a `user.roles_changed` activity.
+ * Audit: account rows come from User's LogsActivity (attributed to the
+ * actor via CauserResolver::withCauser()); every role-set change is a
+ * `user.roles_changed` activity.
  *
- * Enforces the following requirements from the 2026-07 security review,
- * generalized to multi-role semantics (and extended to createUser()/
- * deleteUser() below):
+ * Invariants:
  *   1. Self-edits can't deactivate the actor or drop their own
- *      roles.manage/users.manage.
- *   2. Permission-tier separation (CRITICAL, follow-up review): a
- *      users.manage holder can assign only roles whose ENTIRE permission
- *      set is already a subset of their own effective permissions — see
- *      guardAgainstPermissionTierViolation() below. Without this, holding
- *      users.manage alone was sufficient to grant ANY role — including
- *      one carrying roles.manage — to any account, silently bypassing the
- *      permission-tier separation Permission::RolesManage's doc-comment
- *      describes but nothing previously enforced.
- *   3. The last remaining holder of `users.manage` can never be synced
- *      into a role set that doesn't grant it — generalized from "does
- *      the single newly-selected role grant it" to "does ANY role in the
- *      new set grant it" (a UNION check, since permissions across a
- *      user's roles are additive). This check now runs INSIDE the write
- *      transaction behind a chokepoint row lock (MEDIUM, follow-up
- *      review) — see the DB::transaction() closure below for why.
+ *      roles.edit/users.edit.
+ *   2. Permission-tier separation: an actor can assign only roles, and
+ *      manage only accounts, whose permissions are a subset of their own.
+ *   3. The last remaining users.edit holder can never lose it.
  */
 final class UserRoleService
 {
     /**
-     * Every role the given actor is permitted to assign to another user —
-     * i.e. every role whose permission set is a SUBSET of the actor's own
-     * effective permissions. This is the read-side mirror of
-     * guardAgainstPermissionTierViolation() below: UserController::index()
-     * calls this to build the `roles` prop so the admin UI never even
-     * offers an option the write side (syncRoles()) would reject.
-     *
-     * admin holds every permission in the system, so every
-     * role is trivially a subset of their own — every role remains
-     * assignable to them with no special-casing required, it falls
-     * straight out of the subset rule.
+     * Every role whose permission set is a subset of the actor's own: the
+     * read-side mirror of guardAgainstPermissionTierViolation(), used by
+     * UserController::options().
      *
      * @return EloquentCollection<int, Role>
      */
@@ -84,8 +56,8 @@ final class UserRoleService
      * Target-tier guard: an actor may edit, deactivate, delete, or reset
      * 2FA only for an account whose effective permissions are a subset of
      * their own (the assignableRolesFor() rule applied to the target).
-     * Without it a users.manage-only actor could change an admin's email,
-     * request a password reset, reset their 2FA and take the account over.
+     * Without it a users.edit or users.reset_two_factor holder could reset
+     * an admin's 2FA and take the account over.
      */
     public function canManage(User $actor, User $target): bool
     {
@@ -193,13 +165,9 @@ final class UserRoleService
     }
 
     /**
-     * Deletes a user account. Two guards mirror the ones already enforced
-     * for role changes: an actor can never delete their own account
-     * (self-escalation-adjacent — the Index.vue UI never offers the
-     * action against the acting user's own row either), and the last
-     * remaining holder of `users.edit` can never be deleted, under the
-     * same lockForUpdate() chokepoint lock syncRoles() uses to close the
-     * TOCTOU race between two concurrent removals.
+     * Deletes a user account. An actor can never delete their own account
+     * or the last remaining users.edit holder (under the same row lock
+     * syncRoles() takes).
      *
      * Every FK referencing `users.id` elsewhere in the schema
      * (equipment_transactions.recorded_by_user_id,
@@ -266,21 +234,8 @@ final class UserRoleService
         $this->guardAgainstPermissionTierViolation($actor, $roleIds);
 
         DB::transaction(function () use ($actor, $target, $roleIds, $previousRoleIds) {
-            // Chokepoint lock (MEDIUM, 2026-07 follow-up review: TOCTOU
-            // race). The "would this leave zero users.manage holders"
-            // count below used to run as a plain unlocked SELECT BEFORE
-            // this transaction opened, so two concurrent requests each
-            // demoting a DIFFERENT users.manage holder could each observe
-            // "another holder still exists" (neither had committed yet),
-            // both pass, and both commit — collectively zeroing out
-            // users.manage system-wide. Locking this permission's own row
-            // FOR UPDATE serializes any two transactions — in this
-            // service or RoleService::guardAgainstLockout(), which locks
-            // the same row for the same reason — that could each
-            // independently strip the last holder of this permission, so
-            // whichever commits second always recounts against the
-            // first's already-committed state instead of a stale
-            // pre-write snapshot.
+            // Serializes concurrent removals of the last users.edit holder
+            // (shared with deleteUser() and RoleService::guardAgainstLockout()).
             Permission::where('name', PermissionEnum::UsersEdit->value)->lockForUpdate()->first();
 
             if ($actor->is($target)) {
@@ -403,22 +358,9 @@ final class UserRoleService
     }
 
     /**
-     * Permission-tier separation guard (CRITICAL, 2026-07 follow-up
-     * review): a users.manage holder may only assign roles whose ENTIRE
-     * permission set is already a subset of their own effective
-     * permissions. Permission::RolesManage's own doc-comment already
-     * states a users.manage holder should not automatically be able to
-     * redefine what every role means — this closes the gap where nothing
-     * actually enforced that on the assignment side, letting a
-     * users.manage-only actor hand any account (including their own)
-     * a role granting
-     * roles.manage or any other permission they never held themselves.
-     *
-     * Checked against the FULL resulting role set, not just newly-added
-     * roles, so an actor can't route around this by leaving an
-     * over-privileged role untouched while making an unrelated change —
-     * every role remaining on the target after this sync must be one the
-     * actor could themselves be trusted with.
+     * An actor may only assign roles whose entire permission set is a
+     * subset of their own. Checked against the full resulting role set,
+     * not just newly added roles.
      *
      * @param  array<int, int>  $roleIds
      */

@@ -108,11 +108,6 @@ final class RoleService
         $this->guardAgainstGrantingUnheldPermissions($actor, $permissionValues, $role);
 
         DB::transaction(function () use ($actor, $role, $attributes, $permissionValues): void {
-            // guardAgainstLockout() runs INSIDE this transaction, behind a
-            // chokepoint row lock it takes on the sensitive Permission
-            // itself, so its "remaining holders" count can no longer race
-            // against a concurrent mutation — see that method's
-            // doc-comment (MEDIUM, 2026-07 follow-up review: TOCTOU).
             $this->guardAgainstLockout($actor, $role, $permissionValues);
 
             $before = [
@@ -180,10 +175,9 @@ final class RoleService
 
     /**
      * Permissions in $permissionValues the actor does not hold and the
-     * role does not already grant. A roles.manage holder may only grant
-     * permissions they hold themselves (owner decision, 2026-10 security
-     * review); permissions a role already has may be kept or removed.
-     * Full admins hold every permission, so this never limits them.
+     * role does not already grant: an actor may only grant permissions
+     * they hold themselves; permissions a role already has may be kept or
+     * removed.
      *
      * @param  array<int, string>  $permissionValues
      * @return array<int, string>
@@ -226,34 +220,12 @@ final class RoleService
     }
 
     /**
-     * Enforces the two forward-looking requirements from the RBAC
-     * request that made roles admin-editable in the first place:
+     * Removing roles.edit or users.edit from a role is refused when no
+     * user would still hold it through another role, or when the actor
+     * holds this role and no other role of theirs grants it.
      *
-     *   1. System-wide lockout: a role's permission set can never be
-     *      edited to remove RolesManage/UsersManage if doing so would
-     *      leave NO role in the system granting it to any user —
-     *      generalized from UserRoleService::changeRole()'s single-role
-     *      "last remaining users.manage holder" check to consider every
-     *      role+user in the system, not just the one role being edited.
-     *   2. Self-lockout: a user can never edit the permissions of a role
-     *      THEY THEMSELVES currently hold in a way that strips
-     *      RolesManage/UsersManage from their own effective permission
-     *      set, unless another role they hold still grants it. This is
-     *      narrower than UserRoleService's absolute "can't touch your own
-     *      role assignment" rule (which makes sense there — the actor and
-     *      target are quite literally the same row) — here the actor is
-     *      editing a role DEFINITION they may need to maintain (e.g.
-     *      adding a brand-new permission to the admin role they hold when
-     *      a feature ships), so only the specific act of removing their
-     *      own access to roles.manage/users.manage is blocked, not every
-     *      edit to a role they happen to hold.
-     *
-     * MUST be called from inside the same DB::transaction() as the write
-     * it's guarding (see update() above) — the chokepoint lock it takes
-     * below only serializes concurrent transactions for the duration of
-     * an open transaction; taken outside one, MySQL releases a `FOR
-     * UPDATE` row lock the instant the SELECT statement completes, which
-     * defeats the point (MEDIUM, 2026-07 follow-up review: TOCTOU race).
+     * Must run inside the guarded write's transaction, or the row lock is
+     * released before the write.
      *
      * @param  array<int, string>  $newPermissionValues
      */

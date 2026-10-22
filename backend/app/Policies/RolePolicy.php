@@ -7,32 +7,19 @@ use App\Models\Role;
 use App\Models\User;
 
 /**
- * Authorization only — "does this user hold roles.manage" — mirroring
- * EquipmentPolicy's shape exactly. The *business-rule* invariants around
- * editing/deleting a specific role (protected 'pending' role, "role still
- * in use" deletion block, self-escalation/last-holder lockout on
- * permission edits) are NOT authorization decisions in the Policy sense —
- * they don't depend on who's asking, only on what's being asked — so they
- * live in RoleService as ValidationException-raising invariants, the same
- * split UserRoleService already established for user role assignment
- * (Policy/Gate = "can this actor act at all", Service = "would this
- * specific mutation violate an invariant").
+ * Whether the actor holds the matching roles.* permission. Invariants on
+ * a specific mutation (protected Super Administrator role, no deleting an
+ * assigned role, lockout guards) live in RoleService.
  */
 class RolePolicy
 {
     /**
-     * Role management is the most sensitive admin surface in the app (it
-     * controls who can grant/revoke every other permission), so every
-     * denial — not just delete — is logged for the privilege-escalation
-     * forensic trail, matching EquipmentPolicy::delete's shape.
-     *
-     * Reading roles is also open to users.create and users.edit holders,
-     * who need the role list for the user form (read-only widening for
-     * the SPA's user editor).
+     * Every denial is logged: this screen controls who can grant every
+     * other permission. Reading is also open to users.edit holders, who
+     * need the role list to assign roles.
      */
     public function viewAny(User $user): bool
     {
-        // Users can view roles if they have roles.view or users.edit (for role assignment)
         $allowed = $user->hasAnyPermission([Permission::RolesView, Permission::UsersEdit]);
 
         if (! $allowed) {
@@ -48,7 +35,6 @@ class RolePolicy
 
     public function view(User $user, Role $role): bool
     {
-        // Users can view roles if they have roles.view or users.edit (for role assignment)
         $allowed = $user->hasAnyPermission([Permission::RolesView, Permission::UsersEdit]);
 
         if (! $allowed) {

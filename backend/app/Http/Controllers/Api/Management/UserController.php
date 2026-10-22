@@ -20,9 +20,10 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
- * The users.manage admin screen. Every account/role invariant (self-edit
- * lockout, permission-tier separation, last users.manage holder) lives
- * in UserRoleService, the single entry point for create/update/delete.
+ * Account management (users.view/edit/reset_two_factor). Accounts are
+ * synced from PRIME, so create and delete always answer 403. Every
+ * account/role invariant (self-lockout, permission-tier separation, last
+ * users.edit holder) lives in UserRoleService.
  *
  * Audit: account rows come from User's LogsActivity, role-set changes are
  * `user.roles_changed` (both written by UserRoleService).

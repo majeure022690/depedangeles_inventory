@@ -20,7 +20,7 @@ class PermissionController extends Controller
 {
     public function index(): JsonResponse
     {
-        // Same audience as reading roles (roles.manage or users.manage).
+        // Same audience as reading roles (roles.view or users.edit).
         $this->authorize('viewAny', Role::class);
 
         $order = array_flip(array_map(fn (PermissionEnum $case) => $case->value, PermissionEnum::cases()));

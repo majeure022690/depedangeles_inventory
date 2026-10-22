@@ -59,19 +59,7 @@ enum Permission: string
     // IspAccount via IspAccountPolicy::update(), the same way equipment
     // transactions authorize against the parent Equipment.
 
-    // Reference-data admin (item types, brands, equipment categories/
-    // classifications/conditions, positions, RO/SDO offices, ISP
-    // providers, and the four domain-grouped library tables — all 13
-    // tables from the lookup-normalization ADR). Deliberately ONE
-    // umbrella permission covering all 13 tables, not 13 fragmented
-    // permissions: per the ADR (Question 1, "why not 35 dedicated
-    // tables") and CLAUDE.md's granular-permission rule — which targets
-    // role-name checks vs. capability checks, not fragmenting one
-    // coherent capability into many — these 13 tables remain one kind of
-    // low-stakes reference-data admin capability. Supersedes the old
-    // lookups.manage permission (removed in the ADR's Step 4 cleanup,
-    // alongside LookupController/lookups/Index.vue) as the permission
-    // Backend's reference-data admin screen authorizes against.
+    // One umbrella permission for all 13 low-stakes lookup tables (see the lookup-normalization ADR).
     case ReferenceDataManage = 'reference-data.manage';
 
     // User management - users are synced from PRIME, cannot be created or deleted locally.
@@ -86,32 +74,11 @@ enum Permission: string
     case RolesEdit = 'roles.edit';
     case RolesDelete = 'roles.delete';
 
-    // Stakeholder Profile (one row PER OFFICE — see
-    // App\Models\StakeholderProfile — not a global singleton). No
-    // .create/.delete permissions: there is no "create a new one" or
-    // "delete it" action, only view/edit of an office's always-existing
-    // record (Backend uses StakeholderProfile::firstOrCreate(['office_id'
-    // => ...])). Unlike LookupsManage (a single permission for an
-    // admin-only screen), this still gets a separate .view permission
-    // alongside .edit: 'viewer' is an established read-only role spanning
-    // every other resource in this app (Personnel, Equipment, ISP
-    // accounts), and this record holds division contact/address
-    // information a non-editing stakeholder (e.g. a higher office or an
-    // auditor) may legitimately need to read without being able to change
-    // it — the "Viewer role should be able to read without editing" case.
-    // .view/.edit are scoped to the ACTING USER'S OWN office_id
-    // (StakeholderProfilePolicy) — holding .view lets someone read only
-    // their own school's profile, never another school's.
+    // One profile per office, always existing, so no .create/.delete. Scoped to the user's own office_id.
     case StakeholderProfileView = 'stakeholder_profile.view';
     case StakeholderProfileEdit = 'stakeholder_profile.edit';
 
-    // Cross-office visibility: view AND edit every office's stakeholder
-    // profile, plus the admin list of all of them
-    // (stakeholder-profiles.index). Deliberately separate from
-    // .view/.edit above (which are always scoped to the acting user's own
-    // office_id, even for an actor who happens to also hold this
-    // permission) — this is the "division-level oversight" capability,
-    // analogous to reference-data.manage. Only 'admin' is seeded with it.
+    // Division-level oversight: view and edit every office's profile, and the list of all of them.
     case StakeholderProfileViewAll = 'stakeholder_profile.view_all';
 
     // Internet Connectivity Survey (one row per office). .view/.edit are
@@ -119,32 +86,16 @@ enum Permission: string
     case InternetConnectivityView = 'internet_connectivity.view';
     case InternetConnectivityEdit = 'internet_connectivity.edit';
 
-    // Cross-office oversight: bypasses the office scoping above and gates
-    // the admin list. Only 'admin' is seeded with it.
+    // Cross-office oversight: bypasses the office scoping above and gates the list of all surveys.
     case InternetConnectivityViewAll = 'internet_connectivity.view_all';
 
-    // Office (schools/division offices — the FK backbone for users,
-    // stakeholder_profiles, and internet_connectivity_surveys). Deliberately
-    // its own permission bundle, not folded into ReferenceDataManage: unlike
-    // the 13 low-stakes lookup tables under that umbrella, Office is a
-    // structural resource other records depend on (restrictOnDelete FKs),
-    // so it's authorized the same granular way as Equipment/Personnel.
+    // Separate from ReferenceDataManage: other records depend on offices (restrictOnDelete FKs).
     case OfficeView = 'office.view';
     case OfficeCreate = 'office.create';
     case OfficeEdit = 'office.edit';
     case OfficeDelete = 'office.delete';
 
-    // Audit log (read-only, append-only trail of role/permission/record
-    // changes across the whole app, incl. authorization.denied entries).
-    // Admin-only, same shape as ReferenceDataManage: one flat permission,
-    // no Policy class (no single model instance to authorize against —
-    // AuditLogController::index() checks this permission string directly).
-    // Deliberately NOT paired with per-resource .view permissions: a role
-    // holding this alone would see other resources' PII inside `properties`
-    // diffs without holding e.g. personnel.view. Safe today since only
-    // 'admin' (which already holds every .view permission) can grant it —
-    // keep it that way if a custom-role feature ever changes who can seed
-    // roles/permissions.
+    // Exposes every resource's PII through audit diffs regardless of per-resource .view permissions.
     case AuditLogView = 'audit_log.view';
 
     // Rate limits, trusted-device days and idle sign-out (SecuritySettings,

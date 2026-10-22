@@ -32,14 +32,8 @@ class StoreRoleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // 'name' is the stable machine key (Spatie looks roles up by
-            // name, and Role::PENDING is matched by it) —
-            // kept to a URL/identifier-safe charset, distinct from the
-            // free-text 'label' shown in the UI. Lowercase-only by
-            // invariant (matches the seeded pending/viewer/encoder/
-            // admin names) — 'alpha_dash' alone permits
-            // uppercase, so it's supplemented with an explicit regex
-            // rather than relying on it to enforce case.
+            // 'name' is the stable lowercase machine key Spatie looks roles
+            // up by; 'alpha_dash' alone permits uppercase, hence the regex.
             'name' => ['required', 'string', 'max:255', 'alpha_dash', 'regex:/^[a-z0-9_-]+$/', Rule::unique('roles', 'name')],
             'label' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
