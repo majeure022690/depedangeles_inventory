@@ -72,7 +72,7 @@ return [
         ],
 
         'external_users' => [
-            'driver' => 'mysql',
+            'driver' => env('EXTERNAL_DB_DRIVER', 'mysql'),
             'host' => env('EXTERNAL_DB_HOST', '127.0.0.1'),
             'port' => env('EXTERNAL_DB_PORT', '3306'),
             'database' => env('EXTERNAL_DB_DATABASE'),
