@@ -67,6 +67,49 @@ class RegenerateEquipmentQrCodesTest extends TestCase
         $this->assertDatabaseMissing('activity_log', ['event' => 'equipment.qr_code.regenerated']);
     }
 
+    public function test_force_on_empty_rows_only_fills_without_reprint_warning(): void
+    {
+        $first = Equipment::factory()->create();
+        $second = Equipment::factory()->create();
+        DB::table('equipment')->where('id', $first->id)->update(['qr_code' => null]);
+        DB::table('equipment')->where('id', $second->id)->update(['qr_code' => '']);
+
+        $this->artisan('equipment:regenerate-qr-codes', ['--force' => true])
+            ->expectsOutput('Filled 2 missing qr_code value(s).')
+            ->doesntExpectOutputToContain('Rewrote')
+            ->doesntExpectOutputToContain('Reprint')
+            ->assertSuccessful();
+    }
+
+    public function test_force_on_mixed_rows_reports_filled_and_reprint_counts_separately(): void
+    {
+        $empty = Equipment::factory()->create();
+        $first = Equipment::factory()->create();
+        $second = Equipment::factory()->create();
+        DB::table('equipment')->where('id', $empty->id)->update(['qr_code' => null]);
+        DB::table('equipment')->where('id', $first->id)->update(['qr_code' => 'http://old.example/1']);
+        DB::table('equipment')->where('id', $second->id)->update(['qr_code' => 'http://old.example/2']);
+
+        $this->artisan('equipment:regenerate-qr-codes', ['--force' => true])
+            ->expectsOutput('Filled 1 missing qr_code value(s).')
+            ->expectsOutputToContain('Rewrote 2 qr_code value(s) that pointed at a different URL. Reprint those 2 label(s)')
+            ->assertSuccessful();
+
+        $this->assertSame(3, DB::table('activity_log')->where('event', 'equipment.qr_code.regenerated')->count());
+    }
+
+    public function test_dry_run_summary_separates_missing_from_different_urls(): void
+    {
+        $empty = Equipment::factory()->create();
+        $other = Equipment::factory()->create();
+        DB::table('equipment')->where('id', $empty->id)->update(['qr_code' => null]);
+        DB::table('equipment')->where('id', $other->id)->update(['qr_code' => 'http://old.example/x']);
+
+        $this->artisan('equipment:regenerate-qr-codes')
+            ->expectsOutputToContain('1 qr_code value(s) missing, 1 pointing at a different URL. Re-run with --force')
+            ->assertSuccessful();
+    }
+
     public function test_force_is_idempotent(): void
     {
         config(['app.url' => 'https://dictis.example.gov.ph']);
@@ -74,7 +117,7 @@ class RegenerateEquipmentQrCodesTest extends TestCase
         DB::table('equipment')->where('id', $equipment->id)->update(['qr_code' => 'http://evil.example/x']);
 
         $this->artisan('equipment:regenerate-qr-codes', ['--force' => true])
-            ->expectsOutputToContain('Rewrote 1 qr_code value(s)')
+            ->expectsOutputToContain('Rewrote 1 qr_code value(s) that pointed at a different URL. Reprint those 1 label(s)')
             ->assertSuccessful();
         $this->artisan('equipment:regenerate-qr-codes', ['--force' => true])
             ->expectsOutputToContain('Every qr_code already points at')

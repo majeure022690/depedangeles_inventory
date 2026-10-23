@@ -13,9 +13,10 @@ class RegenerateEquipmentQrCodes extends Command
 
     public function handle(): int
     {
-        $mismatched = 0;
+        $filled = 0;
+        $replaced = 0;
 
-        Equipment::withTrashed()->chunkById(500, function ($chunk) use (&$mismatched): void {
+        Equipment::withTrashed()->chunkById(500, function ($chunk) use (&$filled, &$replaced): void {
             foreach ($chunk as $equipment) {
                 $expected = $equipment->qrCodeUrl();
 
@@ -23,7 +24,12 @@ class RegenerateEquipmentQrCodes extends Command
                     continue;
                 }
 
-                $mismatched++;
+                if (($equipment->qr_code ?? '') === '') {
+                    $filled++;
+                } else {
+                    $replaced++;
+                }
+
                 $this->line("#{$equipment->id} {$equipment->property_no}: ".($equipment->qr_code ?? '(empty)')." -> {$expected}");
 
                 if (! $this->option('force')) {
@@ -41,12 +47,17 @@ class RegenerateEquipmentQrCodes extends Command
             }
         });
 
-        if ($mismatched === 0) {
+        if ($filled + $replaced === 0) {
             $this->info('Every qr_code already points at '.config('app.url').'.');
         } elseif ($this->option('force')) {
-            $this->info("Rewrote {$mismatched} qr_code value(s). Reprint those labels: the old printed codes still encode the old URL.");
+            if ($filled > 0) {
+                $this->info("Filled {$filled} missing qr_code value(s).");
+            }
+            if ($replaced > 0) {
+                $this->warn("Rewrote {$replaced} qr_code value(s) that pointed at a different URL. Reprint those {$replaced} label(s): the old printed codes still encode the old URL.");
+            }
         } else {
-            $this->warn("{$mismatched} qr_code value(s) do not point at APP_URL. Re-run with --force to rewrite them.");
+            $this->warn("{$filled} qr_code value(s) missing, {$replaced} pointing at a different URL. Re-run with --force to rewrite them.");
         }
 
         return self::SUCCESS;

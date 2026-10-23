@@ -121,7 +121,7 @@ In production, Plesk's nginx also rate-limits per client IP before PHP, as a bac
 
 - **Why only `X-Forwarded-For` by default:** Laravel's default trusts every `X-Forwarded-*` header from a trusted proxy. A proxy that passes a client's `X-Forwarded-Host`/`Proto` through unchanged would then let the client choose the host and scheme of generated URLs, which is how a forged host could end up in a printed QR label (see [Equipment QR codes stay stable](#equipment-qr-codes-stay-stable)). Add a header only if the proxy always overwrites it.
 - Unknown names are dropped, and an empty or all-unknown list falls back to `for`, never to "all headers" (a zero bitmask would make `TrustProxies` trust everything).
-- On Plesk, `TRUSTED_PROXIES` normally stays empty (use Apache `mod_remoteip` if Laravel sees the server's address), so this setting has no effect there. See `backend/.env.production.example` and the README's required client-IP check.
+- **Production is behind Cloudflare.** `TRUSTED_PROXIES` is set to Cloudflare's published IPv4 and IPv6 ranges so Laravel sees the real client IP instead of Cloudflare's edge addresses. This keeps login lockouts, rate limiting and audit logs per-user instead of per-Cloudflare-server. See `backend/.env.production.example` for the ranges and the README's required client-IP check.
 - Tests: `backend/tests/Feature/Security/TrustedProxyHeadersTest.php`.
 
 ## Authorization model: granular permissions, never role names

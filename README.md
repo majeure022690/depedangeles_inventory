@@ -89,46 +89,43 @@ Gotchas:
 
 #### Web server rate limiting
 
-Plesk's nginx limits each client IP before requests reach PHP. It's a backstop for traffic Laravel doesn't throttle: unauthenticated 401s, `permission:` denials, and `/sanctum/csrf-cookie`.
+Cloudflare's rate-limiting rules limit each client IP before requests reach the origin. They are a backstop for traffic Laravel doesn't throttle: unauthenticated 401s, `permission:` denials, and `/sanctum/csrf-cookie`.
 
-**The limits:**
-- 30 req/s with a burst of 150 on `/api/*`, `/sanctum/*` and `/up`.
-- 180 req/min with a burst of 60 on `/api/login`, `/api/forgot-password`, `/api/reset-password`, `/api/2fa/*` and `/sanctum/csrf-cookie`.
+Don't rate-limit per IP in Plesk's nginx. Behind Cloudflare, nginx's `$remote_addr` is a Cloudflare edge address, so per-IP zones would put many unrelated users in one bucket and throttle them together. The earlier `deploy/nginx/` config was removed for this reason.
+
+**The rules.** Create them under Security > WAF > Rate limiting rules. Both count requests per IP, use the Block action and a 10-second mitigation timeout:
+
+| Rule | Expression | Rate |
+|---|---|---|
+| `dictis-api` | `starts_with(http.request.uri.path, "/api/") or starts_with(http.request.uri.path, "/sanctum/") or http.request.uri.path eq "/up"` | 300 requests / 10 s (about 30 req/s) |
+| `dictis-auth` | `http.request.uri.path in {"/api/login" "/api/forgot-password" "/api/reset-password" "/sanctum/csrf-cookie"} or starts_with(http.request.uri.path, "/api/2fa/")` | 180 requests / 1 min (30 / 10 s where only 10 s is offered) |
 
 Both are looser than Laravel's own limiters, so the app's limits still decide normal lockouts.
 
-**What clients get when limited:** a `429` with `{"message":"Too Many Attempts."}` and `Retry-After: 10`. Laravel's own 429s, with their exact `Retry-After`, pass through unchanged unless the generated vhost intercepts them (see Install).
+**Response.** Where the plan allows a custom response, set status `429`, content type `application/json` and body `{"message":"Too Many Attempts."}`. Otherwise clients get Cloudflare's default 429 page. The SPA keys on the status code, not the body, so it still shows its "Too many attempts" message. Laravel's own 429s, with their exact `Retry-After`, pass through Cloudflare unchanged.
 
-**Accepted gap:** IPv6 clients are keyed per address, not per /64, so an IPv6 client rotating addresses within its /64 gets fresh buckets. The app's per-account limits still apply.
+**Plan requirements.** Rate limiting rules are a Cloudflare WAF feature. The Free plan has limited rate limiting: a single rule, counting by IP only, a fixed 10-second period and mitigation timeout, and no custom response. Pro and Business allow more rules, longer periods and a custom response. Check the current table at <https://developers.cloudflare.com/waf/rate-limiting-rules/#availability>. On Free, create only `dictis-api`, because it covers the traffic Laravel doesn't throttle, and Laravel already throttles the auth endpoints.
 
-- **Install.** This needs root SSH.
-  - Copy `deploy/nginx/dictis-rate-limit.http.conf` to `/etc/nginx/conf.d/dictis-rate-limit.conf`.
-  - Paste `deploy/nginx/dictis-rate-limit.server.conf` into Domains > *domain* > Apache & nginx Settings > Additional nginx directives.
-  - Run `nginx -t && systemctl reload nginx`.
-  - Then check the generated vhost: `grep -nE 'error_page|proxy_intercept_errors' /var/www/vhosts/system/<domain>/conf/nginx.conf`.
-    - An `error_page` inside a `location` stops the server-level `error_page 429` from applying there, and clients get nginx's HTML 429 instead of the JSON body. If so, turn off the domain's custom error documents.
-    - `proxy_intercept_errors on` makes nginx replace Laravel's own 429 (and its `Retry-After`) with the proxy's.
-  - Without root access, or with Plesk's nginx turned off, use the host's or Cloudflare's rate limiting instead.
-- **Required: check the client IP Laravel sees.** Do this after the first deploy, and whenever the proxy chain changes. If Laravel sees the server's address instead of the client's, every IP-keyed limiter (login, password reset, 2FA) shares one bucket. One person's failed logins then lock everyone out.
+**Origin bypass.** The rules only see traffic that goes through Cloudflare. A client that finds the origin's IP skips them; Laravel's limiters still apply to it, keyed on its real IP. To close this gap, allow ports 80/443 only from Cloudflare's ranges at the server firewall, or enable Authenticated Origin Pulls.
+
+- **Required: check the client IP Laravel sees.** Do this after the first deploy, and whenever the proxy chain changes. If Laravel sees a Cloudflare or server address instead of the client's, every IP-keyed limiter (login, password reset, 2FA) shares one bucket. One person's failed logins then lock everyone out.
   - From a known external IP, sign in with a wrong password, or sign in and out.
-  - Then check `ip` in the newest entry of `backend/storage/logs/security.log`. It must be your external IP.
-  - If it shows the server's own address, the preferred fix is Apache `mod_remoteip`, with `RemoteIPHeader X-Forwarded-For` and `RemoteIPInternalProxy <the address security.log showed>`, and `TRUSTED_PROXIES` left empty. Plesk's nginx usually connects to Apache from the server IP on :7080/:7081.
-  - The fallback is `TRUSTED_PROXIES=<the exact address security.log showed>`, never a guessed `127.0.0.1`.
-  - Either way, every local process connecting from that address is then trusted to set `X-Forwarded-For`. On shared Plesk hosting that includes other tenants, so only do this on a single-tenant server.
-- **Required: check the access log.** The nginx access log must show real client IPs, not a proxy or load balancer address.
-- **Tune.**
-  1. Roll out in dry-run first: uncomment `limit_req_dry_run on;` and reload nginx.
-  2. Watch Plesk's `proxy_error_log` for `limiting requests` lines.
-  3. If a legitimate shared office IP shows up, raise `burst` first, or add that single public address to the `geo $dictis_rl_exempt` block. Use /32 only, never private or load-balancer ranges.
-  4. Then turn dry-run back off: re-comment the line, reload nginx, and confirm with the burst test below that it now returns `429`s.
-- **Verify.** Run this from an IP that isn't exempt and isn't your office's shared NAT, because it briefly throttles everyone behind that IP. The first command shows `200`s followed by `429`s. The last two must return `404`, because Apache would otherwise accept `/index.php/...` path info (including percent-encoded spellings of it) and skip the per-path limits:
+  - Then check `ip` in the newest entry of `backend/storage/logs/security-YYYY-MM-DD.log` (today's date, because the channel rotates daily). It must be your external IP.
+  - If it shows a Cloudflare address, `TRUSTED_PROXIES` is missing that range or the config cache is stale. Compare it with <https://www.cloudflare.com/ips/>, update `backend/.env` (see `backend/.env.production.example`), then run `php artisan optimize`.
+  - If it shows the server's own address, Plesk's nginx-to-Apache hop isn't restoring the client address. Add that exact address to `TRUSTED_PROXIES` only on a single-tenant server, because every local process connecting from it (including other tenants on shared hosting) can then set `X-Forwarded-For`.
+- **Tune.** Watch Security > Events for rule hits. If a legitimate shared office IP is being limited, raise that rule's rate, or exclude that single public address with `and not ip.src eq <address>`.
+- **Verify.** Run this from an IP that isn't your office's shared NAT, because it briefly throttles everyone behind that IP. The first command shows `200`s followed by `429`s. The last two must return `404`, because Apache would otherwise accept `/index.php/...` path info (including percent-encoded spellings of it), which the path-based rules don't match:
 
   ```bash
-  seq 1 200 | xargs -P 10 -I{} curl -s -o /dev/null -w "%{http_code}\n" https://dictis.example.gov.ph/sanctum/csrf-cookie | sort | uniq -c
+  seq 1 400 | xargs -P 10 -I{} curl -s -o /dev/null -w "%{http_code}\n" https://dictis.example.gov.ph/sanctum/csrf-cookie | sort | uniq -c
   curl -si https://dictis.example.gov.ph/sanctum/csrf-cookie | grep -iE '^HTTP|^retry-after|message'
   curl -s -o /dev/null -w "%{http_code}\n" -X POST https://dictis.example.gov.ph/index.php/api/login
   curl -s -o /dev/null -w "%{http_code}\n" --path-as-is https://dictis.example.gov.ph/index.ph%70/api/login
   ```
+
+#### Cloudflare and the CSP
+
+The browser console may show the CSP blocking an inline script and `static.cloudflareinsights.com`. Both are injected by Cloudflare: Web Analytics (automatic setup) adds the beacon, and Bot Fight Mode / JavaScript detections add the inline script. Turn those features off in the Cloudflare dashboard rather than loosening the CSP. The inline script changes on every request, so allowing it would need `'unsafe-inline'`.
 
 On any network-reachable deploy, `APP_ENV` must be exactly `production` and `APP_DEBUG=false`: JSON error masking and reCAPTCHA's fail-closed rejection of the test/blank secret both key on `APP_ENV=production`, so any other value (`prod`, `staging`, ...) leaks exception detail and accepts the test secret.
 
