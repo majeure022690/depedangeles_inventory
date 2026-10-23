@@ -172,7 +172,7 @@ export function ProfileSettings() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Profile Settings</h1>
-          <p className="text-sm text-gray-500">Manage your profile photo, account details, and password.</p>
+          <p className="text-sm text-gray-500">Update your profile photo, account details, and password.</p>
         </div>
       </div>
 

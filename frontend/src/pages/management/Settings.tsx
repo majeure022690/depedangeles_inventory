@@ -27,7 +27,7 @@ export function Settings() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Settings</h1>
-          <p className="text-sm text-gray-500">Security settings, emails, and system logs for the portal.</p>
+          <p className="text-sm text-gray-500">Security settings, email logs, and system logs.</p>
         </div>
       </div>
 

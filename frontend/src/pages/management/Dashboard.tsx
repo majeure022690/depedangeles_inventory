@@ -352,7 +352,7 @@ export function Dashboard() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-500">Division ICT inventory at a glance{user ? ` for ${user.name}` : ''}.</p>
+          <p className="text-sm text-gray-500">Division ICT inventory overview{user ? ` for ${user.name}` : ''}.</p>
         </div>
         <div className="page-actions">
           <Button variant="outline" size="sm" isLoading={refreshing} disabled={loading} leftIcon={<RefreshCw className="h-4 w-4" />} onClick={() => loadSummary(true)}>
