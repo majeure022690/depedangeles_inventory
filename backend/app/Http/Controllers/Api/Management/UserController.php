@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\Management;
 
-use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Http\Controllers\Api\Management\Concerns\ResolvesListParameters;
 use App\Http\Controllers\Controller;
@@ -11,7 +10,6 @@ use App\Http\Requests\Management\StoreUserRequest;
 use App\Http\Requests\Management\UpdateUserRequest;
 use App\Http\Resources\Management\UserResource;
 use App\Models\Office;
-use App\Models\Personnel;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\PrimeUserSync;
@@ -19,9 +17,7 @@ use App\Services\UserRoleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Account management (users.view/edit/reset_two_factor). Accounts are
@@ -30,8 +26,7 @@ use Illuminate\Validation\ValidationException;
  * users.edit holder) lives in UserRoleService.
  *
  * Audit: account rows come from User's LogsActivity, role-set changes are
- * `user.roles_changed` (both written by UserRoleService), personnel links
- * are `user.personnel_linked` / `user.personnel_unlinked`.
+ * `user.roles_changed` (both written by UserRoleService).
  */
 class UserController extends Controller
 {
@@ -50,7 +45,7 @@ class UserController extends Controller
     /**
      * @var list<string>
      */
-    private const RELATIONS = ['roles:id,name,label,data_scope', 'office:id,office_name,school_id', 'personnel:id,user_id,full_name'];
+    private const RELATIONS = ['roles:id,name,label,data_scope', 'office:id,office_name,school_id', 'personnel:id,employee_id,full_name'];
 
     public function index(Request $request, UserRoleService $userRoleService, PrimeUserSync $primeSync): JsonResponse
     {
@@ -99,16 +94,6 @@ class UserController extends Controller
                     ->values()
                     ->all(),
                 'offices' => Office::activeOptions(),
-                ...($this->canLinkPersonnel($request->user()) ? ['personnel' => Personnel::query()
-                    ->orderBy('last_name')
-                    ->orderBy('first_name')
-                    ->get(['id', 'full_name', 'employee_id', 'user_id'])
-                    ->map(fn (Personnel $person) => [
-                        'value' => $person->id,
-                        'label' => "{$person->full_name} ({$person->employee_id})",
-                        'linked_user_id' => $person->user_id,
-                    ])
-                    ->all()] : []),
             ],
             'message' => 'Success',
         ]);
@@ -128,23 +113,12 @@ class UserController extends Controller
 
         $validated = $request->safe();
 
-        DB::transaction(function () use ($request, $user, $validated, $userRoleService): void {
-            $userRoleService->updateUser(
-                $request->user(),
-                $user,
-                [
-                    'office_id' => $validated->has('office_id')
-                        ? ($validated->filled('office_id') ? $validated->integer('office_id') : null)
-                        : $user->office_id,
-                    'is_active' => $validated->has('is_active') ? $validated->boolean('is_active') : $user->is_active,
-                ],
-                [$validated->integer('role_id')],
-            );
-
-            if ($validated->has('personnel_id')) {
-                $this->linkPersonnel($request->user(), $user, $validated->filled('personnel_id') ? $validated->integer('personnel_id') : null);
-            }
-        });
+        $userRoleService->updateUser(
+            $request->user(),
+            $user,
+            ['is_active' => $validated->has('is_active') ? $validated->boolean('is_active') : $user->is_active],
+            [$validated->integer('role_id')],
+        );
 
         $user = $user->fresh(self::RELATIONS) ?? $user;
         $this->flagManageable($request->user(), collect([$user]), $userRoleService);
@@ -179,47 +153,6 @@ class UserController extends Controller
         ]);
 
         return response()->json(['message' => 'Two-factor authentication has been reset for this user.']);
-    }
-
-    private function canLinkPersonnel(User $actor): bool
-    {
-        return $actor->hasPermissionTo(Permission::PersonnelView) && $actor->dataScope() === DataScope::All;
-    }
-
-    private function linkPersonnel(User $actor, User $user, ?int $personnelId): void
-    {
-        $current = $user->personnel()->lockForUpdate()->first();
-
-        if ($current?->id === $personnelId) {
-            return;
-        }
-
-        $target = null;
-
-        if ($personnelId !== null) {
-            $target = Personnel::query()->whereKey($personnelId)->lockForUpdate()->firstOrFail();
-
-            if ($target->user_id !== null && (int) $target->user_id !== $user->id) {
-                throw ValidationException::withMessages([
-                    'personnel_id' => __('This personnel record is already linked to another user.'),
-                ]);
-            }
-        }
-
-        $current?->forceFill(['user_id' => null])->save();
-        $target?->forceFill(['user_id' => $user->id])->save();
-
-        $event = $target === null ? 'user.personnel_unlinked' : 'user.personnel_linked';
-
-        activity()
-            ->causedBy($actor)
-            ->performedOn($user)
-            ->event($event)
-            ->withProperties([
-                'old_personnel_id' => $current?->id,
-                'new_personnel_id' => $target?->id,
-            ])
-            ->log($event);
     }
 
     /**

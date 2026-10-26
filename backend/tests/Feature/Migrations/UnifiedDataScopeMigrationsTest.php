@@ -23,6 +23,11 @@ class UnifiedDataScopeMigrationsTest extends TestCase
         return require database_path("migrations/{$file}.php");
     }
 
+    private function restorePersonnelUserLink(): void
+    {
+        $this->migration('2026_10_27_000001_replace_personnel_user_link_with_employee_no')->down();
+    }
+
     public function test_roles_default_to_own_and_down_restores_all(): void
     {
         DB::table('roles')->insert(['name' => 'after-up', 'guard_name' => 'web', 'label' => 'After']);
@@ -41,6 +46,7 @@ class UnifiedDataScopeMigrationsTest extends TestCase
 
     public function test_personnel_user_link_is_backfilled_only_from_unambiguous_email_matches(): void
     {
+        $this->restorePersonnelUserLink();
         $migration = $this->migration('2026_10_26_000002_add_user_id_to_personnel');
         $migration->down();
         $this->assertFalse(Schema::hasColumn('personnel', 'user_id'));
@@ -90,6 +96,7 @@ class UnifiedDataScopeMigrationsTest extends TestCase
 
     public function test_personnel_backfill_writes_no_audit_row_when_nothing_links(): void
     {
+        $this->restorePersonnelUserLink();
         $migration = $this->migration('2026_10_26_000002_add_user_id_to_personnel');
         $migration->down();
         User::factory()->create(['email' => 'lonely@deped.gov.ph']);
@@ -118,11 +125,14 @@ class UnifiedDataScopeMigrationsTest extends TestCase
 
     public function test_personnel_user_link_is_unique(): void
     {
+        $this->restorePersonnelUserLink();
         $user = User::factory()->create();
-        Personnel::factory()->create(['user_id' => $user->id]);
+        $first = Personnel::factory()->create();
+        $second = Personnel::factory()->create();
+        DB::table('personnel')->where('id', $first->id)->update(['user_id' => $user->id]);
 
         $this->expectException(UniqueConstraintViolationException::class);
-        Personnel::factory()->create(['user_id' => $user->id]);
+        DB::table('personnel')->where('id', $second->id)->update(['user_id' => $user->id]);
     }
 
     public function test_equipment_creator_is_backfilled_from_the_first_created_activity(): void

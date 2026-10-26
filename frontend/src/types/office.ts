@@ -11,6 +11,8 @@ export interface Office {
   contact_number: string | null
   email: string | null
   is_active: boolean
+  prime_department_id: number | null
+  managed_by_prime: boolean
   created_at: string | null
   updated_at: string | null
 }

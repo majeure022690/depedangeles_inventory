@@ -96,7 +96,7 @@ class AuditLogDataScopeTest extends TestCase
     private function auditor(DataScope $scope, ?int $officeId): User
     {
         $actor = $this->userWithPermissions([Permission::AuditLogView], ['office_id' => $officeId], $scope);
-        $this->me->forceFill(['user_id' => $actor->id])->save();
+        $actor->forceFill(['employee_no' => $this->me->employee_id])->save();
         Activity::query()->delete();
 
         return $actor;

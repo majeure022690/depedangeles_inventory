@@ -30,7 +30,7 @@ class LoginSession
             'method' => $method,
         ]);
 
-        return (new UserResource($user->load('roles.permissions', 'permissions', 'office', 'personnel:id,user_id,full_name')))
+        return (new UserResource($user->load('roles.permissions', 'permissions', 'office', 'personnel:id,employee_id,full_name')))
             ->additional(['message' => 'Success'])
             ->response()
             ->getData(true);

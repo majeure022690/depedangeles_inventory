@@ -168,7 +168,7 @@ final class UserRoleService
     }
 
     /**
-     * @param  array{name?: string, email?: string, office_id?: int|null, is_active?: bool}  $attributes
+     * @param  array{name?: string, email?: string, is_active?: bool}  $attributes
      * @param  array<int, int>  $roleIds
      */
     public function updateUser(User $actor, User $target, array $attributes, array $roleIds): void

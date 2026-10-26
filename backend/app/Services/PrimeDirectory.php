@@ -14,9 +14,11 @@ use stdClass;
  * @phpstan-type NumberResult array{employee_no: ?string, department_id: ?int, ambiguous: bool, reason: ?string}
  * @phpstan-type UserResult array{user: stdClass, prime_user_id: ?int, touched: bool, current: ?string, proposed: ?string, department_id: ?int, ambiguous: bool, reason: ?string}
  * @phpstan-type Target array{office_id: ?int, office_name: string}
+ * @phpstan-type Leftover array{department: stdClass, kept: stdClass, reason: string}
  * @phpstan-type OfficePlan array{
  *     links: list<array{office: stdClass, department: stdClass}>,
  *     ambiguous: list<array{name: string, offices: list<stdClass>, departments: list<stdClass>}>,
+ *     leftovers: list<Leftover>,
  *     creates: list<array{department: stdClass, office_type: ?string}>,
  *     create_collisions: list<array{department: stdClass, reason: string}>,
  *     renames: list<array{office: stdClass, department: stdClass, to: string}>,
@@ -31,6 +33,10 @@ final class PrimeDirectory
     public const DIVISION_OFFICE = 1;
 
     public const SCHOOL = 2;
+
+    public const MAX_NUMBER_LENGTH = 50;
+
+    private const PLACEHOLDERS = ['N/A', 'NA', 'NONE', 'NEW', 'NULL'];
 
     private const SCHOOL_TYPES = [
         'Senior High School' => '/(?i:senior high school)|\bSHS\b/',
@@ -51,16 +57,35 @@ final class PrimeDirectory
     /** @var Collection<int, stdClass>|null */
     private ?Collection $offices = null;
 
+    /** @var array<int, int>|null */
+    private ?array $employeeCounts = null;
+
     public static function number(mixed $value): ?string
     {
         $value = trim((string) $value);
 
-        return $value === '' ? null : $value;
+        return self::isPlaceholder($value) ? null : $value;
+    }
+
+    public static function isPlaceholder(string $value): bool
+    {
+        return in_array(mb_strtoupper(trim($value)), self::PLACEHOLDERS, true)
+            || preg_match('/^[\s0\-\/.]*$/u', $value) === 1;
+    }
+
+    public static function numberKey(string $number): string
+    {
+        return mb_strtolower($number);
+    }
+
+    public static function displayName(mixed $value): string
+    {
+        return (string) preg_replace('/\s+/u', ' ', trim((string) $value));
     }
 
     public static function nameKey(mixed $value): string
     {
-        return mb_strtolower(trim((string) $value));
+        return mb_strtolower(self::displayName($value));
     }
 
     public static function hasLinkColumn(): bool
@@ -88,11 +113,8 @@ final class PrimeDirectory
      */
     public function employees(): Collection
     {
-        return $this->employees ??= $this->prime('employees')
-            ->get(['employee_id', 'user_id', 'surname', 'first_name', 'middle_name', 'name_extension', 'deped_id_no', 'deped_email', 'employee_status', 'department_school_id'])
-            ->each(function (stdClass $row): void {
-                $row->number = self::number($row->deped_id_no);
-            });
+        return $this->employees ??= self::withNumbers($this->prime('employees')
+            ->get(['employee_id', 'user_id', 'surname', 'first_name', 'middle_name', 'name_extension', 'deped_id_no', 'deped_email', 'employee_status', 'department_school_id']));
     }
 
     /**
@@ -122,7 +144,25 @@ final class PrimeDirectory
     {
         return $this->employees()
             ->filter(fn (stdClass $row) => $row->number !== null)
-            ->groupBy('number');
+            ->groupBy(fn (stdClass $row) => self::numberKey($row->number));
+    }
+
+    /**
+     * @return Collection<int, stdClass>
+     */
+    public function employeesWithNumber(?string $number): Collection
+    {
+        return $number === null ? collect() : $this->employeesByNumber()->get(self::numberKey($number), collect());
+    }
+
+    public function employeeCount(int $departmentId): int
+    {
+        $this->employeeCounts ??= $this->employees()
+            ->filter(fn (stdClass $row) => $row->department_school_id !== null && $row->department_school_id !== '')
+            ->countBy(fn (stdClass $row) => (int) $row->department_school_id)
+            ->all();
+
+        return $this->employeeCounts[$departmentId] ?? 0;
     }
 
     /**
@@ -131,42 +171,35 @@ final class PrimeDirectory
     public function employeeNumbers(): array
     {
         $byUser = $this->employees()->whereNotNull('user_id')->groupBy(fn (stdClass $row) => (int) $row->user_id);
-        $byNumber = $this->employeesByNumber();
         $results = [];
 
         foreach ($this->primeUsers() as $userId => $user) {
-            $rows = $byUser->get($userId, collect());
-            $numbered = $rows->whereNotNull('number')->values();
-            $department = $this->departmentOf($user, $rows, $numbered);
-
-            if ($numbered->isEmpty()) {
-                $results[$userId] = ['employee_no' => null, 'department_id' => $department, 'ambiguous' => false,
-                    'reason' => $rows->isEmpty() ? 'no employee row' : 'employee row has no deped_id_no'];
-
-                continue;
-            }
-
-            if ($numbered->count() > 1) {
-                $results[$userId] = ['employee_no' => null, 'department_id' => $department, 'ambiguous' => true,
-                    'reason' => $numbered->count().' numbered employee rows (employee_id '.$numbered->pluck('employee_id')->implode(', ').')'];
-
-                continue;
-            }
-
-            $number = (string) $numbered->first()->number;
-            $holders = $byNumber->get($number, collect());
-
-            if ($holders->count() > 1) {
-                $results[$userId] = ['employee_no' => null, 'department_id' => $department, 'ambiguous' => true,
-                    'reason' => "deped_id_no {$number} is on ".$holders->count().' employee rows (employee_id '.$holders->pluck('employee_id')->implode(', ').')'];
-
-                continue;
-            }
-
-            $results[$userId] = ['employee_no' => $number, 'department_id' => $department, 'ambiguous' => false, 'reason' => null];
+            $results[$userId] = $this->resolveNumber($user, $byUser->get($userId, collect()), fn (string $number) => $this->employeesWithNumber($number));
         }
 
         return $results;
+    }
+
+    /**
+     * Resolves one PRIME account without loading the whole directory.
+     *
+     * @return NumberResult
+     */
+    public function account(stdClass $primeUser): array
+    {
+        $rows = self::withNumbers($this->prime('employees')
+            ->where('user_id', $primeUser->user_id)
+            ->get(['employee_id', 'deped_id_no', 'department_school_id']));
+
+        $result = $this->resolveNumber($primeUser, $rows, fn (string $number) => $this->prime('employees')
+            ->whereRaw('LOWER(TRIM(deped_id_no)) = ?', [self::numberKey($number)])
+            ->get(['employee_id']));
+
+        if ($result['department_id'] !== null && ! $this->prime('departments')->where('dept_id', $result['department_id'])->exists()) {
+            $result['department_id'] = null;
+        }
+
+        return $result;
     }
 
     /**
@@ -198,9 +231,9 @@ final class PrimeDirectory
             $results[$id] = $result;
         }
 
-        $claims = collect($results)->filter(fn (array $r) => $r['proposed'] !== null)->groupBy('proposed');
+        $claims = collect($results)->filter(fn (array $r) => $r['proposed'] !== null)->groupBy(fn (array $r) => self::numberKey($r['proposed']));
 
-        foreach ($claims as $number => $claimants) {
+        foreach ($claims as $claimants) {
             if ($claimants->count() < 2) {
                 continue;
             }
@@ -209,7 +242,7 @@ final class PrimeDirectory
                 $id = (int) $claimant['user']->id;
                 $others = $claimants->pluck('user.id')->reject(fn ($other) => (int) $other === $id)->implode(', ');
                 $results[$id] = [...$results[$id], 'proposed' => null, 'ambiguous' => true,
-                    'reason' => "employee number {$number} also resolves to IRIS user {$others}"];
+                    'reason' => "employee number {$claimant['proposed']} also resolves to IRIS user {$others}"];
             }
         }
 
@@ -232,7 +265,19 @@ final class PrimeDirectory
     }
 
     /**
-     * @return array{links: list<array{office: stdClass, department: stdClass}>, ambiguous: list<array{name: string, offices: list<stdClass>, departments: list<stdClass>}>}
+     * Linked offices whose department still exists in PRIME, keyed by department id.
+     *
+     * @return array<int, int>
+     */
+    public function liveDepartmentOffices(): array
+    {
+        $departments = $this->departments();
+
+        return array_filter($this->departmentOffices(), fn (int $departmentId) => $departments->has($departmentId), ARRAY_FILTER_USE_KEY);
+    }
+
+    /**
+     * @return array{links: list<array{office: stdClass, department: stdClass}>, ambiguous: list<array{name: string, offices: list<stdClass>, departments: list<stdClass>}>, leftovers: list<Leftover>}
      */
     public function proposedLinks(): array
     {
@@ -250,6 +295,7 @@ final class PrimeDirectory
 
         $links = [];
         $ambiguous = [];
+        $leftovers = [];
 
         foreach ($offices as $name => $officeMatches) {
             $departmentMatches = $departments->get($name, collect());
@@ -258,8 +304,11 @@ final class PrimeDirectory
                 continue;
             }
 
-            if ($officeMatches->count() === 1 && $departmentMatches->count() === 1) {
-                $links[] = ['office' => $officeMatches->sole(), 'department' => $departmentMatches->sole()];
+            $department = $departmentMatches->count() === 1 ? $departmentMatches->sole() : $this->staffed($departmentMatches);
+
+            if ($officeMatches->count() === 1 && $department !== null) {
+                $links[] = ['office' => $officeMatches->sole(), 'department' => $department];
+                array_push($leftovers, ...$this->leftoversOf($departmentMatches, $department));
 
                 continue;
             }
@@ -267,7 +316,7 @@ final class PrimeDirectory
             $ambiguous[] = ['name' => (string) $name, 'offices' => array_values($officeMatches->all()), 'departments' => array_values($departmentMatches->all())];
         }
 
-        return ['links' => $links, 'ambiguous' => $ambiguous];
+        return ['links' => $links, 'ambiguous' => $ambiguous, 'leftovers' => $leftovers];
     }
 
     /**
@@ -275,7 +324,7 @@ final class PrimeDirectory
      */
     public function unmatchedDepartments(): array
     {
-        ['links' => $links, 'ambiguous' => $ambiguous] = $this->proposedLinks();
+        ['links' => $links, 'ambiguous' => $ambiguous, 'leftovers' => $leftovers] = $this->proposedLinks();
 
         $taken = array_flip(array_keys($this->departmentOffices()));
 
@@ -287,6 +336,10 @@ final class PrimeDirectory
             foreach ($group['departments'] as $department) {
                 $taken[(int) $department->dept_id] = true;
             }
+        }
+
+        foreach ($leftovers as $leftover) {
+            $taken[(int) $leftover['department']->dept_id] = true;
         }
 
         return array_values($this->departments()->reject(fn (stdClass $department, int $id) => isset($taken[$id]))->all());
@@ -317,7 +370,7 @@ final class PrimeDirectory
     {
         $departments = $this->departments();
         $offices = $this->offices()->keyBy(fn (stdClass $office) => (int) $office->id);
-        ['links' => $links, 'ambiguous' => $ambiguous] = $this->proposedLinks();
+        ['links' => $links, 'ambiguous' => $ambiguous, 'leftovers' => $leftovers] = $this->proposedLinks();
 
         $linked = [];
         foreach ($this->departmentOffices() as $departmentId => $officeId) {
@@ -333,39 +386,57 @@ final class PrimeDirectory
             ->filter(fn (stdClass $office) => ($office->prime_department_id ?? null) !== null && ! $departments->has((int) $office->prime_department_id))
             ->all());
 
-        $linkedOfficeIds = array_flip(array_map(fn (array $link) => (int) $link['office']->id, $linked));
+        $departmentByOffice = [];
+        foreach ($linked as $link) {
+            $departmentByOffice[(int) $link['office']->id] = $link['department'];
+        }
         $goneIds = array_flip(array_map(fn (stdClass $office) => (int) $office->id, $gone));
-        $irisOnly = $offices->reject(fn (stdClass $office, int $id) => isset($linkedOfficeIds[$id]) || isset($goneIds[$id]))->all();
-        $irisOnly = array_values($irisOnly);
+        $irisOnly = array_values($offices->reject(fn (stdClass $office, int $id) => isset($departmentByOffice[$id]) || isset($goneIds[$id]))->all());
 
         $currentNames = $offices->mapWithKeys(fn (stdClass $office, int $id) => [self::nameKey($office->office_name) => $id]);
 
         $renames = array_values(array_filter(
-            array_map(fn (array $link) => [...$link, 'to' => trim((string) $link['department']->department_school)], $linked),
-            fn (array $rename) => $rename['to'] !== '' && $rename['to'] !== $rename['office']->office_name,
+            array_map(fn (array $link) => [...$link, 'to' => self::displayName($link['department']->department_school)], $linked),
+            fn (array $rename) => $rename['to'] !== '' && self::nameKey($rename['to']) !== self::nameKey($rename['office']->office_name),
         ));
         $renameTargets = collect($renames)->countBy(fn (array $rename) => self::nameKey($rename['to']));
 
-        $unmatched = $this->unmatchedDepartments();
-        $createNames = collect($unmatched)->countBy(fn (stdClass $department) => self::nameKey($department->department_school));
+        $unmatched = collect($this->unmatchedDepartments())->groupBy(fn (stdClass $department) => self::nameKey($department->department_school));
 
         $creates = [];
         $createCollisions = [];
-        foreach ($unmatched as $department) {
-            $key = self::nameKey($department->department_school);
+        foreach ($unmatched as $key => $group) {
+            $key = (string) $key;
+            $holder = $currentNames->has($key) ? $departmentByOffice[$currentNames[$key]] ?? null : null;
+
+            if ($holder !== null && self::nameKey($holder->department_school) === $key) {
+                foreach ($group as $department) {
+                    $leftovers[] = ['department' => $department, 'kept' => $holder,
+                        'reason' => "same name as department #{$holder->dept_id}, linked to office #{$currentNames[$key]}"];
+                }
+
+                continue;
+            }
+
+            $kept = $group->count() > 1 ? $this->staffed($group) : $group->first();
             $reason = match (true) {
                 $key === '' => 'department has no name',
                 $currentNames->has($key) => 'name already used by office #'.$currentNames[$key],
-                $createNames[$key] > 1 => 'name shared by '.$createNames[$key].' unmatched PRIME departments',
+                $kept === null => 'name shared by '.$group->count().' unmatched PRIME departments',
                 $renameTargets->has($key) => 'name is the rename target of a linked office',
                 default => null,
             };
 
             if ($reason !== null) {
-                $createCollisions[] = ['department' => $department, 'reason' => $reason];
-            } else {
-                $creates[] = ['department' => $department, 'office_type' => $this->officeTypeFor($department)];
+                foreach ($group as $department) {
+                    $createCollisions[] = ['department' => $department, 'reason' => $reason];
+                }
+
+                continue;
             }
+
+            $creates[] = ['department' => $kept, 'office_type' => $this->officeTypeFor($kept)];
+            array_push($leftovers, ...$this->leftoversOf($group, $kept));
         }
 
         $applied = [];
@@ -376,7 +447,7 @@ final class PrimeDirectory
             $reason = match (true) {
                 $currentNames->has($key) && $currentNames[$key] !== $ownId => 'name already used by office #'.$currentNames[$key],
                 $renameTargets[$key] > 1 => 'name is the rename target of '.$renameTargets[$key].' offices',
-                $createNames->has($key) => 'name is also an unmatched PRIME department',
+                $unmatched->has($key) => 'name is also an unmatched PRIME department',
                 default => null,
             };
 
@@ -398,12 +469,13 @@ final class PrimeDirectory
             $targets[$id] = ['office_id' => (int) $link['office']->id, 'office_name' => $renamedTo[$id] ?? (string) $link['office']->office_name];
         }
         foreach ($creates as $create) {
-            $targets[(int) $create['department']->dept_id] = ['office_id' => null, 'office_name' => trim((string) $create['department']->department_school)];
+            $targets[(int) $create['department']->dept_id] = ['office_id' => null, 'office_name' => self::displayName($create['department']->department_school)];
         }
 
         return [
             'links' => $links,
             'ambiguous' => $ambiguous,
+            'leftovers' => $leftovers,
             'creates' => $creates,
             'create_collisions' => $createCollisions,
             'renames' => $applied,
@@ -424,22 +496,95 @@ final class PrimeDirectory
             ->get(['id', 'office_name', 'office_type', 'school_id', 'is_active', ...(self::hasLinkColumn() ? ['prime_department_id'] : [])]);
     }
 
+    public function forgetOffices(): void
+    {
+        $this->offices = null;
+    }
+
+    /**
+     * @param  Collection<int, stdClass>  $rows
+     * @param  callable(string): Collection<int, stdClass>  $holders
+     * @return NumberResult
+     */
+    private function resolveNumber(stdClass $user, Collection $rows, callable $holders): array
+    {
+        $numbered = $rows->whereNotNull('number')->values();
+        $result = ['employee_no' => null, 'department_id' => $this->departmentOf($user, $rows, $numbered), 'ambiguous' => false, 'reason' => null];
+
+        if ($numbered->isEmpty()) {
+            return [...$result, 'reason' => match (true) {
+                $rows->isEmpty() => 'no employee row',
+                $rows->contains(fn (stdClass $row) => trim((string) $row->deped_id_no) !== '') => 'placeholder',
+                default => 'employee row has no deped_id_no',
+            }];
+        }
+
+        if ($numbered->count() > 1) {
+            return [...$result, 'ambiguous' => true,
+                'reason' => $numbered->count().' numbered employee rows (employee_id '.$numbered->pluck('employee_id')->implode(', ').')'];
+        }
+
+        $number = (string) $numbered->first()->number;
+
+        if (mb_strlen($number) > self::MAX_NUMBER_LENGTH) {
+            return [...$result, 'ambiguous' => true, 'reason' => 'deped_id_no is longer than '.self::MAX_NUMBER_LENGTH.' characters'];
+        }
+
+        $sharing = $holders($number);
+
+        if ($sharing->count() > 1) {
+            return [...$result, 'ambiguous' => true,
+                'reason' => "deped_id_no {$number} is on ".$sharing->count().' employee rows (employee_id '.$sharing->pluck('employee_id')->implode(', ').')'];
+        }
+
+        return [...$result, 'employee_no' => $number];
+    }
+
+    /**
+     * @param  Collection<int, stdClass>  $departments
+     */
+    private function staffed(Collection $departments): ?stdClass
+    {
+        $staffed = $departments->filter(fn (stdClass $department) => $this->employeeCount((int) $department->dept_id) > 0);
+
+        return $staffed->count() === 1 ? $staffed->first() : null;
+    }
+
+    /**
+     * @param  Collection<int, stdClass>  $group
+     * @return list<Leftover>
+     */
+    private function leftoversOf(Collection $group, stdClass $kept): array
+    {
+        return array_values($group
+            ->reject(fn (stdClass $department) => (int) $department->dept_id === (int) $kept->dept_id)
+            ->map(fn (stdClass $department) => ['department' => $department, 'kept' => $kept,
+                'reason' => "same name as department #{$kept->dept_id}, which has ".$this->employeeCount((int) $kept->dept_id).' employee(s)'])
+            ->all());
+    }
+
     /**
      * @return array<int, string>
      */
     private function currentUserNumbers(): array
     {
-        if (self::hasEmployeeNoColumn()) {
-            return DB::table('users')->whereNotNull('employee_no')->pluck('employee_no', 'id')
-                ->map(fn ($number) => self::number($number))->filter()->all();
+        if (! self::hasEmployeeNoColumn()) {
+            return [];
         }
 
-        if (Schema::hasColumn('personnel', 'user_id')) {
-            return DB::table('personnel')->whereNotNull('user_id')->pluck('employee_id', 'user_id')
-                ->map(fn ($number) => self::number($number))->filter()->all();
-        }
+        return DB::table('users')->whereNotNull('employee_no')->pluck('employee_no', 'id')
+            ->map(fn ($number) => (string) $number)->all();
+    }
 
-        return [];
+    /**
+     * @param  Collection<int, stdClass>  $rows
+     * @return Collection<int, stdClass>
+     */
+    private static function withNumbers(Collection $rows): Collection
+    {
+        return $rows->each(function (stdClass $row): void {
+            $row->number = self::number($row->deped_id_no);
+        });
     }
 
     /**

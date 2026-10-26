@@ -80,15 +80,13 @@ interface PersonnelFieldsProps {
 
 /** Port of the old `personnel/Partials/Form.vue`; shared by the create and edit pages. */
 export function PersonnelFields({ value, onChange, options, errors, disabled = false, current }: PersonnelFieldsProps) {
-  const { user, can } = useAuth()
+  const { user } = useAuth()
   const scopeLocked = !hasAllScope(user)
 
   const officeList =
     scopeLocked && value.office_id !== null && value.office_id === user?.office_id && current?.office_id !== value.office_id
       ? withCurrentOption(options?.office, value.office_id, user?.office?.office_name)
       : options?.office
-
-  const linkedUser = can('users.view') ? current?.user : null
 
   function set<K extends keyof PersonnelFormData>(key: K, next: PersonnelFormData[K]) {
     onChange({ ...value, [key]: next })
@@ -97,17 +95,17 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
   function text(
     key: TextKey,
     label: string,
-    props: { type?: string; autoComplete?: string; required?: boolean; className?: string } = {},
+    props: { type?: string; autoComplete?: string; required?: boolean; className?: string; locked?: boolean } = {},
   ) {
-    const { className, ...inputProps } = props
+    const { className, locked = false, ...inputProps } = props
     return (
-      <FormField id={key} label={label} error={errors[key]} className={className}>
+      <FormField id={key} label={label} error={errors[key]} className={className} note={locked && !disabled ? SCOPE_LOCK_HINT : undefined}>
         {(aria) => (
           <Input
             id={key}
             name={key}
             value={value[key]}
-            disabled={disabled}
+            disabled={disabled || locked}
             onChange={(e) => set(key, e.target.value)}
             {...inputProps}
             {...aria}
@@ -165,7 +163,7 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <FormSection title="Identification">
-        {text('employee_id', 'Employee ID', { required: true, autoComplete: 'off' })}
+        {text('employee_id', 'Employee ID', { required: true, autoComplete: 'off', locked: scopeLocked && !!current })}
         {stringSelect('suffix', 'Suffix (optional)', options?.name_suffix)}
         {text('last_name', 'Last name', { required: true })}
         {text('first_name', 'First name', { required: true })}
@@ -177,13 +175,6 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
         {idSelect('ro_office_id', 'RO division (optional)', options?.ro_office, current?.ro_division)}
         {idSelect('sdo_office_id', 'Division/unit (optional)', options?.sdo_office, current?.division_unit)}
         {idSelect('office_id', 'School/office (optional)', officeList, current?.office, scopeLocked)}
-        {linkedUser && (
-          <div className="min-w-0">
-            <p className="mb-1 text-sm font-medium text-gray-700">Linked user account</p>
-            <p className="text-sm text-gray-900">{linkedUser.name}</p>
-            <p className="mt-1 text-xs text-gray-500">Linked from the Users page.</p>
-          </div>
-        )}
         <CheckboxField id="oic" label="Officer-in-charge (OIC)" checked={value.oic} disabled={disabled} error={errors.oic} onChange={(checked) => set('oic', checked)} />
         {value.oic && text('oic_office', 'OIC office (optional)', { className: 'sm:col-span-2' })}
       </FormSection>

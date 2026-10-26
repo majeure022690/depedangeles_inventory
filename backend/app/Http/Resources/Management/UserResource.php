@@ -24,6 +24,7 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'avatar_url' => $this->avatar_path ? Storage::disk('public')->url($this->avatar_path) : null,
+            'employee_no' => $this->employee_no,
             'office_id' => $this->office_id,
             'office' => $this->whenLoaded('office', fn () => $this->office ? [
                 'id' => $this->office->id,

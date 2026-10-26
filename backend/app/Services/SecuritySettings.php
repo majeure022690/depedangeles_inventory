@@ -15,13 +15,6 @@ class SecuritySettings
             'min' => 1,
             'max' => 20,
         ],
-        'password_reset_rate_limit_per_hour' => [
-            'value' => 3,
-            'label' => 'Password reset requests per hour',
-            'description' => 'Maximum forgot-password requests allowed for one email address and IP address per hour.',
-            'min' => 1,
-            'max' => 10,
-        ],
         'two_factor_verify_rate_limit_per_minute' => [
             'value' => 5,
             'label' => 'Two-factor code attempts per minute',

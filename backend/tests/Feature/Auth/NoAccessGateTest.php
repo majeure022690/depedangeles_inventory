@@ -10,22 +10,20 @@ use App\Models\User;
 use App\Services\TrustedDeviceService;
 use App\Services\TwoFactorAuthService;
 use Database\Seeders\RolePermissionSeeder;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use PragmaRX\Google2FA\Google2FA;
 use Spatie\Activitylog\Models\Activity;
 use Tests\Concerns\CreatesUsersWithRoles;
+use Tests\Concerns\FakesPrime;
 use Tests\TestCase;
 
 class NoAccessGateTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
+    use CreatesUsersWithRoles, FakesPrime, RefreshDatabase;
 
     private const PASSWORD = 'CorrectHorse123!';
 
@@ -35,15 +33,7 @@ class NoAccessGateTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->withCredentials();
 
-        config(['database.connections.external_users' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']]);
-        DB::purge('external_users');
-        Schema::connection('external_users')->create('users', function (Blueprint $table) {
-            $table->increments('user_id');
-            $table->string('full_name');
-            $table->string('email_address');
-            $table->string('password');
-            $table->string('user_status');
-        });
+        $this->fakePrime();
     }
 
     private function login(User $user): TestResponse

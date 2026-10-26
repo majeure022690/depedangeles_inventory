@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Management;
 
+use App\Models\Office;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpdateOfficeRequest extends FormRequest
 {
@@ -38,6 +40,21 @@ class UpdateOfficeRequest extends FormRequest
             'email' => ['nullable', 'email', 'max:255'],
             'is_active' => ['boolean'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $office = $this->route('office');
+
+            if (! $office instanceof Office || ! $office->isManagedByPrime() || $validator->errors()->has('office_name')) {
+                return;
+            }
+
+            if (trim($this->string('office_name')->toString()) !== trim((string) $office->office_name)) {
+                $validator->errors()->add('office_name', __('Managed by PRIME.'));
+            }
+        });
     }
 
     /**

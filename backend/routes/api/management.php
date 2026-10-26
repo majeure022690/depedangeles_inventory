@@ -3,7 +3,6 @@
 use App\Enums\Permission as P;
 use App\Http\Controllers\Api\Management\AuditLogController;
 use App\Http\Controllers\Api\Management\DashboardController;
-use App\Http\Controllers\Api\Management\EmailLogController;
 use App\Http\Controllers\Api\Management\EquipmentController;
 use App\Http\Controllers\Api\Management\EquipmentTransactionController;
 use App\Http\Controllers\Api\Management\InternetConnectivitySurveyController;
@@ -139,11 +138,5 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
         Route::get('/settings/system-logs/slow-queries/status', [SystemLogController::class, 'slowQueryStatus']);
         Route::get('/settings/system-logs/slow-queries/download', [SystemLogController::class, 'downloadSlowQueryLogs'])->middleware('throttle:10,1');
         Route::delete('/settings/system-logs/slow-queries', [SystemLogController::class, 'clearSlowQueryLogs'])->middleware('throttle:password-confirm');
-    });
-
-    // Administration: outgoing email log (holds recipient addresses, so its own permission).
-    Route::middleware($can(P::EmailLogManage))->group(function () {
-        Route::get('/settings/email-log', [EmailLogController::class, 'index']);
-        Route::delete('/settings/email-log', [EmailLogController::class, 'clear'])->middleware('throttle:password-confirm');
     });
 });

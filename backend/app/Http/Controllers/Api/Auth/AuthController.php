@@ -3,9 +3,7 @@
 namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
-use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Http\Resources\Management\UserResource;
 use App\Models\User;
@@ -20,10 +18,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -137,7 +133,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
-        return (new UserResource($user->load('roles.permissions', 'permissions', 'office', 'personnel:id,user_id,full_name')))
+        return (new UserResource($user->load('roles.permissions', 'permissions', 'office', 'personnel:id,employee_id,full_name')))
             ->additional(['message' => 'Success'])
             ->response();
     }
@@ -181,47 +177,8 @@ class AuthController extends Controller
             Storage::disk('public')->delete($replacedAvatar);
         }
 
-        return (new UserResource($user->fresh()->load('roles.permissions', 'permissions', 'office', 'personnel:id,user_id,full_name')))
+        return (new UserResource($user->fresh()->load('roles.permissions', 'permissions', 'office', 'personnel:id,employee_id,full_name')))
             ->additional(['message' => 'Profile updated successfully.'])
             ->response();
-    }
-
-    public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
-    {
-        Password::sendResetLink($request->only('email'));
-
-        Log::channel('security')->info('Password reset requested', [
-            'email' => $request->input('email'),
-            'ip' => $request->ip(),
-        ]);
-
-        return response()->json([
-            'message' => 'If that account exists, a password reset link has been sent.',
-        ]);
-    }
-
-    public function resetPassword(ResetPasswordRequest $request): JsonResponse
-    {
-        $status = Password::reset(
-            $request->only('email', 'password', 'password_confirmation', 'token'),
-            function (User $user, string $password) use ($request) {
-                $user->forceFill(['password' => $password])->save();
-
-                DB::table('sessions')->where('user_id', $user->id)->delete();
-
-                Log::channel('security')->info('Password reset completed', [
-                    'user_id' => $user->id,
-                    'ip' => $request->ip(),
-                ]);
-            }
-        );
-
-        if ($status !== Password::PASSWORD_RESET) {
-            throw ValidationException::withMessages([
-                'email' => __('This password reset link is invalid or has expired.'),
-            ]);
-        }
-
-        return response()->json(['message' => 'Success']);
     }
 }

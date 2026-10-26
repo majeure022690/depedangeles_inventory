@@ -1,7 +1,7 @@
 import { isAxiosError } from 'axios'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
@@ -14,7 +14,9 @@ import { isNoAccessError } from '@/lib/api'
 import { isTooManyRequests, TOO_MANY_ATTEMPTS_MESSAGE } from '@/lib/errors'
 import type { ApiValidationError } from '@/types/api'
 
-const NO_ACCESS_FALLBACK = "Your account doesn't have access to DICTIS yet. Please contact the Division ICT Unit."
+const PRIME_NOTE_ID = 'login-prime-note'
+
+const NO_ACCESS_FALLBACK ="Your account doesn't have access to DICTIS yet. Please contact the Division ICT Unit."
 
 export function Login() {
   usePageTitle('User Login')
@@ -23,8 +25,7 @@ export function Login() {
   const location = useLocation()
   const executeRecaptcha = useRecaptcha()
   useShowRecaptchaBadge()
-  const navState = location.state as { resetSuccess?: boolean; signInError?: string; noAccess?: string } | null
-  const resetSuccess = Boolean(navState?.resetSuccess)
+  const navState = location.state as { signInError?: string; noAccess?: string } | null
   const reason = new URLSearchParams(location.search).get('reason')
   const signedOutIdle = reason === 'idle'
 
@@ -93,12 +94,6 @@ export function Login() {
         <p className="mt-1 text-sm text-gray-500">Sign in to the management portal</p>
       </div>
 
-      {resetSuccess && (
-        <Alert type="success" className="mb-4">
-          Password reset successfully. Please log in with your new password.
-        </Alert>
-      )}
-
       {noAccessNotice && (
         <Alert ref={noAccessRef} tabIndex={-1} type="info" role="alert" className="mb-4 focus:outline-none">
           {noAccessNotice}
@@ -118,13 +113,21 @@ export function Login() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-3.5 lg:space-y-4">
+        <p id={PRIME_NOTE_ID} className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm text-primary-800">
+          Sign in with your PRIME account: your DepEd email and PRIME password.
+        </p>
+
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Email</label>
+          <label htmlFor="login-email" className="mb-1 block text-sm font-medium text-gray-700">
+            Email
+          </label>
           <div className="relative">
-            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Mail aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
+              id="login-email"
               type="email"
               autoComplete="username"
+              aria-describedby={PRIME_NOTE_ID}
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -134,17 +137,16 @@ export function Login() {
         </div>
 
         <div>
-          <div className="mb-1 flex items-center justify-between">
-            <label className="block text-sm font-medium text-gray-700">Password</label>
-            <Link to="/forgot-password" className="text-sm font-medium text-primary-600 hover:underline">
-              Forgot password?
-            </Link>
-          </div>
+          <label htmlFor="login-password" className="mb-1 block text-sm font-medium text-gray-700">
+            Password
+          </label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Lock aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
+              id="login-password"
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
+              aria-describedby={PRIME_NOTE_ID}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}

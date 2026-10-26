@@ -69,7 +69,7 @@ class EquipmentDataScopeTest extends TestCase
         $user->assignRole($role);
 
         if ($linked) {
-            $this->me->forceFill(['user_id' => $user->id])->save();
+            $user->forceFill(['employee_no' => $this->me->employee_id])->save();
         }
 
         return $user;

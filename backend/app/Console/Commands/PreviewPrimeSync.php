@@ -37,7 +37,7 @@ class PreviewPrimeSync extends Command
         }
 
         $this->line('Read-only preview. Nothing is written to IRIS or PRIME.');
-        $this->line('users.employee_no: '.(PrimeDirectory::hasEmployeeNoColumn() ? 'present' : 'absent (current numbers read from personnel.user_id links)')
+        $this->line('users.employee_no: '.(PrimeDirectory::hasEmployeeNoColumn() ? 'present' : 'absent')
             .'; offices.prime_department_id: '.(PrimeDirectory::hasLinkColumn() ? 'present' : 'absent (no office is linked yet)'));
 
         try {
@@ -103,15 +103,13 @@ class PreviewPrimeSync extends Command
     {
         $this->info('== (b) Personnel and PRIME employees by employee number ==');
 
-        $byNumber = $this->prime->employeesByNumber();
         $primeUsers = $this->prime->primeUsers();
         $matched = [];
         $ambiguous = [];
         $unmatched = [];
 
         foreach ($this->personnel() as $person) {
-            $number = PrimeDirectory::number($person->employee_id);
-            $holders = $number === null ? collect() : $byNumber->get($number, collect());
+            $holders = $this->prime->employeesWithNumber(PrimeDirectory::number($person->employee_id));
 
             if ($holders->isEmpty()) {
                 $unmatched[] = [$person->id, $person->employee_id, $this->personnelName($person)];
@@ -154,7 +152,7 @@ class PreviewPrimeSync extends Command
         $this->section(count($plan['creates']).' office(s) would be created for unmatched PRIME departments:', ['Dept ID', 'Department', 'PRIME office_id', 'office_type', 'office_school_id'],
             array_map(fn (array $create) => [
                 $create['department']->dept_id,
-                trim((string) $create['department']->department_school),
+                PrimeDirectory::displayName($create['department']->department_school),
                 $create['department']->office_id,
                 $create['office_type'] ?? '(none, set by hand)',
                 $create['department']->office_school_id ?? '-',
@@ -169,8 +167,22 @@ class PreviewPrimeSync extends Command
         $this->section(count($plan['rename_collisions']).' rename(s) skipped because office_name must be unique:', ['Office ID', 'Current name', 'PRIME name', 'Dept ID', 'Reason'],
             array_map(fn (array $r) => [$r['office']->id, $r['office']->office_name, $r['to'], $r['department']->dept_id, $r['reason']], $plan['rename_collisions']));
 
-        $this->section(count($plan['ambiguous']).' ambiguous name(s), left unlinked:', ['Name', 'Office IDs', 'Dept IDs'],
-            array_map(fn (array $a) => [$a['name'], collect($a['offices'])->pluck('id')->implode(', '), collect($a['departments'])->pluck('dept_id')->implode(', ')], $plan['ambiguous']));
+        $this->section(count($plan['ambiguous']).' ambiguous name(s), left unlinked:', ['Name', 'Office IDs', 'Dept IDs', 'Employees per dept'],
+            array_map(fn (array $a) => [
+                $a['name'],
+                collect($a['offices'])->pluck('id')->implode(', '),
+                collect($a['departments'])->pluck('dept_id')->implode(', '),
+                collect($a['departments'])->map(fn (stdClass $d) => $this->prime->employeeCount((int) $d->dept_id))->implode(', '),
+            ], $plan['ambiguous']));
+
+        $this->section(count($plan['leftovers']).' duplicate PRIME department(s) left without an office:', ['Dept ID', 'Department', 'Employees', 'Kept dept ID', 'Reason'],
+            array_map(fn (array $l) => [
+                $l['department']->dept_id,
+                PrimeDirectory::displayName($l['department']->department_school),
+                $this->prime->employeeCount((int) $l['department']->dept_id),
+                $l['kept']->dept_id,
+                $l['reason'],
+            ], $plan['leftovers']));
 
         $this->section(count($plan['gone']).' linked office(s) whose PRIME department no longer exists:', ['Office ID', 'Office', 'prime_department_id'],
             array_map(fn (stdClass $office) => [$office->id, $office->office_name, $office->prime_department_id], $plan['gone']));
@@ -225,13 +237,11 @@ class PreviewPrimeSync extends Command
     {
         $this->info('== (e) Personnel whose empty office would be filled ==');
 
-        $byNumber = $this->prime->employeesByNumber();
         $rows = [];
         $unfilled = 0;
 
         foreach ($this->personnel()->whereNull('office_id') as $person) {
-            $number = PrimeDirectory::number($person->employee_id);
-            $holders = $number === null ? collect() : $byNumber->get($number, collect());
+            $holders = $this->prime->employeesWithNumber(PrimeDirectory::number($person->employee_id));
             $department = $holders->count() === 1 ? $holders->first()->department_school_id : null;
             $target = $department === null ? null : ($this->plan()['targets'][(int) $department] ?? null);
 

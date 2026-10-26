@@ -89,10 +89,11 @@ interface OfficeFieldsProps {
   onChange: (patch: Partial<OfficeFormData>) => void
   errors: OfficeFieldErrors
   disabled?: boolean
+  nameLocked?: boolean
 }
 
 /** Shared by OfficeCreate and OfficeEdit (port of offices/Partials/Form.vue). */
-export function OfficeFields({ value, onChange, errors, disabled = false }: OfficeFieldsProps) {
+export function OfficeFields({ value, onChange, errors, disabled = false, nameLocked = false }: OfficeFieldsProps) {
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <Section
@@ -110,6 +111,9 @@ export function OfficeFields({ value, onChange, errors, disabled = false }: Offi
             onChange={(e) => onChange({ office_name: e.target.value })}
             error={errors.office_name}
             disabled={disabled}
+            readOnly={nameLocked}
+            className={nameLocked ? 'bg-gray-50 text-gray-600' : undefined}
+            hint={nameLocked ? 'Managed by PRIME' : undefined}
             maxLength={255}
           />
           <FormField id="office_type" label="Office type (optional)" hint="Free text, e.g. Elementary School, High School, Division Office or Unit." error={errors.office_type}>

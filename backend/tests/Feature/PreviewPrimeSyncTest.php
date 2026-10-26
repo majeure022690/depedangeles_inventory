@@ -3,81 +3,21 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Tests\Concerns\FakesPrime;
 use Tests\TestCase;
 
 class PreviewPrimeSyncTest extends TestCase
 {
-    use RefreshDatabase;
-
-    private int $nextEmployeeId = 1;
+    use FakesPrime, RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
-
-        config(['database.connections.external_users' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']]);
-        DB::purge('external_users');
-
-        $schema = Schema::connection('external_users');
-        $schema->create('users', function (Blueprint $table) {
-            $table->increments('user_id');
-            $table->string('full_name');
-            $table->string('email_address');
-            $table->string('password')->default('x');
-            $table->string('user_status')->default('Active');
-            $table->unsignedInteger('department_school_id')->nullable();
-        });
-        $schema->create('employees', function (Blueprint $table) {
-            $table->increments('employee_id');
-            $table->unsignedInteger('user_id')->nullable();
-            $table->string('surname');
-            $table->string('first_name');
-            $table->string('middle_name')->nullable();
-            $table->string('name_extension')->nullable();
-            $table->string('deped_id_no')->nullable();
-            $table->string('deped_email')->nullable();
-            $table->string('employee_status')->default('Active');
-            $table->unsignedInteger('department_school_id')->nullable();
-        });
-        $schema->create('departments', function (Blueprint $table) {
-            $table->increments('dept_id');
-            $table->unsignedTinyInteger('office_id');
-            $table->unsignedInteger('district_id')->nullable();
-            $table->string('department_school')->nullable();
-            $table->string('shortened_name')->nullable();
-            $table->unsignedInteger('office_school_id')->nullable();
-        });
-    }
-
-    private function prime(string $table): Builder
-    {
-        return DB::connection('external_users')->table($table);
-    }
-
-    private function primeUser(string $email, ?int $department = null): int
-    {
-        return $this->prime('users')->insertGetId(['full_name' => 'Prime '.$email, 'email_address' => $email, 'department_school_id' => $department]);
-    }
-
-    private function employee(?int $userId, ?string $number, ?int $department = null, string $surname = 'Reyes'): int
-    {
-        $id = $this->nextEmployeeId++;
-
-        return $this->prime('employees')->insertGetId([
-            'employee_id' => $id, 'user_id' => $userId, 'surname' => $surname, 'first_name' => 'Maria',
-            'deped_id_no' => $number, 'deped_email' => "emp{$id}@deped.gov.ph", 'department_school_id' => $department,
-        ]);
-    }
-
-    private function department(string $name, int $officeId = 2, ?int $schoolId = null): int
-    {
-        return $this->prime('departments')->insertGetId(['office_id' => $officeId, 'department_school' => $name, 'office_school_id' => $schoolId]);
+        $this->fakePrime();
     }
 
     private function office(string $name, string $type = 'Elementary School'): int
@@ -85,18 +25,12 @@ class PreviewPrimeSyncTest extends TestCase
         return DB::table('offices')->insertGetId(['office_name' => $name, 'office_type' => $type, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
     }
 
-    private function person(string $employeeId, ?int $officeId = null, ?int $userId = null): int
+    private function person(string $employeeId, ?int $officeId = null): int
     {
         return DB::table('personnel')->insertGetId([
-            'employee_id' => $employeeId, 'last_name' => 'Cruz', 'first_name' => 'Ana', 'office_id' => $officeId, 'user_id' => $userId,
+            'employee_id' => $employeeId, 'last_name' => 'Cruz', 'first_name' => 'Ana', 'office_id' => $officeId,
             'created_at' => now(), 'updated_at' => now(),
         ]);
-    }
-
-    private function addSyncColumns(): void
-    {
-        Schema::table('users', fn (Blueprint $table) => $table->string('employee_no')->nullable());
-        Schema::table('offices', fn (Blueprint $table) => $table->unsignedInteger('prime_department_id')->nullable());
     }
 
     /**
@@ -135,32 +69,31 @@ class PreviewPrimeSyncTest extends TestCase
     public function test_users_section_reports_numbers_gained_lost_and_ambiguous(): void
     {
         $gets = User::factory()->create(['email' => 'gets@deped.gov.ph']);
-        $this->employee($this->primeUser('GETS@deped.gov.ph'), ' 007 ');
+        $this->primeEmployee($this->primeAccount('GETS@deped.gov.ph'), ' 007 ');
 
         $twoRows = User::factory()->create(['email' => 'two@deped.gov.ph']);
-        $twoId = $this->primeUser('two@deped.gov.ph');
-        $this->employee($twoId, '2001');
-        $this->employee($twoId, '2002');
+        $twoId = $this->primeAccount('two@deped.gov.ph');
+        $this->primeEmployee($twoId, '2001');
+        $this->primeEmployee($twoId, '2002');
 
         $shared = User::factory()->create(['email' => 'shared@deped.gov.ph']);
-        $sharedId = $this->primeUser('shared@deped.gov.ph');
-        $this->employee($sharedId, '3001');
-        $this->employee(null, '3001 ');
+        $sharedId = $this->primeAccount('shared@deped.gov.ph');
+        $this->primeEmployee($sharedId, '3001');
+        $this->primeEmployee(null, '3001 ');
 
-        $loses = User::factory()->create(['email' => 'loses@deped.gov.ph']);
-        $this->primeUser('loses@deped.gov.ph');
-        $this->person('4001', userId: $loses->id);
+        $loses = User::factory()->withEmployeeNo('4001')->create(['email' => 'loses@deped.gov.ph']);
+        $this->primeAccount('loses@deped.gov.ph');
 
         $dupe = User::factory()->create(['email' => 'dupe@deped.gov.ph']);
-        $this->employee($this->primeUser('dupe@deped.gov.ph'), '5001');
-        $this->primeUser('Dupe@deped.gov.ph');
+        $this->primeEmployee($this->primeAccount('dupe@deped.gov.ph'), '5001');
+        $this->primeAccount('Dupe@deped.gov.ph');
 
         User::factory()->create(['email' => 'local@deped.gov.ph']);
 
         $before = $this->snapshot();
         $output = $this->preview('users');
 
-        $this->assertStringContainsString('absent (current numbers read from personnel.user_id links)', $output);
+        $this->assertStringContainsString('users.employee_no: present', $output);
         $this->assertStringContainsString('2 user(s) would get, change or lose an employee number:', $output);
         $this->assertRow($output, [$gets->id, $gets->name, 'gets@deped.gov.ph', '-', '007', 'gets']);
         $this->assertRow($output, [$loses->id, $loses->name, 'loses@deped.gov.ph', '4001', '-', 'loses', 'no employee row']);
@@ -179,13 +112,12 @@ class PreviewPrimeSyncTest extends TestCase
 
     public function test_users_section_rejects_a_number_already_held_by_an_untouched_user(): void
     {
-        $this->addSyncColumns();
         $holder = User::factory()->create(['email' => 'holder@deped.gov.ph']);
         DB::table('users')->where('id', $holder->id)->update(['employee_no' => '6001']);
 
         $claimant = User::factory()->create(['email' => 'claimant@deped.gov.ph']);
-        $claimantPrimeId = $this->primeUser('claimant@deped.gov.ph');
-        $this->employee($claimantPrimeId, '6001');
+        $claimantPrimeId = $this->primeAccount('claimant@deped.gov.ph');
+        $this->primeEmployee($claimantPrimeId, '6001');
 
         $before = $this->snapshot();
         $output = $this->preview('users');
@@ -198,21 +130,20 @@ class PreviewPrimeSyncTest extends TestCase
 
     public function test_users_section_reports_a_changed_number_without_stripping_zeros(): void
     {
-        $this->addSyncColumns();
         $user = User::factory()->create(['email' => 'ana@deped.gov.ph']);
         DB::table('users')->where('id', $user->id)->update(['employee_no' => '100']);
-        $this->employee($this->primeUser('ana@deped.gov.ph'), '0100');
+        $this->primeEmployee($this->primeAccount('ana@deped.gov.ph'), '0100');
 
         $this->assertRow($this->preview('users'), [$user->id, $user->name, 'ana@deped.gov.ph', '100', '0100', 'changes']);
     }
 
     public function test_personnel_section_lists_matches_side_by_side_and_unmatched(): void
     {
-        $school = $this->department('Angeles ES');
-        $this->employee($this->primeUser('maria@deped.gov.ph'), '1001', $school, 'Santos');
-        $noAccount = $this->employee(null, '1002');
-        $first = $this->employee(null, '1003');
-        $second = $this->employee(null, '1003');
+        $school = $this->primeDepartment('Angeles ES');
+        $this->primeEmployee($this->primeAccount('maria@deped.gov.ph'), '1001', $school, 'Santos');
+        $noAccount = $this->primeEmployee(null, '1002');
+        $first = $this->primeEmployee(null, '1003');
+        $second = $this->primeEmployee(null, '1003');
 
         $this->person(' 1001');
         $this->person('1002');
@@ -233,7 +164,7 @@ class PreviewPrimeSyncTest extends TestCase
         $this->assertSame($before, $this->snapshot());
     }
 
-    public function test_offices_section_without_link_column_proposes_links_creations_and_collisions(): void
+    public function test_offices_section_for_unlinked_offices_proposes_links_creations_and_collisions(): void
     {
         $angeles = $this->office('Angeles ES');
         $twin = $this->office('Twin ES');
@@ -241,20 +172,19 @@ class PreviewPrimeSyncTest extends TestCase
         $unit = $this->office('ICT Unit', 'Unit');
         $this->office('OSDS', 'Division Office');
 
-        $angelesDept = $this->department('  ANGELES es ');
-        $twinA = $this->department('Twin ES');
-        $twinB = $this->department('twin es');
-        $cutud = $this->department('Cutud ES', 2, 107025);
-        $records = $this->department('Records Section', 1);
-        $dupA = $this->department('Dup HS');
-        $this->department('dup hs');
-        $takenDept = $this->department('taken name', 1);
-        $unknown = $this->department('Learning Hub');
+        $angelesDept = $this->primeDepartment('  ANGELES es ');
+        $twinA = $this->primeDepartment('Twin ES');
+        $twinB = $this->primeDepartment('twin es');
+        $cutud = $this->primeDepartment('Cutud ES', 2, 107025);
+        $records = $this->primeDepartment('Records Section', 1);
+        $dupA = $this->primeDepartment('Dup HS');
+        $this->primeDepartment('dup hs');
+        $takenDept = $this->primeDepartment('taken name', 1);
+        $unknown = $this->primeDepartment('Learning Hub');
 
         $before = $this->snapshot();
         $output = $this->preview('offices');
 
-        $this->assertStringContainsString('offices.prime_department_id: absent', $output);
         $this->assertStringContainsString('2 office(s) would be linked to a PRIME department by name:', $output);
         $this->assertRow($output, [$angeles, 'Angeles ES', $angelesDept, 'ANGELES es']);
         $this->assertRow($output, [$taken, 'Taken Name', $takenDept, 'taken name']);
@@ -267,11 +197,10 @@ class PreviewPrimeSyncTest extends TestCase
         $this->assertStringContainsString('2 unmatched PRIME department(s) that cannot become an office:', $output);
         $this->assertRow($output, [$dupA, 'Dup HS', 'name shared by 2 unmatched PRIME departments']);
 
-        $this->assertStringContainsString('2 linked office(s) would be renamed to the PRIME name:', $output);
-        $this->assertRow($output, [$angeles, 'Angeles ES', 'ANGELES es', $angelesDept]);
+        $this->assertStringContainsString('0 linked office(s) would be renamed to the PRIME name:', $output);
 
         $this->assertStringContainsString('1 ambiguous name(s), left unlinked:', $output);
-        $this->assertRow($output, ['twin es', $twin, "{$twinA}, {$twinB}"]);
+        $this->assertRow($output, ['twin es', $twin, "{$twinA}, {$twinB}", '0, 0']);
 
         $this->assertStringContainsString('0 linked office(s) whose PRIME department no longer exists:', $output);
         $this->assertStringContainsString('3 IRIS-only office(s) with no PRIME department:', $output);
@@ -280,22 +209,73 @@ class PreviewPrimeSyncTest extends TestCase
         $this->assertSame($before, $this->snapshot());
     }
 
+    public function test_offices_section_reports_a_department_named_like_a_linked_twin_as_a_leftover(): void
+    {
+        $linked = $this->office('Claimed ES');
+        $claimedDept = $this->primeDepartment('Claimed ES');
+        DB::table('offices')->where('id', $linked)->update(['prime_department_id' => $claimedDept]);
+        $duplicate = $this->primeDepartment('Claimed ES');
+
+        $output = $this->preview('offices');
+
+        $this->assertStringContainsString('0 office(s) would be created for unmatched PRIME departments:', $output);
+        $this->assertRow($output, [$duplicate, 'Claimed ES', 0, $claimedDept, "same name as department #{$claimedDept}, linked to office #{$linked}"]);
+    }
+
     public function test_offices_section_blocks_creating_an_office_whose_name_is_taken(): void
     {
-        $this->addSyncColumns();
-        $linked = $this->office('Claimed ES');
-        $claimedDept = $this->department('Claimed ES');
-        DB::table('offices')->where('id', $linked)->update(['prime_department_id' => $claimedDept]);
-        $duplicate = $this->department('Claimed ES');
+        $taken = $this->office('Claimed ES');
+        $other = $this->primeDepartment('Other ES');
+        DB::table('offices')->where('id', $taken)->update(['prime_department_id' => $other]);
+        $duplicate = $this->primeDepartment('Claimed ES');
 
-        $this->assertRow($this->preview('offices'), [$duplicate, 'Claimed ES', "name already used by office #{$linked}"]);
+        $this->assertRow($this->preview('offices'), [$duplicate, 'Claimed ES', "name already used by office #{$taken}"]);
+    }
+
+    public function test_offices_section_links_the_only_staffed_department_of_a_shared_name(): void
+    {
+        $gueco = $this->office('Gueco Balibago ES');
+        $staffed = $this->primeDepartment('GUECO BALIBAGO ES');
+        $empty = $this->primeDepartment('Gueco  Balibago ES');
+        $this->primeEmployee(null, '1', $staffed);
+        $this->primeEmployee(null, '2', $staffed);
+
+        $tied = $this->office('Tied ES');
+        $tiedA = $this->primeDepartment('Tied ES');
+        $tiedB = $this->primeDepartment('Tied ES');
+        $this->primeEmployee(null, '3', $tiedA);
+        $this->primeEmployee(null, '4', $tiedB);
+
+        $output = $this->preview('offices');
+
+        $this->assertStringContainsString('1 office(s) would be linked to a PRIME department by name:', $output);
+        $this->assertRow($output, [$gueco, 'Gueco Balibago ES', $staffed, 'GUECO BALIBAGO ES']);
+        $this->assertStringContainsString('0 linked office(s) would be renamed to the PRIME name:', $output);
+        $this->assertRow($output, [$empty, 'Gueco Balibago ES', 0, $staffed, "same name as department #{$staffed}, which has 2 employee(s)"]);
+        $this->assertRow($output, ['tied es', $tied, "{$tiedA}, {$tiedB}", '1, 1']);
+        $this->assertStringContainsString('0 office(s) would be created for unmatched PRIME departments:', $output);
+    }
+
+    public function test_users_section_treats_placeholder_numbers_as_no_number(): void
+    {
+        foreach (['N/A', ' na ', '-', '--', 'None', 'NEW', '0', '0000', ''] as $i => $placeholder) {
+            User::factory()->create(['email' => "p{$i}@deped.gov.ph"]);
+            $this->primeEmployee($this->primeAccount("p{$i}@deped.gov.ph"), $placeholder);
+        }
+        $held = User::factory()->withEmployeeNo('N/A')->create(['email' => 'held@deped.gov.ph']);
+        $this->primeEmployee($this->primeAccount('held@deped.gov.ph'), 'N/A');
+
+        $output = $this->preview('users');
+
+        $this->assertStringContainsString('1 user(s) would get, change or lose an employee number:', $output);
+        $this->assertRow($output, [$held->id, $held->name, 'held@deped.gov.ph', 'N/A', '-', 'loses', 'placeholder']);
+        $this->assertStringContainsString('0 user(s) left without a number because PRIME is ambiguous:', $output);
     }
 
     public function test_offices_section_with_link_column_reports_renames_collisions_and_gone_departments(): void
     {
-        $this->addSyncColumns();
-        $renamed = $this->department('Lourdes Northwest Elementary School');
-        $colliding = $this->department('Taken Name');
+        $renamed = $this->primeDepartment('Lourdes Northwest Elementary School');
+        $colliding = $this->primeDepartment('Taken Name');
 
         $linked = $this->office('Lourdes NW ES');
         $blocked = $this->office('Old Name');
@@ -324,21 +304,21 @@ class PreviewPrimeSyncTest extends TestCase
     {
         $angeles = $this->office('Angeles ES');
         $cutud = $this->office('Cutud ES');
-        $angelesDept = $this->department('Angeles ES');
-        $newDept = $this->department('Brand New ES');
-        $this->department('Cutud ES');
+        $angelesDept = $this->primeDepartment('Angeles ES');
+        $newDept = $this->primeDepartment('Brand New ES');
+        $this->primeDepartment('Cutud ES');
 
         User::factory()->create(['email' => 'stay@deped.gov.ph', 'office_id' => $angeles]);
-        $this->employee($this->primeUser('stay@deped.gov.ph'), '1', $angelesDept);
+        $this->primeEmployee($this->primeAccount('stay@deped.gov.ph'), '1', $angelesDept);
 
         $moved = User::factory()->create(['email' => 'moved@deped.gov.ph', 'office_id' => $cutud]);
-        $this->employee($this->primeUser('moved@deped.gov.ph'), '2', $angelesDept);
+        $this->primeEmployee($this->primeAccount('moved@deped.gov.ph'), '2', $angelesDept);
 
         $set = User::factory()->create(['email' => 'noemployee@deped.gov.ph', 'office_id' => null]);
-        $this->primeUser('noemployee@deped.gov.ph', $newDept);
+        $this->primeAccount('noemployee@deped.gov.ph', $newDept);
 
         $cleared = User::factory()->create(['email' => 'cleared@deped.gov.ph', 'office_id' => $cutud]);
-        $this->employee($this->primeUser('cleared@deped.gov.ph'), '3', 555);
+        $this->primeEmployee($this->primeAccount('cleared@deped.gov.ph'), '3', 555);
 
         User::factory()->create(['email' => 'local@deped.gov.ph', 'office_id' => $cutud]);
 
@@ -358,10 +338,10 @@ class PreviewPrimeSyncTest extends TestCase
     public function test_personnel_offices_section_only_fills_empty_offices(): void
     {
         $angeles = $this->office('Angeles ES');
-        $dept = $this->department('Angeles ES');
-        $this->employee(null, '1001', $dept);
-        $this->employee(null, '1002', $dept);
-        $this->employee(null, '1003', 777);
+        $dept = $this->primeDepartment('Angeles ES');
+        $this->primeEmployee(null, '1001', $dept);
+        $this->primeEmployee(null, '1002', $dept);
+        $this->primeEmployee(null, '1003', 777);
 
         $filled = $this->person('1001');
         $this->person('1002', $this->office('Other ES'));
@@ -382,7 +362,7 @@ class PreviewPrimeSyncTest extends TestCase
     public function test_full_preview_prints_every_section_and_writes_nothing(): void
     {
         $this->office('Angeles ES');
-        $this->employee($this->primeUser('a@deped.gov.ph', $this->department('Angeles ES')), '1');
+        $this->primeEmployee($this->primeAccount('a@deped.gov.ph', $this->primeDepartment('Angeles ES')), '1');
         User::factory()->create(['email' => 'a@deped.gov.ph']);
         $this->person('1');
 

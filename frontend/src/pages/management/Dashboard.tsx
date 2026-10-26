@@ -320,9 +320,11 @@ export function Dashboard() {
   const { user, can } = useAuth()
   const scopeNotice =
     user?.data_scope === 'own' && user.personnel_id === null && (can('personnel.view') || can('equipment.view'))
-      ? "Your account isn't linked to a personnel record yet. Contact your administrator."
+      ? user.employee_no === null
+        ? 'Your account has no DepEd employee number in PRIME. Contact your administrator.'
+        : `No personnel record matches employee number ${user.employee_no}. Contact your administrator.`
       : user?.data_scope === 'school' && user.office_id === null
-        ? "Your account isn't assigned to an office yet. Contact your administrator."
+        ? "Your account isn't assigned to an office yet. Your office comes from PRIME. Contact your administrator."
         : null
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)

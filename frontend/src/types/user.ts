@@ -20,9 +20,8 @@ export interface ManagedUser extends Omit<AuthUser, 'permissions' | 'is_self'> {
   can_reset_two_factor: boolean
 }
 
-/** `GET /api/users/options`: only roles the acting user may assign, active offices, and (all-records actors with personnel.view only) personnel to link. */
+/** `GET /api/users/options`: only roles the acting user may assign, and active offices for the list filter. */
 export interface UserOptions {
   roles: RoleSummary[]
   offices: Option<number>[]
-  personnel?: (Option<number> & { linked_user_id: number | null })[]
 }

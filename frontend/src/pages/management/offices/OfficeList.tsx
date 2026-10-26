@@ -72,7 +72,17 @@ export function OfficeList() {
       column.accessor('office_name', {
         header: 'Office name',
         enableHiding: false,
-        cell: (info) => <span className="font-medium text-gray-900">{info.getValue()}</span>,
+        cell: ({ row }) => (
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-gray-900">{row.original.office_name}</span>
+            {row.original.managed_by_prime && (
+              <Badge color="primary" className="px-2">
+                <span aria-hidden="true">PRIME</span>
+                <span className="sr-only">Managed by PRIME</span>
+              </Badge>
+            )}
+          </span>
+        ),
       }),
       column.accessor('office_type', {
         header: 'Type',
@@ -125,7 +135,7 @@ export function OfficeList() {
             >
               <Pencil className="h-4 w-4 text-primary-600" />
             </Button>
-            {canDelete && (
+            {canDelete && !row.original.managed_by_prime && (
               <Button
                 variant="ghost"
                 size="sm"

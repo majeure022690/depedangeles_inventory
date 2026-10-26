@@ -254,7 +254,7 @@ class UserControllerTest extends TestCase
             ->assertJsonPath('data.email', 'prime@deped.gov.ph');
     }
 
-    public function test_admin_can_update_office_and_active_flag_and_it_is_audited(): void
+    public function test_admin_can_update_active_flag_and_it_is_audited_while_a_sent_office_is_ignored(): void
     {
         $admin = $this->manager();
         $office = Office::create(['office_name' => 'Angeles ES']);
@@ -265,7 +265,7 @@ class UserControllerTest extends TestCase
             'office_id' => $office->id,
             'is_active' => false,
         ])->assertOk()
-            ->assertJsonPath('data.office_id', $office->id)
+            ->assertJsonPath('data.office_id', null)
             ->assertJsonPath('data.is_active', false);
 
         $log = Activity::where('event', 'updated')->where('subject_type', $target->getMorphClass())->where('subject_id', $target->id)->sole();
@@ -294,7 +294,7 @@ class UserControllerTest extends TestCase
 
     // Self-edit
 
-    public function test_admin_can_change_their_own_office(): void
+    public function test_admin_cannot_change_their_own_office(): void
     {
         $admin = $this->manager();
         $office = Office::create(['office_name' => 'Angeles ES']);
@@ -303,11 +303,11 @@ class UserControllerTest extends TestCase
             ...$this->updatePayload('manager'),
             'office_id' => $office->id,
         ])->assertOk()
-            ->assertJsonPath('data.office_id', $office->id)
+            ->assertJsonPath('data.office_id', null)
             ->assertJsonPath('data.can_edit', true)
             ->assertJsonPath('data.can_reset_two_factor', false);
 
-        $this->assertDatabaseHas('activity_log', ['event' => 'updated', 'subject_type' => User::class, 'subject_id' => $admin->id, 'causer_id' => $admin->id]);
+        $this->assertDatabaseMissing('activity_log', ['event' => 'updated', 'subject_type' => User::class, 'subject_id' => $admin->id]);
     }
 
     public function test_user_cannot_deactivate_themselves(): void

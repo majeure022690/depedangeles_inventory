@@ -40,10 +40,10 @@ class PermissionCatalogTest extends TestCase
         $this->assertEqualsCanonicalizing(['super_administrator', 'system_administrator'], $this->holdersOf(Permission::ReferenceDataManage));
     }
 
-    public function test_email_log_manage_is_seeded_to_the_administrator_roles_only(): void
+    public function test_email_log_manage_no_longer_exists(): void
     {
-        $this->assertSame('email_log.manage', Permission::EmailLogManage->value);
-        $this->assertEqualsCanonicalizing(['super_administrator', 'system_administrator'], $this->holdersOf(Permission::EmailLogManage));
+        $this->assertNotContains('email_log.manage', array_map(fn (Permission $permission) => $permission->value, Permission::cases()));
+        $this->assertFalse(PermissionModel::where('name', 'email_log.manage')->exists());
     }
 
     /**
@@ -97,7 +97,6 @@ class PermissionCatalogTest extends TestCase
 
         $this->assertSame('Administration', Permission::ReferenceDataManage->group());
         $this->assertSame('Administration', Permission::SecuritySettingsManage->group());
-        $this->assertSame('Administration', Permission::EmailLogManage->group());
         $this->assertSame('Offices', Permission::OfficeDelete->group());
     }
 

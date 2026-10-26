@@ -68,8 +68,9 @@ class PersonnelDataScopeTest extends TestCase
 
     public function test_own_scope_reaches_only_the_linked_record(): void
     {
+        $mine = Personnel::factory()->create(['office_id' => $this->otherOffice->id]);
         $user = $this->scoped(DataScope::Own);
-        $mine = Personnel::factory()->create(['office_id' => $this->otherOffice->id, 'user_id' => $user->id]);
+        $user->forceFill(['employee_no' => $mine->employee_id])->save();
 
         $this->assertSame([$mine->id], $this->listedIds($user));
         $this->actingAs($user->fresh())->getJson("/api/personnel/{$mine->id}")->assertOk()->assertJsonMissingPath('data.user_id')->assertJsonMissingPath('data.user');
@@ -83,8 +84,9 @@ class PersonnelDataScopeTest extends TestCase
 
     public function test_school_scope_reaches_the_office_and_the_linked_record(): void
     {
+        $mine = Personnel::factory()->create(['office_id' => $this->otherOffice->id]);
         $user = $this->scoped(DataScope::School);
-        $mine = Personnel::factory()->create(['office_id' => $this->otherOffice->id, 'user_id' => $user->id]);
+        $user->forceFill(['employee_no' => $mine->employee_id])->save();
 
         $this->assertSame(collect([$this->colleague->id, $mine->id])->sort()->values()->all(), $this->listedIds($user));
         $this->actingAs($user->fresh())->getJson("/api/personnel/{$this->outsider->id}")->assertNotFound();
@@ -170,9 +172,9 @@ class PersonnelDataScopeTest extends TestCase
 
         $this->actingAs($this->scoped($scope))
             ->postJson('/api/personnel', $this->payload(['employee_id' => 'EMP-X2', 'user_id' => $target->id]))
-            ->assertCreated();
+            ->assertCreated()
+            ->assertJsonMissingPath('data.user_id');
 
-        $this->assertNull(Personnel::where('employee_id', 'EMP-X2')->sole()->user_id);
         $this->assertNull($target->fresh()->personnel);
     }
 
@@ -186,27 +188,21 @@ class PersonnelDataScopeTest extends TestCase
         $this->assertDatabaseMissing('personnel', ['employee_id' => 'EMP-NO']);
     }
 
-    public function test_scoped_update_cannot_change_office_ignores_user_link_and_may_resubmit_unchanged(): void
+    public function test_scoped_update_cannot_change_office_and_may_resubmit_unchanged(): void
     {
         $user = $this->scoped(DataScope::School);
-        $linked = User::factory()->create();
-        $this->colleague->forceFill(['user_id' => $linked->id])->save();
         $base = ['employee_id' => $this->colleague->employee_id, 'last_name' => 'Renamed', 'first_name' => $this->colleague->first_name];
 
         $this->actingAs($user)->putJson("/api/personnel/{$this->colleague->id}", $base + ['office_id' => $this->otherOffice->id])
             ->assertUnprocessable()->assertJsonValidationErrors('office_id');
         $this->assertSame($this->office->id, $this->colleague->fresh()->office_id);
 
-        $this->actingAs($user)->putJson("/api/personnel/{$this->colleague->id}", $base + ['user_id' => User::factory()->create()->id])->assertOk();
-        $this->actingAs($user)->putJson("/api/personnel/{$this->colleague->id}", $base + ['user_id' => null])->assertOk();
-        $this->assertSame($linked->id, $this->colleague->fresh()->user_id);
-
-        $this->actingAs($user)->putJson("/api/personnel/{$this->colleague->id}", $base + ['office_id' => $this->office->id, 'user_id' => $linked->id])
+        $this->actingAs($user)->putJson("/api/personnel/{$this->colleague->id}", $base + ['office_id' => $this->office->id])
             ->assertOk()->assertJsonPath('data.last_name', 'Renamed');
         $this->actingAs($user)->putJson("/api/personnel/{$this->colleague->id}", $base)->assertOk();
     }
 
-    public function test_all_scope_can_set_office_but_not_the_user_link_from_the_personnel_side(): void
+    public function test_all_scope_can_set_office_and_a_sent_user_id_is_ignored(): void
     {
         $admin = $this->scoped(DataScope::All, withOffice: false);
         $account = User::factory()->create(['name' => 'Linked Account']);
@@ -218,9 +214,8 @@ class PersonnelDataScopeTest extends TestCase
             'office_id' => $this->otherOffice->id,
             'user_id' => $account->id,
         ])->assertOk()
-            ->assertJsonPath('data.office_id', $this->otherOffice->id);
-
-        $this->assertNull($this->colleague->fresh()->user_id);
+            ->assertJsonPath('data.office_id', $this->otherOffice->id)
+            ->assertJsonMissingPath('data.user_id');
 
         $id = $this->actingAs($admin)->postJson('/api/personnel', $this->payload(['office_id' => $this->office->id]))
             ->assertCreated()->json('data.id');
@@ -255,39 +250,14 @@ class PersonnelDataScopeTest extends TestCase
             ->assertOk()->assertJsonMissingPath('data.user');
     }
 
-    public function test_link_fields_are_exposed_only_to_users_view_holders(): void
-    {
-        $account = User::factory()->create(['name' => 'Linked Account', 'email' => 'linked@deped.gov.ph']);
-        $this->colleague->forceFill(['user_id' => $account->id])->save();
-
-        $withUsersView = $this->userWithPermissions([Permission::PersonnelView, Permission::UsersView], [], DataScope::All);
-        $this->actingAs($withUsersView)->getJson("/api/personnel/{$this->colleague->id}")
-            ->assertOk()
-            ->assertJsonPath('data.user_id', $account->id)
-            ->assertJsonPath('data.user', ['id' => $account->id, 'name' => 'Linked Account']);
-        $row = collect($this->actingAs($withUsersView)->getJson('/api/personnel?status=all')->assertOk()->json('data'))
-            ->firstWhere('id', $this->colleague->id);
-        $this->assertSame($account->id, $row['user_id']);
-
-        $withoutUsersView = $this->scoped(DataScope::All);
-        $this->actingAs($withoutUsersView)->getJson("/api/personnel/{$this->colleague->id}")
-            ->assertOk()
-            ->assertJsonMissingPath('data.user_id')
-            ->assertJsonMissingPath('data.user');
-        $this->assertStringNotContainsString('Linked Account', (string) $this->actingAs($withoutUsersView)->getJson('/api/personnel?status=all')->getContent());
-        $this->assertStringNotContainsString('linked@deped.gov.ph', (string) $this->actingAs($withUsersView)->getJson('/api/personnel?status=all')->getContent());
-    }
-
-    public function test_deleting_a_linked_record_releases_the_user_link(): void
+    public function test_deleting_a_matched_record_leaves_the_user_without_one(): void
     {
         $admin = $this->scoped(DataScope::All);
-        $account = User::factory()->create();
-        $this->colleague->forceFill(['user_id' => $account->id])->save();
+        $account = User::factory()->withEmployeeNo($this->colleague->employee_id)->create();
 
         $this->actingAs($admin)->deleteJson("/api/personnel/{$this->colleague->id}")->assertNoContent();
 
         $this->assertSoftDeleted($this->colleague);
-        $this->assertNull(Personnel::withTrashed()->findOrFail($this->colleague->id)->user_id);
         $this->assertNull($account->fresh()->personnel);
     }
 }

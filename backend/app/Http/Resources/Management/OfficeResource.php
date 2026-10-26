@@ -28,6 +28,8 @@ class OfficeResource extends JsonResource
             'contact_number' => $this->contact_number,
             'email' => $this->email,
             'is_active' => $this->is_active,
+            'prime_department_id' => $this->prime_department_id,
+            'managed_by_prime' => $this->isManagedByPrime(),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -58,7 +58,6 @@ class SecuritySettingTest extends TestCase
 
         $this->assertSame([
             'login_rate_limit_per_minute',
-            'password_reset_rate_limit_per_hour',
             'two_factor_verify_rate_limit_per_minute',
             'trusted_device_days',
             'idle_timeout_seconds',

@@ -85,6 +85,7 @@ class UpdatePersonnelRequest extends FormRequest
     {
         return [
             $this->lockForScopedActors(['office_id' => [$this->personnel()->office_id]]),
+            $this->lockUnchangedForScopedActors(['employee_id' => $this->personnel()->employee_id]),
         ];
     }
 

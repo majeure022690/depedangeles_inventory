@@ -156,14 +156,6 @@ class Personnel extends Model
     }
 
     /**
-     * @return BelongsTo<User, $this>
-     */
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
-
-    /**
      * @param  Builder<Personnel>  $query
      */
     public function scopeVisibleTo(Builder $query, User $user): void
@@ -232,7 +224,7 @@ class Personnel extends Model
                 'mobile_1', 'mobile_2', 'deped_email', 'personal_email', 'date_hired',
                 'non_deped_funded', 'fund_source', 'inactive', 'separation_date',
                 'separation_cause', 'transferred_from', 'transferred_to',
-                'position_id', 'ro_office_id', 'sdo_office_id', 'office_id', 'user_id',
+                'position_id', 'ro_office_id', 'sdo_office_id', 'office_id',
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()

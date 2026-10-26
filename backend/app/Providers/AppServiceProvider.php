@@ -3,7 +3,6 @@
 namespace App\Providers;
 
 use App\Http\Controllers\Api\Auth\TwoFactorController;
-use App\Listeners\RecordEmailMessage;
 use App\Models\Brand;
 use App\Models\ConnectivityLibrary;
 use App\Models\Equipment;
@@ -26,15 +25,11 @@ use App\Policies\RolePolicy;
 use App\Services\SecuritySettings;
 use App\Services\SlowQueryLog;
 use Carbon\CarbonImmutable;
-use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
-use Illuminate\Mail\Events\MessageSending;
-use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -65,14 +60,10 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Settings > Email log, and the app-side slow query log
-     * (DB_SLOW_QUERY_MS > 0; 0 turns it off).
+     * The app-side slow query log (DB_SLOW_QUERY_MS > 0; 0 turns it off).
      */
     protected function configureSystemLogs(): void
     {
-        Event::listen(MessageSending::class, [RecordEmailMessage::class, 'sending']);
-        Event::listen(MessageSent::class, [RecordEmailMessage::class, 'sent']);
-
         if (SlowQueryLog::enabled()) {
             DB::listen(SlowQueryLog::record(...));
         }
@@ -92,12 +83,6 @@ class AppServiceProvider extends ServiceProvider
         $this->configureTrustedProxies();
 
         Password::defaults(fn () => Password::min(12)->mixedCase()->numbers()->symbols());
-
-        ResetPassword::createUrlUsing(function ($notifiable, string $token) {
-            $query = http_build_query(['token' => $token, 'email' => $notifiable->getEmailForPasswordReset()]);
-
-            return rtrim(config('app.frontend_url'), '/')."/reset-password?{$query}";
-        });
     }
 
     /**
@@ -144,15 +129,6 @@ class AppServiceProvider extends ServiceProvider
             return [
                 Limit::perMinute($perAccount)->by('account:'.strtolower((string) $request->input('email')).'|'.$request->ip()),
                 Limit::perMinute(max(10, $perAccount * 4))->by('ip:'.$request->ip()),
-            ];
-        });
-
-        RateLimiter::for('password-reset', function (Request $request) {
-            $perAccount = SecuritySettings::get('password_reset_rate_limit_per_hour');
-
-            return [
-                Limit::perHour($perAccount)->by('account:'.strtolower((string) $request->input('email')).'|'.$request->ip()),
-                Limit::perHour(max(10, $perAccount * 4))->by('ip:'.$request->ip()),
             ];
         });
 

@@ -15,8 +15,6 @@ const page = <K extends string, T extends Record<K, ComponentType>>(load: () => 
   lazy(() => load().then((module) => ({ default: module[name] })))
 
 const Login = page(() => import('@/pages/management/Login'), 'Login')
-const ForgotPassword = page(() => import('@/pages/management/ForgotPassword'), 'ForgotPassword')
-const ResetPassword = page(() => import('@/pages/management/ResetPassword'), 'ResetPassword')
 const TwoFactorSetup = page(() => import('@/pages/management/TwoFactorSetup'), 'TwoFactorSetup')
 const TwoFactorVerify = page(() => import('@/pages/management/TwoFactorVerify'), 'TwoFactorVerify')
 const ManagementDashboard = page(() => import('@/pages/management/Dashboard'), 'Dashboard')
@@ -61,23 +59,8 @@ export function App() {
             }
           />
 
-          <Route
-            path="/forgot-password"
-            element={
-              <GuestOnly>
-                <ForgotPassword />
-              </GuestOnly>
-            }
-          />
-
-          <Route
-            path="/reset-password"
-            element={
-              <GuestOnly>
-                <ResetPassword />
-              </GuestOnly>
-            }
-          />
+          <Route path="/forgot-password" element={<Navigate to="/login" replace />} />
+          <Route path="/reset-password" element={<Navigate to="/login" replace />} />
 
           <Route
             path="/2fa/setup"

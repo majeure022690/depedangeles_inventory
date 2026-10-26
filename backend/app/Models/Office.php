@@ -89,6 +89,11 @@ class Office extends Model
             ->all();
     }
 
+    public function isManagedByPrime(): bool
+    {
+        return $this->prime_department_id !== null;
+    }
+
     /**
      * @return HasMany<User, $this>
      */
@@ -116,7 +121,7 @@ class Office extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['office_name', 'office_type', 'school_id', 'address', 'region', 'division', 'district', 'contact_number', 'email', 'is_active'])
+            ->logOnly(['office_name', 'office_type', 'school_id', 'address', 'region', 'division', 'district', 'contact_number', 'email', 'is_active', 'prime_department_id'])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
             ->setDescriptionForEvent(fn (string $event): string => "office.{$event}");

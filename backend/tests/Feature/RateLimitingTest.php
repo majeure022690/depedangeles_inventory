@@ -54,24 +54,6 @@ class RateLimitingTest extends TestCase
             ->assertStatus(429);
     }
 
-    public function test_password_reset_limiter_trips_after_three_attempts(): void
-    {
-        for ($i = 0; $i < 3; $i++) {
-            $this->postJson('/api/forgot-password', ['email' => 'someone@example.com'])->assertOk();
-        }
-
-        $this->postJson('/api/forgot-password', ['email' => 'someone@example.com'])->assertStatus(429);
-    }
-
-    public function test_password_reset_limiter_also_caps_one_ip_mailing_many_accounts(): void
-    {
-        for ($i = 0; $i < 12; $i++) {
-            $this->postJson('/api/forgot-password', ['email' => "someone{$i}@example.com"])->assertOk();
-        }
-
-        $this->postJson('/api/forgot-password', ['email' => 'someone99@example.com'])->assertStatus(429);
-    }
-
     public function test_two_factor_verify_limiter_trips_after_five_attempts(): void
     {
         for ($i = 0; $i < 5; $i++) {

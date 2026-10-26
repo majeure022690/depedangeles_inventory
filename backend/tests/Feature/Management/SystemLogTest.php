@@ -376,11 +376,11 @@ class SystemLogTest extends TestCase
             ['getJson', '/api/settings/system-logs/slow-queries/download'],
             ['deleteJson', '/api/settings/system-logs/slow-queries'],
         ];
-        $emailLogOnly = $this->userWithOnly(Permission::EmailLogManage);
+        $auditLogOnly = $this->userWithOnly(Permission::AuditLogView);
         $everythingElse = $this->userWithAllPermissions([Permission::SecuritySettingsManage]);
 
         foreach ($routes as [$method, $uri]) {
-            $this->actingAs($emailLogOnly)->{$method}($uri)->assertForbidden();
+            $this->actingAs($auditLogOnly)->{$method}($uri)->assertForbidden();
             $this->actingAs($everythingElse)->{$method}($uri)->assertForbidden();
         }
 

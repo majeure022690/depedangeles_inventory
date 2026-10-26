@@ -12,6 +12,7 @@ export interface AuthUser {
   name: string
   email: string
   avatar_url: string | null
+  employee_no: string | null
   office_id: number | null
   office?: UserOffice | null
   personnel_id: number | null

@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources\Management;
 
-use App\Enums\Permission;
 use App\Models\Personnel;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -21,8 +20,6 @@ class PersonnelResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $canViewUsers = $request->user()?->hasPermissionTo(Permission::UsersView) ?? false;
-
         return [
             'id' => $this->id,
             'employee_id' => $this->employee_id,
@@ -39,11 +36,6 @@ class PersonnelResource extends JsonResource
             'division_unit' => $this->whenLoaded('sdoOffice', fn () => $this->sdoOffice?->name),
             'office_id' => $this->office_id,
             'office' => $this->whenLoaded('office', fn () => $this->office?->office_name),
-            'user_id' => $this->when($canViewUsers, fn () => $this->user_id),
-            'user' => $this->when($canViewUsers && $this->relationLoaded('user'), fn () => $this->user ? [
-                'id' => $this->user->id,
-                'name' => $this->user->name,
-            ] : null),
             'oic' => $this->oic,
             'oic_office' => $this->oic_office,
             'mobile_1' => $this->mobile_1,

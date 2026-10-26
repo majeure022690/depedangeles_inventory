@@ -66,8 +66,10 @@ class ScopeResolutionTest extends TestCase
         $school = $this->withScopes(DataScope::School);
         $all = $this->withScopes(DataScope::All);
 
-        $ownRecord = Personnel::factory()->create(['user_id' => $own->id]);
-        $schoolRecord = Personnel::factory()->create(['user_id' => $school->id]);
+        $ownRecord = Personnel::factory()->create();
+        $schoolRecord = Personnel::factory()->create();
+        $own->forceFill(['employee_no' => $ownRecord->employee_id])->save();
+        $school->forceFill(['employee_no' => $schoolRecord->employee_id])->save();
         $atSchoolOffice = Personnel::factory()->create(['office_id' => $school->office_id]);
         $atOwnOffice = Personnel::factory()->create(['office_id' => $own->office_id]);
         Personnel::factory()->create(['office_id' => null]);
@@ -81,7 +83,9 @@ class ScopeResolutionTest extends TestCase
     public function test_soft_deleted_linked_record_is_not_reachable(): void
     {
         $user = $this->withScopes(DataScope::Own);
-        Personnel::factory()->create(['user_id' => $user->id])->delete();
+        $record = Personnel::factory()->create();
+        $user->forceFill(['employee_no' => $record->employee_id])->save();
+        $record->delete();
 
         $this->assertSame([], $user->fresh()->scopedPersonnelIds());
     }

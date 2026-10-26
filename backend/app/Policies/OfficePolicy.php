@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Enums\Permission;
 use App\Models\Office;
 use App\Models\User;
+use Illuminate\Auth\Access\Response;
 
 class OfficePolicy
 {
@@ -33,20 +34,24 @@ class OfficePolicy
      * backbone for users/stakeholder_profiles/internet_connectivity_surveys),
      * so a denial here is logged, not just silently 403'd.
      */
-    public function delete(User $user, Office $office): bool
+    public function delete(User $user, Office $office): Response
     {
         $allowed = $user->hasPermissionTo(Permission::OfficeDelete);
 
-        if (! $allowed) {
+        if (! $allowed || $office->isManagedByPrime()) {
             activity()
                 ->causedBy($user)
                 ->performedOn($office)
                 ->event('authorization.denied')
-                ->withProperties(['permission' => Permission::OfficeDelete->value])
+                ->withProperties($allowed ? ['reason' => 'managed_by_prime'] : ['permission' => Permission::OfficeDelete->value])
                 ->log('authorization.denied');
         }
 
-        return $allowed;
+        if (! $allowed) {
+            return Response::deny();
+        }
+
+        return $office->isManagedByPrime() ? Response::deny(__('Managed by PRIME.')) : Response::allow();
     }
 
     public function restore(User $user, Office $office): bool

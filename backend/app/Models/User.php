@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\DataScope;
-use App\Notifications\ResetPasswordNotification;
 use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -35,6 +34,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property CarbonImmutable|null $two_factor_confirmed_at
  * @property string|null $remember_token
  * @property int|null $office_id
+ * @property string|null $employee_no
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read EloquentCollection<int, Role> $roles
@@ -114,7 +114,7 @@ class User extends Authenticatable
      */
     public function personnel(): HasOne
     {
-        return $this->hasOne(Personnel::class);
+        return $this->hasOne(Personnel::class, 'employee_id', 'employee_no');
     }
 
     /**
@@ -130,12 +130,21 @@ class User extends Authenticatable
             return null;
         }
 
-        return $this->scopedPersonnelIds ??= array_values(Personnel::query()
-            ->where(function (Builder $query) use ($scope) {
-                $query->where('user_id', $this->id);
+        $employeeNo = filled($this->employee_no) ? $this->employee_no : null;
+        $officeId = $scope === DataScope::School ? $this->office_id : null;
 
-                if ($scope === DataScope::School && $this->office_id !== null) {
-                    $query->orWhere('office_id', $this->office_id);
+        if ($employeeNo === null && $officeId === null) {
+            return $this->scopedPersonnelIds ??= [];
+        }
+
+        return $this->scopedPersonnelIds ??= array_values(Personnel::query()
+            ->where(function (Builder $query) use ($employeeNo, $officeId) {
+                if ($employeeNo !== null) {
+                    $query->where('employee_id', $employeeNo);
+                }
+
+                if ($officeId !== null) {
+                    $query->orWhere('office_id', $officeId);
                 }
             })
             ->pluck('id')
@@ -191,15 +200,10 @@ class User extends Authenticatable
         return $this->getAllPermissions()->isNotEmpty();
     }
 
-    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
-    {
-        $this->notify(new ResetPasswordNotification($token));
-    }
-
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'email', 'avatar_path', 'office_id', 'is_active'])
+            ->logOnly(['name', 'email', 'avatar_path', 'office_id', 'employee_no', 'is_active'])
             ->logOnlyDirty()
             ->dontLogEmptyChanges();
     }

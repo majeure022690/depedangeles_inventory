@@ -15,10 +15,9 @@ import { Switch } from '@/components/ui/Switch'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useServerTable } from '@/hooks/useServerTable'
-import { hasAllScope } from '@/lib/dataScope'
 import { extractError, extractFieldErrors, isValidationError } from '@/lib/errors'
 import { roleService } from '@/services/roleService'
-import { userService, type UpdateUserPayload } from '@/services/userService'
+import { userService } from '@/services/userService'
 import type { Role } from '@/types/role'
 import type { ManagedUser, UserOptions } from '@/types/user'
 
@@ -35,19 +34,13 @@ function initials(name: string): string {
 }
 
 interface FormState {
-  name: string
-  email: string
-  password: string
-  password_confirmation: string
-  current_password: string
-  office_id: number | null
   is_active: boolean
   role_id: number | null
-  personnel_id: number | null
 }
 
-function emptyForm(): FormState {
-  return { name: '', email: '', password: '', password_confirmation: '', current_password: '', office_id: null, is_active: true, role_id: null, personnel_id: null }
+function officeName(office: ManagedUser['office']): string | null {
+  if (!office) return null
+  return office.school_id ? `${office.office_name} (${office.school_id})` : office.office_name
 }
 
 const emptyFilters = { search: '', role: '', is_active: '', office_id: '' }
@@ -56,9 +49,7 @@ type FilterKey = keyof typeof emptyFilters
 
 export function UserList() {
   usePageTitle('Users')
-  const { can, fetchUser, user: actor } = useAuth()
-  const actorHasAllScope = hasAllScope(actor)
-  const canLinkPersonnel = actorHasAllScope && can('personnel.view') && can('users.edit')
+  const { can, fetchUser } = useAuth()
 
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
@@ -120,58 +111,23 @@ export function UserList() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
 
-  // Create/edit dialog
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<ManagedUser | null>(null)
-  const [form, setForm] = useState<FormState>(emptyForm())
+  const [form, setForm] = useState<FormState>({ is_active: true, role_id: null })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-
   function openEdit(user: ManagedUser) {
     if (!user.can_edit) return
     setEditing(user)
-    setForm({
-      name: user.name,
-      email: user.email,
-      password: '',
-      password_confirmation: '',
-      current_password: '',
-      office_id: user.office_id,
-      is_active: user.is_active,
-      role_id: user.role?.id ?? null,
-      personnel_id: user.personnel_id ?? null,
-    })
+    setForm({ is_active: user.is_active, role_id: user.role?.id ?? null })
     setErrors({})
     setFormError(null)
     setDialogOpen(true)
   }
 
-  // The user's current office may be inactive (not in the options); keep it selectable so editing doesn't silently clear it.
-  // Scoped actors may only assign their own office (or keep the current one).
-  const formOfficeOptions = useMemo(() => {
-    const allowed = actorHasAllScope
-      ? officePickerOptions
-      : officePickerOptions.filter((o) => o.value === String(actor?.office_id) || o.value === String(editing?.office_id))
-    const office = editing?.office
-    if (!office || allowed.some((o) => o.value === String(office.id))) return allowed
-    const label = office.school_id ? `${office.office_name} (${office.school_id})` : office.office_name
-    return [...allowed, { label: `${label} (inactive)`, value: String(office.id) }]
-  }, [actor?.office_id, actorHasAllScope, editing, officePickerOptions])
-
-  const personnelPickerOptions = useMemo(() => {
-    const choices = (options.personnel ?? []).map((person) => ({
-      value: String(person.value),
-      label: person.linked_user_id !== null && person.linked_user_id !== editing?.id ? `${person.label} (linked to another user)` : person.label,
-    }))
-    const current = editing?.personnel
-    if (current && !choices.some((choice) => choice.value === String(current.id))) choices.push({ value: String(current.id), label: current.full_name })
-    return choices
-  }, [editing, options.personnel])
-
   const editingSelf = editing?.is_self === true
-  const needsCurrentPassword = editingSelf && form.email.trim() !== editing?.email
 
   // The user's current role stays selectable even if it is not in the assignable list, so opening the form doesn't blank it.
   const roleChoices = useMemo(() => {
@@ -183,6 +139,7 @@ export function UserList() {
 
   async function handleSave(event: FormEvent) {
     event.preventDefault()
+    if (!editing) return
     if (form.role_id === null) {
       setErrors({ role_id: 'Choose a role.' })
       setFormError('Please correct the highlighted fields.')
@@ -192,26 +149,9 @@ export function UserList() {
     setErrors({})
     setFormError(null)
 
-    const base = {
-      name: form.name,
-      email: form.email,
-      office_id: form.office_id,
-      is_active: form.is_active,
-      role_id: form.role_id,
-      ...(editing && canLinkPersonnel ? { personnel_id: form.personnel_id } : {}),
-    }
-
     try {
-      if (editing) {
-        const payload: UpdateUserPayload & { current_password?: string } = needsCurrentPassword
-          ? { ...base, current_password: form.current_password }
-          : base
-        await userService.update(editing.id, payload)
-        setSuccessMessage(`${form.name} was updated.`)
-      } else {
-        await userService.create({ ...base, password: form.password, password_confirmation: form.password_confirmation })
-        setSuccessMessage(`${form.name} was created. They will set up two-factor authentication on first sign-in.`)
-      }
+      await userService.update(editing.id, { is_active: form.is_active, role_id: form.role_id })
+      setSuccessMessage(`${editing.name} was updated.`)
       setPageError(null)
       setDialogOpen(false)
       await reload()
@@ -339,12 +279,18 @@ export function UserList() {
           )
         },
       }),
-      column.display({
-        id: 'personnel',
-        header: 'Linked personnel',
+      column.accessor('employee_no', {
+        header: 'Employee no.',
+        enableSorting: false,
         cell: ({ row }) => {
-          if (row.original.personnel) return row.original.personnel.full_name
-          return row.original.personnel_id !== null ? <span className="text-gray-600">Linked</span> : <span className="text-gray-500">—</span>
+          const { employee_no: employeeNo, personnel } = row.original
+          if (!employeeNo) return <span className="text-gray-500">—</span>
+          return (
+            <div className="min-w-0">
+              <p className="whitespace-nowrap tabular-nums">{employeeNo}</p>
+              {personnel && <p className="truncate text-xs text-gray-500">{personnel.full_name}</p>}
+            </div>
+          )
         },
       }),
       column.display({
@@ -502,99 +448,36 @@ export function UserList() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent size="lg">
-          <DialogTitle>{editing ? 'Edit User' : 'New User'}</DialogTitle>
-          <DialogDescription>
-            {editing
-              ? 'Each user holds one role, which decides what they can see and do.'
-              : 'Accounts are created by an administrator. The new user sets up two-factor authentication on first sign-in.'}
-          </DialogDescription>
+          <DialogTitle>Edit User</DialogTitle>
+          <DialogDescription>Each user holds one role, which decides what they can see and do.</DialogDescription>
 
           <form onSubmit={handleSave} className="space-y-3" noValidate>
             {formError && <Alert type="error">{formError}</Alert>}
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input
-                label="Name"
-                autoComplete="off"
-                required
-                value={form.name}
-                error={errors.name}
-                readOnly={editing !== null}
-                disabled={editing !== null}
-                hint={editing ? 'User identity is managed by PRIME' : undefined}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              />
-              <Input
-                label="Email"
-                type="email"
-                autoComplete="off"
-                required
-                value={form.email}
-                error={errors.email}
-                readOnly={editing !== null}
-                disabled={editing !== null}
-                hint={editing ? 'User identity is managed by PRIME' : undefined}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              />
-              {needsCurrentPassword && (
-                <Input
-                  label="Current password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={form.current_password}
-                  error={errors.current_password}
-                  hint="Required to change your own email address."
-                  onChange={(e) => setForm((f) => ({ ...f, current_password: e.target.value }))}
-                />
-              )}
-              {!editing && (
-                <>
-                  <Input
-                    label="Password"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    value={form.password}
-                    error={errors.password}
-                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  />
-                  <Input
-                    label="Confirm Password"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    value={form.password_confirmation}
-                    error={errors.password_confirmation}
-                    onChange={(e) => setForm((f) => ({ ...f, password_confirmation: e.target.value }))}
-                  />
-                </>
-              )}
-            </div>
-            {editing && (
-              <p className="text-xs text-gray-500">Passwords are not changed here. A user who lost theirs uses “Forgot password” on the sign-in page.</p>
-            )}
-
-            <SelectPicker
-              label="School / Office"
-              placeholder="No office"
-              options={formOfficeOptions}
-              selectedValue={form.office_id !== null ? String(form.office_id) : null}
-              onSelect={(option) => setForm((f) => ({ ...f, office_id: option ? Number(option.value) : null }))}
-              clearable={actorHasAllScope || !editing || editing.office_id === null}
-              error={errors.office_id}
-            />
-
-            {editing && canLinkPersonnel && (
-              <SelectPicker
-                label="Linked personnel"
-                placeholder="Not linked"
-                options={personnelPickerOptions}
-                selectedValue={form.personnel_id !== null ? String(form.personnel_id) : null}
-                onSelect={(option) => setForm((f) => ({ ...f, personnel_id: option ? Number(option.value) : null }))}
-                error={errors.personnel_id}
-              />
-            )}
+            <dl className="grid gap-3 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm sm:grid-cols-2">
+              <div className="min-w-0">
+                <dt className="text-xs font-medium text-gray-500">Name</dt>
+                <dd className="truncate text-gray-900">{editing?.name}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs font-medium text-gray-500">Email</dt>
+                <dd className="truncate text-gray-900">{editing?.email}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs font-medium text-gray-500">School / Office</dt>
+                <dd className="text-gray-900">{officeName(editing?.office ?? null) ?? <span className="text-gray-500">No office</span>}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs font-medium text-gray-500">Employee no.</dt>
+                <dd className="text-gray-900">
+                  {editing?.employee_no ?? <span className="text-gray-500">None</span>}
+                  {editing?.personnel && <span className="block truncate text-xs text-gray-500">{editing.personnel.full_name}</span>}
+                </dd>
+              </div>
+            </dl>
+            <p className="text-xs text-gray-500">
+              Name, email, office, and employee number come from PRIME. Passwords are managed in PRIME. Users change or recover their password there.
+            </p>
 
             <Select
               id="user-role"
@@ -623,7 +506,7 @@ export function UserList() {
                 Cancel
               </Button>
               <Button type="submit" isLoading={saving}>
-                {editing ? 'Save Changes' : 'Create User'}
+                Save Changes
               </Button>
             </DialogFooter>
           </form>

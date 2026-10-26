@@ -62,6 +62,33 @@ trait RestrictsScopedAssignments
     }
 
     /**
+     * Rejects scoped actors' changes to the given string fields, compared trimmed and as strings.
+     *
+     * @param  array<string, string|null>  $current
+     * @return Closure(Validator): void
+     */
+    protected function lockUnchangedForScopedActors(array $current): Closure
+    {
+        return function (Validator $validator) use ($current): void {
+            if ($this->actorHasAllScope()) {
+                return;
+            }
+
+            foreach ($current as $field => $value) {
+                if (! $this->exists($field) || $validator->errors()->has($field)) {
+                    continue;
+                }
+
+                $input = $this->input($field);
+
+                if (trim(is_scalar($input) ? (string) $input : '') !== trim((string) $value)) {
+                    $validator->errors()->add($field, __('Only users with access to all records can change this.'));
+                }
+            }
+        };
+    }
+
+    /**
      * Scoped actors' new records are forced into their office, so they need one.
      *
      * @return Closure(Validator): void

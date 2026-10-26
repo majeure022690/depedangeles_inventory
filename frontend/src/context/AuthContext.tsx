@@ -34,7 +34,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-const GUEST_ONLY_PATHS = ['/login', '/forgot-password', '/reset-password', '/2fa/setup', '/2fa/verify']
+const GUEST_ONLY_PATHS = ['/login', '/2fa/setup', '/2fa/verify']
 
 const isGuestOnlyPath = (pathname: string) => GUEST_ONLY_PATHS.includes(pathname.replace(/\/+$/, '') || '/')
 

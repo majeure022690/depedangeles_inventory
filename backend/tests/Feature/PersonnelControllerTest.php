@@ -204,8 +204,8 @@ class PersonnelControllerTest extends TestCase
 
     public function test_own_scope_view_only_user_can_read_its_record_but_not_write(): void
     {
-        $reader = $this->userWithPermissions([Permission::PersonnelView], [], DataScope::Own);
-        $person = Personnel::factory()->create(['user_id' => $reader->id]);
+        $person = Personnel::factory()->create();
+        $reader = $this->userWithPermissions([Permission::PersonnelView], ['employee_no' => $person->employee_id], DataScope::Own);
 
         $this->actingAs($reader)->getJson('/api/personnel')->assertOk()->assertJsonPath('data.0.id', $person->id);
         $this->actingAs($reader)->getJson("/api/personnel/{$person->id}")->assertOk();

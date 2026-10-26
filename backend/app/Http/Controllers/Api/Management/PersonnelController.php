@@ -21,7 +21,6 @@ use App\Models\SdoOffice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Audit: create/update/delete rows come from Personnel's LogsActivity.
@@ -56,7 +55,7 @@ class PersonnelController extends Controller
      */
     private const RELATIONS = [
         'personnelPosition:id,name', 'roOffice:id,name', 'sdoOffice:id,name',
-        'office:id,office_name', 'user:id,name',
+        'office:id,office_name',
     ];
 
     /**
@@ -150,10 +149,7 @@ class PersonnelController extends Controller
     {
         $this->authorize('delete', $personnel);
 
-        DB::transaction(function () use ($personnel): void {
-            $personnel->forceFill(['user_id' => null])->save();
-            $personnel->delete();
-        });
+        $personnel->delete();
 
         return response()->noContent();
     }

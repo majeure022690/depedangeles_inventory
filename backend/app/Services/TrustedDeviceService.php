@@ -24,7 +24,6 @@ class TrustedDeviceService
         Permission::UsersResetTwoFactor,
         Permission::SecuritySettingsManage,
         Permission::AuditLogView,
-        Permission::EmailLogManage,
     ];
 
     public function days(User $user): int

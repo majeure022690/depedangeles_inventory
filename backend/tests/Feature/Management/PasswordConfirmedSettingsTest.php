@@ -3,7 +3,6 @@
 namespace Tests\Feature\Management;
 
 use App\Enums\Permission;
-use App\Models\EmailMessage;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -20,8 +19,9 @@ class PasswordConfirmedSettingsTest extends TestCase
         ['PUT', '/api/settings/security', ['setting_key' => 'trusted_device_days', 'value' => 7]],
         ['DELETE', '/api/settings/system-logs/errors', []],
         ['DELETE', '/api/settings/system-logs/slow-queries', []],
-        ['DELETE', '/api/settings/email-log', []],
     ];
+
+    private const AUDITED_EVENTS = ['security_setting.updated', 'system_log.errors_cleared', 'system_log.slow_queries_cleared'];
 
     protected function setUp(): void
     {
@@ -31,9 +31,8 @@ class PasswordConfirmedSettingsTest extends TestCase
 
     public function test_a_user_without_the_permission_gets_403_whatever_the_password_and_no_validation_errors(): void
     {
-        EmailMessage::query()->create(['recipients' => 'a@example.test', 'subject' => 'Hello', 'type' => null, 'status' => EmailMessage::STATUS_SENT]);
         $this->userWithOnly(Permission::EquipmentView);
-        $auditedChanges = Activity::query()->whereIn('event', ['security_setting.updated', 'email_log.cleared'])->count();
+        $auditedChanges = Activity::query()->whereIn('event', self::AUDITED_EVENTS)->count();
 
         foreach (self::ENDPOINTS as [$method, $uri, $payload]) {
             $user = User::factory()->create();
@@ -46,9 +45,8 @@ class PasswordConfirmedSettingsTest extends TestCase
             }
         }
 
-        $this->assertSame(1, EmailMessage::query()->count());
         $this->assertDatabaseMissing('system_settings', ['key' => 'trusted_device_days']);
-        $this->assertSame($auditedChanges, Activity::query()->whereIn('event', ['security_setting.updated', 'email_log.cleared'])->count());
+        $this->assertSame($auditedChanges, Activity::query()->whereIn('event', self::AUDITED_EVENTS)->count());
     }
 
     public function test_the_password_confirm_limit_is_six_per_minute_and_shared_with_the_profile_page(): void
@@ -81,16 +79,17 @@ class PasswordConfirmedSettingsTest extends TestCase
 
     public function test_the_limit_is_per_user(): void
     {
-        $first = $this->userWithOnly(Permission::EmailLogManage);
+        $first = $this->userWithOnly(Permission::SecuritySettingsManage);
         $second = User::factory()->create();
-        $second->assignRole('only-'.Permission::EmailLogManage->value);
+        $second->assignRole('only-'.Permission::SecuritySettingsManage->value);
+        $payload = ['setting_key' => 'trusted_device_days', 'value' => 7];
 
         foreach (range(1, 6) as $ignored) {
-            $this->actingAs($first)->deleteJson('/api/settings/email-log', ['current_password' => 'wrong-password'])->assertUnprocessable();
+            $this->actingAs($first)->putJson('/api/settings/security', $payload + ['current_password' => 'wrong-password'])->assertUnprocessable();
         }
-        $this->actingAs($first)->deleteJson('/api/settings/email-log', ['current_password' => 'password'])->assertTooManyRequests();
+        $this->actingAs($first)->putJson('/api/settings/security', $payload + ['current_password' => 'password'])->assertTooManyRequests();
 
-        $this->actingAs($second)->deleteJson('/api/settings/email-log', ['current_password' => 'password'])->assertOk();
+        $this->actingAs($second)->putJson('/api/settings/security', $payload + ['current_password' => 'password'])->assertOk();
     }
 
     public function test_denied_requests_do_not_spend_the_password_confirm_budget(): void
@@ -113,10 +112,11 @@ class PasswordConfirmedSettingsTest extends TestCase
         Log::forgetChannel('security');
 
         try {
-            $admin = $this->userWithOnly(Permission::EmailLogManage);
+            $admin = $this->userWithOnly(Permission::SecuritySettingsManage);
+            $outsider = $this->userWithOnly(Permission::EquipmentView);
 
-            $this->actingAs($admin)->deleteJson('/api/settings/email-log', ['current_password' => 'Secret-Guess-123'])->assertUnprocessable();
-            $this->actingAs($admin)->putJson('/api/settings/security', ['setting_key' => 'x', 'value' => 1, 'current_password' => 'password'])->assertForbidden();
+            $this->actingAs($admin)->putJson('/api/settings/security', ['setting_key' => 'trusted_device_days', 'value' => 7, 'current_password' => 'Secret-Guess-123'])->assertUnprocessable();
+            $this->actingAs($outsider)->putJson('/api/settings/security', ['setting_key' => 'x', 'value' => 1, 'current_password' => 'password'])->assertForbidden();
 
             $log = (string) file_get_contents($path);
             $this->assertSame(1, substr_count($log, 'Password re-confirmation failed'));

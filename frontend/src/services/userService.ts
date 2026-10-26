@@ -3,17 +3,8 @@ import type { ApiResponse, PaginatedResponse } from '@/types/api'
 import type { ManagedUser, UserOptions } from '@/types/user'
 
 export interface UpdateUserPayload {
-  name: string
-  email: string
-  office_id: number | null
   is_active: boolean
   role_id: number
-  personnel_id?: number | null
-}
-
-export interface StoreUserPayload extends UpdateUserPayload {
-  password: string
-  password_confirmation: string
 }
 
 export const userService = {
@@ -21,7 +12,6 @@ export const userService = {
   options: () => api.get<ApiResponse<UserOptions>>('/users/options').then((r) => r.data.data),
   list: (params: Record<string, string | number>) =>
     api.get<PaginatedResponse<ManagedUser>>('/users', { params }).then((r) => r.data),
-  create: (payload: StoreUserPayload) => api.post<ApiResponse<ManagedUser>>('/users', payload).then((r) => r.data.data),
   update: (id: number, payload: UpdateUserPayload) =>
     api.put<ApiResponse<ManagedUser>>(`/users/${id}`, payload).then((r) => r.data.data),
   remove: (id: number) => api.delete(`/users/${id}`),

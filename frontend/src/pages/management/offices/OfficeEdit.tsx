@@ -122,6 +122,7 @@ export function OfficeEdit() {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-bold text-gray-900">{office.office_name}</h1>
               <Badge color={office.is_active ? 'success' : 'gray'}>{office.is_active ? 'Active' : 'Inactive'}</Badge>
+              {office.managed_by_prime && <Badge color="primary">PRIME</Badge>}
             </div>
             <p className="text-sm text-gray-600">
               {[office.office_type, office.school_id !== null ? `School ID ${office.school_id}` : null].filter(Boolean).join(' · ') ||
@@ -129,7 +130,7 @@ export function OfficeEdit() {
             </p>
           </div>
         </div>
-        {can('office.delete') && (
+        {can('office.delete') && !office.managed_by_prime && (
           <div className="page-actions">
             <Button variant="outline" size="sm" leftIcon={<Trash2 className="h-4 w-4 text-error-600" />} onClick={() => setConfirmDelete(true)}>
               Delete
@@ -156,6 +157,7 @@ export function OfficeEdit() {
           onChange={(patch) => setForm((current) => (current ? { ...current, ...patch } : current))}
           errors={errors}
           disabled={!canEdit || saving}
+          nameLocked={office.managed_by_prime}
         />
 
         {canEdit && (

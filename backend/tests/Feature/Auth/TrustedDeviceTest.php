@@ -110,7 +110,6 @@ class TrustedDeviceTest extends TestCase
             Permission::UsersResetTwoFactor,
             Permission::SecuritySettingsManage,
             Permission::AuditLogView,
-            Permission::EmailLogManage,
         ], TrustedDeviceService::ALWAYS_REQUIRE_CODE);
 
         $roles = [$this->everything];

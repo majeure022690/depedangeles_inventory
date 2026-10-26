@@ -57,6 +57,13 @@ class UserFactory extends Factory
         ]);
     }
 
+    public function withEmployeeNo(string $employeeNo): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'employee_no' => $employeeNo,
+        ]);
+    }
+
     /**
      * Confirmed 2FA enrollment in the rwatch encoding (`encrypted` secret,
      * `encrypted:array` of bcrypt hashes of upper-cased recovery codes).
