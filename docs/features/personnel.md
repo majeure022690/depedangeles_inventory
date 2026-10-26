@@ -19,7 +19,7 @@ Controller: `Api\Management\PersonnelController`. All under `auth:sanctum` + `th
 | Method + path | Route permission | Policy | Request → response |
 |---|---|---|---|
 | `GET /api/personnel?search&status&sort&direction&per_page` | `personnel.view` | `viewAny` | paginated `PersonnelResource`. `status` = `active` (default) / `inactive` / `all`. Sort keys: `employee_id`, `full_name`, `last_name`, `created_at`; default last name, first name. |
-| `GET /api/personnel/options` | `personnel.view` or `.create` or `.edit` | — | `{data: {position, ro_office, sdo_office, name_suffix, cause_of_separation, office, teachers_funding_source, user?}}`: the first three are Tier 1 (id-valued) and the next two Tier 2 (string-valued). `office` lists active offices (id-valued), and `teachers_funding_source` id-valued because it backs the `fund_source` array. `user` (all-scope actors only) is every account as `{value: user id, label: "Name (email)", linked_personnel_id: int\|null}`, so the form can flag accounts already linked elsewhere |
+| `GET /api/personnel/options` | `personnel.view` or `.create` or `.edit` | — | `{data: {position, ro_office, sdo_office, name_suffix, cause_of_separation, office, teachers_funding_source}}`: the first three are Tier 1 (id-valued) and the next two Tier 2 (string-valued). `office` lists active offices (id-valued), and `teachers_funding_source` id-valued because it backs the `fund_source` array. There is no user list: the account link is set from the Users page |
 | `POST /api/personnel` | `personnel.create` | `create` (Form Request) | `StorePersonnelRequest` → `PersonnelResource`, 201 |
 | `GET /api/personnel/{id}` | `personnel.view` | `view` | `PersonnelResource` |
 | `PUT /api/personnel/{id}` | `personnel.edit` | `update` | `UpdatePersonnelRequest` → `PersonnelResource` |
@@ -27,11 +27,11 @@ Controller: `Api\Management\PersonnelController`. All under `auth:sanctum` + `th
 
 The list, single-record endpoints and the dashboard's personnel counts are limited to the user's [data scope](roles-and-permissions.md#data-scope): `own` sees only their linked record, `school` the personnel at their office plus their linked record, `all` everyone.
 
-**Request fields:** required `employee_id` (unique), `last_name`, `first_name`; optional `middle_name`, `suffix` (Tier 2), `position_id`/`ro_office_id`/`sdo_office_id` (active Tier 1 ids), `office_id` (an active office; on update the record's current office is also accepted, so an unchanged value still saves after that office is deactivated), `user_id` (an existing user not linked to another record), `oic`, `oic_office`, `mobile_1`, `mobile_2`, `deped_email`, `personal_email`, `date_hired`, `non_deped_funded`, `fund_source` (array of active library ids), `inactive`, `separation_date`, `separation_cause` (Tier 2), `transferred_from`, `transferred_to`.
+**Request fields:** required `employee_id` (unique), `last_name`, `first_name`; optional `middle_name`, `suffix` (Tier 2), `position_id`/`ro_office_id`/`sdo_office_id` (active Tier 1 ids), `office_id` (an active office; on update the record's current office is also accepted, so an unchanged value still saves after that office is deactivated), `oic`, `oic_office`, `mobile_1`, `mobile_2`, `deped_email`, `personal_email`, `date_hired`, `non_deped_funded`, `fund_source` (array of active library ids), `inactive`, `separation_date`, `separation_cause` (Tier 2), `transferred_from`, `transferred_to`.
 
-**Scoped actors** (`school`; `own` can't create) are restricted by `Concerns\RestrictsScopedAssignments`: only `all`-scope users may set or change `office_id` or `user_id`. On create a scoped actor's `office_id` is forced to their own office (422 on `office_id` if their account has no office) and `user_id` must be empty; on update both must equal the record's current values. A rejected value is a 422 ("Only users with access to all records can change this.").
+**Scoped actors** (`school`; `own` can't create) are restricted by `Concerns\RestrictsScopedAssignments`: only `all`-scope users may set or change `office_id`. On create a scoped actor's `office_id` is forced to their own office (422 on `office_id` if their account has no office); on update it must equal the record's current value. A rejected value is a 422 ("Only users with access to all records can change this.").
 
-**`PersonnelResource`:** every request field, plus `id`, computed `full_name`, `created_at`, `updated_at`, the Tier 1 display names under their historical keys: `position`, `ro_division` (RO office), `division_unit` (SDO office), and `office` (office name), and `user: {id, name, email} | null` (the linked account). Dates as `Y-m-d`.
+**`PersonnelResource`:** every request field, plus `id`, computed `full_name`, `created_at`, `updated_at`, the Tier 1 display names under their historical keys: `position`, `ro_division` (RO office), `division_unit` (SDO office), and `office` (office name). Dates as `Y-m-d`. `user_id` and `user: {id, name} | null` (the linked account) are included only when the requester holds `users.view`; the email is never included. Personnel requests don't accept `user_id`, and a value sent is ignored.
 
 ## Frontend
 
@@ -41,7 +41,7 @@ The list, single-record endpoints and the dashboard's personnel counts are limit
 | `/personnel/new` | `pages/management/personnel/PersonnelCreate.tsx` (`personnel.create`, and scope `school` or `all`) |
 | `/personnel/:id/edit` | `pages/management/personnel/PersonnelEdit.tsx` |
 
-Form body: `components/personnel/PersonnelFields.tsx`; API: `services/personnelService.ts`; types: `types/personnel.ts`. The sidebar and page title follow the scope ("My Record" / "Office Personnel" / "Personnel"); an `own` user's sidebar item opens their linked record directly. Scoped users see the office and user-account fields locked.
+Form body: `components/personnel/PersonnelFields.tsx`; API: `services/personnelService.ts`; types: `types/personnel.ts`. The sidebar and page title follow the scope ("My Record" / "Office Personnel" / "Personnel"); an `own` user's sidebar item opens their linked record directly. Scoped users see the office field locked. When a linked account is in the response, the form shows it as a read-only "Linked user account" line ("Linked from the Users page.").
 
 ## Key files
 
@@ -56,7 +56,7 @@ Form body: `components/personnel/PersonnelFields.tsx`; API: `services/personnelS
 - **`scopeActive()` is independent of soft-deletes** — a record can be `inactive` and not deleted, precisely so its history stays queryable.
 - **Soft delete keeps transaction FKs valid.** Historical Equipment transactions referencing a deleted person still point at an existing row.
 - **No `employee_id = 9999` "unknown" placeholder.** Unknown accountable officer on Equipment is a `null` FK.
-- **`user_id`, not `deped_email`, decides "own".** Personnel editors can change `deped_email`, so matching on it let anyone who could edit an email grant access. Migration `2026_10_26_000002` backfilled `user_id` only where exactly one live Personnel record and exactly one user share an email (case-insensitive); ambiguous matches were left unlinked for an admin to resolve. The link can be set from either side: `user_id` here, or `personnel_id` in the `/users` editor ([roles-and-permissions.md](roles-and-permissions.md#users)).
+- **`user_id`, not `deped_email`, decides "own".** Personnel editors can change `deped_email`, so matching on it let anyone who could edit an email grant access. Migration `2026_10_26_000002` backfilled `user_id` only where exactly one live Personnel record and exactly one user share an email (case-insensitive); ambiguous matches were left unlinked for an admin to resolve. After that, the link can only be changed through `personnel_id` on `PUT /api/users/{id}` ([roles-and-permissions.md](roles-and-permissions.md#users)), which needs `users.edit`, `personnel.view`, scope `all` and the target within the actor's tier, and is audited as `user.personnel_linked`/`user.personnel_unlinked`. Personnel editors can't set it. Changing someone's link changes what they can reach, so it is gated as an account-management action, not as a Personnel edit.
 
 ## Future considerations
 
