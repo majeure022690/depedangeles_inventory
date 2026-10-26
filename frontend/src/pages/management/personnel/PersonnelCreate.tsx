@@ -5,7 +5,9 @@ import { useNavigate } from 'react-router-dom'
 import { PersonnelFields, emptyPersonnelForm } from '@/components/personnel/PersonnelFields'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
+import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { hasAllScope, scopedTitle } from '@/lib/dataScope'
 import { extractError, extractFieldErrors, type FieldErrors } from '@/lib/errors'
 import { personnelService, toPersonnelPayload } from '@/services/personnelService'
 import type { PersonnelFormData, PersonnelOptions } from '@/types/personnel'
@@ -13,6 +15,8 @@ import type { PersonnelFormData, PersonnelOptions } from '@/types/personnel'
 export function PersonnelCreate() {
   usePageTitle('Add Personnel')
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const listTitle = scopedTitle('personnel', user?.data_scope)
 
   const [options, setOptions] = useState<PersonnelOptions | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
@@ -23,7 +27,10 @@ export function PersonnelCreate() {
       .catch((e: unknown) => setOptionsError(extractError(e, 'Unable to load the form options. Please reload the page.')))
   }, [])
 
-  const [form, setForm] = useState<PersonnelFormData>(emptyPersonnelForm)
+  const [form, setForm] = useState<PersonnelFormData>(() => ({
+    ...emptyPersonnelForm(),
+    office_id: hasAllScope(user) ? null : (user?.office_id ?? null),
+  }))
   const [errors, setErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -48,7 +55,7 @@ export function PersonnelCreate() {
   return (
     <div>
       <div className="mb-4 flex items-start gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/personnel')} aria-label="Back to personnel" className="mt-0.5">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/personnel')} aria-label={`Back to ${listTitle.toLowerCase()}`} className="mt-0.5">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>

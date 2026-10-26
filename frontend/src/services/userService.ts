@@ -8,6 +8,7 @@ export interface UpdateUserPayload {
   office_id: number | null
   is_active: boolean
   role_id: number
+  personnel_id?: number | null
 }
 
 export interface StoreUserPayload extends UpdateUserPayload {

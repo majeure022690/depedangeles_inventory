@@ -5,7 +5,9 @@ import { useNavigate } from 'react-router-dom'
 import { EquipmentFields, emptyEquipmentForm } from '@/components/equipment/EquipmentFields'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
+import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { scopedTitle } from '@/lib/dataScope'
 import { extractError, extractFieldErrors, type FieldErrors } from '@/lib/errors'
 import { equipmentService, toEquipmentPayload } from '@/services/equipmentService'
 import type { EquipmentFormData, EquipmentFormOptions } from '@/types/equipment'
@@ -13,6 +15,8 @@ import type { EquipmentFormData, EquipmentFormOptions } from '@/types/equipment'
 export function EquipmentCreate() {
   usePageTitle('Add Equipment')
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const listTitle = scopedTitle('equipment', user?.data_scope)
 
   const [options, setOptions] = useState<EquipmentFormOptions | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
@@ -48,7 +52,7 @@ export function EquipmentCreate() {
   return (
     <div>
       <div className="mb-4 flex items-start gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/equipment')} aria-label="Back to equipment" className="mt-0.5">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/equipment')} aria-label={`Back to ${listTitle.toLowerCase()}`} className="mt-0.5">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>

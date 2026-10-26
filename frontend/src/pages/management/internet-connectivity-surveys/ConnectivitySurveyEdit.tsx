@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError, extractFieldErrors, isValidationError, type FieldErrors } from '@/lib/errors'
-import type { PermissionName } from '@/lib/permissions'
+import { hasAllScope, scopedTitle } from '@/lib/dataScope'
+import { extractError, extractFieldErrors, extractLoadError, isValidationError, OUT_OF_REACH_MESSAGE, type FieldErrors } from '@/lib/errors'
 import { connectivitySurveyFormFrom, connectivitySurveyService } from '@/services/connectivitySurveyService'
 import type { ConnectivitySurveyFormData, ConnectivitySurveyOptions } from '@/types/internet-connectivity-survey'
 import type { ProfileOffice } from '@/types/stakeholder-profile'
@@ -21,11 +21,11 @@ export function ConnectivitySurveyEdit() {
   const { officeId: officeIdParam } = useParams<{ officeId: string }>()
   const officeId = Number(officeIdParam)
   const navigate = useNavigate()
-  const { can } = useAuth()
-  const allowed = (permission: PermissionName) => can(permission)
-  const canViewAll = allowed('internet_connectivity.view_all')
+  const { can, user } = useAuth()
+  const isAll = hasAllScope(user)
+  const heading = isAll ? 'Internet Connectivity Survey' : scopedTitle('internet_connectivity', user?.data_scope)
   // Mirrors InternetConnectivitySurveyPolicy::update(); the server still re-checks the office scope.
-  const canEdit = allowed('internet_connectivity.edit') || canViewAll
+  const canEdit = can('internet_connectivity.edit')
 
   const [office, setOffice] = useState<ProfileOffice | null>(null)
   const [options, setOptions] = useState<ConnectivitySurveyOptions | null>(null)
@@ -38,7 +38,7 @@ export function ConnectivitySurveyEdit() {
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<Feedback>(null)
 
-  usePageTitle(office ? `Internet Connectivity Survey - ${office.office_name}` : 'Internet Connectivity Survey')
+  usePageTitle(office ? `${heading} - ${office.office_name}` : heading)
 
   useEffect(() => {
     let cancelled = false
@@ -54,7 +54,7 @@ export function ConnectivitySurveyEdit() {
         setSavedForm(initial)
       })
       .catch((error: unknown) => {
-        if (!cancelled) setLoadError(extractError(error, 'Unable to load this internet connectivity survey.'))
+        if (!cancelled) setLoadError(extractLoadError(error, 'Unable to load this internet connectivity survey.'))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -67,9 +67,16 @@ export function ConnectivitySurveyEdit() {
   if (loading) return <DetailPageSkeleton />
   if (loadError || !office || !form) {
     return (
-      <Alert type="error">
-        <span role="alert">{loadError ?? 'Internet connectivity survey not found.'}</span>
-      </Alert>
+      <div>
+        {isAll && (
+          <Button variant="ghost" size="sm" onClick={() => navigate('/internet-connectivity-surveys')} aria-label="Back to internet connectivity surveys" className="mb-4">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        )}
+        <Alert type="error">
+          <span role="alert">{loadError ?? OUT_OF_REACH_MESSAGE}</span>
+        </Alert>
+      </div>
     )
   }
 
@@ -108,7 +115,7 @@ export function ConnectivitySurveyEdit() {
   return (
     <div>
       <div className="mb-4 flex min-w-0 items-start gap-3">
-        {canViewAll && (
+        {isAll && (
           <Button
             variant="ghost"
             size="sm"
@@ -123,7 +130,9 @@ export function ConnectivitySurveyEdit() {
           <Signal className="h-6 w-6" />
         </span>
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900">Internet Connectivity Survey — {office.office_name}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {heading} — {office.office_name}
+          </h1>
           <p className="text-sm text-gray-600">ISP availability, mobile connectivity, coverage, and electricity for this school/office.</p>
         </div>
       </div>

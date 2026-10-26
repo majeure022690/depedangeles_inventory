@@ -11,6 +11,7 @@ import { FilterChips, FilterSearch, FilterSelect, type FilterChip } from '@/comp
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useServerTable } from '@/hooks/useServerTable'
+import { scopedTitle } from '@/lib/dataScope'
 import { extractError } from '@/lib/errors'
 import { equipmentService } from '@/services/equipmentService'
 import { optionLabel } from '@/services/lookupService'
@@ -25,10 +26,11 @@ const EMPTY_FILTERS = { search: '', condition: '', category: '', disposition_sta
 type FilterKey = keyof typeof EMPTY_FILTERS
 
 export function EquipmentList() {
-  usePageTitle('Equipment')
+  const { can, user } = useAuth()
+  const title = scopedTitle('equipment', user?.data_scope)
+  usePageTitle(title)
   const navigate = useNavigate()
   const location = useLocation()
-  const { can } = useAuth()
   const canCreate = can('equipment.create')
   const canEdit = can('equipment.edit')
   const canDelete = can('equipment.delete')
@@ -210,7 +212,7 @@ export function EquipmentList() {
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Equipment</h1>
+          <h1 className="text-xl font-bold text-gray-900">{title}</h1>
           <p className="text-sm text-gray-600">Manage ICT equipment and asset records.</p>
         </div>
         {canCreate && (

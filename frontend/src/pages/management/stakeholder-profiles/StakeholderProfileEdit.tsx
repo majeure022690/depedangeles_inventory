@@ -16,8 +16,8 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError, extractFieldErrors, isValidationError, type FieldErrors } from '@/lib/errors'
-import type { PermissionName } from '@/lib/permissions'
+import { hasAllScope, scopedTitle } from '@/lib/dataScope'
+import { extractError, extractFieldErrors, extractLoadError, isValidationError, OUT_OF_REACH_MESSAGE, type FieldErrors } from '@/lib/errors'
 import { stakeholderProfileFormFrom, stakeholderProfileService } from '@/services/stakeholderProfileService'
 import type { ProfileOffice, StakeholderProfile, StakeholderProfileFormData, StakeholderProfileOptions } from '@/types/stakeholder-profile'
 
@@ -29,11 +29,11 @@ export function StakeholderProfileEdit() {
   const { officeId: officeIdParam } = useParams<{ officeId: string }>()
   const officeId = Number(officeIdParam)
   const navigate = useNavigate()
-  const { can } = useAuth()
-  const allowed = (permission: PermissionName) => can(permission)
-  const canViewAll = allowed('stakeholder_profile.view_all')
+  const { can, user } = useAuth()
+  const isAll = hasAllScope(user)
+  const heading = isAll ? 'Stakeholder Profile' : scopedTitle('stakeholder_profile', user?.data_scope)
   // Mirrors StakeholderProfilePolicy::update(); the server still re-checks the office scope.
-  const canEdit = allowed('stakeholder_profile.edit') || canViewAll
+  const canEdit = can('stakeholder_profile.edit')
 
   const [office, setOffice] = useState<ProfileOffice | null>(null)
   const [profile, setProfile] = useState<StakeholderProfile | null>(null)
@@ -48,7 +48,7 @@ export function StakeholderProfileEdit() {
   const [feedback, setFeedback] = useState<Feedback>(null)
   const [section, setSection] = useState<SectionId>('location')
 
-  usePageTitle(office ? `Stakeholder Profile - ${office.office_name}` : 'Stakeholder Profile')
+  usePageTitle(office ? `${heading} - ${office.office_name}` : heading)
 
   useEffect(() => {
     let cancelled = false
@@ -65,7 +65,7 @@ export function StakeholderProfileEdit() {
         setSavedForm(initial)
       })
       .catch((error: unknown) => {
-        if (!cancelled) setLoadError(extractError(error, 'Unable to load this stakeholder profile.'))
+        if (!cancelled) setLoadError(extractLoadError(error, 'Unable to load this stakeholder profile.'))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -94,9 +94,16 @@ export function StakeholderProfileEdit() {
   if (loading) return <DetailPageSkeleton />
   if (loadError || !office || !profile || !form) {
     return (
-      <Alert type="error">
-        <span role="alert">{loadError ?? 'Stakeholder profile not found.'}</span>
-      </Alert>
+      <div>
+        {isAll && (
+          <Button variant="ghost" size="sm" onClick={() => navigate('/stakeholder-profiles')} aria-label="Back to stakeholder profiles" className="mb-4">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        )}
+        <Alert type="error">
+          <span role="alert">{loadError ?? OUT_OF_REACH_MESSAGE}</span>
+        </Alert>
+      </div>
     )
   }
 
@@ -147,7 +154,7 @@ export function StakeholderProfileEdit() {
   return (
     <div>
       <div className="mb-4 flex min-w-0 items-start gap-3">
-        {canViewAll && (
+        {isAll && (
           <Button
             variant="ghost"
             size="sm"
@@ -162,7 +169,9 @@ export function StakeholderProfileEdit() {
           <School className="h-6 w-6" />
         </span>
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900">Stakeholder Profile — {office.office_name}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {heading} — {office.office_name}
+          </h1>
           <p className="text-sm text-gray-600">Identity, location, contacts, and community context for this school/office.</p>
         </div>
       </div>

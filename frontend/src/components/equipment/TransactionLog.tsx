@@ -79,8 +79,13 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
       setForm(emptyTransaction())
       onRecorded(response.message)
     } catch (error) {
-      setErrors(extractFieldErrors(error))
-      setFormError(extractError(error, 'Unable to record the transaction. Please try again.'))
+      const fieldErrors = extractFieldErrors(error)
+      setErrors(fieldErrors)
+      setFormError(
+        Object.keys(fieldErrors).length > 1
+          ? 'Some fields need attention. Check the messages below.'
+          : extractError(error, 'Unable to record the transaction. Please try again.'),
+      )
     } finally {
       setSaving(false)
     }
@@ -157,7 +162,9 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={submit} noValidate>
-              {formError && <Alert type="error">{formError}</Alert>}
+              <div role="alert" className="empty:hidden">
+                {formError && <Alert type="error">{formError}</Alert>}
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 {selectField(
                   'transaction_type',

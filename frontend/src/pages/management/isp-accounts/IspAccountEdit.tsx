@@ -13,7 +13,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { TabPanel, Tabs } from '@/components/ui/Tabs'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError, extractFieldErrors, isValidationError, type FieldErrors } from '@/lib/errors'
+import { extractError, extractFieldErrors, extractLoadError, isValidationError, OUT_OF_REACH_MESSAGE, type FieldErrors } from '@/lib/errors'
 import type { PermissionName } from '@/lib/permissions'
 import { ispAccountFormFrom, ispAccountService } from '@/services/ispAccountService'
 import type { IspAccount, IspAccountFormData, IspAccountOptions } from '@/types/isp-account'
@@ -65,7 +65,7 @@ export function IspAccountEdit() {
         setSavedForm(initial)
       })
       .catch((error: unknown) => {
-        if (!cancelled) setLoadError(extractError(error, 'Unable to load this ISP account.'))
+        if (!cancelled) setLoadError(extractLoadError(error, 'Unable to load this ISP account.'))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -78,9 +78,14 @@ export function IspAccountEdit() {
   if (loading) return <DetailPageSkeleton />
   if (loadError || !account || !form) {
     return (
-      <Alert type="error">
-        <span role="alert">{loadError ?? 'ISP account not found.'}</span>
-      </Alert>
+      <div>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/isp-accounts')} aria-label="Back to ISP accounts">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <Alert type="error" className="mt-4">
+          <span role="alert">{loadError ?? OUT_OF_REACH_MESSAGE}</span>
+        </Alert>
+      </div>
     )
   }
 
@@ -160,7 +165,7 @@ export function IspAccountEdit() {
         <form noValidate onSubmit={handleSubmit} aria-label="ISP account details">
           <Card>
             <CardContent className="p-0">
-              <IspAccountFields form={form} onChange={setField} options={options?.form ?? null} errors={errors} disabled={!canEdit || saving} />
+              <IspAccountFields form={form} onChange={setField} options={options?.form ?? null} errors={errors} disabled={!canEdit || saving} current={account} />
             </CardContent>
             {canEdit && (
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-3">

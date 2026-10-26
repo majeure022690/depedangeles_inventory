@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/DataGrid'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/Dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { FilterSearch } from '@/components/ui/FilterControls'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -15,6 +15,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { Textarea } from '@/components/ui/Textarea'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { scopeWithin } from '@/lib/dataScope'
 import { extractError, extractFieldErrors, isValidationError } from '@/lib/errors'
 import type { PermissionInfo } from '@/lib/permissions'
 import { permissionService, roleService, type RolePayload } from '@/services/roleService'
@@ -26,7 +27,7 @@ const emptyForm: RolePayload = { name: '', label: '', description: '', data_scop
 
 export function RoleList() {
   usePageTitle('Roles')
-  const { can, fetchUser } = useAuth()
+  const { can, fetchUser, user } = useAuth()
 
   const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<PermissionInfo[]>([])
@@ -74,6 +75,11 @@ export function RoleList() {
     const existing = new Set(editing?.permissions ?? [])
     return (permission: string) => can(permission) || existing.has(permission)
   }, [can, editing])
+
+  const scopeChoices = useMemo(
+    () => DATA_SCOPE_OPTIONS.filter((option) => scopeWithin(option.value, user?.data_scope) || option.value === editing?.data_scope),
+    [user?.data_scope, editing?.data_scope],
+  )
 
   function openCreate() {
     setEditing(null)
@@ -319,76 +325,86 @@ export function RoleList() {
       />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent size="xl">
-          <DialogTitle>{readOnly ? 'View Role' : editing ? 'Edit Role' : 'New Role'}</DialogTitle>
-          <DialogDescription>
-            {readOnly
-              ? 'What people with this role can see and do. You can view roles but not change them.'
-              : 'Pick what people with this role can see and do. Which school or office they belong to is set on each user account.'}
-          </DialogDescription>
+        <DialogContent size="xl" className="flex flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="shrink-0 border-b border-gray-200 py-4 pl-6 pr-12">
+            <DialogTitle>{readOnly ? 'View Role' : editing ? 'Edit Role' : 'New Role'}</DialogTitle>
+            <DialogDescription>
+              {readOnly
+                ? 'What people with this role can see and do. You can view roles but not change them.'
+                : 'Pick what people with this role can see and do. Which school or office they belong to is set on each user account.'}
+            </DialogDescription>
+          </DialogHeader>
 
-          <form onSubmit={handleSave} className="space-y-3" noValidate>
-            {formError && <Alert type="error">{formError}</Alert>}
+          <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col" noValidate>
+            <div
+              role="region"
+              aria-label="Role details"
+              tabIndex={readOnly ? 0 : undefined}
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500"
+            >
+              {formError && <Alert type="error">{formError}</Alert>}
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input
-                label="Display Label"
-                required
-                value={form.label}
-                error={errors.label}
-                disabled={readOnly}
-                onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
-              />
-              <Input
-                label="Name (key)"
-                required
-                autoComplete="off"
-                value={form.name}
-                error={errors.name}
-                disabled={readOnly || isProtected}
-                hint={isProtected ? "This role's name is fixed and cannot be changed." : 'Lowercase letters, numbers, dashes and underscores only.'}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              />
-            </div>
-            <Textarea
-              label="Description"
-              rows={2}
-              value={form.description ?? ''}
-              error={errors.description}
-              disabled={readOnly}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-            />
-            <Select
-              label="Data scope"
-              options={DATA_SCOPE_OPTIONS}
-              value={form.data_scope}
-              error={errors.data_scope}
-              disabled={readOnly || isProtected}
-              hint={isProtected ? 'This role always reaches all records.' : "Which records this role's permissions apply to: items issued to the user, their school, or everything."}
-              onChange={(e) => setForm((f) => ({ ...f, data_scope: e.target.value as DataScope }))}
-            />
-
-            {detailLoading ? (
-              <div className="flex min-h-48 items-center justify-center" role="status" aria-label="Loading permissions">
-                <Spinner />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  label="Display Label"
+                  required
+                  value={form.label}
+                  error={errors.label}
+                  disabled={readOnly}
+                  onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
+                />
+                <Input
+                  label="Name (key)"
+                  required
+                  autoComplete="off"
+                  value={form.name}
+                  error={errors.name}
+                  disabled={readOnly || isProtected}
+                  hint={isProtected ? "This role's name is fixed and cannot be changed." : 'Lowercase letters, numbers, dashes and underscores only.'}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                />
               </div>
-            ) : (
-              <PermissionPicker
-                available={permissions}
-                value={form.permissions}
-                onChange={(next) => setForm((f) => ({ ...f, permissions: next }))}
-                canGrant={canGrant}
-                locked={readOnly || isProtected}
-                lockedMessage={
-                  isProtected
-                    ? 'Protected role: it always has every permission and its name cannot be changed.'
-                    : 'You can view this role but not change its permissions.'
-                }
+              <Textarea
+                label="Description"
+                rows={2}
+                value={form.description ?? ''}
+                error={errors.description}
+                disabled={readOnly}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               />
-            )}
-            {errors.permissions && <Alert type="error">{errors.permissions}</Alert>}
+              <Select
+                id="role-data-scope"
+                label="Data scope"
+                options={scopeChoices}
+                value={form.data_scope}
+                error={errors.data_scope}
+                disabled={readOnly || isProtected}
+                hint={isProtected ? 'This role always reaches all records.' : "Which records this role's permissions reach: the user's own records, everything at the user's office, or all records."}
+                onChange={(e) => setForm((f) => ({ ...f, data_scope: e.target.value as DataScope }))}
+              />
 
-            <DialogFooter>
+              {detailLoading ? (
+                <div className="flex min-h-48 items-center justify-center" role="status" aria-label="Loading permissions">
+                  <Spinner />
+                </div>
+              ) : (
+                <PermissionPicker
+                  available={permissions}
+                  value={form.permissions}
+                  onChange={(next) => setForm((f) => ({ ...f, permissions: next }))}
+                  canGrant={canGrant}
+                  locked={readOnly || isProtected}
+                  lockedMessage={
+                    isProtected
+                      ? 'Protected role: it always has every permission and its name cannot be changed.'
+                      : 'You can view this role but not change its permissions.'
+                  }
+                />
+              )}
+              {errors.permissions && <Alert type="error">{errors.permissions}</Alert>}
+            </div>
+
+            <DialogFooter className="shrink-0 border-t border-gray-200 px-6 py-4">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 {readOnly ? 'Close' : 'Cancel'}
               </Button>

@@ -3,6 +3,8 @@ import { CheckboxField, FormField } from '@/components/forms/FormField'
 import { FormSection } from '@/components/forms/FormSection'
 import { Input } from '@/components/ui/Input'
 import { Select, type SelectOption } from '@/components/ui/Select'
+import { useAuth } from '@/context/AuthContext'
+import { hasAllScope, SCOPE_LOCK_HINT } from '@/lib/dataScope'
 import type { FieldErrors } from '@/lib/errors'
 import { withCurrentOption } from '@/lib/options'
 import type { Personnel, PersonnelFormData, PersonnelOptions } from '@/types/personnel'
@@ -78,6 +80,16 @@ interface PersonnelFieldsProps {
 
 /** Port of the old `personnel/Partials/Form.vue`; shared by the create and edit pages. */
 export function PersonnelFields({ value, onChange, options, errors, disabled = false, current }: PersonnelFieldsProps) {
+  const { user, can } = useAuth()
+  const scopeLocked = !hasAllScope(user)
+
+  const officeList =
+    scopeLocked && value.office_id !== null && value.office_id === user?.office_id && current?.office_id !== value.office_id
+      ? withCurrentOption(options?.office, value.office_id, user?.office?.office_name)
+      : options?.office
+
+  const linkedUser = can('users.view') ? current?.user : null
+
   function set<K extends keyof PersonnelFormData>(key: K, next: PersonnelFormData[K]) {
     onChange({ ...value, [key]: next })
   }
@@ -124,16 +136,22 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
     )
   }
 
-  function idSelect(key: IdKey, label: string, list: SelectOption[] | undefined, currentLabel: string | null | undefined) {
+  function idSelect(
+    key: IdKey,
+    label: string,
+    list: SelectOption[] | undefined,
+    currentLabel: string | null | undefined,
+    locked = false,
+  ) {
     const selected = value[key]
     return (
-      <FormField id={key} label={label} error={errors[key]}>
+      <FormField id={key} label={label} error={errors[key]} note={locked && !disabled ? SCOPE_LOCK_HINT : undefined}>
         {(aria) => (
           <Select
             id={key}
             name={key}
             value={selected ?? ''}
-            disabled={disabled || !options}
+            disabled={disabled || locked || !options}
             options={withCurrentOption(list, selected, current?.[key] === selected ? currentLabel : null)}
             placeholder="None"
             onChange={(e) => set(key, e.target.value === '' ? null : Number(e.target.value))}
@@ -158,7 +176,14 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
         {idSelect('position_id', 'Position (optional)', options?.position, current?.position)}
         {idSelect('ro_office_id', 'RO division (optional)', options?.ro_office, current?.ro_division)}
         {idSelect('sdo_office_id', 'Division/unit (optional)', options?.sdo_office, current?.division_unit)}
-        {idSelect('office_id', 'School/office (optional)', options?.office, current?.office)}
+        {idSelect('office_id', 'School/office (optional)', officeList, current?.office, scopeLocked)}
+        {linkedUser && (
+          <div className="min-w-0">
+            <p className="mb-1 text-sm font-medium text-gray-700">Linked user account</p>
+            <p className="text-sm text-gray-900">{linkedUser.name}</p>
+            <p className="mt-1 text-xs text-gray-500">Linked from the Users page.</p>
+          </div>
+        )}
         <CheckboxField id="oic" label="Officer-in-charge (OIC)" checked={value.oic} disabled={disabled} error={errors.oic} onChange={(checked) => set('oic', checked)} />
         {value.oic && text('oic_office', 'OIC office (optional)', { className: 'sm:col-span-2' })}
       </FormSection>

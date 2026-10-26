@@ -22,6 +22,8 @@ export interface Personnel {
   division_unit: string | null
   office_id: number | null
   office: string | null
+  user_id?: number | null
+  user?: { id: number; name: string } | null
   oic: boolean
   oic_office: string | null
   mobile_1: string | null

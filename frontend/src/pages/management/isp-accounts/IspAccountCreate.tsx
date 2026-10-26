@@ -6,7 +6,9 @@ import { IspAccountFields } from '@/components/isp-accounts/IspAccountFields'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
+import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { hasAllScope } from '@/lib/dataScope'
 import { extractError, extractFieldErrors, isValidationError, type FieldErrors } from '@/lib/errors'
 import { emptyIspAccountForm, ispAccountService } from '@/services/ispAccountService'
 import type { IspAccountFormData, IspAccountOptions } from '@/types/isp-account'
@@ -14,10 +16,14 @@ import type { IspAccountFormData, IspAccountOptions } from '@/types/isp-account'
 export function IspAccountCreate() {
   usePageTitle('Add ISP account')
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   const [options, setOptions] = useState<IspAccountOptions | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
-  const [form, setForm] = useState<IspAccountFormData>(emptyIspAccountForm)
+  const [form, setForm] = useState<IspAccountFormData>(() => ({
+    ...emptyIspAccountForm(),
+    office_id: !hasAllScope(user) && typeof user?.office_id === 'number' ? String(user.office_id) : '',
+  }))
   const [errors, setErrors] = useState<FieldErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)

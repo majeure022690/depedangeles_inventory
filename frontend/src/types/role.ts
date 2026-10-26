@@ -2,7 +2,7 @@ export type DataScope = 'own' | 'school' | 'all'
 
 export const DATA_SCOPE_OPTIONS: { value: DataScope; label: string }[] = [
   { value: 'own', label: 'Own records only' },
-  { value: 'school', label: 'Own school' },
+  { value: 'school', label: 'Own office' },
   { value: 'all', label: 'All records' },
 ]
 

@@ -15,6 +15,17 @@ export function extractError(error: unknown, fallback = 'Something went wrong. P
   return fallback
 }
 
+export const OUT_OF_REACH_MESSAGE = 'Record not found or outside your access.'
+
+export function isNotFound(error: unknown): boolean {
+  return isAxiosError(error) && error.response?.status === 404
+}
+
+/** For detail-page loads: a 404 (missing, or outside the user's data scope) gets one neutral message. */
+export function extractLoadError(error: unknown, fallback: string): string {
+  return isNotFound(error) ? OUT_OF_REACH_MESSAGE : extractError(error, fallback)
+}
+
 export const TOO_MANY_ATTEMPTS_MESSAGE = 'Too many attempts. Please wait a minute and try again.'
 
 export function isTooManyRequests(error: unknown): boolean {

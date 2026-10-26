@@ -14,7 +14,8 @@ import { DetailSection } from '@/components/ui/DetailSection'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { extractError, extractFieldErrors, type FieldErrors } from '@/lib/errors'
+import { scopedTitle } from '@/lib/dataScope'
+import { extractError, extractFieldErrors, extractLoadError, isNotFound, OUT_OF_REACH_MESSAGE, type FieldErrors } from '@/lib/errors'
 import { equipmentService, toEquipmentPayload } from '@/services/equipmentService'
 import type { Equipment, EquipmentFormData, EquipmentOptions } from '@/types/equipment'
 
@@ -22,7 +23,8 @@ export function EquipmentEdit() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const { can } = useAuth()
+  const { can, user } = useAuth()
+  const listTitle = scopedTitle('equipment', user?.data_scope)
   const canEdit = can('equipment.edit')
   const canDelete = can('equipment.delete')
   const canRecord = can('equipment.transactions.create')
@@ -41,7 +43,7 @@ export function EquipmentEdit() {
 
   // Property no. is null while pending official issuance; never show the literal "null".
   const displayPropertyNo = equipment?.property_no ?? 'Pending property no.'
-  usePageTitle(equipment ? `${canEdit ? 'Edit' : 'Equipment'} ${displayPropertyNo}` : 'Equipment')
+  usePageTitle(equipment ? `${canEdit ? 'Edit' : 'Equipment'} ${displayPropertyNo}` : listTitle)
 
   useEffect(() => {
     if (location.state) navigate(location.pathname, { replace: true, state: null })
@@ -54,7 +56,11 @@ export function EquipmentEdit() {
       setForm(equipmentToForm(record))
       setLoadError(null)
     } catch (e) {
-      setLoadError(extractError(e, 'Unable to load this equipment record.'))
+      if (isNotFound(e)) {
+        setEquipment(null)
+        setForm(null)
+      }
+      setLoadError(extractLoadError(e, 'Unable to load this equipment record.'))
     }
   }, [id])
 
@@ -118,11 +124,11 @@ export function EquipmentEdit() {
   if (!equipment || !form) {
     return (
       <div>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/equipment')} aria-label="Back to equipment">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/equipment')} aria-label={`Back to ${listTitle.toLowerCase()}`}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <Alert type="error" className="mt-4">
-          {loadError ?? 'This equipment record could not be found.'}
+          {loadError ?? OUT_OF_REACH_MESSAGE}
         </Alert>
       </div>
     )
@@ -132,7 +138,7 @@ export function EquipmentEdit() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/equipment')} aria-label="Back to equipment" className="mt-0.5">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/equipment')} aria-label={`Back to ${listTitle.toLowerCase()}`} className="mt-0.5">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0">

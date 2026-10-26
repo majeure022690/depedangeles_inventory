@@ -34,6 +34,7 @@ function fromDatetimeLocal(value: string): string | null {
 export function emptyIspAccountForm(): IspAccountFormData {
   return {
     isp_provider_id: '',
+    office_id: '',
     cost_per_month: '',
     isp_billing_account_no: '',
     package_purchased_inclusion: '',
@@ -66,6 +67,7 @@ const str = (value: number | string | null | undefined) => (value === null || va
 export function ispAccountFormFrom(account: IspAccount): IspAccountFormData {
   return {
     isp_provider_id: str(account.isp_provider_id),
+    office_id: str(account.office_id),
     cost_per_month: str(account.cost_per_month),
     isp_billing_account_no: account.isp_billing_account_no ?? '',
     package_purchased_inclusion: account.package_purchased_inclusion ?? '',
@@ -96,6 +98,7 @@ export function ispAccountFormFrom(account: IspAccount): IspAccountFormData {
 function accountPayload(form: IspAccountFormData) {
   return {
     isp_provider_id: numeric(form.isp_provider_id),
+    office_id: numeric(form.office_id),
     cost_per_month: numeric(form.cost_per_month),
     isp_billing_account_no: text(form.isp_billing_account_no),
     package_purchased_inclusion: text(form.package_purchased_inclusion),

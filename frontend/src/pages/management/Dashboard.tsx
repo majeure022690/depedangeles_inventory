@@ -317,7 +317,13 @@ function RecentTransactions({ entries }: { entries: DashboardRecentTransaction[]
 
 export function Dashboard() {
   usePageTitle('Dashboard')
-  const { user } = useAuth()
+  const { user, can } = useAuth()
+  const scopeNotice =
+    user?.data_scope === 'own' && user.personnel_id === null && (can('personnel.view') || can('equipment.view'))
+      ? "Your account isn't linked to a personnel record yet. Contact your administrator."
+      : user?.data_scope === 'school' && user.office_id === null
+        ? "Your account isn't assigned to an office yet. Contact your administrator."
+        : null
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -362,6 +368,7 @@ export function Dashboard() {
       </div>
 
       {error && <Alert type="error">{error}</Alert>}
+      {scopeNotice && <Alert type="warning">{scopeNotice}</Alert>}
 
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-busy="true" aria-label="Loading dashboard">

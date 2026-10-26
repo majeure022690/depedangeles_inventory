@@ -11,6 +11,7 @@ import { FilterChips, FilterSearch, FilterSelect, type FilterChip } from '@/comp
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useServerTable } from '@/hooks/useServerTable'
+import { scopedTitle } from '@/lib/dataScope'
 import { extractError } from '@/lib/errors'
 import { personnelService } from '@/services/personnelService'
 import type { Personnel, PersonnelStatusFilter } from '@/types/personnel'
@@ -29,11 +30,12 @@ const DEFAULT_FILTERS: { search: string; status: PersonnelStatusFilter } = { sea
 type FilterKey = keyof typeof DEFAULT_FILTERS
 
 export function PersonnelList() {
-  usePageTitle('Personnel')
+  const { can, user } = useAuth()
+  const title = scopedTitle('personnel', user?.data_scope)
+  usePageTitle(title)
   const navigate = useNavigate()
   const location = useLocation()
-  const { can } = useAuth()
-  const canCreate = can('personnel.create')
+  const canCreate = can('personnel.create') && user?.data_scope !== 'own'
   const canEdit = can('personnel.edit')
   const canDelete = can('personnel.delete')
 
@@ -176,7 +178,7 @@ export function PersonnelList() {
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Personnel</h1>
+          <h1 className="text-xl font-bold text-gray-900">{title}</h1>
           <p className="text-sm text-gray-600">Manage division personnel records.</p>
         </div>
         {canCreate && (

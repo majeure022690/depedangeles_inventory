@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/DataGrid'
 import { FilterChips, FilterSearch, type FilterChip } from '@/components/ui/FilterControls'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { scopedTitle } from '@/lib/dataScope'
 import { useServerTable } from '@/hooks/useServerTable'
 import { formatDateTime } from '@/lib/utils'
 import { connectivitySurveyService } from '@/services/connectivitySurveyService'
@@ -14,9 +15,10 @@ import type { ConnectivitySurveyOfficeRow } from '@/types/internet-connectivity-
 
 const column = gridColumnHelper<ConnectivitySurveyOfficeRow>()
 
-/** Cross-office admin list (`internet_connectivity.view_all`): one survey per office. */
+/** Cross-office list for all-records scope: one survey per office. */
 export function ConnectivitySurveyList() {
-  usePageTitle('Internet Connectivity Survey')
+  const title = scopedTitle('internet_connectivity', 'all')
+  usePageTitle(title)
   const navigate = useNavigate()
 
   const [search, setSearch] = useState('')
@@ -83,7 +85,7 @@ export function ConnectivitySurveyList() {
   return (
     <div>
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">Internet Connectivity Survey</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
         <p className="text-sm text-gray-600">
           Every school and division-level office&rsquo;s internet connectivity survey — one per office, filled in by that office&rsquo;s own users.
         </p>

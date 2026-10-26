@@ -28,20 +28,16 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { useAuth } from '@/context/AuthContext'
 import { usePortalTheme } from '@/hooks/usePortalTheme'
 import { BRANDING as branding } from '@/lib/branding'
+import { officeRecordPath, scopedTitle } from '@/lib/dataScope'
 import { SETTINGS_PERMISSIONS, type PermissionName } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import type { AuthUser } from '@/types/auth'
 
-type Can = (permission: PermissionName) => boolean
-
 interface NavItem {
-  title: string
-  /**
-   * Either a fixed path, or a function of the signed-in user for the
-   * office-scoped items: it returns the path to link to, or null to hide the
-   * item (e.g. an office-scoped permission holder with no office assigned).
-   */
-  to: string | ((user: AuthUser, can: Can) => string | null)
+  /** Fixed, or derived from the signed-in user for the scope-aware items. */
+  title: string | ((user: AuthUser) => string)
+  /** Fixed, or derived from the signed-in user; null hides the item. */
+  to: string | ((user: AuthUser) => string | null)
   icon: LucideIcon
   /** Text color class for the icon specifically — stays on the icon even
       when the row is active, so the rail reads as a set of distinct
@@ -56,17 +52,9 @@ interface NavGroup {
   items: NavItem[]
 }
 
-/**
- * Office-scoped records (one row per office): cross-office admins (`view_all`)
- * get the all-offices list; an office-scoped user (`view` plus their own
- * `office_id`) goes straight to their own office's record.
- */
-function officeScopedPath(base: string, viewAll: PermissionName, view: PermissionName) {
-  return (user: AuthUser, can: Can): string | null => {
-    if (can(viewAll)) return base
-    if (can(view) && typeof user.office_id === 'number') return `${base}/${user.office_id}`
-    return null
-  }
+function personnelPath(user: AuthUser): string | null {
+  if (user.data_scope !== 'own') return '/personnel'
+  return typeof user.personnel_id === 'number' ? `/personnel/${user.personnel_id}/edit` : null
 }
 
 const navGroups: NavGroup[] = [
@@ -77,8 +65,20 @@ const navGroups: NavGroup[] = [
   {
     title: 'Records',
     items: [
-      { title: 'Personnel', to: '/personnel', icon: Users, color: 'text-violet-500', permission: 'personnel.view' },
-      { title: 'Equipment', to: '/equipment', icon: Monitor, color: 'text-sky-500', permission: 'equipment.view' },
+      {
+        title: (user) => scopedTitle('personnel', user.data_scope),
+        to: personnelPath,
+        icon: Users,
+        color: 'text-violet-500',
+        permission: 'personnel.view',
+      },
+      {
+        title: (user) => scopedTitle('equipment', user.data_scope),
+        to: '/equipment',
+        icon: Monitor,
+        color: 'text-sky-500',
+        permission: 'equipment.view',
+      },
       { title: 'ISP Accounts', to: '/isp-accounts', icon: Wifi, color: 'text-emerald-600', permission: 'isp_accounts.view' },
     ],
   },
@@ -86,18 +86,18 @@ const navGroups: NavGroup[] = [
     title: 'Office Profiles',
     items: [
       {
-        title: 'Stakeholder Profile',
-        to: officeScopedPath('/stakeholder-profiles', 'stakeholder_profile.view_all', 'stakeholder_profile.view'),
+        title: (user) => scopedTitle('stakeholder_profile', user.data_scope),
+        to: (user) => officeRecordPath('/stakeholder-profiles', user),
         icon: School,
         color: 'text-amber-600',
-        permission: ['stakeholder_profile.view', 'stakeholder_profile.view_all'],
+        permission: 'stakeholder_profile.view',
       },
       {
-        title: 'Internet Connectivity',
-        to: officeScopedPath('/internet-connectivity-surveys', 'internet_connectivity.view_all', 'internet_connectivity.view'),
+        title: (user) => scopedTitle('internet_connectivity', user.data_scope),
+        to: (user) => officeRecordPath('/internet-connectivity-surveys', user),
         icon: Signal,
         color: 'text-teal-600',
-        permission: ['internet_connectivity.view', 'internet_connectivity.view_all'],
+        permission: 'internet_connectivity.view',
       },
     ],
   },
@@ -183,7 +183,11 @@ export function ManagementLayout() {
       ...group,
       items: group.items
         .filter((item) => !item.permission || (Array.isArray(item.permission) ? item.permission.some((p) => can(p)) : can(item.permission)))
-        .map((item) => ({ ...item, to: typeof item.to === 'string' ? item.to : user ? item.to(user, can) : null }))
+        .map((item) => ({
+          ...item,
+          title: typeof item.title === 'string' ? item.title : user ? item.title(user) : '',
+          to: typeof item.to === 'string' ? item.to : user ? item.to(user) : null,
+        }))
         .filter((item): item is typeof item & { to: string } => item.to !== null),
     }))
     .filter((group) => group.items.length > 0)

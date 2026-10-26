@@ -5,8 +5,11 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Switch } from '@/components/ui/Switch'
 import { Textarea } from '@/components/ui/Textarea'
+import { useAuth } from '@/context/AuthContext'
+import { hasAllScope, SCOPE_LOCK_HINT } from '@/lib/dataScope'
 import type { FieldErrors } from '@/lib/errors'
-import type { IspAccountFormData, IspAccountOptions } from '@/types/isp-account'
+import { withCurrentOption } from '@/lib/options'
+import type { IspAccount, IspAccountFormData, IspAccountOptions } from '@/types/isp-account'
 
 interface IspAccountFieldsProps {
   form: IspAccountFormData
@@ -14,10 +17,18 @@ interface IspAccountFieldsProps {
   options: IspAccountOptions['form'] | null
   errors: FieldErrors
   disabled?: boolean
+  /** The saved record on edit, so an inactive office still shows its name. */
+  current?: IspAccount | null
 }
 
 /** The ISP account form body (shared by create and edit), as `DetailSection`s for a `Card`. */
-export function IspAccountFields({ form, onChange, options, errors, disabled = false }: IspAccountFieldsProps) {
+export function IspAccountFields({ form, onChange, options, errors, disabled = false, current }: IspAccountFieldsProps) {
+  const { user } = useAuth()
+  const scopeLocked = !hasAllScope(user)
+  const officeId = form.office_id === '' ? null : Number(form.office_id)
+  const officeLabel =
+    current?.office_id === officeId ? current?.office?.office_name : officeId === user?.office_id ? user?.office?.office_name : null
+
   const text = (field: keyof IspAccountFormData) => ({
     id: field,
     name: field,
@@ -32,6 +43,14 @@ export function IspAccountFields({ form, onChange, options, errors, disabled = f
       <DetailSection icon={<Receipt className="h-4 w-4" />} title="Provider & billing">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Select {...text('isp_provider_id')} label="ISP" placeholder="Select an ISP" options={options?.isp_provider ?? []} />
+          <Select
+            {...text('office_id')}
+            label="School/office (optional)"
+            placeholder="None"
+            options={withCurrentOption(options?.office, officeId, officeLabel)}
+            disabled={disabled || scopeLocked || !options}
+            hint={scopeLocked && !disabled ? SCOPE_LOCK_HINT : undefined}
+          />
           <Input {...text('isp_billing_account_no')} label="Billing account no." required />
           <Input {...text('cost_per_month')} label="Cost per month" type="number" step="0.01" min="0" inputMode="decimal" required />
           <div className="sm:col-span-2">

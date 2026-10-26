@@ -30,7 +30,6 @@ interface AuthContextValue {
   sessionStatus: SessionStatus
   retrySession: () => void
   can: (permission: string) => boolean
-  hasRole: (role: string) => boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -288,11 +287,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [bootSession, fetched, location.pathname])
 
   const can = useCallback((permission: string) => user?.permissions.includes(permission) ?? false, [user])
-  const hasRole = useCallback((role: string) => user?.roles.includes(role) ?? false, [user])
 
   return (
     <AuthContext.Provider
-      value={{ user, initialized, isAuthenticated: user !== null, login, confirmTwoFactorSetup, verifyTwoFactor, logout, fetchUser, sessionStatus, retrySession, can, hasRole }}
+      value={{ user, initialized, isAuthenticated: user !== null, login, confirmTwoFactorSetup, verifyTwoFactor, logout, fetchUser, sessionStatus, retrySession, can }}
     >
       {children}
     </AuthContext.Provider>

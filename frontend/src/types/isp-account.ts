@@ -35,6 +35,8 @@ export interface IspSubscriptionCost {
 export interface IspAccount {
   id: number
   isp_provider_id: number
+  office_id: number | null
+  office?: { id: number; office_name: string } | null
   isp?: string | null
   cost_per_month: number
   isp_billing_account_no: string
@@ -70,6 +72,7 @@ export interface IspAccount {
 export interface IspAccountOptions {
   form: {
     isp_provider: Option<number>[]
+    office: Option<number>[]
     school_level_coverage: Option<string>[]
     subscription_type: Option<string>[]
     isp_connection_type: Option<string>[]
@@ -93,6 +96,7 @@ export interface IspAccountOptions {
  */
 export interface IspAccountFormData {
   isp_provider_id: string
+  office_id: string
   cost_per_month: string
   isp_billing_account_no: string
   package_purchased_inclusion: string

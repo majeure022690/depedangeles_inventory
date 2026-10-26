@@ -106,6 +106,11 @@ export function IspAccountList() {
         header: 'Account no.',
         cell: (info) => <span className="font-mono text-xs">{info.getValue()}</span>,
       }),
+      column.display({
+        id: 'office',
+        header: 'Office',
+        cell: ({ row }) => row.original.office?.office_name ?? <span className="text-gray-400">—</span>,
+      }),
       column.accessor('subscription_type', { header: 'Subscription type', enableSorting: false }),
       column.accessor('isp_connection_type', { header: 'Connection type', enableSorting: false }),
       column.accessor('cost_per_month', {

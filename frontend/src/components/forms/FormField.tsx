@@ -27,6 +27,7 @@ export function FormField({
   id,
   label,
   hint,
+  note,
   error,
   className,
   children,
@@ -34,6 +35,8 @@ export function FormField({
   id: string
   label: string
   hint?: string
+  /** Always-visible text under the control (e.g. why it's read-only), linked through aria-describedby. */
+  note?: string
   error?: string
   className?: string
   children: (aria: FieldAria) => ReactNode
@@ -46,7 +49,12 @@ export function FormField({
         </label>
         {hint && <FieldHint htmlFor={id} label={plainLabel(label)} text={hint} />}
       </div>
-      {children({ 'aria-describedby': idList(hint && `${id}-hint`, error && `${id}-error`), 'aria-invalid': error ? true : undefined })}
+      {children({ 'aria-describedby': idList(hint && `${id}-hint`, note && `${id}-note`, error && `${id}-error`), 'aria-invalid': error ? true : undefined })}
+      {note && (
+        <p id={`${id}-note`} className="mt-1 text-xs text-gray-500">
+          {note}
+        </p>
+      )}
       {error && (
         <p id={`${id}-error`} className="mt-1 text-xs text-error-600">
           {error}

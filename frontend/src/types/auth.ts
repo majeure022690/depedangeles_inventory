@@ -1,3 +1,5 @@
+import type { DataScope } from '@/types/role'
+
 export interface UserOffice {
   id: number
   office_name: string
@@ -12,6 +14,9 @@ export interface AuthUser {
   avatar_url: string | null
   office_id: number | null
   office?: UserOffice | null
+  personnel_id: number | null
+  personnel?: { id: number; full_name: string } | null
+  data_scope: DataScope
   is_active: boolean
   two_factor_enabled: boolean
   roles: string[]

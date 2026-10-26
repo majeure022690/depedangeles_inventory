@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/DataGrid'
 import { FilterChips, FilterSearch, type FilterChip } from '@/components/ui/FilterControls'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { scopedTitle } from '@/lib/dataScope'
 import { useServerTable } from '@/hooks/useServerTable'
 import { formatDateTime } from '@/lib/utils'
 import { stakeholderProfileService } from '@/services/stakeholderProfileService'
@@ -14,9 +15,10 @@ import type { StakeholderProfileOfficeRow } from '@/types/stakeholder-profile'
 
 const column = gridColumnHelper<StakeholderProfileOfficeRow>()
 
-/** Cross-office admin list (`stakeholder_profile.view_all`): one profile per office. */
+/** Cross-office list for all-records scope: one profile per office. */
 export function StakeholderProfileList() {
-  usePageTitle('Stakeholder Profile')
+  const title = scopedTitle('stakeholder_profile', 'all')
+  usePageTitle(title)
   const navigate = useNavigate()
 
   const [search, setSearch] = useState('')
@@ -83,7 +85,7 @@ export function StakeholderProfileList() {
   return (
     <div>
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">Stakeholder Profile</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
         <p className="text-sm text-gray-600">
           Every school and division-level office&rsquo;s stakeholder profile — one per office, filled in by that office&rsquo;s own users.
         </p>

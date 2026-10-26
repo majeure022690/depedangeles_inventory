@@ -6,7 +6,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { ManagementLayout } from '@/layouts/ManagementLayout'
 import { SETTINGS_PERMISSIONS } from '@/lib/permissions'
 import { NotFound } from '@/pages/NotFound'
-import { GuestOnly, RequireAuth, RequirePermission } from '@/router/Guards'
+import { GuestOnly, RequireAuth, RequireDataScope, RequirePermission } from '@/router/Guards'
 
 // Every page is its own chunk (recharts alone, on the dashboard, is the
 // heaviest dependency the app ships). ManagementLayout suspends inside its
@@ -106,7 +106,9 @@ export function App() {
                 <Route path="personnel" element={<PersonnelList />} />
                 <Route path="personnel/:id/edit" element={<PersonnelEdit />} />
                 <Route element={<RequirePermission permission="personnel.create" />}>
-                  <Route path="personnel/new" element={<PersonnelCreate />} />
+                  <Route element={<RequireDataScope scope={['school', 'all']} />}>
+                    <Route path="personnel/new" element={<PersonnelCreate />} />
+                  </Route>
                 </Route>
               </Route>
 
@@ -126,17 +128,17 @@ export function App() {
                 </Route>
               </Route>
 
-              <Route element={<RequirePermission permission="stakeholder_profile.view_all" />}>
-                <Route path="stakeholder-profiles" element={<StakeholderProfileList />} />
-              </Route>
-              <Route element={<RequirePermission permission={['stakeholder_profile.view', 'stakeholder_profile.view_all']} />}>
+              <Route element={<RequirePermission permission="stakeholder_profile.view" />}>
+                <Route element={<RequireDataScope scope="all" />}>
+                  <Route path="stakeholder-profiles" element={<StakeholderProfileList />} />
+                </Route>
                 <Route path="stakeholder-profiles/:officeId" element={<StakeholderProfileEdit />} />
               </Route>
 
-              <Route element={<RequirePermission permission="internet_connectivity.view_all" />}>
-                <Route path="internet-connectivity-surveys" element={<ConnectivitySurveyList />} />
-              </Route>
-              <Route element={<RequirePermission permission={['internet_connectivity.view', 'internet_connectivity.view_all']} />}>
+              <Route element={<RequirePermission permission="internet_connectivity.view" />}>
+                <Route element={<RequireDataScope scope="all" />}>
+                  <Route path="internet-connectivity-surveys" element={<ConnectivitySurveyList />} />
+                </Route>
                 <Route path="internet-connectivity-surveys/:officeId" element={<ConnectivitySurveyEdit />} />
               </Route>
 

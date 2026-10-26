@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { type SessionStatus, useAuth } from '@/context/AuthContext'
 import type { PermissionName } from '@/lib/permissions'
+import type { DataScope } from '@/types/role'
 
 function SessionCheckNotice({ status, onRetry }: { status: Exclude<SessionStatus, 'ok'>; onRetry: () => void }) {
   const headingRef = useRef<HTMLHeadingElement>(null)
@@ -99,6 +100,19 @@ export function RequirePermission({ permission }: { permission: PermissionName |
   const required = Array.isArray(permission) ? permission : [permission]
 
   if (!required.some((p) => can(p))) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return <Outlet />
+}
+
+/** UX only: hides routes outside the user's data scope. The server enforces scope on every request. */
+export function RequireDataScope({ scope }: { scope: DataScope | DataScope[] }) {
+  const { user } = useAuth()
+
+  const allowed = Array.isArray(scope) ? scope : [scope]
+
+  if (!user || !allowed.includes(user.data_scope)) {
     return <Navigate to="/dashboard" replace />
   }
 

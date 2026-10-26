@@ -81,7 +81,6 @@ export function PermissionPicker({
         </div>
       )}
 
-      <div className="max-h-[calc(85vh-22rem)] min-h-48 overflow-y-auto pr-1">
       <div className="columns-1 gap-3 lg:columns-2">
         {groups.map((group) => {
           const shown = term ? group.permissions.filter((p) => matches(p, term)) : group.permissions
@@ -150,7 +149,6 @@ export function PermissionPicker({
         {term && groups.every((group) => !group.permissions.some((p) => matches(p, term))) && (
           <p className="py-6 text-center text-sm text-gray-500" style={{ columnSpan: 'all' }}>No permission matches “{search}”.</p>
         )}
-      </div>
       </div>
     </div>
   )

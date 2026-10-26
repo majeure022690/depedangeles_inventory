@@ -15,6 +15,7 @@ import { Switch } from '@/components/ui/Switch'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useServerTable } from '@/hooks/useServerTable'
+import { hasAllScope } from '@/lib/dataScope'
 import { extractError, extractFieldErrors, isValidationError } from '@/lib/errors'
 import { roleService } from '@/services/roleService'
 import { userService, type UpdateUserPayload } from '@/services/userService'
@@ -42,10 +43,11 @@ interface FormState {
   office_id: number | null
   is_active: boolean
   role_id: number | null
+  personnel_id: number | null
 }
 
 function emptyForm(): FormState {
-  return { name: '', email: '', password: '', password_confirmation: '', current_password: '', office_id: null, is_active: true, role_id: null }
+  return { name: '', email: '', password: '', password_confirmation: '', current_password: '', office_id: null, is_active: true, role_id: null, personnel_id: null }
 }
 
 const emptyFilters = { search: '', role: '', is_active: '', office_id: '' }
@@ -54,7 +56,9 @@ type FilterKey = keyof typeof emptyFilters
 
 export function UserList() {
   usePageTitle('Users')
-  const { can, fetchUser } = useAuth()
+  const { can, fetchUser, user: actor } = useAuth()
+  const actorHasAllScope = hasAllScope(actor)
+  const canLinkPersonnel = actorHasAllScope && can('personnel.view') && can('users.edit')
 
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
@@ -137,6 +141,7 @@ export function UserList() {
       office_id: user.office_id,
       is_active: user.is_active,
       role_id: user.role?.id ?? null,
+      personnel_id: user.personnel_id ?? null,
     })
     setErrors({})
     setFormError(null)
@@ -144,12 +149,26 @@ export function UserList() {
   }
 
   // The user's current office may be inactive (not in the options); keep it selectable so editing doesn't silently clear it.
+  // Scoped actors may only assign their own office (or keep the current one).
   const formOfficeOptions = useMemo(() => {
+    const allowed = actorHasAllScope
+      ? officePickerOptions
+      : officePickerOptions.filter((o) => o.value === String(actor?.office_id) || o.value === String(editing?.office_id))
     const office = editing?.office
-    if (!office || officePickerOptions.some((o) => o.value === String(office.id))) return officePickerOptions
+    if (!office || allowed.some((o) => o.value === String(office.id))) return allowed
     const label = office.school_id ? `${office.office_name} (${office.school_id})` : office.office_name
-    return [...officePickerOptions, { label: `${label} (inactive)`, value: String(office.id) }]
-  }, [editing, officePickerOptions])
+    return [...allowed, { label: `${label} (inactive)`, value: String(office.id) }]
+  }, [actor?.office_id, actorHasAllScope, editing, officePickerOptions])
+
+  const personnelPickerOptions = useMemo(() => {
+    const choices = (options.personnel ?? []).map((person) => ({
+      value: String(person.value),
+      label: person.linked_user_id !== null && person.linked_user_id !== editing?.id ? `${person.label} (linked to another user)` : person.label,
+    }))
+    const current = editing?.personnel
+    if (current && !choices.some((choice) => choice.value === String(current.id))) choices.push({ value: String(current.id), label: current.full_name })
+    return choices
+  }, [editing, options.personnel])
 
   const editingSelf = editing?.is_self === true
   const needsCurrentPassword = editingSelf && form.email.trim() !== editing?.email
@@ -179,6 +198,7 @@ export function UserList() {
       office_id: form.office_id,
       is_active: form.is_active,
       role_id: form.role_id,
+      ...(editing && canLinkPersonnel ? { personnel_id: form.personnel_id } : {}),
     }
 
     try {
@@ -317,6 +337,14 @@ export function UserList() {
               {office.school_id && <span className="ml-1 text-xs text-gray-500">({office.school_id})</span>}
             </span>
           )
+        },
+      }),
+      column.display({
+        id: 'personnel',
+        header: 'Linked personnel',
+        cell: ({ row }) => {
+          if (row.original.personnel) return row.original.personnel.full_name
+          return row.original.personnel_id !== null ? <span className="text-gray-600">Linked</span> : <span className="text-gray-500">—</span>
         },
       }),
       column.display({
@@ -553,8 +581,20 @@ export function UserList() {
               options={formOfficeOptions}
               selectedValue={form.office_id !== null ? String(form.office_id) : null}
               onSelect={(option) => setForm((f) => ({ ...f, office_id: option ? Number(option.value) : null }))}
+              clearable={actorHasAllScope || !editing || editing.office_id === null}
               error={errors.office_id}
             />
+
+            {editing && canLinkPersonnel && (
+              <SelectPicker
+                label="Linked personnel"
+                placeholder="Not linked"
+                options={personnelPickerOptions}
+                selectedValue={form.personnel_id !== null ? String(form.personnel_id) : null}
+                onSelect={(option) => setForm((f) => ({ ...f, personnel_id: option ? Number(option.value) : null }))}
+                error={errors.personnel_id}
+              />
+            )}
 
             <Select
               id="user-role"
