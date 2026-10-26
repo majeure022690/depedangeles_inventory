@@ -68,7 +68,7 @@ export function RoleList() {
   const canEdit = can('roles.edit')
   const canDelete = can('roles.delete')
   const isProtected = editing?.is_protected ?? false
-  const readOnly = editing !== null && !canEdit
+  const readOnly = editing !== null && (!canEdit || !scopeWithin(editing.data_scope, user?.data_scope))
 
   // Grant ceiling (server re-checks with a 422 on `permissions`): you may only newly grant permissions you hold; ones the role already has may stay.
   const canGrant = useMemo(() => {

@@ -338,7 +338,7 @@ class Equipment extends Model
             return false;
         }
 
-        if ($this->created_by_user_id === $user->id) {
+        if ((int) $this->created_by_user_id === (int) $user->id) {
             return true;
         }
 
