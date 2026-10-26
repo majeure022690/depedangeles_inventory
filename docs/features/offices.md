@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Full CRUD over `App\Models\Office` — every school and division-level office/unit under the division (95 seeded rows). Office is the FK backbone the office-scoped features hang off: `users.office_id`, `stakeholder_profiles.office_id`, `internet_connectivity_surveys.office_id`.
+Full CRUD over `App\Models\Office` — every school and division-level office/unit under the division (95 seeded rows). Office is the FK backbone the office-scoped features hang off: `users.office_id`, `stakeholder_profiles.office_id`, `internet_connectivity_surveys.office_id`, `isp_accounts.office_id`, and `personnel.office_id`. These are also what the role [data scope](roles-and-permissions.md#data-scope) compares against.
 
 ## Architecture
 
@@ -48,7 +48,7 @@ Form body: `components/offices/OfficeFields.tsx`; API: `services/officeService.t
 
 ## Non-obvious design decisions
 
-- **Restrict, not null/cascade, on delete.** Once an admin could delete an office, silently nulling users' office or wiping a school's profile/survey became the wrong failure mode, so all three dependent FKs are `restrictOnDelete()`. `destroy()` attempts the delete inside a transaction and turns the FK violation (SQLSTATE `23000`) into a 409 instead of pre-checking: the FK is atomic, a pre-query would race. The transaction also rolls back the `deleted` activity row, so a blocked delete leaves no trace. `is_active = false` is the "retire" path (no soft deletes).
+- **Restrict, not null/cascade, on delete.** Once an admin could delete an office, silently nulling users' office or wiping a school's profile/survey became the wrong failure mode, so those three FKs and `isp_accounts.office_id` are `restrictOnDelete()`. `personnel.office_id` is the exception: it is `nullOnDelete()`. `destroy()` attempts the delete inside a transaction and turns the FK violation (SQLSTATE `23000`) into a 409 instead of pre-checking: the FK is atomic, a pre-query would race. The transaction also rolls back the `deleted` activity row, so a blocked delete leaves no trace. `is_active = false` is the "retire" path (no soft deletes).
 - **`office_name` is unique at both layers.** The Form Request gives a friendly 422; a DB unique index closes the race two concurrent creates could otherwise win (security review, 2026-07-15).
 - **`office_type` is free text, not a select** — the source data has no fixed vocabulary.
 

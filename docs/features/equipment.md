@@ -31,7 +31,12 @@ All under `auth:sanctum` + `throttle:authenticated-api`. Controllers: `Api\Manag
 
 There is no update or delete endpoint for transactions, by design.
 
-The list and every per-record action (show, QR, update, delete, transactions) are also limited by the role's [data scope](roles-and-permissions.md#data-scope). Under `own`/`school` a user only reaches items currently issued to personnel within their scope, and an out-of-scope id gets 403. `POST` and `/options` are not scoped.
+The list and every per-record action (show, QR, update, delete, transactions) are also limited by the role's [data scope](roles-and-permissions.md#data-scope), and an out-of-scope id gets **404** (403 only when the permission itself is missing). Equipment has no office column; scope goes through personnel and the creator:
+
+- an item currently issued (accountable officer or end user) to personnel in the user's reach;
+- an **unissued** item (no officer and no end user) the user created (`equipment.created_by_user_id`); under `school`, also unissued items created by any user whose `users.office_id` is the same as theirs, read at request time.
+
+`POST` sets `created_by_user_id` from the session user; it isn't a request field and isn't in `EquipmentResource`. Migration `2026_10_26_000003` backfilled it from the `created` rows in `activity_log`, so items created before then by a user still in the system are attributed. Transaction targets (`accountable_officer_id`, `end_user_id`, `received_by_id`) must be personnel in the user's reach (422 "Choose someone within your access."), and the `/options` `personnel` list is limited the same way.
 
 **Request fields** (`StoreEquipmentRequest`; Update is the same with `property_no` unique-ignoring itself). Required: `item_type_id`, `brand_id`, `equipment_category_id`, `equipment_classification_id`, `equipment_condition_id` (active Tier 1 ids), `uom`, `mode_acquisition`, `source_acquisition`, `source_fund`, `allotment_class`, `disposition_status` (active Tier 2 values). Optional: `property_no` (unique), `old_property_no`, `serial_number`, `model`, `specifications`, `non_dcp`, `dcp_package`, `dcp_year`, `gl_sl_code`, `uacs`, `acquisition_cost`, `received_date`, `estimated_useful_life`, `donor`, `pm_plan`, `equipment_location`, `non_functional`, `remarks`, `under_warranty`, `end_warranty_date`, `supplier`. The `current_*` pointers are never accepted.
 
@@ -55,7 +60,7 @@ Every request field above, plus `id`, `qr_code`, `created_at`, `updated_at`, and
                    source_of_funds, allotment_class, disposition_status },        // Tier 2, string-valued
     filters:     { condition, category, disposition_status },
     transaction: { transaction_type, supporting_document_type },
-    personnel?:  [{ value: id, label: full_name }]   // active personnel; only for equipment.transactions.create holders
+    personnel?:  [{ value: id, label: full_name }]   // active personnel in the user's data scope; only for equipment.transactions.create holders
 } }
 ```
 
@@ -95,6 +100,7 @@ Form body: `components/equipment/EquipmentFields.tsx`; history and transaction f
   - `--force` rewrites those rows and writes one `equipment.qr_code.regenerated` activity row each, keeping the old value in `properties.old.qr_code`.
   - Review the dry run before forcing. A mismatch can be harmless, e.g. a row created before `APP_URL` changed. A row pointing at a host the division never used should be treated as a possible phishing label: find it and physically reprint it, don't just rewrite the database. Any rewritten row's printed label still encodes the old URL until it is reprinted.
 - **No `employee_id = 9999` "unknown officer" placeholder.** Unknown/unassigned is a `null` FK, not a sentinel Personnel row.
+- **No `equipment.office_id`.** Data scope follows who holds the item, so a stored office would be a second source of truth that drifts on every transfer ([ADR](../architecture-decisions/unified-data-scope.md)). The consequence: an item returned to nobody falls back to its creator's reach, so an office encoder who didn't create it stops seeing it. That's intended (returned items go back to division custody).
 
 ## Future considerations
 

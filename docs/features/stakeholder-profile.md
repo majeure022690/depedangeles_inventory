@@ -10,15 +10,19 @@ Started (2026-07-10) as a global singleton; converted (2026-07-14) to **one row 
 
 - `App\Models\StakeholderProfile` — `belongsTo(Office)` plus the three PSGC relations; **no factory** (rows are created lazily per office). `hasAnswers()` tells "filled in" from "opened once" (see below).
 - `App\Models\Office::stakeholderProfile()` — the inverse `hasOne`.
-- `App\Policies\StakeholderProfilePolicy` — `view`/`update` (own office, or any office with `.view_all`) and `viewAny` (the cross-office list, `.view_all` only). No `create`/`delete`: neither action exists.
+- `App\Policies\StakeholderProfilePolicy` — `view`/`update` (`.view`/`.edit` plus `User::reachesOffice()`) and `viewAny` (the cross-office list: `.view` and data scope `all`). No `create`/`delete`: neither action exists.
 
 Audit: `LogsActivity`, `updated` events only (`stakeholder_profile.updated`) — the lazy empty insert isn't worth a row.
 
 ## Access model
 
-- **Own office only** — `stakeholder_profile.view`/`.edit` reach only the profile whose `office_id` matches the user's own. Another office's id returns 403 and does **not** create that office's row.
-- **Cross-office** — `stakeholder_profile.view_all` (seeded to `admin` only) can view and edit any office's profile and is the only permission that reaches the list. It is a separate permission, not a modifier on the other two.
-- **No office assigned** — a `.view`/`.edit` holder without an `office_id` has nothing to open; the sidebar hides the item. A `.view_all` holder without an office still gets the list.
+`stakeholder_profile.view`/`.edit` decide the action; the role's [data scope](roles-and-permissions.md#data-scope) decides which offices they reach.
+
+- **`own` and `school`** — only the profile whose `office_id` matches the user's own. Another office's id returns **404** and does **not** create that office's row. The list returns 403.
+- **`all`** — any office's profile, plus the list.
+- **No office assigned** — a scoped user without an `office_id` has nothing to open; the sidebar hides the item. An `all` user without an office still gets the list.
+
+The `stakeholder_profile.view_all` permission that used to grant cross-office access was removed on 2026-10-26 (migration `2026_10_26_000005`); roles and users that held it were given `.view` + `.edit` and kept their data scope, so their reach now depends on that scope.
 
 ## API endpoints
 
@@ -26,10 +30,10 @@ Controller: `Api\Management\StakeholderProfileController`. `{office}` is an `off
 
 | Method + path | Route permission | Policy | Request → response |
 |---|---|---|---|
-| `GET /api/stakeholder-profiles?search&per_page` | `stakeholder_profile.view_all` | `viewAny` | paginated **offices** (not profile rows): `{id, office_name, office_type, school_id, has_profile, updated_at}`. `updated_at` is the profile's, `null` until answered. |
-| `GET /api/stakeholder-profiles/options` | `.view` or `.view_all` | — | see options below |
-| `GET /api/stakeholder-profiles/{office}` | `.view` or `.view_all` | `view` on a transient model, **before** `firstOrCreate` | `{data: {office: {id, office_name, school_id}, profile: StakeholderProfileResource}}` |
-| `PUT /api/stakeholder-profiles/{office}` | `.edit` or `.view_all` | `update` on a transient model | `UpdateStakeholderProfileRequest` → same shape as GET |
+| `GET /api/stakeholder-profiles?search&per_page` | `stakeholder_profile.view` | `viewAny` (scope `all`) | paginated **offices** (not profile rows): `{id, office_name, office_type, school_id, has_profile, updated_at}`. `updated_at` is the profile's, `null` until answered. |
+| `GET /api/stakeholder-profiles/options` | `.view` | — | see options below |
+| `GET /api/stakeholder-profiles/{office}` | `.view` | `view` on a transient model, **before** `firstOrCreate` | `{data: {office: {id, office_name, school_id}, profile: StakeholderProfileResource}}` |
+| `PUT /api/stakeholder-profiles/{office}` | `.edit` | `update` on a transient model | `UpdateStakeholderProfileRequest` → same shape as GET |
 
 **`StakeholderProfileResource` / writable fields** (all optional): `governance_level`, `ro`, `sdo`, `school_district`, `school_name`, `school_id`, `province_id`, `municipality_id`, `barangay_id` (PSGC ids), `legislative_district`, `street`, `notes_corrections`, `notes_recent_development`, `mobile_1`, `mobile_2`, `landline`, `chief_*`/`admin_staff_*` (name, position, email, mobile), `network_administrator_name`, `longitude`, `latitude`, `nearby_institutions`, `access_paths`, `transportation_options`, `community_engagement` (arrays of `stakeholder_libraries` ids), `nearby_institutions_other`, `transportation_other`, `travel_time_to_center_minutes`, `transportation_difficult`, `considered_very_remote`, `remote_context_notes`, `gidca`, `lms`, `community_context_remarks`, `submitted_at` (datetime, converted to Manila time), `transaction_type`. The resource adds `id`, `office_id`, `updated_at`, and read-only `complete_address`.
 
@@ -39,10 +43,10 @@ Controller: `Api\Management\StakeholderProfileController`. `{office}` is an `off
 
 | Route | Page |
 |---|---|
-| `/stakeholder-profiles` | `pages/management/stakeholder-profiles/StakeholderProfileList.tsx` (`.view_all`) |
+| `/stakeholder-profiles` | `pages/management/stakeholder-profiles/StakeholderProfileList.tsx` (`.view`, scope `all`) |
 | `/stakeholder-profiles/:officeId` | `pages/management/stakeholder-profiles/StakeholderProfileEdit.tsx` — completion bar and section stepper, one section rendered at a time |
 
-Form body: `components/stakeholder-profiles/StakeholderProfileFields.tsx`; API: `services/stakeholderProfileService.ts`; types: `types/stakeholder-profile.ts`. The sidebar link goes to the list for `.view_all` holders and to the user's own `:officeId` otherwise (`layouts/ManagementLayout.tsx`).
+Form body: `components/stakeholder-profiles/StakeholderProfileFields.tsx`; API: `services/stakeholderProfileService.ts`; types: `types/stakeholder-profile.ts`. The sidebar item is "Stakeholder Profiles" linking to the list for `all`, and "Our Office Profile" linking to the user's own `:officeId` otherwise (`layouts/ManagementLayout.tsx`, `lib/dataScope.ts`).
 
 ## Key files
 
@@ -56,7 +60,7 @@ Form body: `components/stakeholder-profiles/StakeholderProfileFields.tsx`; API: 
 ## Non-obvious design decisions
 
 - **One row per office, lazily created.** No create/store/destroy; `GET`/`PUT` `firstOrCreate(['office_id' => ...])`. There is a list because there are up to one row per office (95+), not one ever.
-- **Authorize a transient instance before writing.** The Policy needs `office_id` to compare against the user's own, so the controller authorizes `new StakeholderProfile(['office_id' => $office->id])` first. A wrong-office or zero-permission request 403s without creating the row.
+- **Authorize a transient instance before writing.** The Policy needs `office_id` to compare against the user's own, so the controller authorizes `new StakeholderProfile(['office_id' => $office->id])` first. A wrong-office (404) or zero-permission (403) request is refused without creating the row.
 - **`has_profile` uses `hasAnswers()`, not row existence.** Opening the page creates an empty row, so existence alone would mark every visited office as answered. The four booleans default to `false` at the DB level and are excluded from the check, since a default can't count as an answer.
 - **`office_id` is `NOT NULL` + unique.** That index is the whole "at most one per office" guarantee; it replaced the old `singleton_guard` column.
 - **`complete_address` is a PHP accessor**, not a stored column. It used to be a MySQL STORED generated column, but generated columns can't join the PSGC tables once those became FKs. Never mass-assignable; returned as a read-only display value.

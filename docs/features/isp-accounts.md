@@ -6,9 +6,11 @@ The office's internet service subscriptions — provider, plan, cost, contract d
 
 ## Architecture
 
-- `App\Models\IspAccount` — soft-deletes, `isp_provider_id` (Tier 1 FK). `hasMany(IspSpeedTest)`, `hasMany(IspSubscriptionCost)`.
+- `App\Models\IspAccount` — soft-deletes, `isp_provider_id` (Tier 1 FK), `office_id` (nullable, indexed FK to `offices`, `restrictOnDelete`; migration `2026_10_26_000004`). `hasMany(IspSpeedTest)`, `hasMany(IspSubscriptionCost)`.
 - `App\Models\IspSpeedTest`, `IspSubscriptionCost` — append-only, no soft-deletes. Each `belongsTo(User)` as `recordedBy`.
-- `App\Policies\IspAccountPolicy` — `viewAny`/`view`/`create`/`update`/`delete`; `update` also gates both child logs; `delete` denials are audited.
+- `App\Policies\IspAccountPolicy` — `viewAny`/`view`/`create`/`update`/`delete`; `update` also gates both child logs; `delete` denials are audited. `view`/`update`/`delete` also require the account to be in the user's data scope, otherwise **404**.
+
+**Data scope** ([roles-and-permissions.md](roles-and-permissions.md#data-scope)): `own` and `school` reach accounts whose `office_id` is the user's office; `all` reaches everything. An account with no `office_id` is visible only to `all`, as is everything for a scoped user with no office. This applies to the list, every per-account endpoint (including the two child logs) and the dashboard's ISP figures.
 
 Audit: account CRUD via `LogsActivity` (`isp_account.created|updated|deleted`); logging a reading writes `isp_account.speed_test.recorded` / `isp_account.subscription_cost.recorded` against the parent account.
 
@@ -19,7 +21,7 @@ Controllers: `Api\Management\IspAccountController`, `IspSpeedTestController`, `I
 | Method + path | Route permission | Policy | Request → response |
 |---|---|---|---|
 | `GET /api/isp-accounts?search&isp&status&sort&direction&per_page` | `isp_accounts.view` | `viewAny` | paginated `IspAccountResource`. `isp` = provider id; `status` = `active`/`inactive` contract. Sort keys: `isp_billing_account_no`, `cost_per_month`, `contract_start_date`, `contract_end_date`, `created_at`; default groups by provider. |
-| `GET /api/isp-accounts/options` | `isp_accounts.view` | — | `{data: {form: {isp_provider, school_level_coverage, subscription_type, isp_connection_type, purpose_of_subscription, signal_quality, mode_of_acquisition, source_of_acquisition, source_of_funds}, filters: {isp_provider}, speed_test: {signal_quality}}}`. `isp_provider` is id-valued; the rest are Tier 2 strings (the last three read from Equipment's library on purpose). |
+| `GET /api/isp-accounts/options` | `isp_accounts.view` | — | `{data: {form: {isp_provider, office, school_level_coverage, subscription_type, isp_connection_type, purpose_of_subscription, signal_quality, mode_of_acquisition, source_of_acquisition, source_of_funds}, filters: {isp_provider}, speed_test: {signal_quality}}}`. `isp_provider` and `office` (active offices) are id-valued; the rest are Tier 2 strings (the last three read from Equipment's library on purpose). |
 | `POST /api/isp-accounts` | `isp_accounts.create` | `create` (Form Request) | `StoreIspAccountRequest` → `IspAccountResource`, 201 |
 | `GET /api/isp-accounts/{ispAccount}` | `isp_accounts.view` | `view` | `IspAccountResource` with `speed_tests[]` and `subscription_costs[]` |
 | `PUT /api/isp-accounts/{ispAccount}` | `isp_accounts.edit` | `update` | `UpdateIspAccountRequest` → `IspAccountResource` |
@@ -29,12 +31,14 @@ Controllers: `Api\Management\IspAccountController`, `IspSpeedTestController`, `I
 
 No update/delete endpoints exist for either log.
 
-**Account fields:** required `isp_provider_id`, `cost_per_month`, `isp_billing_account_no`, `package_purchased_inclusion`, `school_area_coverage`, `subscription_type`, `isp_connection_type`, `purpose_of_subscription`, `mode_of_acquisition`, `source_of_acquisition`, `fund_source`, `overall_signal_quality`; optional `min_speed`, `max_speed` (≥ min), `contract_start_date`, `contract_end_date`, `inactive_contract`, `donor`, `number_access_points_linked`, `locations_access_points`, `number_admin_area_covered`, `rate_connectivity_admin_areas`, `number_classrooms_covered`, `rate_connectivity_classroom`, `rate_isp_service` (1-5).
+**Account fields:** required `isp_provider_id`, `cost_per_month`, `isp_billing_account_no`, `package_purchased_inclusion`, `school_area_coverage`, `subscription_type`, `isp_connection_type`, `purpose_of_subscription`, `mode_of_acquisition`, `source_of_acquisition`, `fund_source`, `overall_signal_quality`; optional `min_speed`, `max_speed` (≥ min), `contract_start_date`, `contract_end_date`, `inactive_contract`, `donor`, `number_access_points_linked`, `locations_access_points`, `number_admin_area_covered`, `rate_connectivity_admin_areas`, `number_classrooms_covered`, `rate_connectivity_classroom`, `rate_isp_service` (1-5), `office_id` (an active office; on update the account's current office is also accepted).
+
+Only `all`-scope users may set or change `office_id`. A scoped user's new account is forced into their own office (422 on `office_id` if their account has no office, or if they send a different office); on update they must send the current value.
 
 **Speed test fields:** required `download_speed`, `upload_speed`, `tested_at` (datetime, converted to Manila time — see [timezone](../architecture.md#timezone-asiamanila)), `signal_quality`; optional `ping`, `rate_isp_service`.
 **Subscription cost fields (all optional):** `contract_start_date`, `contract_end_date`, `total_amount_spent`, `contract_projected_start_date`, `contract_projected_end_date`, `total_projected_expenditure`.
 
-**`IspAccountResource`:** every account field plus `id`, `isp` (provider name), `created_at`, `updated_at`; money/speeds as floats. On the detail endpoint, `speed_tests[]` = `{id, isp_account_id, download_speed, upload_speed, ping, tested_at, signal_quality, rate_isp_service, created_at}` and `subscription_costs[]` = `{id, isp_account_id, contract_start_date, contract_end_date, total_amount_spent, contract_projected_start_date, contract_projected_end_date, total_projected_expenditure, created_at}`, both newest-logged first.
+**`IspAccountResource`:** every account field plus `id`, `isp` (provider name), `office: {id, office_name} | null`, `created_at`, `updated_at`; money/speeds as floats. On the detail endpoint, `speed_tests[]` = `{id, isp_account_id, download_speed, upload_speed, ping, tested_at, signal_quality, rate_isp_service, created_at}` and `subscription_costs[]` = `{id, isp_account_id, contract_start_date, contract_end_date, total_amount_spent, contract_projected_start_date, contract_projected_end_date, total_projected_expenditure, created_at}`, both newest-logged first.
 
 ## Frontend
 

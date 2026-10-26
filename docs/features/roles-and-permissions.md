@@ -25,66 +25,76 @@ These two are `RoleService::SENSITIVE_PERMISSIONS`, the ones the lockout guards 
 
 ## Seeded starting roles
 
-| Role | Permissions |
-|---|---|
-| `super_administrator` | every enum case. Protected: cannot be renamed or deleted, its permission set must always be the full enum, and its `data_scope` is forced to `all`. |
-| `system_administrator` | every enum case except `roles.create`, `roles.edit`, `roles.delete` |
-| `encoder` | view/create/edit on Personnel, Equipment, ISP Accounts; `equipment.transactions.create`; view/edit on Stakeholder Profile and Internet Connectivity. No deletes, no admin. |
-| `viewer` | `personnel.view`, `equipment.view`, `stakeholder_profile.view`, `internet_connectivity.view`; `data_scope` `own` |
+| Role (label) | Scope | Permissions |
+|---|---|---|
+| `super_administrator` (Super Administrator) | `all` | every enum case. Protected: cannot be renamed or deleted, its permission set must always be the full enum, and its `data_scope` is forced to `all`. |
+| `system_administrator` (System Administrator) | `all` | every enum case except `roles.create`, `roles.edit`, `roles.delete` |
+| `encoder` (Division Encoder) | `all` | view/create/edit on Personnel, Equipment, ISP Accounts; `equipment.transactions.create`; view/edit on Stakeholder Profile and Internet Connectivity. No deletes, no admin. |
+| `office_encoder` (Office Encoder) | `school` | same permissions as `encoder`, limited to the user's own office |
+| `viewer` (Viewer) | `own` | `personnel.view`, `equipment.view`, `stakeholder_profile.view`, `internet_connectivity.view` |
 
-Apart from `super_administrator` these are ordinary data once seeded. `RolePermissionSeeder` is idempotent and resets Spatie's permission cache. Re-running it also puts each seeded role's permissions and `data_scope` back to the seeded values, overwriting edits made in the UI.
+Apart from `super_administrator` these are ordinary data once seeded. `RolePermissionSeeder` is idempotent and resets Spatie's permission cache. It always resyncs `super_administrator` (label, every permission, scope `all`), but only **creates** the other roles when they don't exist yet; it never overwrites a role an admin has edited. (Before 2026-10-26 it reset every seeded role on each run, silently undoing UI edits.)
+
+**Role and permission changes on existing databases ship as migrations, not seeder edits**, because the deploy script runs migrations only. `2026_10_20_000002` and `2026_10_26_000005` are the examples. A new enum permission therefore needs a migration that creates it and grants it to each role that should have it, `system_administrator` included; the seeder only does this for `super_administrator`, and only when someone runs it.
 
 ## Data scope
 
-Each role has a `data_scope` (`App\Enums\DataScope`, column `roles.data_scope`, migration `2026_10_20_170000`). Permissions decide what a user may do. Scope only decides which **Equipment** rows those permissions apply to. A Viewer with `all` can read every item but still can't edit any. An Encoder with `own` can edit, delete or transfer only the items issued to them.
+Each role has a `data_scope` (`App\Enums\DataScope`, column `roles.data_scope`). Permissions decide what a user may do; scope decides which **records** those permissions reach, across Personnel, Equipment, ISP Accounts, Stakeholder Profile and the Internet Connectivity Survey. Scope never grants an action: a Viewer with `all` can read everything but still edit nothing. Decision and rejected alternatives: [`architecture-decisions/unified-data-scope.md`](../architecture-decisions/unified-data-scope.md). Until 2026-10-26 scope covered Equipment only and found "own" by matching `personnel.deped_email`; Stakeholder Profile and the survey had a separate `.view_all` rule, now removed.
 
-| Value | Editor label | Equipment reached |
-|---|---|---|
-| `own` | Own records only | Items whose current accountable officer or current end user is a Personnel record with a `deped_email` equal to the user's account email (case-insensitive). |
-| `school` | Own school | Items whose current accountable officer or current end user is a Personnel record whose `office_id` equals the user's `office_id`. |
-| `all` | All records | No filter. |
+| Value | Editor label | Personnel | Equipment | ISP Accounts | Stakeholder Profile, Connectivity Survey |
+|---|---|---|---|---|---|
+| `own` | Own records only | the user's linked record (`personnel.user_id`) | issued (accountable officer or end user) to reachable personnel, or unissued and created by the user | `office_id` = user's office | the user's own office's row |
+| `school` | **Own office** | personnel with `office_id` = user's office, plus the linked record | same as `own`, plus unissued items created by any user at the same office | same as `own` | same as `own` |
+| `all` | All records | everything | everything | everything | every office, plus the cross-office list |
 
-**How it's resolved.** `User::dataScope()` takes the widest scope across the user's roles (`all` > `school` > `own`). It returns `own` when the user has no role, for example a user with permissions granted directly. Each user has one role, so in practice this is that role's scope. `User::scopedPersonnelIds()` returns `null` for `all`. Otherwise it returns the list of Personnel ids in reach, computed once per request. `Equipment::scopeVisibleTo($user)` applies the list to queries, and `Equipment::isVisibleTo($user)` checks a single record. Scope is never cached between requests, so a change takes effect on the user's next request.
+The stored value stays `school`, but `offices` holds division units (OSDS-*, CID-*, SGOD-*) as well as schools, so the UI says "Own office".
 
-**Where the "school" comes from.** Both sides use the `offices` table, the same one Stakeholder Profile and the Internet Connectivity Survey use. They do not use the `ro_offices`/`sdo_offices` reference tables:
+**How it's resolved.** `User::dataScope()` takes the widest scope across the user's roles (`all` > `school` > `own`), and `own` when the user has no role. `User::scopedPersonnelIds()` returns `null` for `all`, otherwise the reachable Personnel ids, computed once per request. `User::reachesOffice($officeId)` answers the office-based resources. Each scoped model has a `visibleTo($user)` query scope for lists and an `isVisibleTo($user)` check that its Policy uses for single records. Scope is never cached between requests, so a change takes effect on the user's next request.
 
-- the user's `users.office_id`, set by an admin in the `/users` edit dialog. PRIME sync never sets or changes it, so an account created from PRIME has no office until an admin assigns one;
-- the Personnel record's `personnel.office_id`, which is nullable. It is the "School/office" field on the Personnel form; see [personnel.md](personnel.md).
+**Where the links come from:**
+
+- `personnel.user_id` (nullable, unique FK, `nullOnDelete`) links an account to its Personnel record. Set it from either side: `user_id` on the Personnel form or `personnel_id` in the `/users` editor, both all-scope only. Migration `2026_10_26_000002` backfilled it where exactly one live Personnel record and exactly one user share an email. `deped_email` no longer affects access, because anyone who can edit Personnel could change it.
+- `users.office_id`, set by an admin in the `/users` editor. PRIME sync never sets it, so a new account has no office until an admin assigns one.
+- `personnel.office_id` and `isp_accounts.office_id`, both nullable FKs to `offices` (the table Stakeholder Profile and the survey use, not `ro_offices`/`sdo_offices`).
+- `equipment.created_by_user_id`, set from the session on `POST /api/equipment` and backfilled from `activity_log` by `2026_10_26_000003`. The creator's office is read from `users.office_id` at request time, not stored on the item.
 
 ### What it filters
 
-| Filtered | How |
+| Area | How |
 |---|---|
-| `GET /api/equipment` | list limited to `visibleTo($user)` |
-| `GET /api/equipment/{id}`, `/{id}/qr-code`, `PUT`, `DELETE`, `POST /{id}/transactions` | `EquipmentPolicy` `view`/`update`/`delete`/`createTransaction` also require `isVisibleTo()`, so an out-of-scope id gets **403**, not 404. Denied deletes and transactions are audited as `authorization.denied`. |
-| `GET /api/dashboard/summary` | the `equipment` figures and `recent_transactions`, which only include transactions on items that are visible now |
+| Lists: `GET /api/personnel`, `/equipment`, `/isp-accounts` | `visibleTo($user)` |
+| Single records: show/update/delete on Personnel, Equipment (plus QR and transactions), ISP Accounts (plus speed tests and subscription costs), Stakeholder Profile and survey `{office}` | Policy: missing permission is **403**, permission held but record out of reach is **404** (`Response::denyAsNotFound()`), so a scoped user can't tell whether an id exists. Form Requests use `Gate::inspect()` to keep the 404. |
+| Cross-office lists `GET /api/stakeholder-profiles`, `/internet-connectivity-surveys` | `all` only (403 otherwise) |
+| `GET /api/dashboard/summary` | equipment figures, `recent_transactions` (items visible now), personnel counts and ISP figures |
+| `GET /api/equipment/options` `personnel`, transaction targets | limited to reachable personnel; an out-of-reach `accountable_officer_id`/`end_user_id`/`received_by_id` is a 422 |
 
-**Not filtered:**
+**Not filtered:** the full transaction history on a visible item (it can name people outside the scope), Offices, Reference Data, Users, Roles and the Audit Log.
 
-- `POST /api/equipment`;
-- `GET /api/equipment/options`, including its `personnel` list, which lists all active personnel;
-- the full transaction history on a visible item, which can name people outside the scope;
-- all Personnel endpoints and the dashboard's `personnel` counts;
-- ISP Accounts and the dashboard's `isp_accounts` figures (`isp_accounts` has no `office_id`);
-- Offices, Reference Data, Users, Roles and the Audit Log.
+### Writes stay inside reach
 
-Stakeholder Profile and the Internet Connectivity Survey have their own office rule in their Policies (`.view`/`.edit` reach your own office, `.view_all` reaches any office). That rule is separate from `data_scope`.
+Enforced in the Form Requests (`Concerns\RestrictsScopedAssignments`); a rejected value is a 422 ("Only users with access to all records can change this."):
+
+- Only `all` users may set or change `office_id` and `user_id` on Personnel, `office_id` on ISP Accounts, or `personnel_id` on a user.
+- A scoped user creating Personnel or an ISP account gets `office_id` forced to their own office, and a 422 on `office_id` if their account has none.
+- `own` users can't create Personnel at all (`PersonnelPolicy::create`, 403): the new record would be out of their reach as soon as it was saved.
+- A scoped user manager may set a user's `office_id` only to their own office or leave the current value. Omitting `office_id` on `PUT /api/users/{id}` leaves it unchanged (it used to clear it).
+- Every `office_id` field (Personnel, ISP Accounts, users) must reference an **active** office; on update the record's current office is also accepted, so an unchanged value still saves after the office is deactivated.
 
 ### Defaults and validation
 
-- Seeded: `super_administrator` `all` (always), `system_administrator` `all`, `encoder` `all`, `viewer` `own`. The migration set existing roles to `all`, except `viewer`, which it set to `own`.
-- `StoreRoleRequest`/`UpdateRoleRequest`: `data_scope` is `sometimes` and must be a `DataScope` value. If it's omitted, `POST /api/roles` uses `own`, which is also the role editor's default, and `PUT` keeps the current value. The column's database default is `all`. That default only applies to rows written outside the API.
-- On the protected `super_administrator` role, `RoleService::update()` silently forces the scope to `all` and doesn't return a 422. The editor disables the select and shows "This role always reaches all records."
+- Seeded: see [Seeded starting roles](#seeded-starting-roles). Migration `2026_10_20_170000` set the roles existing at the time to `all`, except `viewer` (`own`). `2026_10_26_000005` relabelled `encoder` to "Division Encoder" (kept at `all`, so its holders keep their access) and added `office_encoder` (`school`) with the same permissions; it also replaced `stakeholder_profile.view_all`/`internet_connectivity.view_all` with `.view` + `.edit` for every role or user that held them, leaving their scope unchanged.
+- The column default is `own` (`2026_10_26_000001`, previously `all`), so a role written outside the API fails closed.
+- `StoreRoleRequest`/`UpdateRoleRequest`: `data_scope` is `sometimes` and must be a `DataScope` value. Omitted, `POST /api/roles` uses `own` (also the editor default) and `PUT` keeps the current value.
+- On the protected `super_administrator` role, `RoleService::update()` silently forces the scope to `all`. The editor disables the select and shows "This role always reaches all records."
 - Scope changes are part of the `role.created`/`role.updated` audit rows. The lockout guards ignore scope.
 
-### Edge cases (as the code behaves today)
+### Edge cases
 
-- **`school` with no office on the user** matches nothing (the query compares against `office_id = 0`). Personnel without an `office_id` are never in anyone's school scope.
-- **`school` doesn't automatically include the user's own items.** They're included only if the user's own Personnel record has the same `office_id`.
-- **`own` with no Personnel record whose `deped_email` matches** sees no equipment at all. This is what the seeded Viewer gets until someone sets a Personnel `deped_email` to the user's PRIME email. If several Personnel records match, all of them count.
-- Separated (`inactive`) personnel still count. Soft-deleted personnel don't, so items still pointing at a deleted record leave the scope.
-- **Scope follows only the current `current_accountable_officer_id`/`current_end_user_id` pointers, not history.** A scoped user with `equipment.transactions.create` can transfer an in-scope item to anyone, because the personnel list isn't scoped. The item then drops out of their scope, and so do its transactions on the dashboard.
-- **An unassigned item is visible only to `all`.** Every new item stays unassigned until its first transaction. A scoped user with `equipment.create` receives the 201 response but then can't list or open the item.
+- **Missing links fail closed.** A `school` user with no office reaches only their linked record, equipment issued to it and unissued items they created; no ISP accounts and no office rows. An `own` user with no linked record reaches no personnel and only the unissued equipment they created. Records with a null office are visible only to `all`. The dashboard shows a notice in both situations ("Your account isn't linked to a personnel record yet" / "isn't assigned to an office yet").
+- **Production needs the office backfill.** Scoped users see little until `personnel.office_id` and `isp_accounts.office_id` are filled in and accounts are linked to their Personnel records. All-scope admins are unaffected. The owner has a read-only check script to report the gaps.
+- Separated (`inactive`) personnel still count. Soft-deleted personnel don't, and deleting a Personnel record clears its `user_id`.
+- **Scope follows the current `current_accountable_officer_id`/`current_end_user_id`, not history.** A transfer to someone else in reach keeps the item visible; a transfer that names nobody returns it to the creator's reach, so an office encoder who didn't create it stops seeing it (intended: returned items go back to division custody).
+- **New resources aren't scoped automatically.** A new record type that should follow data scope needs its own `visibleTo`/`isVisibleTo` and the Policy check.
 
 ## API endpoints
 
@@ -108,13 +118,13 @@ The group needs any of `users.view`, `users.edit`, `users.reset_two_factor`; eac
 | Method + path | Route permission | Request → response |
 |---|---|---|
 | `GET /api/users?search&role&is_active&office_id&sort&direction&per_page` | `users.view` | paginated `UserResource`. `search` matches name/email; `role` is a role **name**. Sort keys: `name` (default), `email`, `is_active`, `created_at`. |
-| `GET /api/users/options` | `users.view` or `users.edit` | `{data: {roles: {id, name, label}[], offices: {value, label}[]}}` — `roles` lists only roles the acting user may assign (`assignableRolesFor()`), so the UI never offers one the write side would reject |
+| `GET /api/users/options` | `users.view` or `users.edit` | `{data: {roles: {id, name, label}[], offices: {value, label}[], personnel?: {value, label, linked_user_id}[]}}` — `roles` lists only roles the acting user may assign (`assignableRolesFor()`), so the UI never offers one the write side would reject. `personnel` (all-scope actors only) is every live Personnel record, labelled "Full name (employee ID)", with `linked_user_id` so the UI can flag records already linked to someone else |
 | `POST /api/users` | group only | always 403 (`User creation is disabled. Users are managed through PRIME.`) |
-| `PUT /api/users/{id}` | `users.edit` | `UpdateUserRequest`: `office_id`, `is_active`, `role_id` (required, replaces the user's role) → `UserResource`. Name and email come from PRIME and aren't editable here; there is no password field. Editing your own row is allowed, but `is_active: false` or dropping your own `users.edit`/`roles.edit` is a 422. |
+| `PUT /api/users/{id}` | `users.edit` | `UpdateUserRequest`: `office_id` (active office or the current one; omitted = unchanged, `null` clears; a scoped actor may only choose their own office or keep the current one), `is_active`, `role_id` (required, replaces the user's role), `personnel_id` (optional; all-scope actors only, any value from a scoped actor is a 422; a live Personnel id not linked to another user, `null` unlinks) → `UserResource`. Role and personnel link are saved in one transaction. Name and email come from PRIME and aren't editable here; there is no password field. Editing your own row is allowed, but `is_active: false` or dropping your own `users.edit`/`roles.edit` is a 422. |
 | `DELETE /api/users/{id}` | group only | always 403 (deletion is disabled; deactivate instead) |
 | `POST /api/users/{id}/2fa/reset` | `users.reset_two_factor` | `current_password` (the admin's) → `{message}`. Clears the user's 2FA so they enroll again at next login; also revokes their trusted devices. Logged to activity (`user.two_factor_reset`) and the `security` channel. Refuses self. |
 
-**`UserResource`:** `{id, name, email, avatar_url, office_id, office: {id, office_name, school_id}|null, is_active, two_factor_enabled, roles: string[], role_ids: int[], role: {id, name, label}|null, role_details: {id, name, label}[], permissions?: string[], is_self, can_edit?, can_delete?, can_reset_two_factor?, created_at, updated_at}`. `permissions` is only present on the auth endpoints (`/api/user`, login responses), where it feeds `AuthContext.can()`; list endpoints skip it to avoid resolving every user's permission set. `can_edit` (`users.edit` and target within tier, true on your own row), `can_delete` (always false) and `can_reset_two_factor` (`users.reset_two_factor`, within tier, not self, target has 2FA enabled) are only on the `/api/users` list and update responses.
+**`UserResource`:** `{id, name, email, avatar_url, office_id, office: {id, office_name, school_id}|null, is_active, two_factor_enabled, roles: string[], role_ids: int[], role: {id, name, label}|null, role_details: {id, name, label}[], data_scope: "own"|"school"|"all", personnel_id: int|null, personnel: {id, full_name}|null, permissions?: string[], is_self, can_edit?, can_delete?, can_reset_two_factor?, created_at, updated_at}`. `permissions` is only present on the auth endpoints (`/api/user`, login responses), where it feeds `AuthContext.can()`; list endpoints skip it to avoid resolving every user's permission set. `data_scope` (the resolved `User::dataScope()`) and `personnel_id`/`personnel` (the linked Personnel record) are on the auth endpoints and the `/api/users` list and update responses; the SPA uses them for scope-aware navigation. `can_edit` (`users.edit` and target within tier, true on your own row), `can_delete` (always false) and `can_reset_two_factor` (`users.reset_two_factor`, within tier, not self, target has 2FA enabled) are only on the `/api/users` list and update responses.
 
 Use **deactivation** (`is_active = false`) to remove access: a deactivated user cannot log in (same "Invalid credentials" as a wrong password), loses their trusted devices, and keeps clean attribution in the audit trail.
 
@@ -145,21 +155,24 @@ Audit: `role.created|updated|deleted` (RoleService), `user.roles_changed` with b
 
 | Route | Page |
 |---|---|
-| `/roles` | `pages/management/roles/RoleList.tsx` — list with a "Data scope" column, create/edit dialog with a "Data scope" select and `PermissionPicker`, protected badge (route needs `roles.view`; create/edit/delete need their own `roles.*`) |
-| `/users` | `pages/management/users/UserList.tsx` — list, edit dialog (office picker, role select, active switch), "Reset 2FA" (route needs `users.view`; edit needs `users.edit`, reset `users.reset_two_factor`) |
+| `/roles` | `pages/management/roles/RoleList.tsx` — list with a "Data scope" column, create/edit dialog with a "Data scope" select ("Own records only" / "Own office" / "All records") and `PermissionPicker`, protected badge (route needs `roles.view`; create/edit/delete need their own `roles.*`) |
+| `/users` | `pages/management/users/UserList.tsx` — list with a "Linked personnel" column, edit dialog (office picker limited to the actor's own and the current office for scoped actors, "Linked personnel" picker for all-scope actors, role select, active switch), "Reset 2FA" (route needs `users.view`; edit needs `users.edit`, reset `users.reset_two_factor`) |
+
+Scope-aware navigation, titles and the `RequireDataScope` guard live in `lib/dataScope.ts`, `layouts/ManagementLayout.tsx` and `router/Guards.tsx` ([architecture.md](../architecture.md#frontend-layout)).
 
 API: `services/roleService.ts`, `services/userService.ts`; types: `types/role.ts`, `types/user.ts`, `types/auth.ts`.
 
 ## Key files
 
-- `backend/app/Enums/Permission.php`, `DataScope.php`, `backend/app/Models/Role.php`, `User.php` (`dataScope()`, `scopedPersonnelIds()`), `Equipment.php` (`scopeVisibleTo()`, `isVisibleTo()`)
-- `backend/tests/Feature/EquipmentDataScopeTest.php`
+- `backend/app/Enums/Permission.php`, `DataScope.php`, `backend/app/Models/Role.php`, `User.php` (`dataScope()`, `scopedPersonnelIds()`, `reachesOffice()`, `personnel()`), and `scopeVisibleTo()`/`isVisibleTo()` on `Personnel.php`, `Equipment.php`, `IspAccount.php`
+- `backend/app/Http/Requests/Management/Concerns/RestrictsScopedAssignments.php`
+- `backend/tests/Feature/DataScope/`, `EquipmentDataScopeTest.php`, `RolePermissionSeederTest.php`, `Migrations/UnifiedDataScopeMigrationsTest.php`
 - `backend/app/Http/Controllers/Api/Management/RoleController.php`, `PermissionController.php`, `UserController.php`
 - `backend/app/Http/Requests/Management/StoreRoleRequest.php`, `UpdateRoleRequest.php`, `StoreUserRequest.php`, `UpdateUserRequest.php`, `ResetTwoFactorRequest.php`
 - `backend/app/Http/Resources/Management/RoleResource.php`, `PermissionResource.php`, `UserResource.php`
 - `backend/app/Services/RoleService.php`, `UserRoleService.php`
 - `backend/app/Policies/RolePolicy.php`, `UserPolicy.php`
-- `backend/database/seeders/RolePermissionSeeder.php`, `backend/database/migrations/2026_10_19_000002_convert_rbac_tables_to_spatie_permission.php`, `2026_10_20_170000_add_data_scope_to_roles_and_office_to_personnel.php`
+- `backend/database/seeders/RolePermissionSeeder.php`, `backend/database/migrations/2026_10_19_000002_convert_rbac_tables_to_spatie_permission.php`, `2026_10_20_170000_add_data_scope_to_roles_and_office_to_personnel.php`, `2026_10_26_000001`-`000005` (unified data scope)
 
 ## Non-obvious design decisions
 

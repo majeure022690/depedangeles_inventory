@@ -2,6 +2,26 @@
 
 All notable changes to this project, in terms of user/developer impact. Entries up to 2026-07-15 were reconstructed from migration filename timestamps and source file modification times, before the project had git history; they are accurate to the day where backed by a migration timestamp, and entries reconstructed from file mtimes alone are noted as such. Later entries cite their commits.
 
+## Unreleased (2026-10-26) — Unified data scope
+
+On `iris-staging`, not yet committed. Migrations `2026_10_26_000001`-`000005`. Decision: [`docs/architecture-decisions/unified-data-scope.md`](docs/architecture-decisions/unified-data-scope.md). Covered by `backend/tests/Feature/DataScope/`, `EquipmentDataScopeTest.php`, `RolePermissionSeederTest.php` and `Migrations/UnifiedDataScopeMigrationsTest.php`.
+
+### Changed
+
+- **A role's data scope now covers Personnel, Equipment, ISP Accounts, Stakeholder Profile and the Internet Connectivity Survey**, not just Equipment. `own` reaches the user's linked Personnel record, `school` (now labelled **"Own office"**; the stored value is still `school`) reaches the user's office plus their linked record, and `all` reaches everything. Lists, single records, `/equipment/options` personnel and the dashboard figures are all scoped. An out-of-reach record now returns **404** (it was 403 for Equipment); a missing permission is still 403. See [`docs/features/roles-and-permissions.md`](docs/features/roles-and-permissions.md#data-scope).
+- **"Own" is an explicit link, not an email match.** New `personnel.user_id` (unique, nullable), backfilled from unambiguous `deped_email` = account email matches (`000002`). Set it on the Personnel form or with "Linked personnel" in the `/users` editor. `deped_email` no longer affects access.
+- **Unissued equipment stays visible to whoever created it.** New `equipment.created_by_user_id`, set from the session and backfilled from the audit log (`000003`). Under `school`, unissued items created by anyone at the same office are visible too. Previously an unassigned item was visible only to `all`, so a scoped encoder lost sight of every item they created.
+- **ISP accounts belong to an office.** New nullable `isp_accounts.office_id` (`000004`), in the form, `IspAccountResource` (`office_id`, `office`) and `/isp-accounts/options` (`form.office`). An account with no office is visible only to `all`.
+- **`stakeholder_profile.view_all` and `internet_connectivity.view_all` are removed** (`000005`). Their holders got `.view` + `.edit` and kept their scope; cross-office access and the two lists now need scope `all`.
+- **Writes stay inside the actor's reach.** Only all-scope users can change `office_id`/`user_id` on Personnel, `office_id` on ISP accounts, or a user's personnel link. A scoped user's new Personnel record or ISP account is put in their own office. `own` users can't create Personnel. Scoped user managers can only assign their own office. Transfer targets must be reachable personnel. `office_id` fields must name an active office (the current value is still accepted).
+- **Roles:** `encoder` is relabelled "Division Encoder" (scope `all`, so its holders keep their access) and a new `office_encoder` "Office Encoder" (scope `school`, same permissions) is added (`000005`). `roles.data_scope` now defaults to `own` (`000001`). `RolePermissionSeeder` no longer overwrites edited roles: it always resyncs `super_administrator` and only creates the others if missing. Role changes for existing databases ship as migrations, since deploy runs migrations only.
+- **API contract:** `UserResource` adds `data_scope`, `personnel_id` and `personnel`; `PersonnelResource` adds `user_id` and `user`; `/personnel/options` adds a `user` list and `/users/options` a `personnel` list (both all-scope only); `PUT /api/users/{id}` accepts `personnel_id`, and omitting `office_id` now leaves it unchanged instead of clearing it.
+- **UI:** sidebar and page titles follow the scope (My Record / Office Personnel / Personnel; My Equipment / Office Equipment / Equipment; Our Office Profile / Stakeholder Profiles; Our Office Connectivity / Internet Connectivity). The dashboard warns users whose account isn't linked to a personnel record or assigned to an office. The Edit Role dialog scrolls as one region.
+
+### Deploy notes
+
+- Scoped users see little until production data is backfilled: `personnel.office_id`, `isp_accounts.office_id`, `users.office_id`, and the user-to-personnel links the email backfill couldn't settle. All-scope admins are unaffected. The owner has a read-only check script that reports the gaps; run it after migrating.
+
 ## 2026-10-23
 
 On `iris-staging`; no migrations. Covered by `backend/tests/Feature/{EquipmentQrCodeHostTest,RegenerateEquipmentQrCodesTest}.php` and `Security/TrustedProxyHeadersTest.php`.

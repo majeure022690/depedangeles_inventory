@@ -28,7 +28,7 @@ Adopted from rwatch as-is:
 
 - Envelope `{ data, message }`. Lists use Laravel's paginator shape (`data`, `meta`, `links`).
 - `per_page` defaults to 20, clamped to 1..100. `sort` + `direction=asc|desc` work only for each endpoint's whitelisted sort keys; anything else falls back to the endpoint's default order.
-- Status codes: `201` create, `204` delete, `401` unauthenticated, `403` forbidden (policy/permission 403s carry no `code` field; the one 403 that does is `code: "no_access"`, see [No-access refusal](#no-access-refusal)), `409` conflict (e.g. deleting an office, role or reference-data row still in use), `422` validation (`errors` keyed by field), `429` rate-limited.
+- Status codes: `201` create, `204` delete, `401` unauthenticated, `403` forbidden (policy/permission 403s carry no `code` field; the one 403 that does is `code: "no_access"`, see [No-access refusal](#no-access-refusal)), `404` not found (also returned for a record outside the user's data scope), `409` conflict (e.g. deleting an office, role or reference-data row still in use), `422` validation (`errors` keyed by field), `429` rate-limited.
 - Form dropdowns come from a sibling `GET /api/<resource>/options` endpoint (registered before `/<resource>/{id}`), not embedded in the resource. Options are `{value, label}`; Tier 1 reference values are ids, Tier 2 values are strings, PSGC/multi-select values are ids (see [reference data](features/reference-data.md)).
 - Exceptions always render as JSON (`shouldRenderJsonWhen(fn () => true)`). In production, any status outside 401/403/404/405/409/422/429 becomes a generic `"An unexpected error occurred."` so stack traces and SQL never leak.
 
@@ -37,8 +37,15 @@ Adopted from rwatch as-is:
 `frontend/src/` mirrors `rwatch/frontend/src`:
 
 - `App.tsx` — the whole route table, every page lazy-loaded. `/` redirects to `/dashboard`; `/equipment/:id/edit` is the QR alias.
-- `layouts/ManagementLayout.tsx` — sidebar (`NAV_GROUPS`), each item gated by a permission. The two office-scoped items (Stakeholder Profile, Internet Connectivity) compute their link from the user: the cross-office list for `.view_all` holders, otherwise the user's own `/:officeId` page, otherwise hidden.
-- `router/Guards.tsx` — `GuestOnly`, `RequireAuth`, `RequirePermission`.
+- `layouts/ManagementLayout.tsx` — sidebar (`NAV_GROUPS`), each item gated by a permission. The scoped items take their title and link from the user's `data_scope` (`lib/dataScope.ts`, which page titles use too):
+
+  | Item | `own` | `school` | `all` |
+  |---|---|---|---|
+  | Personnel | "My Record" → the linked record's edit page (hidden if not linked) | "Office Personnel" | "Personnel" |
+  | Equipment | "My Equipment" | "Office Equipment" | "Equipment" |
+  | Stakeholder Profile | "Our Office Profile" → own `/:officeId` (hidden with no office) | same as `own` | "Stakeholder Profiles" → cross-office list |
+  | Internet Connectivity | "Our Office Connectivity" → own `/:officeId` (hidden with no office) | same as `own` | "Internet Connectivity" → cross-office list |
+- `router/Guards.tsx` — `GuestOnly`, `RequireAuth`, `RequirePermission`, `RequireDataScope` (UX only: redirects to `/dashboard` from routes outside the user's scope, i.e. the two cross-office lists for non-`all` users and `personnel/new` for `own`).
 - `lib/api.ts` — the axios instance (`withCredentials`, `withXSRFToken`, base `VITE_API_URL/api`); a 401 from any call drops the client back to login, and a `no_access` 403 does the same with a notice ([No-access refusal](#no-access-refusal)).
 - `services/<feature>Service.ts` (API calls), `types/<feature>.ts`, `pages/management/<feature>/`, `components/<feature>/<Feature>Fields.tsx` (form body shared by create and edit), `components/ui/*` (rwatch's primitives), `components/forms/*` (shared form helpers).
 - `lib/errors.ts` maps a 422 `errors` object onto form fields; lists use `DataGrid` + `hooks/useServerTable.ts`.
@@ -128,18 +135,19 @@ In production, Plesk's nginx also rate-limits per client IP before PHP, as a bac
 
 **Hard rule:** application code checks a permission, never a role name — `$user->hasPermissionTo(Permission::EquipmentDelete)`, never `$user->hasRole('admin')`. This rule overrides rwatch where they differ: rwatch's `role:` route middleware and its role-keyed "2FA always required" config were deliberately not ported, and only Spatie's `permission` middleware alias is registered.
 
-- **Source of truth:** `App\Enums\Permission` (backed enum, one case per permission; each case also has a `label()` and a `group()` used by the role editor). Inventory's existing names (`equipment.edit`, `equipment.transactions.create`, `stakeholder_profile.view_all`, ...) are the Spatie permission names unchanged. `permission.enable_wildcard_permission` **must stay `false`**, or Spatie would parse the dots as wildcard segments.
-- **Roles** are admin-editable Spatie roles (`App\Models\Role extends Spatie\Permission\Models\Role`, plus inventory's `label`/`description`/`data_scope`). Each user holds one role: migration `2026_10_20_000002` reduced every user to a single role, and `PUT /api/users/{id}` takes one `role_id`. `RolePermissionSeeder` seeds `super_administrator` (every permission, protected), `system_administrator` (everything except `roles.create`/`edit`/`delete`), `encoder` and `viewer` as data, never as code branches. A role's `data_scope` (`own`/`school`/`all`) limits which Equipment rows its permissions reach. It never grants an action. See [`features/roles-and-permissions.md`](features/roles-and-permissions.md#data-scope).
+- **Source of truth:** `App\Enums\Permission` (backed enum, one case per permission; each case also has a `label()` and a `group()` used by the role editor). Inventory's existing names (`equipment.edit`, `equipment.transactions.create`, `stakeholder_profile.view`, ...) are the Spatie permission names unchanged. `permission.enable_wildcard_permission` **must stay `false`**, or Spatie would parse the dots as wildcard segments.
+- **Roles** are admin-editable Spatie roles (`App\Models\Role extends Spatie\Permission\Models\Role`, plus inventory's `label`/`description`/`data_scope`). Each user holds one role: migration `2026_10_20_000002` reduced every user to a single role, and `PUT /api/users/{id}` takes one `role_id`. `RolePermissionSeeder` seeds `super_administrator` (every permission, protected), `system_administrator` (everything except `roles.create`/`edit`/`delete`), `encoder` ("Division Encoder"), `office_encoder` and `viewer` as data, never as code branches.
+- **Data scope** decides which records a role's permissions reach; permissions decide which actions are allowed, and scope never grants one. `roles.data_scope` (`own`/`school`/`all`; `school` is labelled "Own office") applies to Personnel, Equipment, ISP Accounts, Stakeholder Profile and the Internet Connectivity Survey. Lists apply each model's `visibleTo($user)` query scope; single records go through the Policy (below). Decision: [`architecture-decisions/unified-data-scope.md`](architecture-decisions/unified-data-scope.md); reach per resource and edge cases: [`features/roles-and-permissions.md`](features/roles-and-permissions.md#data-scope).
 - **Two layers, as in rwatch:**
   1. Route-level `permission:a|b` middleware in `routes/api/management.php` is a cheap fast fail (any listed permission passes).
-  2. **Policies are the authoritative gate**, re-checked in every controller action (or Form Request). This matters most for Stakeholder Profile and Internet Connectivity Survey, where the same permission means "your own office" or "any office" depending on `office_id` — only the Policy knows that. Index-only admin screens without a per-record ability (audit log, reference-data overview) authorize the permission string directly.
+  2. **Policies are the authoritative gate**, re-checked in every controller action (or Form Request). Only the Policy knows the data scope: holding the permission but asking for an out-of-reach record gets `Response::denyAsNotFound()` (**404**, so a scoped user can't tell whether an id exists); lacking the permission gets **403**. Form Requests authorize with `Gate::inspect()` so the 404 isn't flattened to a 403. Index-only admin screens without a per-record ability (audit log, reference-data overview) authorize the permission string directly.
 - `TrustedDeviceService::days()` returns 0 (code always required) for anyone holding a permission in `TrustedDeviceService::ALWAYS_REQUIRE_CODE` — the permission-based replacement for rwatch's role list. The list covers permissions that change anyone's access (`roles.create`/`edit`/`delete`, `users.edit`, `users.reset_two_factor`), weaken sign-in controls (`security_settings.manage`), or expose or erase the record of what happened (`audit_log.view`, `email_log.manage`). Detail: [`features/two-factor-trusted-devices.md`](features/two-factor-trusted-devices.md#design-decisions).
 - The RBAC guards in `RoleService`/`UserRoleService` (no self-escalation, permission-tier separation, last-holder lockout under a row lock on Spatie's `permissions` row, protected `super_administrator`) survived the move onto Spatie's tables unchanged. Detail: [`features/roles-and-permissions.md`](features/roles-and-permissions.md).
 - Spatie caches permissions. After editing grants directly in the database run `php artisan permission:cache-reset`; tests and seeders call `PermissionRegistrar::forgetCachedPermissions()`.
 
 ### Frontend permission gating
 
-`GET /api/user` (and every login response) returns `UserResource.permissions` — the flat, de-duplicated permission list across the user's roles. `AuthContext.can()` reads it to hide buttons, sidebar items and routes (`RequirePermission`). This is UX only; the server re-checks every request, so a hand-crafted request without the permission still gets a 403.
+`GET /api/user` (and every login response) returns `UserResource.permissions` — the flat, de-duplicated permission list across the user's roles. `AuthContext.can()` reads it to hide buttons, sidebar items and routes (`RequirePermission`). It also carries `data_scope` and `personnel_id`/`personnel` (the user's linked Personnel record), which drive the scope-aware titles and links, `RequireDataScope`, and the dashboard notices for an `own` user with no linked record or a `school` user with no office. All of this is UX only; the server re-checks every request, so a hand-crafted request without the permission still gets a 403 (or a 404 for an out-of-reach record).
 
 ## Audit logging
 
@@ -190,11 +198,11 @@ Records that describe one office (a school or division unit): each `Office` gets
 
 - No create or delete endpoint. `GET`/`PUT /api/<resource>/{office}` lazily `firstOrCreate(['office_id' => ...])` the row; an admin-only index lists every office with whether it has been answered.
 - A unique index on `office_id` (`NOT NULL`) is the whole "at most one per office" guarantee, replacing the old `singleton_guard` race guard.
-- **Scoped access:** the Policy grants `view`/`update` for the user's own `office_id` (with the resource's `.view`/`.edit`) or for any office to a `.view_all` holder (seeded to the two administrator roles).
-- **Authorize before creating.** The controller authorizes a transient, unsaved model with `office_id` already set *before* `firstOrCreate`, so a wrong-office (or zero-permission) request is 403'd without creating that office's row as a side effect.
+- **Scoped access:** the resource's `.view`/`.edit` plus the role's data scope (`User::reachesOffice()`). `own` and `school` reach only the user's own `office_id`; `all` reaches every office and is the only scope allowed the cross-office list (`viewAny`). The former `.view_all` permissions were removed by migration `2026_10_26_000005`, which gave their holders `.view` + `.edit`.
+- **Authorize before creating.** The controller authorizes a transient, unsaved model with `office_id` already set *before* `firstOrCreate`, so a wrong-office (404) or zero-permission (403) request is refused without creating that office's row as a side effect.
 - Because `firstOrCreate` persists an empty row the first time anyone opens the page, row existence does not mean "answered"; the index uses each model's `hasAnswers()` (any non-default field filled in) for `has_profile`/`has_survey`.
 
-The survey's old division-wide "aggregates" panel (ISP totals) was removed on 2026-07-15 — `isp_accounts` has no `office_id`, so every office showed the same totals. See [`features/internet-connectivity-survey.md`](features/internet-connectivity-survey.md).
+The survey's old division-wide "aggregates" panel (ISP totals) was removed on 2026-07-15 because `isp_accounts` had no `office_id`, so every office showed the same totals. `isp_accounts.office_id` was added on 2026-10-26 for data scope; the panel hasn't been brought back. See [`features/internet-connectivity-survey.md`](features/internet-connectivity-survey.md).
 
 ## Reference data: tiered tables, not one generic `lookups` table
 
