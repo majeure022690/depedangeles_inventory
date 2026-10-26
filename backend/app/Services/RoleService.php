@@ -148,6 +148,8 @@ final class RoleService
             ]);
         }
 
+        $this->guardAgainstWiderDataScope($actor, $role->data_scope);
+
         $userCount = $role->users()->count();
 
         if ($userCount > 0) {

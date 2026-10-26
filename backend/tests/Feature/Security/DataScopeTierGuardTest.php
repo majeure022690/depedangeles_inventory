@@ -151,6 +151,18 @@ class DataScopeTierGuardTest extends TestCase
         $this->assertSame(DataScope::All, $encoder->data_scope);
     }
 
+    public function test_a_scoped_actor_cannot_delete_an_all_scope_role(): void
+    {
+        $actor = $this->actor(DataScope::School);
+        $this->grantPermissions($actor, [Permission::RolesDelete], DataScope::School);
+        $wide = Role::create(['name' => 'unassigned-wide', 'label' => 'Unassigned Wide', 'data_scope' => DataScope::All]);
+
+        $this->actingAs($actor)->deleteJson("/api/roles/{$wide->id}")
+            ->assertConflict()
+            ->assertJsonPath('message', fn (string $message) => str_contains($message, 'data scope'));
+        $this->assertModelExists($wide);
+    }
+
     public function test_all_scope_actor_can_set_any_scope(): void
     {
         $actor = $this->actor(DataScope::All);
