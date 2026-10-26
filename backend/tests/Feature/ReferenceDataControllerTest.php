@@ -41,9 +41,9 @@ class ReferenceDataControllerTest extends TestCase
         return $this->userWithPermissions([Permission::ReferenceDataManage]);
     }
 
-    private function encoder(): User
+    private function withoutReferenceDataManage(): User
     {
-        return $this->userWithRole('encoder');
+        return $this->userWithAllPermissions([Permission::ReferenceDataManage]);
     }
 
     private function unitOfMeasure(string $value, int $sortOrder = 0): EquipmentLibrary
@@ -63,14 +63,14 @@ class ReferenceDataControllerTest extends TestCase
 
     public function test_every_endpoint_is_forbidden_without_reference_data_manage(): void
     {
-        $encoder = $this->encoder();
+        $outsider = $this->withoutReferenceDataManage();
         $itemType = ItemType::create(['name' => 'Laptop', 'sort_order' => 0, 'is_active' => true]);
 
-        $this->actingAs($encoder)->getJson('/api/reference-data')->assertForbidden();
-        $this->actingAs($encoder)->getJson('/api/reference-data/item-types')->assertForbidden();
-        $this->actingAs($encoder)->postJson('/api/reference-data/item-types', ['name' => 'Tablet'])->assertForbidden();
-        $this->actingAs($encoder)->patchJson("/api/reference-data/item-types/{$itemType->id}", ['name' => 'Renamed', 'sort_order' => 1, 'is_active' => true])->assertForbidden();
-        $this->actingAs($encoder)->deleteJson("/api/reference-data/item-types/{$itemType->id}")->assertForbidden();
+        $this->actingAs($outsider)->getJson('/api/reference-data')->assertForbidden();
+        $this->actingAs($outsider)->getJson('/api/reference-data/item-types')->assertForbidden();
+        $this->actingAs($outsider)->postJson('/api/reference-data/item-types', ['name' => 'Tablet'])->assertForbidden();
+        $this->actingAs($outsider)->patchJson("/api/reference-data/item-types/{$itemType->id}", ['name' => 'Renamed', 'sort_order' => 1, 'is_active' => true])->assertForbidden();
+        $this->actingAs($outsider)->deleteJson("/api/reference-data/item-types/{$itemType->id}")->assertForbidden();
 
         $this->assertSame('Laptop', $itemType->fresh()->name);
         $this->assertDatabaseMissing('item_types', ['name' => 'Tablet']);

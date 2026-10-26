@@ -13,11 +13,12 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use PragmaRX\Google2FA\Google2FA;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class TwoFactorAuthenticationTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -182,7 +183,7 @@ class TwoFactorAuthenticationTest extends TestCase
     public function test_reset_two_factor_holder_can_reset_two_factor_for_another_user(): void
     {
         $admin = User::factory()->create(['password' => Hash::make('AdminPass123!')]);
-        $admin->assignRole('system_administrator');
+        $this->grantPermissions($admin, [Permission::UsersResetTwoFactor, Permission::EquipmentView]);
 
         $target = $this->createEnrolledUser((new TwoFactorAuthService)->generateSecret());
         $target->trustedDevices()->create(['token_hash' => hash('sha256', 'device'), 'expires_at' => now()->addDays(30)]);
@@ -204,7 +205,7 @@ class TwoFactorAuthenticationTest extends TestCase
     public function test_reset_two_factor_requires_the_admins_current_password(): void
     {
         $admin = User::factory()->create(['password' => Hash::make('AdminPass123!')]);
-        $admin->assignRole('system_administrator');
+        $this->grantPermissions($admin, [Permission::UsersResetTwoFactor, Permission::EquipmentView]);
         $target = $this->createEnrolledUser((new TwoFactorAuthService)->generateSecret());
 
         $this->actingAs($admin)->postJson("/api/users/{$target->id}/2fa/reset", [
@@ -217,7 +218,7 @@ class TwoFactorAuthenticationTest extends TestCase
     public function test_admin_cannot_reset_their_own_two_factor(): void
     {
         $admin = $this->createEnrolledUser((new TwoFactorAuthService)->generateSecret());
-        $admin->assignRole('system_administrator');
+        $this->grantPermissions($admin, [Permission::UsersResetTwoFactor, Permission::EquipmentView]);
 
         $this->actingAs($admin)->postJson("/api/users/{$admin->id}/2fa/reset", [
             'current_password' => 'CorrectHorse123!',
@@ -229,7 +230,7 @@ class TwoFactorAuthenticationTest extends TestCase
     public function test_user_without_reset_two_factor_permission_cannot_reset_it_for_another_user(): void
     {
         $user = User::factory()->create(['password' => Hash::make('UserPass123!')]);
-        $user->assignRole('encoder');
+        $this->grantPermissions($user, [Permission::UsersView, Permission::UsersEdit, Permission::EquipmentView]);
 
         $target = $this->createEnrolledUser((new TwoFactorAuthService)->generateSecret());
 

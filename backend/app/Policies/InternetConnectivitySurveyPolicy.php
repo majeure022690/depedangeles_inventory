@@ -2,41 +2,37 @@
 
 namespace App\Policies;
 
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Models\InternetConnectivitySurvey;
 use App\Models\User;
+use Illuminate\Auth\Access\Response;
 
-/**
- * One row per Office, mirroring StakeholderProfilePolicy. `.view`/`.edit`
- * are scoped to the acting user's own office_id; `.view_all` bypasses that
- * and gates the cross-office admin list (viewAny()).
- */
 class InternetConnectivitySurveyPolicy
 {
-    public function viewAny(User $user): bool
+    public function viewAny(User $user): Response
     {
-        return $user->hasPermissionTo(Permission::InternetConnectivityViewAll);
+        return $user->hasPermissionTo(Permission::InternetConnectivityView) && $user->dataScope() === DataScope::All
+            ? Response::allow()
+            : Response::deny();
     }
 
-    public function view(User $user, InternetConnectivitySurvey $internetConnectivitySurvey): bool
+    public function view(User $user, InternetConnectivitySurvey $internetConnectivitySurvey): Response
     {
-        if ($user->hasPermissionTo(Permission::InternetConnectivityViewAll)) {
-            return true;
-        }
-
-        return $user->hasPermissionTo(Permission::InternetConnectivityView)
-            && $user->office_id !== null
-            && $user->office_id === $internetConnectivitySurvey->office_id;
+        return $this->permittedAndReached($user, $internetConnectivitySurvey, Permission::InternetConnectivityView);
     }
 
-    public function update(User $user, InternetConnectivitySurvey $internetConnectivitySurvey): bool
+    public function update(User $user, InternetConnectivitySurvey $internetConnectivitySurvey): Response
     {
-        if ($user->hasPermissionTo(Permission::InternetConnectivityViewAll)) {
-            return true;
+        return $this->permittedAndReached($user, $internetConnectivitySurvey, Permission::InternetConnectivityEdit);
+    }
+
+    private function permittedAndReached(User $user, InternetConnectivitySurvey $internetConnectivitySurvey, Permission $permission): Response
+    {
+        if (! $user->hasPermissionTo($permission)) {
+            return Response::deny();
         }
 
-        return $user->hasPermissionTo(Permission::InternetConnectivityEdit)
-            && $user->office_id !== null
-            && $user->office_id === $internetConnectivitySurvey->office_id;
+        return $user->reachesOffice($internetConnectivitySurvey->office_id) ? Response::allow() : Response::denyAsNotFound();
     }
 }

@@ -8,15 +8,6 @@ enum DataScope: string
     case School = 'school';
     case All = 'all';
 
-    public function label(): string
-    {
-        return match ($this) {
-            self::Own => 'Own records only',
-            self::School => 'Own school',
-            self::All => 'All records',
-        };
-    }
-
     public function rank(): int
     {
         return match ($this) {

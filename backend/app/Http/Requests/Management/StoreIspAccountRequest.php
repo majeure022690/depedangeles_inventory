@@ -6,14 +6,19 @@ namespace App\Http\Requests\Management;
 
 use App\Enums\ConnectivityLibraryType;
 use App\Enums\EquipmentLibraryType;
+use App\Http\Requests\Management\Concerns\RestrictsScopedAssignments;
 use App\Models\ConnectivityLibrary;
 use App\Models\EquipmentLibrary;
 use App\Models\IspAccount;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreIspAccountRequest extends FormRequest
 {
+    use RestrictsScopedAssignments;
+
     public function authorize(): bool
     {
         return $this->user()->can('create', IspAccount::class);
@@ -39,6 +44,7 @@ class StoreIspAccountRequest extends FormRequest
     {
         return [
             'isp_provider_id' => ['required', 'integer', Rule::exists('isp_providers', 'id')->where('is_active', true)],
+            'office_id' => ['nullable', 'integer', $this->activeOfficeRule()],
             'cost_per_month' => ['required', 'numeric', 'min:0'],
             'isp_billing_account_no' => ['required', 'string', 'max:255'],
             'package_purchased_inclusion' => ['required', 'string'],
@@ -75,11 +81,23 @@ class StoreIspAccountRequest extends FormRequest
     }
 
     /**
+     * @return array<int, Closure(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            $this->requireActorOffice(),
+            $this->lockForScopedActors(['office_id' => [$this->user()->office_id]], allowBlank: true),
+        ];
+    }
+
+    /**
      * @return array<string, string>
      */
     public function attributes(): array
     {
         return [
+            'office_id' => 'office',
             'isp_provider_id' => 'ISP',
             'isp_billing_account_no' => 'billing account number',
             'package_purchased_inclusion' => 'package inclusions',

@@ -11,7 +11,9 @@ use App\Models\EquipmentLibrary;
 use App\Models\Office;
 use App\Models\StakeholderLibrary;
 use App\Models\StakeholderProfile;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 /**
@@ -62,7 +64,7 @@ class UpdateStakeholderProfileRequest extends FormRequest
         $this->normalizeDateTimesToAppTimezone('submitted_at');
     }
 
-    public function authorize(): bool
+    public function authorize(): Response
     {
         // Authorize against a transient (unsaved) instance scoped to the
         // route's {office} rather than `firstOrCreate(['office_id' =>
@@ -73,7 +75,7 @@ class UpdateStakeholderProfileRequest extends FormRequest
         // unauthorized request.
         $office = $this->route('office');
 
-        return $this->user()->can('update', new StakeholderProfile([
+        return Gate::forUser($this->user())->inspect('update', new StakeholderProfile([
             'office_id' => $office instanceof Office ? $office->id : null,
         ]));
     }

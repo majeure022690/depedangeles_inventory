@@ -5,13 +5,18 @@ declare(strict_types=1);
 namespace App\Http\Requests\Management;
 
 use App\Enums\PersonnelLibraryType;
+use App\Http\Requests\Management\Concerns\RestrictsScopedAssignments;
 use App\Models\Personnel;
 use App\Models\PersonnelLibrary;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StorePersonnelRequest extends FormRequest
 {
+    use RestrictsScopedAssignments;
+
     public function authorize(): bool
     {
         return $this->user()->can('create', Personnel::class);
@@ -51,7 +56,7 @@ class StorePersonnelRequest extends FormRequest
             'position_id' => ['nullable', 'integer', Rule::exists('positions', 'id')->where('is_active', true)],
             'ro_office_id' => ['nullable', 'integer', Rule::exists('ro_offices', 'id')->where('is_active', true)],
             'sdo_office_id' => ['nullable', 'integer', Rule::exists('sdo_offices', 'id')->where('is_active', true)],
-            'office_id' => ['nullable', 'integer', Rule::exists('offices', 'id')],
+            'office_id' => ['nullable', 'integer', $this->activeOfficeRule()],
 
             'oic' => ['boolean'],
             'oic_office' => ['nullable', 'string', 'max:255'],
@@ -78,6 +83,17 @@ class StorePersonnelRequest extends FormRequest
 
             'transferred_from' => ['nullable', 'string', 'max:255'],
             'transferred_to' => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
+    /**
+     * @return array<int, Closure(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            $this->requireActorOffice(),
+            $this->lockForScopedActors(['office_id' => [$this->user()->office_id]], allowBlank: true),
         ];
     }
 

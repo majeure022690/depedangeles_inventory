@@ -71,17 +71,23 @@ class AuditLogControllerTest extends TestCase
     }
 
     /**
-     * @return array<string, array{string}>
+     * @return array<string, array{array<int, Permission>}>
      */
-    public static function nonAdminRoles(): array
+    public static function permissionSetsWithoutAuditLogView(): array
     {
-        return ['encoder' => ['encoder'], 'viewer' => ['viewer']];
+        return [
+            'record editing' => [[Permission::PersonnelView, Permission::EquipmentView, Permission::EquipmentEdit]],
+            'every other permission' => [array_values(array_filter(Permission::cases(), fn (Permission $p) => $p !== Permission::AuditLogView))],
+        ];
     }
 
-    #[DataProvider('nonAdminRoles')]
-    public function test_non_admin_roles_are_forbidden(string $role): void
+    /**
+     * @param  array<int, Permission>  $permissions
+     */
+    #[DataProvider('permissionSetsWithoutAuditLogView')]
+    public function test_users_without_audit_log_view_are_forbidden(array $permissions): void
     {
-        $user = $this->userWithRole($role);
+        $user = $this->userWithPermissions($permissions);
 
         $this->actingAs($user)->getJson('/api/audit-log')->assertForbidden();
         $this->actingAs($user)->getJson('/api/audit-log/options')->assertForbidden();

@@ -137,7 +137,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
-        return (new UserResource($user->load('roles.permissions', 'permissions', 'office')))
+        return (new UserResource($user->load('roles.permissions', 'permissions', 'office', 'personnel:id,user_id,full_name')))
             ->additional(['message' => 'Success'])
             ->response();
     }
@@ -181,7 +181,7 @@ class AuthController extends Controller
             Storage::disk('public')->delete($replacedAvatar);
         }
 
-        return (new UserResource($user->fresh()->load('roles.permissions', 'permissions', 'office')))
+        return (new UserResource($user->fresh()->load('roles.permissions', 'permissions', 'office', 'personnel:id,user_id,full_name')))
             ->additional(['message' => 'Profile updated successfully.'])
             ->response();
     }

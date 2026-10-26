@@ -2,49 +2,37 @@
 
 namespace App\Policies;
 
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Models\StakeholderProfile;
 use App\Models\User;
+use Illuminate\Auth\Access\Response;
 
-/**
- * ONE ROW PER OFFICE (see App\Models\StakeholderProfile) — no create/delete
- * action to authorize (no `store()` making additional rows, no
- * `destroy()`), so this Policy has view/update plus viewAny for the
- * cross-office admin list.
- *
- * `.view`/`.edit` are scoped to the acting user's OWN office_id — an
- * encoder/viewer can only read/write the profile matching the school they
- * belong to, never another school's, even though the permission name
- * itself isn't office-specific. `.view_all` bypasses that scoping entirely
- * (division-level oversight, e.g. the admin role) and additionally gates
- * the admin list (viewAny()).
- */
 class StakeholderProfilePolicy
 {
-    public function viewAny(User $user): bool
+    public function viewAny(User $user): Response
     {
-        return $user->hasPermissionTo(Permission::StakeholderProfileViewAll);
+        return $user->hasPermissionTo(Permission::StakeholderProfileView) && $user->dataScope() === DataScope::All
+            ? Response::allow()
+            : Response::deny();
     }
 
-    public function view(User $user, StakeholderProfile $stakeholderProfile): bool
+    public function view(User $user, StakeholderProfile $stakeholderProfile): Response
     {
-        if ($user->hasPermissionTo(Permission::StakeholderProfileViewAll)) {
-            return true;
-        }
-
-        return $user->hasPermissionTo(Permission::StakeholderProfileView)
-            && $user->office_id !== null
-            && $user->office_id === $stakeholderProfile->office_id;
+        return $this->permittedAndReached($user, $stakeholderProfile, Permission::StakeholderProfileView);
     }
 
-    public function update(User $user, StakeholderProfile $stakeholderProfile): bool
+    public function update(User $user, StakeholderProfile $stakeholderProfile): Response
     {
-        if ($user->hasPermissionTo(Permission::StakeholderProfileViewAll)) {
-            return true;
+        return $this->permittedAndReached($user, $stakeholderProfile, Permission::StakeholderProfileEdit);
+    }
+
+    private function permittedAndReached(User $user, StakeholderProfile $stakeholderProfile, Permission $permission): Response
+    {
+        if (! $user->hasPermissionTo($permission)) {
+            return Response::deny();
         }
 
-        return $user->hasPermissionTo(Permission::StakeholderProfileEdit)
-            && $user->office_id !== null
-            && $user->office_id === $stakeholderProfile->office_id;
+        return $user->reachesOffice($stakeholderProfile->office_id) ? Response::allow() : Response::denyAsNotFound();
     }
 }

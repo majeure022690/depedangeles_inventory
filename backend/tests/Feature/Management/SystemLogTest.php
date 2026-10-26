@@ -11,11 +11,12 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class SystemLogTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     /**
      * Real dev log contents, put back after each test.
@@ -376,12 +377,11 @@ class SystemLogTest extends TestCase
             ['deleteJson', '/api/settings/system-logs/slow-queries'],
         ];
         $emailLogOnly = $this->userWithOnly(Permission::EmailLogManage);
-        $viewer = User::factory()->create();
-        $viewer->assignRole('viewer');
+        $everythingElse = $this->userWithAllPermissions([Permission::SecuritySettingsManage]);
 
         foreach ($routes as [$method, $uri]) {
             $this->actingAs($emailLogOnly)->{$method}($uri)->assertForbidden();
-            $this->actingAs($viewer)->{$method}($uri)->assertForbidden();
+            $this->actingAs($everythingElse)->{$method}($uri)->assertForbidden();
         }
 
         $this->assertStringContainsString('Keep me', (string) file_get_contents($this->errorLogPath()));

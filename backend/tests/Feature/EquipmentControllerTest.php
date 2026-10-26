@@ -38,9 +38,11 @@ class EquipmentControllerTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
-    private function encoder(): User
+    private function editor(): User
     {
-        return $this->userWithRole('encoder');
+        return $this->userWithPermissions([
+            Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit, Permission::EquipmentTransactionsCreate,
+        ]);
     }
 
     /**
@@ -80,7 +82,7 @@ class EquipmentControllerTest extends TestCase
 
     public function test_store_validates_required_fields_and_creates_record_without_a_current_holder(): void
     {
-        $user = $this->encoder();
+        $user = $this->editor();
 
         // property_no and acquisition_cost are nullable ("pending" items).
         $this->actingAs($user)->postJson('/api/equipment', [])
@@ -118,7 +120,7 @@ class EquipmentControllerTest extends TestCase
 
     public function test_store_creates_a_pending_record_without_property_no_or_acquisition_cost(): void
     {
-        $response = $this->actingAs($this->encoder())->postJson('/api/equipment', $this->payload([
+        $response = $this->actingAs($this->editor())->postJson('/api/equipment', $this->payload([
             'property_no' => null,
             'acquisition_cost' => null,
         ]))->assertCreated()
@@ -132,7 +134,7 @@ class EquipmentControllerTest extends TestCase
 
     public function test_store_allows_a_second_pending_record_with_no_property_no(): void
     {
-        $user = $this->encoder();
+        $user = $this->editor();
 
         $this->actingAs($user)->postJson('/api/equipment', $this->payload(['property_no' => null]))->assertCreated();
         $this->actingAs($user)->postJson('/api/equipment', $this->payload(['property_no' => null]))->assertCreated();
@@ -142,7 +144,7 @@ class EquipmentControllerTest extends TestCase
 
     public function test_store_rejects_a_nonexistent_item_type_id(): void
     {
-        $this->actingAs($this->encoder())->postJson('/api/equipment', $this->payload(['item_type_id' => 999999]))
+        $this->actingAs($this->editor())->postJson('/api/equipment', $this->payload(['item_type_id' => 999999]))
             ->assertJsonValidationErrors(['item_type_id']);
 
         $this->assertDatabaseMissing('equipment', ['property_no' => 'AC-2026-IT-LT-000123']);
@@ -153,7 +155,7 @@ class EquipmentControllerTest extends TestCase
         $itemType = ItemType::where('name', 'Laptop')->firstOrFail();
         $itemType->update(['is_active' => false]);
 
-        $this->actingAs($this->encoder())->postJson('/api/equipment', $this->payload(['item_type_id' => $itemType->id]))
+        $this->actingAs($this->editor())->postJson('/api/equipment', $this->payload(['item_type_id' => $itemType->id]))
             ->assertJsonValidationErrors(['item_type_id']);
 
         $this->assertDatabaseMissing('equipment', ['property_no' => 'AC-2026-IT-LT-000123']);
@@ -164,7 +166,7 @@ class EquipmentControllerTest extends TestCase
         $equipment = $this->makeEquipment();
         $someoneElse = Personnel::factory()->create();
 
-        $this->actingAs($this->encoder())->putJson("/api/equipment/{$equipment->id}", $this->payload([
+        $this->actingAs($this->editor())->putJson("/api/equipment/{$equipment->id}", $this->payload([
             'property_no' => $equipment->property_no,
             'acquisition_cost' => 60000,
             'current_accountable_officer_id' => $someoneElse->id,
@@ -186,7 +188,7 @@ class EquipmentControllerTest extends TestCase
         $equipment->transactions()->create(['transaction_type' => 'Beginning Inventory']);
         $equipment->transactions()->create(['transaction_type' => 'Issuance/Transfer', 'accountable_officer_id' => $officer->id]);
 
-        $this->actingAs($this->userWithRole('encoder'))->getJson("/api/equipment/{$equipment->id}")
+        $this->actingAs($this->editor())->getJson("/api/equipment/{$equipment->id}")
             ->assertOk()
             ->assertJsonPath('data.id', $equipment->id)
             ->assertJsonPath('data.item', 'Laptop')
@@ -208,7 +210,7 @@ class EquipmentControllerTest extends TestCase
         $this->makeEquipment(['property_no' => 'A-2', 'equipment_condition_id' => $forRepairId, 'equipment_category_id' => $lowValueId, 'disposition_status' => 'For Disposal']);
         $this->makeEquipment(['property_no' => null]);
 
-        $user = $this->userWithRole('encoder');
+        $user = $this->editor();
 
         $this->actingAs($user)->getJson('/api/equipment')
             ->assertOk()
@@ -228,7 +230,7 @@ class EquipmentControllerTest extends TestCase
         Personnel::factory()->create(['last_name' => 'Active']);
         Personnel::factory()->inactive()->create(['last_name' => 'Gone']);
 
-        $response = $this->actingAs($this->encoder())->getJson('/api/equipment/options')
+        $response = $this->actingAs($this->editor())->getJson('/api/equipment/options')
             ->assertOk()
             ->assertJsonStructure(['data' => [
                 'form' => ['item_type', 'brand', 'category', 'classification', 'condition', 'unit_of_measure', 'dcp_package',
@@ -242,17 +244,17 @@ class EquipmentControllerTest extends TestCase
         $this->assertIsInt($response->json('data.form.item_type.0.value'));
         $this->assertIsString($response->json('data.form.unit_of_measure.0.value'));
 
-        // viewer lacks equipment.transactions.create: no personnel list.
-        $this->actingAs($this->userWithRole('viewer'))->getJson('/api/equipment/options')
+        // Without equipment.transactions.create: no personnel list.
+        $this->actingAs($this->userWithPermissions([Permission::EquipmentView]))->getJson('/api/equipment/options')
             ->assertOk()
             ->assertJsonMissingPath('data.personnel');
     }
 
-    public function test_destroy_soft_deletes_for_admin_and_is_forbidden_for_encoder(): void
+    public function test_destroy_soft_deletes_with_equipment_delete_and_is_forbidden_without_it(): void
     {
         $equipment = $this->makeEquipment();
 
-        $this->actingAs($this->encoder())->deleteJson("/api/equipment/{$equipment->id}")->assertForbidden();
+        $this->actingAs($this->editor())->deleteJson("/api/equipment/{$equipment->id}")->assertForbidden();
         $this->assertNotSoftDeleted('equipment', ['id' => $equipment->id]);
 
         $this->actingAs($this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentDelete]))->deleteJson("/api/equipment/{$equipment->id}")->assertNoContent();
@@ -262,7 +264,7 @@ class EquipmentControllerTest extends TestCase
 
     public function test_transaction_store_records_the_audit_event_and_syncs_current_holder_pointers(): void
     {
-        $user = $this->encoder();
+        $user = $this->editor();
         $officer = Personnel::factory()->create();
         $endUser = Personnel::factory()->create();
         $equipment = $this->makeEquipment();
@@ -298,7 +300,7 @@ class EquipmentControllerTest extends TestCase
 
     public function test_a_later_transaction_reassigns_accountability_and_can_clear_the_end_user(): void
     {
-        $user = $this->encoder();
+        $user = $this->editor();
         $officer = Personnel::factory()->create();
         $newOfficer = Personnel::factory()->create();
         $equipment = $this->makeEquipment();

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Models\Role;
 use App\Models\User;
@@ -34,6 +35,11 @@ class PermissionCatalogTest extends TestCase
         $this->assertEqualsCanonicalizing(['super_administrator', 'system_administrator'], $this->holdersOf(Permission::SecuritySettingsManage));
     }
 
+    public function test_reference_data_manage_is_seeded_to_the_administrator_roles_only(): void
+    {
+        $this->assertEqualsCanonicalizing(['super_administrator', 'system_administrator'], $this->holdersOf(Permission::ReferenceDataManage));
+    }
+
     public function test_email_log_manage_is_seeded_to_the_administrator_roles_only(): void
     {
         $this->assertSame('email_log.manage', Permission::EmailLogManage->value);
@@ -56,10 +62,20 @@ class PermissionCatalogTest extends TestCase
         $all = array_map(fn (Permission $permission) => $permission->value, Permission::cases());
         $roleWrites = [Permission::RolesCreate->value, Permission::RolesEdit->value, Permission::RolesDelete->value];
 
-        $this->assertEqualsCanonicalizing(['super_administrator', 'system_administrator', 'encoder', 'viewer'], Role::pluck('name')->all());
+        $this->assertEqualsCanonicalizing(['super_administrator', 'system_administrator', 'encoder', 'office_encoder', 'viewer'], Role::pluck('name')->all());
         $this->assertEqualsCanonicalizing($all, $this->permissionsOf('super_administrator'));
         $this->assertEqualsCanonicalizing(array_values(array_diff($all, $roleWrites)), $this->permissionsOf('system_administrator'));
         $this->assertNotContains(Permission::IspAccountsView->value, $this->permissionsOf('viewer'));
+        $this->assertEqualsCanonicalizing($this->permissionsOf('encoder'), $this->permissionsOf('office_encoder'));
+
+        $scopes = Role::pluck('data_scope', 'name')->map(fn (DataScope $scope) => $scope->value)->all();
+        $this->assertSame('all', $scopes['super_administrator']);
+        $this->assertSame('all', $scopes['system_administrator']);
+        $this->assertSame('all', $scopes['encoder']);
+        $this->assertSame('school', $scopes['office_encoder']);
+        $this->assertSame('own', $scopes['viewer']);
+        $this->assertSame('Division Encoder', Role::findByName('encoder')->label);
+        $this->assertSame('Office Encoder', Role::findByName('office_encoder')->label);
     }
 
     /**
@@ -85,12 +101,13 @@ class PermissionCatalogTest extends TestCase
         $this->assertSame('Offices', Permission::OfficeDelete->group());
     }
 
-    public function test_view_all_labels_say_they_also_grant_cross_office_edit(): void
+    public function test_view_all_permissions_no_longer_exist(): void
     {
-        $this->assertSame('Stakeholder Profile — view & edit all offices', Permission::StakeholderProfileViewAll->label());
-        $this->assertSame('Internet Connectivity — view & edit all offices', Permission::InternetConnectivityViewAll->label());
-        $this->assertSame('stakeholder_profile.view_all', Permission::StakeholderProfileViewAll->value);
-        $this->assertSame('internet_connectivity.view_all', Permission::InternetConnectivityViewAll->value);
+        $values = array_map(fn (Permission $permission) => $permission->value, Permission::cases());
+
+        $this->assertNotContains('stakeholder_profile.view_all', $values);
+        $this->assertNotContains('internet_connectivity.view_all', $values);
+        $this->assertSame(0, PermissionModel::where('name', 'like', '%.view_all')->count());
     }
 
     public function test_roles_created_after_an_api_request_keep_the_web_guard(): void

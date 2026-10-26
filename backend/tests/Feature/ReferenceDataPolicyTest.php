@@ -9,6 +9,7 @@ use App\Models\ItemType;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 /**
@@ -22,43 +23,16 @@ use Tests\TestCase;
  */
 class ReferenceDataPolicyTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     private function admin(): User
     {
-        $user = User::factory()->create();
-        $user->assignRole('system_administrator');
-
-        return $user;
+        return $this->userWithPermissions([PermissionEnum::ReferenceDataManage]);
     }
 
-    private function encoder(): User
+    private function withoutReferenceDataManage(): User
     {
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
-
-        return $user;
-    }
-
-    public function test_system_administrator_role_has_reference_data_manage(): void
-    {
-        $this->seed(RolePermissionSeeder::class);
-
-        $admin = $this->admin();
-
-        $this->assertTrue($admin->hasPermissionTo(PermissionEnum::ReferenceDataManage));
-    }
-
-    public function test_encoder_and_viewer_roles_lack_reference_data_manage(): void
-    {
-        $this->seed(RolePermissionSeeder::class);
-
-        $encoder = $this->encoder();
-        $this->assertFalse($encoder->hasPermissionTo(PermissionEnum::ReferenceDataManage));
-
-        $viewer = User::factory()->create();
-        $viewer->assignRole('viewer');
-        $this->assertFalse($viewer->hasPermissionTo(PermissionEnum::ReferenceDataManage));
+        return $this->userWithAllPermissions([PermissionEnum::ReferenceDataManage]);
     }
 
     public function test_admin_can_view_and_manage_a_tier1_reference_row(): void
@@ -97,7 +71,7 @@ class ReferenceDataPolicyTest extends TestCase
     public function test_encoder_is_denied_on_reference_data_models_despite_having_other_permissions(): void
     {
         $this->seed(RolePermissionSeeder::class);
-        $encoder = $this->encoder();
+        $encoder = $this->withoutReferenceDataManage();
 
         $itemType = ItemType::create(['name' => 'Desktop', 'sort_order' => 0, 'is_active' => true]);
         $library = EquipmentLibrary::create([

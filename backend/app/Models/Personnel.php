@@ -156,6 +156,33 @@ class Personnel extends Model
     }
 
     /**
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @param  Builder<Personnel>  $query
+     */
+    public function scopeVisibleTo(Builder $query, User $user): void
+    {
+        $ids = $user->scopedPersonnelIds();
+
+        if ($ids !== null) {
+            $query->whereIn($query->qualifyColumn('id'), $ids);
+        }
+    }
+
+    public function isVisibleTo(User $user): bool
+    {
+        $ids = $user->scopedPersonnelIds();
+
+        return $ids === null || in_array($this->id, $ids, true);
+    }
+
+    /**
      * Currently-employed personnel only (excludes separated/transferred-out
      * records, which are retained for historical accountability lookups).
      *
@@ -205,7 +232,7 @@ class Personnel extends Model
                 'mobile_1', 'mobile_2', 'deped_email', 'personal_email', 'date_hired',
                 'non_deped_funded', 'fund_source', 'inactive', 'separation_date',
                 'separation_cause', 'transferred_from', 'transferred_to',
-                'position_id', 'ro_office_id', 'sdo_office_id', 'office_id',
+                'position_id', 'ro_office_id', 'sdo_office_id', 'office_id', 'user_id',
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()

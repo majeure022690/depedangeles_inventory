@@ -11,7 +11,9 @@ use App\Models\InternetConnectivitySurvey;
 use App\Models\IspProvider;
 use App\Models\Office;
 use App\Models\StakeholderLibrary;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 /**
@@ -21,13 +23,13 @@ use Illuminate\Validation\Rule;
  */
 class UpdateInternetConnectivitySurveyRequest extends FormRequest
 {
-    public function authorize(): bool
+    public function authorize(): Response
     {
         // Transient instance scoped to the route's office, so an
         // unauthorized request never creates that office's row.
         $office = $this->route('office');
 
-        return $this->user()->can('update', new InternetConnectivitySurvey([
+        return Gate::forUser($this->user())->inspect('update', new InternetConnectivitySurvey([
             'office_id' => $office instanceof Office ? $office->id : null,
         ]));
     }

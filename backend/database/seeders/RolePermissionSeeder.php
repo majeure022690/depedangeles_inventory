@@ -9,59 +9,72 @@ use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 
-/**
- * Seeds the `permissions` table from App\Enums\Permission and composes the
- * four default roles from it. Idempotent; guard `web`.
- */
 class RolePermissionSeeder extends Seeder
 {
+    private const SUPER_ADMIN = 'super_administrator';
+
     private const SYSTEM_ADMIN_EXCLUDED = ['roles.create', 'roles.edit', 'roles.delete'];
 
+    private const ENCODER_PERMISSIONS = [
+        PermissionEnum::PersonnelView,
+        PermissionEnum::PersonnelCreate,
+        PermissionEnum::PersonnelEdit,
+        PermissionEnum::EquipmentView,
+        PermissionEnum::EquipmentCreate,
+        PermissionEnum::EquipmentEdit,
+        PermissionEnum::EquipmentTransactionsCreate,
+        PermissionEnum::IspAccountsView,
+        PermissionEnum::IspAccountsCreate,
+        PermissionEnum::IspAccountsEdit,
+        PermissionEnum::StakeholderProfileView,
+        PermissionEnum::StakeholderProfileEdit,
+        PermissionEnum::InternetConnectivityView,
+        PermissionEnum::InternetConnectivityEdit,
+    ];
+
     /**
-     * @return array<string, array{label: string, description: string, data_scope?: DataScope, permissions: array<int, string>}>
+     * @return array<string, array{label: string, description: string, data_scope: DataScope, permissions: array<int, string>}>
      */
     private static function roleDefinitions(): array
     {
         $all = array_map(fn (PermissionEnum $permission) => $permission->value, PermissionEnum::cases());
+        $encoder = array_map(fn (PermissionEnum $permission) => $permission->value, self::ENCODER_PERMISSIONS);
 
         return [
-            'super_administrator' => [
+            self::SUPER_ADMIN => [
                 'label' => 'Super Administrator',
                 'description' => 'Every permission, always. Cannot be renamed, deleted, or have permissions removed.',
+                'data_scope' => DataScope::All,
                 'permissions' => $all,
             ],
             'system_administrator' => [
                 'label' => 'System Administrator',
                 'description' => 'Every permission except creating, editing, or deleting roles.',
+                'data_scope' => DataScope::All,
                 'permissions' => array_values(array_diff($all, self::SYSTEM_ADMIN_EXCLUDED)),
             ],
             'encoder' => [
-                'label' => 'Encoder',
-                'description' => 'Day-to-day data entry: can view/create/edit Personnel, Equipment, and ISP account '.
-                    'records, log accountability transactions and ISP speed test/subscription cost entries, but '.
-                    'cannot delete records or manage reference data/users.',
-                'permissions' => [
-                    PermissionEnum::PersonnelView->value,
-                    PermissionEnum::PersonnelCreate->value,
-                    PermissionEnum::PersonnelEdit->value,
-                    PermissionEnum::EquipmentView->value,
-                    PermissionEnum::EquipmentCreate->value,
-                    PermissionEnum::EquipmentEdit->value,
-                    PermissionEnum::EquipmentTransactionsCreate->value,
-                    PermissionEnum::IspAccountsView->value,
-                    PermissionEnum::IspAccountsCreate->value,
-                    PermissionEnum::IspAccountsEdit->value,
-                    PermissionEnum::StakeholderProfileView->value,
-                    PermissionEnum::StakeholderProfileEdit->value,
-                    PermissionEnum::InternetConnectivityView->value,
-                    PermissionEnum::InternetConnectivityEdit->value,
-                ],
+                'label' => 'Division Encoder',
+                'description' => 'Day-to-day data entry across every office: can view/create/edit Personnel, '.
+                    'Equipment, and ISP account records, log accountability transactions and ISP speed '.
+                    'test/subscription cost entries, but cannot delete records or manage reference data/users.',
+                'data_scope' => DataScope::All,
+                'permissions' => $encoder,
+            ],
+            'office_encoder' => [
+                'label' => 'Office Encoder',
+                'description' => 'Day-to-day data entry limited to records at the user\'s own office: can '.
+                    'view/create/edit Personnel, Equipment, and ISP account records, log accountability '.
+                    'transactions and ISP speed test/subscription cost entries, but cannot delete records or '.
+                    'manage reference data/users.',
+                'data_scope' => DataScope::School,
+                'permissions' => $encoder,
             ],
             'viewer' => [
                 'label' => 'Viewer',
-                'data_scope' => DataScope::Own,
                 'description' => 'Read-only access to Personnel, Equipment, Stakeholder Profile, and '.
                     'Internet Connectivity Survey records.',
+                'data_scope' => DataScope::Own,
                 'permissions' => [
                     PermissionEnum::PersonnelView->value,
                     PermissionEnum::EquipmentView->value,
@@ -84,12 +97,24 @@ class RolePermissionSeeder extends Seeder
         $roles = self::roleDefinitions();
 
         foreach ($roles as $name => $definition) {
-            $role = Role::query()->updateOrCreate(
-                ['name' => $name, 'guard_name' => 'web'],
-                ['label' => $definition['label'], 'description' => $definition['description'], 'data_scope' => $definition['data_scope'] ?? DataScope::All],
-            );
+            $attributes = [
+                'label' => $definition['label'],
+                'description' => $definition['description'],
+                'data_scope' => $definition['data_scope'],
+            ];
 
-            $role->syncPermissions($definition['permissions']);
+            if ($name === self::SUPER_ADMIN) {
+                $role = Role::query()->updateOrCreate(['name' => $name, 'guard_name' => 'web'], $attributes);
+                $role->syncPermissions($definition['permissions']);
+
+                continue;
+            }
+
+            $role = Role::query()->firstOrCreate(['name' => $name, 'guard_name' => 'web'], $attributes);
+
+            if ($role->wasRecentlyCreated) {
+                $role->syncPermissions($definition['permissions']);
+            }
         }
 
         $registrar->forgetCachedPermissions();

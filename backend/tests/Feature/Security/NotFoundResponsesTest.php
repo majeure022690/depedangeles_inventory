@@ -7,7 +7,9 @@ use App\Models\Personnel;
 use App\Models\StakeholderProfile;
 use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
@@ -28,9 +30,15 @@ class NotFoundResponsesTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
-    public function test_unknown_ids_are_404_on_every_bound_management_route(): void
+    #[DataProvider('maskedEnvironmentCases')]
+    public function test_unknown_ids_are_a_generic_404_on_every_bound_management_route(string $environment): void
     {
-        $admin = $this->userWithRole('super_administrator');
+        // Outside unit tests CSRF applies to every stateful write; it isn't what's under test here.
+        $this->withoutMiddleware(ValidateCsrfToken::class);
+        $this->app['env'] = $environment;
+        config(['app.debug' => true]);
+
+        $admin = $this->userWithAllPermissions();
 
         $requests = [
             ['GET', '/api/personnel/999999'],
@@ -62,15 +70,37 @@ class NotFoundResponsesTest extends TestCase
             $response = $this->actingAs($admin)->json($method, $uri);
 
             $this->assertSame(404, $response->status(), "{$method} {$uri} answered {$response->status()}");
-            $this->assertStringNotContainsString('App\\Models', (string) $response->getContent(), "{$method} {$uri} leaks a model name");
+            $this->assertSame(['message' => 'Not Found.'], $response->json(), "{$method} {$uri} is not the generic 404 body");
+            $this->assertStringNotContainsString('Models', (string) $response->getContent(), "{$method} {$uri} leaks a model name");
         }
 
         $this->assertSame(0, StakeholderProfile::count());
     }
 
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function maskedEnvironmentCases(): array
+    {
+        return ['staging' => ['staging'], 'production' => ['production']];
+    }
+
+    public function test_local_and_testing_keep_the_detailed_404_for_debugging(): void
+    {
+        $admin = $this->userWithAllPermissions();
+
+        foreach (['testing', 'local'] as $environment) {
+            $this->app['env'] = $environment;
+
+            $this->actingAs($admin)->getJson('/api/personnel/999999')
+                ->assertNotFound()
+                ->assertJsonPath('message', fn (string $message) => str_contains($message, 'Personnel'));
+        }
+    }
+
     public function test_soft_deleted_records_are_404(): void
     {
-        $admin = $this->userWithRole('super_administrator');
+        $admin = $this->userWithAllPermissions();
 
         $person = Personnel::factory()->create();
         $equipment = Equipment::factory()->create();

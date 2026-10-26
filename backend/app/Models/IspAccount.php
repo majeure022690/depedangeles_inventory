@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DataScope;
 use Database\Factories\IspAccountFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -58,7 +59,7 @@ use Spatie\Activitylog\Support\LogOptions;
     'source_of_acquisition', 'donor', 'fund_source', 'number_access_points_linked',
     'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas',
     'number_classrooms_covered', 'rate_connectivity_classroom', 'overall_signal_quality',
-    'rate_isp_service', 'isp_provider_id',
+    'rate_isp_service', 'isp_provider_id', 'office_id',
 ])]
 class IspAccount extends Model
 {
@@ -87,6 +88,37 @@ class IspAccount extends Model
     public function ispProvider(): BelongsTo
     {
         return $this->belongsTo(IspProvider::class);
+    }
+
+    /**
+     * @return BelongsTo<Office, $this>
+     */
+    public function office(): BelongsTo
+    {
+        return $this->belongsTo(Office::class);
+    }
+
+    /**
+     * @param  Builder<IspAccount>  $query
+     */
+    public function scopeVisibleTo(Builder $query, User $user): void
+    {
+        if ($user->dataScope() === DataScope::All) {
+            return;
+        }
+
+        if ($user->office_id === null) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where($query->qualifyColumn('office_id'), $user->office_id);
+    }
+
+    public function isVisibleTo(User $user): bool
+    {
+        return $user->reachesOffice($this->office_id);
     }
 
     /**
@@ -175,7 +207,7 @@ class IspAccount extends Model
                 'source_of_acquisition', 'donor', 'fund_source', 'number_access_points_linked',
                 'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas',
                 'number_classrooms_covered', 'rate_connectivity_classroom', 'overall_signal_quality',
-                'rate_isp_service', 'isp_provider_id',
+                'rate_isp_service', 'isp_provider_id', 'office_id',
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Models\Role;
 use App\Models\SystemSetting;
@@ -23,16 +24,28 @@ class TrustedDeviceTest extends TestCase
 
     private const PASSWORD = 'CorrectHorse123!';
 
+    private string $standard;
+
+    private string $everything;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
         $this->withCredentials();
+
+        $standard = Role::create(['name' => 'standard', 'label' => 'Standard', 'data_scope' => DataScope::All]);
+        $standard->givePermissionTo([Permission::PersonnelView->value, Permission::EquipmentView->value, Permission::EquipmentEdit->value]);
+        $this->standard = $standard->name;
+
+        $everything = Role::create(['name' => 'everything', 'label' => 'Everything', 'data_scope' => DataScope::All]);
+        $everything->givePermissionTo(array_map(fn (Permission $p) => $p->value, Permission::cases()));
+        $this->everything = $everything->name;
     }
 
     public function test_trusting_a_device_skips_the_code_on_the_next_login(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
 
         $login = $this->login($user)->assertJsonPath('requires_2fa', true)->assertJsonPath('trust_device_days', 30);
         $token = $this->verify($user, $login->json('two_fa_token'), true)->assertOk()->getCookie(TrustedDeviceService::COOKIE)?->getValue();
@@ -52,7 +65,7 @@ class TrustedDeviceTest extends TestCase
 
     public function test_a_device_is_not_trusted_unless_the_user_asks(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
 
         $login = $this->login($user);
         $response = $this->verify($user, $login->json('two_fa_token'), false)->assertOk();
@@ -63,7 +76,7 @@ class TrustedDeviceTest extends TestCase
 
     public function test_wrong_password_is_still_rejected_on_a_trusted_device(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $token = $this->trustDevice($user);
 
         $this->signOut();
@@ -74,8 +87,8 @@ class TrustedDeviceTest extends TestCase
 
     public function test_another_users_token_or_an_expired_token_does_not_skip_the_code(): void
     {
-        $owner = $this->enrolledUser('encoder');
-        $other = $this->enrolledUser('encoder');
+        $owner = $this->enrolledUser($this->standard);
+        $other = $this->enrolledUser($this->standard);
         $token = $this->trustDevice($owner);
 
         $this->signOut();
@@ -100,7 +113,7 @@ class TrustedDeviceTest extends TestCase
             Permission::EmailLogManage,
         ], TrustedDeviceService::ALWAYS_REQUIRE_CODE);
 
-        $roles = ['super_administrator', 'system_administrator'];
+        $roles = [$this->everything];
 
         foreach (TrustedDeviceService::ALWAYS_REQUIRE_CODE as $permission) {
             $role = Role::create(['name' => str_replace(['.', '_'], '-', $permission->value).'-only', 'label' => $permission->label()]);
@@ -122,10 +135,10 @@ class TrustedDeviceTest extends TestCase
 
     public function test_an_existing_trust_stops_working_once_the_user_gains_users_edit(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $token = $this->trustDevice($user);
 
-        $user->syncRoles('system_administrator');
+        $user->syncRoles($this->everything);
 
         $this->withCookie(TrustedDeviceService::COOKIE, $token);
         $this->login($user)->assertJsonPath('requires_2fa', true)->assertJsonPath('trust_device_days', 0);
@@ -134,7 +147,7 @@ class TrustedDeviceTest extends TestCase
 
     public function test_an_existing_trust_stops_working_once_the_user_gains_security_settings_manage(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $token = $this->trustDevice($user);
 
         $role = Role::create(['name' => 'settings-custom', 'label' => 'Settings custom']);
@@ -148,7 +161,7 @@ class TrustedDeviceTest extends TestCase
 
     public function test_lowering_trusted_device_days_caps_existing_devices(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $token = $this->trustDevice($user);
         $this->setTrustedDeviceDays(7);
 
@@ -160,7 +173,7 @@ class TrustedDeviceTest extends TestCase
 
     public function test_lowering_trusted_device_days_keeps_devices_inside_the_new_window(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $token = $this->trustDevice($user);
         $this->setTrustedDeviceDays(7);
 
@@ -172,7 +185,7 @@ class TrustedDeviceTest extends TestCase
 
     public function test_raising_trusted_device_days_does_not_extend_existing_devices(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $this->setTrustedDeviceDays(7);
         $token = $this->trustDevice($user);
         $this->setTrustedDeviceDays(30);
@@ -186,7 +199,7 @@ class TrustedDeviceTest extends TestCase
     public function test_a_capped_trust_ends_exactly_n_days_after_it_was_granted(): void
     {
         $this->freezeSecond();
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $grantedAt = now()->toImmutable();
         $token = $this->trustDevice($user);
         $this->setTrustedDeviceDays(7);
@@ -204,7 +217,7 @@ class TrustedDeviceTest extends TestCase
     public function test_an_uncapped_trust_ends_exactly_at_its_original_expiry(): void
     {
         $this->freezeSecond();
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $grantedAt = now()->toImmutable();
         $token = $this->trustDevice($user);
         $this->withCookie(TrustedDeviceService::COOKIE, $token);
@@ -220,7 +233,7 @@ class TrustedDeviceTest extends TestCase
 
     public function test_turning_the_feature_off_and_on_again_revives_devices_still_inside_the_window(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $token = $this->trustDevice($user);
         $this->withCookie(TrustedDeviceService::COOKIE, $token);
 
@@ -235,7 +248,7 @@ class TrustedDeviceTest extends TestCase
 
     public function test_losing_the_last_always_require_code_permission_revives_earlier_trust(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $token = $this->trustDevice($user);
         $role = Role::create(['name' => 'audit-custom', 'label' => 'Audit custom']);
         $role->givePermissionTo([Permission::AuditLogView->value, Permission::EquipmentView->value]);
@@ -245,7 +258,7 @@ class TrustedDeviceTest extends TestCase
         $this->login($user)->assertJsonPath('requires_2fa', true)->assertJsonPath('trust_device_days', 0);
         $this->assertSame(1, $user->trustedDevices()->count());
 
-        $user->syncRoles('encoder');
+        $user->syncRoles($this->standard);
         $this->login($user)->assertJsonMissingPath('requires_2fa');
         $this->assertAuthenticatedAs($user);
     }
@@ -253,7 +266,7 @@ class TrustedDeviceTest extends TestCase
     public function test_the_device_list_shows_the_capped_expiry_and_flags_devices_past_the_cap(): void
     {
         $this->freezeSecond();
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $grantedAt = now()->toImmutable();
         $this->trustDevice($user);
 
@@ -276,7 +289,7 @@ class TrustedDeviceTest extends TestCase
 
     public function test_the_device_list_keeps_devices_that_are_not_honoured_while_the_user_always_needs_the_code(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $this->trustDevice($user);
 
         $role = Role::create(['name' => 'settings-custom', 'label' => 'Settings custom']);
@@ -292,7 +305,7 @@ class TrustedDeviceTest extends TestCase
 
     public function test_a_device_that_is_not_honoured_can_still_be_revoked_before_it_comes_back(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $token = $this->trustDevice($user);
         $user->givePermissionTo(Permission::AuditLogView->value);
 
@@ -312,7 +325,7 @@ class TrustedDeviceTest extends TestCase
 
     public function test_setting_the_days_to_zero_turns_the_feature_off(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
         $token = $this->trustDevice($user);
         SystemSetting::query()->updateOrCreate(['key' => 'trusted_device_days'], ['value' => '0', 'type' => 'integer']);
 
@@ -323,7 +336,7 @@ class TrustedDeviceTest extends TestCase
 
     public function test_password_change_two_factor_reset_and_deactivation_revoke_trusted_devices(): void
     {
-        $user = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
 
         $this->trustDevice($user);
         $user->update(['password' => Hash::make('AnotherHorse456!')]);
@@ -342,8 +355,8 @@ class TrustedDeviceTest extends TestCase
 
     public function test_users_can_list_and_revoke_only_their_own_trusted_devices(): void
     {
-        $user = $this->enrolledUser('encoder');
-        $other = $this->enrolledUser('encoder');
+        $user = $this->enrolledUser($this->standard);
+        $other = $this->enrolledUser($this->standard);
         $token = $this->trustDevice($user);
         $this->trustDevice($user);
         $othersDevice = $other->trustedDevices()->create([

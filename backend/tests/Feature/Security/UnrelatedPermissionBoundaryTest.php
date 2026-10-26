@@ -39,7 +39,7 @@ class UnrelatedPermissionBoundaryTest extends TestCase
             'ispAccount' => IspAccount::factory()->create()->id,
             'office' => Office::create(['office_name' => 'Boundary ES'])->id,
             'user' => $target->id,
-            'role' => Role::where('name', 'viewer')->value('id'),
+            'role' => Role::create(['name' => 'boundary-role', 'label' => 'Boundary Role'])->id,
             'table' => 'item-types',
             'id' => ItemType::create(['name' => 'Boundary', 'sort_order' => 0, 'is_active' => true])->id,
         ];

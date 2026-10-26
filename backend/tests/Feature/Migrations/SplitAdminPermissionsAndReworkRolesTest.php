@@ -199,7 +199,7 @@ class SplitAdminPermissionsAndReworkRolesTest extends TestCase
             DB::table('permissions')->pluck('name')->all(),
         );
         $this->assertSame(
-            ['super_administrator', 'system_administrator', 'encoder', 'viewer'],
+            ['super_administrator', 'system_administrator', 'encoder', 'office_encoder', 'viewer'],
             DB::table('roles')->orderBy('id')->pluck('name')->all(),
         );
     }

@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Management;
 
+use App\Http\Requests\Management\Concerns\RestrictsScopedAssignments;
 use App\Models\User;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Validator;
 
 class StoreUserRequest extends FormRequest
 {
+    use RestrictsScopedAssignments;
+
     public function authorize(): bool
     {
         return $this->user()->can('create', User::class);
@@ -30,9 +35,19 @@ class StoreUserRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
             'password' => ['required', 'string', 'confirmed', Password::defaults()],
-            'office_id' => ['nullable', 'integer', Rule::exists('offices', 'id')],
+            'office_id' => ['nullable', 'integer', $this->activeOfficeRule()],
             'is_active' => ['sometimes', 'boolean'],
             'role_id' => ['required', 'integer', Rule::exists('roles', 'id')],
+        ];
+    }
+
+    /**
+     * @return array<int, Closure(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            $this->lockForScopedActors(['office_id' => [$this->user()->office_id, null]]),
         ];
     }
 

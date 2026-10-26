@@ -5,47 +5,33 @@ namespace App\Policies;
 use App\Enums\Permission;
 use App\Models\Equipment;
 use App\Models\User;
+use Illuminate\Auth\Access\Response;
 
 class EquipmentPolicy
 {
-    public function viewAny(User $user): bool
+    public function viewAny(User $user): Response
     {
-        return $user->hasPermissionTo(Permission::EquipmentView);
+        return $user->hasPermissionTo(Permission::EquipmentView) ? Response::allow() : Response::deny();
     }
 
-    public function view(User $user, Equipment $equipment): bool
+    public function view(User $user, Equipment $equipment): Response
     {
-        return $user->hasPermissionTo(Permission::EquipmentView) && $equipment->isVisibleTo($user);
+        return $this->permittedAndVisible($user, $equipment, Permission::EquipmentView);
     }
 
-    public function create(User $user): bool
+    public function create(User $user): Response
     {
-        return $user->hasPermissionTo(Permission::EquipmentCreate);
+        return $user->hasPermissionTo(Permission::EquipmentCreate) ? Response::allow() : Response::deny();
     }
 
-    public function update(User $user, Equipment $equipment): bool
+    public function update(User $user, Equipment $equipment): Response
     {
-        return $user->hasPermissionTo(Permission::EquipmentEdit) && $equipment->isVisibleTo($user);
+        return $this->permittedAndVisible($user, $equipment, Permission::EquipmentEdit);
     }
 
-    /**
-     * Deletion is the most consequential Equipment action, so a denial
-     * here is logged, not just silently 403'd.
-     */
-    public function delete(User $user, Equipment $equipment): bool
+    public function delete(User $user, Equipment $equipment): Response
     {
-        $allowed = $user->hasPermissionTo(Permission::EquipmentDelete) && $equipment->isVisibleTo($user);
-
-        if (! $allowed) {
-            activity()
-                ->causedBy($user)
-                ->performedOn($equipment)
-                ->event('authorization.denied')
-                ->withProperties(['permission' => Permission::EquipmentDelete->value])
-                ->log('authorization.denied');
-        }
-
-        return $allowed;
+        return $this->auditedDenial($user, $equipment, Permission::EquipmentDelete);
     }
 
     public function restore(User $user, Equipment $equipment): bool
@@ -58,27 +44,33 @@ class EquipmentPolicy
         return false;
     }
 
-    /**
-     * Explicit custom ability for EquipmentTransactionController::store.
-     * Recording a transaction reassigns accountability for a physical
-     * asset — a distinct, more sensitive action than editing Equipment's
-     * own descriptive fields (see App\Enums\Permission doc-comment), so
-     * it's checked against its own permission rather than
-     * Permission::EquipmentEdit.
-     */
-    public function createTransaction(User $user, Equipment $equipment): bool
+    public function createTransaction(User $user, Equipment $equipment): Response
     {
-        $allowed = $user->hasPermissionTo(Permission::EquipmentTransactionsCreate) && $equipment->isVisibleTo($user);
+        return $this->auditedDenial($user, $equipment, Permission::EquipmentTransactionsCreate);
+    }
 
-        if (! $allowed) {
+    private function permittedAndVisible(User $user, Equipment $equipment, Permission $permission): Response
+    {
+        if (! $user->hasPermissionTo($permission)) {
+            return Response::deny();
+        }
+
+        return $equipment->isVisibleTo($user) ? Response::allow() : Response::denyAsNotFound();
+    }
+
+    private function auditedDenial(User $user, Equipment $equipment, Permission $permission): Response
+    {
+        $response = $this->permittedAndVisible($user, $equipment, $permission);
+
+        if ($response->denied()) {
             activity()
                 ->causedBy($user)
                 ->performedOn($equipment)
                 ->event('authorization.denied')
-                ->withProperties(['permission' => Permission::EquipmentTransactionsCreate->value])
+                ->withProperties(['permission' => $permission->value])
                 ->log('authorization.denied');
         }
 
-        return $allowed;
+        return $response;
     }
 }

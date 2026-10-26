@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Management;
 
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 
 class StoreIspSubscriptionCostRequest extends FormRequest
 {
@@ -13,9 +15,9 @@ class StoreIspSubscriptionCostRequest extends FormRequest
      * the parent IspAccount — see StoreIspSpeedTestRequest's doc-comment
      * for the rationale (no separate permission for these append-only logs).
      */
-    public function authorize(): bool
+    public function authorize(): Response
     {
-        return $this->user()->can('update', $this->route('ispAccount'));
+        return Gate::forUser($this->user())->inspect('update', $this->route('ispAccount'));
     }
 
     /**

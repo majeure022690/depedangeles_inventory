@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Security;
 
+use App\Enums\DataScope;
 use App\Enums\Permission as PermissionEnum;
 use App\Models\Role;
 use App\Models\User;
@@ -57,11 +58,12 @@ class RoleGrantCeilingTest extends TestCase
 
     public function test_update_rejects_adding_a_permission_the_actor_does_not_hold(): void
     {
-        $role = Role::where('name', 'viewer')->firstOrFail();
+        $role = Role::create(['name' => 'readers', 'label' => 'Readers', 'data_scope' => DataScope::Own]);
+        $role->givePermissionTo(PermissionEnum::EquipmentView->value);
         $before = $role->permissions()->pluck('name')->sort()->values()->all();
 
         $this->actingAs($this->roleEditorActor())->putJson("/api/roles/{$role->id}", [
-            'name' => 'viewer',
+            'name' => 'readers',
             'label' => $role->label,
             'permissions' => [...$before, PermissionEnum::UsersEdit->value],
         ])->assertUnprocessable()->assertJsonValidationErrors(['permissions']);
@@ -87,9 +89,9 @@ class RoleGrantCeilingTest extends TestCase
         );
     }
 
-    public function test_a_full_admin_can_grant_any_permission(): void
+    public function test_a_holder_of_every_permission_can_grant_any_permission(): void
     {
-        $this->actingAs($this->userWithRole('super_administrator'))->postJson('/api/roles', [
+        $this->actingAs($this->userWithAllPermissions())->postJson('/api/roles', [
             'name' => 'everything',
             'label' => 'Everything',
             'permissions' => array_map(fn (PermissionEnum $p) => $p->value, PermissionEnum::cases()),

@@ -2,42 +2,41 @@
 
 namespace App\Policies;
 
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Models\Personnel;
 use App\Models\User;
+use Illuminate\Auth\Access\Response;
 
 class PersonnelPolicy
 {
-    public function viewAny(User $user): bool
+    public function viewAny(User $user): Response
     {
-        return $user->hasPermissionTo(Permission::PersonnelView);
+        return $user->hasPermissionTo(Permission::PersonnelView) ? Response::allow() : Response::deny();
     }
 
-    public function view(User $user, Personnel $personnel): bool
+    public function view(User $user, Personnel $personnel): Response
     {
-        return $user->hasPermissionTo(Permission::PersonnelView);
+        return $this->permittedAndVisible($user, $personnel, Permission::PersonnelView);
     }
 
-    public function create(User $user): bool
+    public function create(User $user): Response
     {
-        return $user->hasPermissionTo(Permission::PersonnelCreate);
+        return $user->hasPermissionTo(Permission::PersonnelCreate) && $user->dataScope() !== DataScope::Own
+            ? Response::allow()
+            : Response::deny();
     }
 
-    public function update(User $user, Personnel $personnel): bool
+    public function update(User $user, Personnel $personnel): Response
     {
-        return $user->hasPermissionTo(Permission::PersonnelEdit);
+        return $this->permittedAndVisible($user, $personnel, Permission::PersonnelEdit);
     }
 
-    /**
-     * Deletion is the most consequential Personnel action (it removes a
-     * record other tables' nullable FKs may still reference historically)
-     * so a denial here is logged, not just silently 403'd.
-     */
-    public function delete(User $user, Personnel $personnel): bool
+    public function delete(User $user, Personnel $personnel): Response
     {
-        $allowed = $user->hasPermissionTo(Permission::PersonnelDelete);
+        $response = $this->permittedAndVisible($user, $personnel, Permission::PersonnelDelete);
 
-        if (! $allowed) {
+        if ($response->denied()) {
             activity()
                 ->causedBy($user)
                 ->performedOn($personnel)
@@ -46,7 +45,7 @@ class PersonnelPolicy
                 ->log('authorization.denied');
         }
 
-        return $allowed;
+        return $response;
     }
 
     public function restore(User $user, Personnel $personnel): bool
@@ -57,5 +56,14 @@ class PersonnelPolicy
     public function forceDelete(User $user, Personnel $personnel): bool
     {
         return false;
+    }
+
+    private function permittedAndVisible(User $user, Personnel $personnel, Permission $permission): Response
+    {
+        if (! $user->hasPermissionTo($permission)) {
+            return Response::deny();
+        }
+
+        return $personnel->isVisibleTo($user) ? Response::allow() : Response::denyAsNotFound();
     }
 }

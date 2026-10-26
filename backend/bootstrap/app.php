@@ -87,13 +87,13 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
+            $status = $e instanceof HttpExceptionInterface ? $e->getStatusCode() : 500;
+
+            if ($status === 404 && ! app()->environment('local', 'testing')) {
+                return response()->json(['message' => 'Not Found.'], 404);
+            }
+
             if (app()->environment('production')) {
-                $status = $e instanceof HttpExceptionInterface ? $e->getStatusCode() : 500;
-
-                if ($status === 404) {
-                    return response()->json(['message' => 'Not Found.'], 404);
-                }
-
                 if (! in_array($status, [401, 403, 404, 405, 409, 422, 429], true)) {
                     return response()->json([
                         'message' => 'An unexpected error occurred.',

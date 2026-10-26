@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Models\Office;
 use App\Models\User;
@@ -9,11 +10,12 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use PragmaRX\Google2FA\Google2FA;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -78,8 +80,11 @@ class AuthenticationTest extends TestCase
     public function test_authenticated_user_can_fetch_profile_with_roles_permissions_and_office(): void
     {
         $office = Office::factory()->create(['office_name' => 'Angeles City National High School']);
-        $user = User::factory()->create(['office_id' => $office->id]);
-        $user->assignRole('viewer');
+        $user = $this->userWithPermissions(
+            [Permission::PersonnelView, Permission::EquipmentView, Permission::StakeholderProfileView, Permission::InternetConnectivityView],
+            ['office_id' => $office->id],
+            DataScope::Own,
+        );
 
         $response = $this->actingAs($user)->getJson('/api/user');
 
@@ -88,7 +93,8 @@ class AuthenticationTest extends TestCase
             ->assertJsonPath('data.office_id', $office->id)
             ->assertJsonPath('data.office.office_name', 'Angeles City National High School')
             ->assertJsonPath('data.office.school_id', $office->fresh()->school_id)
-            ->assertJsonPath('data.roles', ['viewer'])
+            ->assertJsonPath('data.roles', [$user->roles->first()->name])
+            ->assertJsonPath('data.data_scope', 'own')
             ->assertJsonPath('data.role_ids', [$user->roles->first()->id])
             ->assertJsonPath('data.is_self', true)
             ->assertJsonPath('data.is_active', true)
@@ -119,8 +125,7 @@ class AuthenticationTest extends TestCase
 
     public function test_user_whose_roles_are_all_removed_is_signed_out_on_reload(): void
     {
-        $user = User::factory()->create();
-        $user->assignRole('viewer');
+        $user = $this->userWithPermissions([Permission::EquipmentView], [], DataScope::Own);
 
         $this->actingAs($user)->getJson('/api/user')->assertOk();
 

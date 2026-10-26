@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DataScope;
 use App\Exceptions\AccountabilitySyncRequiredException;
 use Closure;
 use Database\Factories\EquipmentFactory;
@@ -128,6 +129,14 @@ class Equipment extends Model
     public function currentEndUser(): BelongsTo
     {
         return $this->belongsTo(Personnel::class, 'current_end_user_id');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
     }
 
     /**
@@ -283,8 +292,8 @@ class Equipment extends Model
     }
 
     /**
-     * Items issued (as accountable officer or end user) to personnel within
-     * the user's data scope.
+     * Items issued to personnel within the user's data scope, plus unissued
+     * items created by the user (or, for office scope, by anyone at their office).
      *
      * @param  Builder<Equipment>  $query
      */
@@ -296,18 +305,46 @@ class Equipment extends Model
             return;
         }
 
+        $officer = $query->qualifyColumn('current_accountable_officer_id');
+        $endUser = $query->qualifyColumn('current_end_user_id');
+        $creator = $query->qualifyColumn('created_by_user_id');
+        $officeId = $user->dataScope() === DataScope::School ? $user->office_id : null;
+
         $query->where(fn (Builder $query) => $query
-            ->whereIn($query->qualifyColumn('current_accountable_officer_id'), $personnelIds)
-            ->orWhereIn($query->qualifyColumn('current_end_user_id'), $personnelIds));
+            ->whereIn($officer, $personnelIds)
+            ->orWhereIn($endUser, $personnelIds)
+            ->orWhere(fn (Builder $query) => $query
+                ->whereNull($officer)
+                ->whereNull($endUser)
+                ->where(fn (Builder $query) => $query
+                    ->where($creator, $user->id)
+                    ->when($officeId !== null, fn (Builder $query) => $query->orWhereIn(
+                        $creator,
+                        User::query()->select('id')->where('office_id', $officeId),
+                    )))));
     }
 
     public function isVisibleTo(User $user): bool
     {
         $personnelIds = $user->scopedPersonnelIds();
 
-        return $personnelIds === null
+        if ($personnelIds === null
             || in_array((int) $this->current_accountable_officer_id, $personnelIds, true)
-            || in_array((int) $this->current_end_user_id, $personnelIds, true);
+            || in_array((int) $this->current_end_user_id, $personnelIds, true)) {
+            return true;
+        }
+
+        if ($this->current_accountable_officer_id !== null || $this->current_end_user_id !== null || $this->created_by_user_id === null) {
+            return false;
+        }
+
+        if ($this->created_by_user_id === $user->id) {
+            return true;
+        }
+
+        return $user->dataScope() === DataScope::School
+            && $user->office_id !== null
+            && $this->createdBy?->office_id === $user->office_id;
     }
 
     /**
@@ -335,6 +372,7 @@ class Equipment extends Model
                 'under_warranty', 'end_warranty_date', 'supplier',
                 'item_type_id', 'brand_id', 'equipment_category_id',
                 'equipment_classification_id', 'equipment_condition_id',
+                'created_by_user_id',
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()

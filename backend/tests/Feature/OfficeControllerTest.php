@@ -80,17 +80,25 @@ class OfficeControllerTest extends TestCase
     }
 
     /**
-     * @return array<string, array{string}>
+     * @return array<string, array{array<int, Permission>}>
      */
-    public static function nonAdminRoles(): array
+    public static function permissionSetsWithoutOfficePermissions(): array
     {
-        return ['encoder' => ['encoder'], 'viewer' => ['viewer']];
+        $office = [Permission::OfficeView, Permission::OfficeCreate, Permission::OfficeEdit, Permission::OfficeDelete];
+
+        return [
+            'record editing' => [[Permission::PersonnelView, Permission::EquipmentView, Permission::EquipmentEdit]],
+            'every other permission' => [array_values(array_filter(Permission::cases(), fn (Permission $p) => ! in_array($p, $office, true)))],
+        ];
     }
 
-    #[DataProvider('nonAdminRoles')]
-    public function test_non_admin_roles_are_forbidden_on_every_office_action(string $role): void
+    /**
+     * @param  array<int, Permission>  $permissions
+     */
+    #[DataProvider('permissionSetsWithoutOfficePermissions')]
+    public function test_users_without_office_permissions_are_forbidden_on_every_office_action(array $permissions): void
     {
-        $user = $this->userWithRole($role);
+        $user = $this->userWithPermissions($permissions);
         $office = Office::factory()->create();
 
         $this->actingAs($user)->getJson('/api/offices')->assertForbidden();

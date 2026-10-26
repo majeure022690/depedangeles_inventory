@@ -6,16 +6,25 @@ namespace App\Http\Requests\Management;
 
 use App\Enums\ConnectivityLibraryType;
 use App\Enums\EquipmentLibraryType;
+use App\Http\Requests\Management\Concerns\RestrictsScopedAssignments;
 use App\Models\ConnectivityLibrary;
 use App\Models\EquipmentLibrary;
+use App\Models\IspAccount;
+use Closure;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class UpdateIspAccountRequest extends FormRequest
 {
-    public function authorize(): bool
+    use RestrictsScopedAssignments;
+
+    public function authorize(): Response
     {
-        return $this->user()->can('update', $this->route('ispAccount'));
+        return Gate::forUser($this->user())->inspect('update', $this->ispAccount());
     }
 
     /**
@@ -33,6 +42,7 @@ class UpdateIspAccountRequest extends FormRequest
     {
         return [
             'isp_provider_id' => ['required', 'integer', Rule::exists('isp_providers', 'id')->where('is_active', true)],
+            'office_id' => ['nullable', 'integer', $this->activeOfficeRule($this->ispAccount()->office_id)],
             'cost_per_month' => ['required', 'numeric', 'min:0'],
             'isp_billing_account_no' => ['required', 'string', 'max:255'],
             'package_purchased_inclusion' => ['required', 'string'],
@@ -66,6 +76,23 @@ class UpdateIspAccountRequest extends FormRequest
             'overall_signal_quality' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SignalQuality))],
             'rate_isp_service' => ['nullable', 'integer', 'min:1', 'max:5'],
         ];
+    }
+
+    /**
+     * @return array<int, Closure(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            $this->lockForScopedActors(['office_id' => [$this->ispAccount()->office_id]]),
+        ];
+    }
+
+    private function ispAccount(): IspAccount
+    {
+        $ispAccount = $this->route('ispAccount');
+
+        return $ispAccount instanceof IspAccount ? $ispAccount : throw new NotFoundHttpException;
     }
 
     /**

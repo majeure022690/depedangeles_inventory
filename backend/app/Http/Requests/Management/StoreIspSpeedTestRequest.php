@@ -7,7 +7,9 @@ namespace App\Http\Requests\Management;
 use App\Enums\ConnectivityLibraryType;
 use App\Http\Requests\Management\Concerns\NormalizesDateTimesToAppTimezone;
 use App\Models\ConnectivityLibrary;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 class StoreIspSpeedTestRequest extends FormRequest
@@ -26,9 +28,9 @@ class StoreIspSpeedTestRequest extends FormRequest
      * the same way equipment transactions authorize against the parent
      * Equipment.
      */
-    public function authorize(): bool
+    public function authorize(): Response
     {
-        return $this->user()->can('update', $this->route('ispAccount'));
+        return Gate::forUser($this->user())->inspect('update', $this->route('ispAccount'));
     }
 
     /**

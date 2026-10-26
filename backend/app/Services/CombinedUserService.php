@@ -20,7 +20,7 @@ final class CombinedUserService
      */
     public function getAllUsers(): Collection
     {
-        $localUsers = User::with(['roles:id,name,label', 'office:id,office_name,school_id'])
+        $localUsers = User::with(['roles:id,name,label,data_scope', 'office:id,office_name,school_id'])
             ->get()
             ->map(fn (User $user) => $this->localRow($user))
             ->toBase();

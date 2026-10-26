@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\ConnectivityLibraryType;
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Enums\StakeholderLibraryType;
 use App\Models\ConnectivityLibrary;
@@ -44,9 +45,14 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         return Office::create(array_merge(['office_name' => 'Test Elementary School'], $overrides));
     }
 
-    private function userAt(string $role, ?Office $office): User
+    private function editorAt(?Office $office, DataScope $scope = DataScope::All): User
     {
-        return $this->userWithRole($role, ['office_id' => $office?->id]);
+        return $this->userWithPermissions([Permission::InternetConnectivityView, Permission::InternetConnectivityEdit], ['office_id' => $office?->id], $scope);
+    }
+
+    private function readerAt(?Office $office, DataScope $scope = DataScope::Own): User
+    {
+        return $this->userWithPermissions([Permission::InternetConnectivityView], ['office_id' => $office?->id], $scope);
     }
 
     private function url(Office $office): string
@@ -54,10 +60,10 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         return "/api/internet-connectivity-surveys/{$office->id}";
     }
 
-    public function test_viewer_can_view_own_office_but_not_update(): void
+    public function test_own_scope_reader_can_view_own_office_but_not_update(): void
     {
         $office = $this->createOffice();
-        $user = $this->userAt('viewer', $office);
+        $user = $this->readerAt($office);
 
         $this->actingAs($user)->getJson($this->url($office))
             ->assertOk()
@@ -68,10 +74,10 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         $this->actingAs($user)->putJson($this->url($office), [])->assertForbidden();
     }
 
-    public function test_encoder_can_view_and_update_own_office(): void
+    public function test_editor_can_view_and_update_own_office(): void
     {
         $office = $this->createOffice();
-        $user = $this->userAt('encoder', $office);
+        $user = $this->editorAt($office);
         $pldtId = IspProvider::where('name', 'PLDT')->value('id');
 
         $this->actingAs($user)->getJson($this->url($office))->assertOk();
@@ -91,27 +97,32 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         $this->assertSame(3, $survey->rooms_other_use);
     }
 
-    public function test_encoder_cannot_view_or_update_a_different_office(): void
+    public function test_school_scope_editor_gets_404_viewing_or_updating_a_different_office(): void
     {
         $myOffice = $this->createOffice(['office_name' => 'My School']);
         $otherOffice = $this->createOffice(['office_name' => 'Other School']);
-        $user = $this->userAt('encoder', $myOffice);
+        $user = $this->editorAt($myOffice, DataScope::School);
 
-        $this->actingAs($user)->getJson($this->url($otherOffice))->assertForbidden();
-        $this->actingAs($user)->putJson($this->url($otherOffice), ['rooms_other_use' => 1])->assertForbidden();
+        $this->actingAs($user)->getJson($this->url($otherOffice))->assertNotFound();
+        $this->actingAs($user)->putJson($this->url($otherOffice), ['rooms_other_use' => 1])->assertNotFound();
+        $this->actingAs($user)->getJson($this->url($myOffice))->assertOk();
 
         $this->assertSame(0, InternetConnectivitySurvey::where('office_id', $otherOffice->id)->count());
     }
 
-    public function test_encoder_with_no_office_gets_403_on_any_office(): void
-    {
-        $this->actingAs($this->userAt('encoder', null))->getJson($this->url($this->createOffice()))->assertForbidden();
-    }
-
-    public function test_admin_can_view_and_update_any_office_via_view_all(): void
+    public function test_scoped_user_with_no_office_gets_404_on_any_office(): void
     {
         $office = $this->createOffice();
-        $user = $this->userWithPermissions([Permission::InternetConnectivityViewAll]);
+
+        $this->actingAs($this->editorAt(null, DataScope::School))->getJson($this->url($office))->assertNotFound();
+        $this->actingAs($this->readerAt(null))->getJson($this->url($office))->assertNotFound();
+        $this->actingAs($this->editorAt(null))->getJson($this->url($office))->assertOk();
+    }
+
+    public function test_all_scope_user_can_view_and_update_any_office(): void
+    {
+        $office = $this->createOffice();
+        $user = $this->userWithPermissions([Permission::InternetConnectivityView, Permission::InternetConnectivityEdit]);
 
         $this->actingAs($user)->getJson($this->url($office))->assertOk();
         $this->actingAs($user)->putJson($this->url($office), ['rooms_other_use' => 2])->assertOk();
@@ -119,12 +130,14 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         $this->assertSame(2, InternetConnectivitySurvey::where('office_id', $office->id)->sole()->rooms_other_use);
     }
 
-    public function test_only_view_all_holder_can_access_the_index_list(): void
+    public function test_only_all_scope_users_can_access_the_index_list(): void
     {
         $office = $this->createOffice();
 
-        $this->actingAs($this->userWithPermissions([Permission::InternetConnectivityViewAll]))->getJson('/api/internet-connectivity-surveys')->assertOk();
-        $this->actingAs($this->userAt('encoder', $office))->getJson('/api/internet-connectivity-surveys')->assertForbidden();
+        $this->actingAs($this->userWithPermissions([Permission::InternetConnectivityView, Permission::InternetConnectivityEdit]))->getJson('/api/internet-connectivity-surveys')->assertOk();
+        $this->actingAs($this->editorAt($office))->getJson('/api/internet-connectivity-surveys')->assertOk();
+        $this->actingAs($this->editorAt($office, DataScope::School))->getJson('/api/internet-connectivity-surveys')->assertForbidden();
+        $this->actingAs($this->readerAt($office))->getJson('/api/internet-connectivity-surveys')->assertForbidden();
     }
 
     public function test_index_lists_offices_with_and_without_a_survey(): void
@@ -133,7 +146,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         $withoutSurvey = $this->createOffice(['office_name' => 'No Survey ES']);
         InternetConnectivitySurvey::create(['office_id' => $withSurvey->id, 'rooms_other_use' => 1]);
 
-        $response = $this->actingAs($this->userWithPermissions([Permission::InternetConnectivityViewAll]))->getJson('/api/internet-connectivity-surveys')
+        $response = $this->actingAs($this->userWithPermissions([Permission::InternetConnectivityView, Permission::InternetConnectivityEdit]))->getJson('/api/internet-connectivity-surveys')
             ->assertOk()
             ->assertJsonStructure(['data' => [['id', 'office_name', 'office_type', 'school_id', 'has_survey', 'updated_at']], 'meta', 'links']);
 
@@ -145,7 +158,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     public function test_index_still_shows_not_started_after_show_but_nothing_saved(): void
     {
         $office = $this->createOffice(['office_name' => 'Just Viewed ES']);
-        $admin = $this->userWithPermissions([Permission::InternetConnectivityViewAll]);
+        $admin = $this->userWithPermissions([Permission::InternetConnectivityView, Permission::InternetConnectivityEdit]);
 
         $this->actingAs($admin)->getJson($this->url($office))->assertOk();
         $this->assertDatabaseMissing('internet_connectivity_surveys', ['office_id' => $office->id]);
@@ -171,7 +184,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     public function test_update_writes_an_audit_entry_with_diffed_changes(): void
     {
         $office = $this->createOffice();
-        $user = $this->userAt('encoder', $office);
+        $user = $this->editorAt($office);
 
         $this->actingAs($user)->putJson($this->url($office), ['rooms_other_use' => 3])->assertOk();
 
@@ -190,7 +203,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     {
         $office = $this->createOffice();
 
-        $response = $this->actingAs($this->userAt('viewer', $office))->getJson('/api/internet-connectivity-surveys/options')
+        $response = $this->actingAs($this->readerAt($office))->getJson('/api/internet-connectivity-surveys/options')
             ->assertOk()
             ->assertJsonStructure(['data' => ['isp_provider', 'signal_quality', 'mobile_network_signal', 'coverage_area', 'source_of_electricity']]);
 
@@ -205,7 +218,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         $ids = IspProvider::query()->active()->pluck('id');
         IspProvider::whereIn('id', $ids->slice(1))->update(['is_active' => false]);
 
-        $this->actingAs($this->userAt('encoder', $office))
+        $this->actingAs($this->editorAt($office))
             ->putJson($this->url($office), ['available_isps' => $ids->take(2)->all()])
             ->assertJsonValidationErrors(['available_isps']);
     }
@@ -214,7 +227,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     {
         $office = $this->createOffice();
 
-        $this->actingAs($this->userAt('encoder', $office))
+        $this->actingAs($this->editorAt($office))
             ->putJson($this->url($office), ['available_isps' => [999999]])
             ->assertJsonValidationErrors(['available_isps.0']);
     }
@@ -224,7 +237,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         $office = $this->createOffice();
         $wrongTypeId = ConnectivityLibrary::where('type', ConnectivityLibraryType::CoverageArea)->active()->value('id');
 
-        $this->actingAs($this->userAt('encoder', $office))
+        $this->actingAs($this->editorAt($office))
             ->putJson($this->url($office), ['mobile_signal_types' => [$wrongTypeId]])
             ->assertJsonValidationErrors(['mobile_signal_types.0']);
     }
@@ -232,7 +245,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     public function test_electricity_sources_validates_against_the_shared_stakeholder_library_table(): void
     {
         $office = $this->createOffice();
-        $user = $this->userAt('encoder', $office);
+        $user = $this->editorAt($office);
 
         $gridId = StakeholderLibrary::where('type', StakeholderLibraryType::SourceOfElectricity)->where('value', 'Grid')->value('id');
 
@@ -248,7 +261,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     public function test_show_does_not_persist_and_the_first_update_creates_the_single_row(): void
     {
         $office = $this->createOffice();
-        $user = $this->userAt('encoder', $office);
+        $user = $this->editorAt($office);
 
         $this->actingAs($user)->getJson($this->url($office))->assertOk()
             ->assertJsonPath('data.survey.id', null)
@@ -269,7 +282,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         $office = $this->createOffice();
         $existing = InternetConnectivitySurvey::create(['office_id' => $office->id]);
 
-        $this->actingAs($this->userAt('encoder', $office))
+        $this->actingAs($this->editorAt($office))
             ->putJson($this->url($office), ['rooms_other_use' => 4])
             ->assertOk()
             ->assertJsonPath('data.survey.id', $existing->id);
@@ -280,7 +293,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     public function test_an_office_that_was_only_viewed_can_still_be_deleted(): void
     {
         $office = $this->createOffice();
-        $admin = $this->userWithPermissions([Permission::InternetConnectivityViewAll, Permission::OfficeDelete]);
+        $admin = $this->userWithPermissions([Permission::InternetConnectivityView, Permission::InternetConnectivityEdit, Permission::OfficeDelete]);
 
         $this->actingAs($admin)->getJson($this->url($office))->assertOk();
         $this->actingAs($admin)->deleteJson("/api/offices/{$office->id}")->assertNoContent();
@@ -290,7 +303,7 @@ class InternetConnectivitySurveyControllerTest extends TestCase
     public function test_an_office_with_a_saved_row_is_still_protected_from_deletion(): void
     {
         $office = $this->createOffice();
-        $admin = $this->userWithPermissions([Permission::InternetConnectivityViewAll, Permission::OfficeDelete]);
+        $admin = $this->userWithPermissions([Permission::InternetConnectivityView, Permission::InternetConnectivityEdit, Permission::OfficeDelete]);
 
         $this->actingAs($admin)->putJson($this->url($office), ['rooms_other_use' => 4])->assertOk();
         $this->actingAs($admin)->deleteJson("/api/offices/{$office->id}")->assertStatus(409);

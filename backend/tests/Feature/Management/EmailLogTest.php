@@ -10,11 +10,12 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class EmailLogTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -114,16 +115,14 @@ class EmailLogTest extends TestCase
     {
         EmailMessage::query()->create(['recipients' => 'a@example.test', 'subject' => 'Hello', 'type' => null, 'status' => EmailMessage::STATUS_SENT]);
         $settingsOnly = $this->userWithOnly(Permission::SecuritySettingsManage);
-        $viewer = User::factory()->create();
-        $viewer->assignRole('viewer');
+        $everythingElse = $this->userWithAllPermissions([Permission::EmailLogManage]);
 
-        foreach ([$settingsOnly, $viewer] as $user) {
+        foreach ([$settingsOnly, $everythingElse] as $user) {
             $this->actingAs($user)->getJson('/api/settings/email-log')->assertForbidden();
             $this->actingAs($user)->deleteJson('/api/settings/email-log', ['current_password' => 'password'])->assertForbidden();
         }
 
         $this->assertSame(1, EmailMessage::query()->count());
-        $this->assertTrue(Role::findByName('system_administrator', 'web')->hasPermissionTo(Permission::EmailLogManage->value));
     }
 
     public function test_guests_are_rejected(): void

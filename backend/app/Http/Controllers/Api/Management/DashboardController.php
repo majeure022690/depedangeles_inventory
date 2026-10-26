@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Management;
 
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\Equipment;
@@ -44,11 +45,11 @@ class DashboardController extends Controller
         }
 
         if ($user->hasPermissionTo(Permission::PersonnelView)) {
-            $data['personnel'] = $this->personnelSummary();
+            $data['personnel'] = $this->personnelSummary($user);
         }
 
         if ($user->hasPermissionTo(Permission::IspAccountsView)) {
-            $data['isp_accounts'] = $this->ispAccountsSummary();
+            $data['isp_accounts'] = $this->ispAccountsSummary($user);
         }
 
         return response()->json(['data' => (object) $data, 'message' => 'Success']);
@@ -79,26 +80,29 @@ class DashboardController extends Controller
     /**
      * @return array<string, int>
      */
-    private function personnelSummary(): array
+    private function personnelSummary(User $user): array
     {
+        $visible = fn () => Personnel::query()->visibleTo($user);
+
         return [
-            'active_count' => Personnel::query()->where('inactive', false)->count(),
-            'inactive_count' => Personnel::query()->where('inactive', true)->count(),
-            'oic_count' => Personnel::query()->where('oic', true)->count(),
+            'active_count' => $visible()->where('inactive', false)->count(),
+            'inactive_count' => $visible()->where('inactive', true)->count(),
+            'oic_count' => $visible()->where('oic', true)->count(),
         ];
     }
 
     /**
      * @return array<string, int|float>
      */
-    private function ispAccountsSummary(): array
+    private function ispAccountsSummary(User $user): array
     {
         $now = now();
+        $visible = fn () => IspAccount::query()->visibleTo($user);
 
         return [
-            'total_monthly_cost' => (float) IspAccount::query()->where('inactive_contract', false)->sum('cost_per_month'),
+            'total_monthly_cost' => (float) $visible()->where('inactive_contract', false)->sum('cost_per_month'),
             // Only a still-active contract is worth a renewal alert.
-            'contracts_expiring_soon_count' => IspAccount::query()
+            'contracts_expiring_soon_count' => $visible()
                 ->where('inactive_contract', false)
                 ->whereBetween('contract_end_date', [$now->toDateString(), $now->addDays(self::EXPIRING_SOON_DAYS)->toDateString()])
                 ->count(),
@@ -112,7 +116,7 @@ class DashboardController extends Controller
     {
         return EquipmentTransaction::query()
             ->when(
-                $user->scopedPersonnelIds() !== null,
+                $user->dataScope() !== DataScope::All,
                 fn ($query) => $query->whereIn('equipment_id', Equipment::query()->visibleTo($user)->select('id')),
             )
             ->with([

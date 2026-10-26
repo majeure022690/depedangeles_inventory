@@ -23,6 +23,11 @@ class IspAccountResource extends JsonResource
         return [
             'id' => $this->id,
             'isp_provider_id' => $this->isp_provider_id,
+            'office_id' => $this->office_id,
+            'office' => $this->whenLoaded('office', fn () => $this->office ? [
+                'id' => $this->office->id,
+                'office_name' => $this->office->office_name,
+            ] : null),
             'isp' => $this->whenLoaded('ispProvider', fn () => $this->ispProvider?->name),
             'cost_per_month' => (float) $this->cost_per_month,
             'isp_billing_account_no' => $this->isp_billing_account_no,

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\DataScope;
+use App\Enums\Permission;
 use App\Http\Middleware\EnforceIdleTimeout;
 use App\Models\User;
 use App\Services\SecuritySettings;
@@ -41,13 +43,13 @@ class SessionTerminationTest extends TestCase
 
     public function test_deactivating_a_user_deletes_their_database_sessions(): void
     {
-        $target = $this->userWithRole('viewer');
-        $other = $this->userWithRole('viewer');
+        $target = $this->userWithPermissions([Permission::EquipmentView], [], DataScope::Own);
+        $other = $this->userWithPermissions([Permission::EquipmentView], [], DataScope::Own);
         $this->storeSessionFor($target, 'target-session');
         $this->storeSessionFor($other, 'other-session');
 
         app(UserRoleService::class)->updateUser(
-            $this->userWithRole('system_administrator'),
+            $this->userWithAllPermissions(),
             $target,
             ['name' => $target->name, 'email' => $target->email, 'is_active' => false],
             $target->roles()->pluck('roles.id')->all(),
@@ -60,20 +62,20 @@ class SessionTerminationTest extends TestCase
     public function test_an_admin_two_factor_reset_deletes_the_users_database_sessions(): void
     {
         $tfa = new TwoFactorAuthService;
-        $target = $this->userWithRole('viewer', [
+        $target = $this->userWithPermissions([Permission::EquipmentView], [
             'two_factor_secret' => $tfa->generateSecret(),
             'two_factor_confirmed_at' => now(),
-        ]);
+        ], DataScope::Own);
         $this->storeSessionFor($target, 'target-session');
 
-        app(UserRoleService::class)->resetTwoFactor($this->userWithRole('system_administrator'), $target);
+        app(UserRoleService::class)->resetTwoFactor($this->userWithAllPermissions(), $target);
 
         $this->assertDatabaseMissing('sessions', ['id' => 'target-session']);
     }
 
     public function test_an_unrelated_save_keeps_the_users_sessions(): void
     {
-        $user = $this->userWithRole('viewer');
+        $user = $this->userWithPermissions([Permission::EquipmentView], [], DataScope::Own);
         $this->storeSessionFor($user, 'kept');
 
         $user->update(['name' => 'Renamed']);
@@ -83,7 +85,7 @@ class SessionTerminationTest extends TestCase
 
     public function test_a_deactivated_user_with_a_live_session_gets_401_and_is_logged_out(): void
     {
-        $user = $this->userWithRole('viewer');
+        $user = $this->userWithPermissions([Permission::EquipmentView], [], DataScope::Own);
 
         $this->actingAs($user)->getJson('/api/user')->assertOk();
 
@@ -100,7 +102,7 @@ class SessionTerminationTest extends TestCase
     public function test_an_idle_session_is_ended_server_side(): void
     {
         SecuritySettings::update('idle_timeout_seconds', 60);
-        $user = $this->userWithRole('viewer');
+        $user = $this->userWithPermissions([Permission::EquipmentView], [], DataScope::Own);
 
         $this->actingAs($user)->getJson('/api/user')->assertOk();
 
@@ -117,7 +119,7 @@ class SessionTerminationTest extends TestCase
     public function test_activity_within_the_timeout_keeps_the_session_alive(): void
     {
         SecuritySettings::update('idle_timeout_seconds', 60);
-        $user = $this->userWithRole('viewer');
+        $user = $this->userWithPermissions([Permission::EquipmentView], [], DataScope::Own);
 
         $this->actingAs($user)->getJson('/api/session-settings')->assertOk();
 

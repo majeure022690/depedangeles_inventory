@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Security;
 
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Models\Role;
 use App\Models\User;
@@ -29,6 +30,12 @@ class TargetTierGuardTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
+
+        Role::create(['name' => 'admins', 'label' => 'Admins', 'data_scope' => DataScope::All])->givePermissionTo(array_map(
+            fn (Permission $p) => $p->value,
+            array_filter(Permission::cases(), fn (Permission $p) => ! in_array($p, [Permission::RolesCreate, Permission::RolesEdit, Permission::RolesDelete], true)),
+        ));
+        Role::create(['name' => 'reader', 'label' => 'Reader', 'data_scope' => DataScope::Own])->givePermissionTo(Permission::EquipmentView->value);
     }
 
     private function accountManager(): User
@@ -43,7 +50,7 @@ class TargetTierGuardTest extends TestCase
     {
         $tfa = new TwoFactorAuthService;
 
-        return $this->userWithRole('system_administrator', [
+        return $this->userWithRole('admins', [
             'two_factor_secret' => $tfa->generateSecret(),
             'two_factor_recovery_codes' => $tfa->hashRecoveryCodes($tfa->generateRecoveryCodes()),
             'two_factor_confirmed_at' => now(),
@@ -60,10 +67,10 @@ class TargetTierGuardTest extends TestCase
         $admin = $this->enrolledAdmin();
 
         $this->actingAs($this->accountManager())->putJson("/api/users/{$admin->id}", [
-            'role_id' => $this->roleId('viewer'),
+            'role_id' => $this->roleId('reader'),
         ])->assertForbidden();
 
-        $this->assertSame(['system_administrator'], $admin->fresh()->roles()->pluck('name')->all());
+        $this->assertSame(['admins'], $admin->fresh()->roles()->pluck('name')->all());
     }
 
     public function test_account_manager_cannot_deactivate_an_admin(): void
@@ -72,7 +79,7 @@ class TargetTierGuardTest extends TestCase
 
         $this->actingAs($this->accountManager())->putJson("/api/users/{$admin->id}", [
             'is_active' => false,
-            'role_id' => $this->roleId('system_administrator'),
+            'role_id' => $this->roleId('admins'),
         ])->assertForbidden();
 
         $this->assertTrue($admin->fresh()->is_active);
@@ -135,7 +142,7 @@ class TargetTierGuardTest extends TestCase
     {
         $actor = $this->accountManager();
         $admin = $this->enrolledAdmin();
-        $otherAdmin = $this->userWithRole('system_administrator');
+        $otherAdmin = $this->userWithRole('admins');
 
         $rows = collect($this->actingAs($admin)->getJson('/api/users?per_page=100')->assertOk()->json('data'))
             ->keyBy('id');
@@ -152,8 +159,8 @@ class TargetTierGuardTest extends TestCase
         $service = app(UserRoleService::class);
 
         foreach ([
-            fn () => $service->updateUser($actor, $admin, ['is_active' => false], [$this->roleId('viewer')]),
-            fn () => $service->syncRoles($actor, $admin, [$this->roleId('viewer')]),
+            fn () => $service->updateUser($actor, $admin, ['is_active' => false], [$this->roleId('reader')]),
+            fn () => $service->syncRoles($actor, $admin, [$this->roleId('reader')]),
             fn () => $service->deleteUser($actor, $admin),
             fn () => $service->resetTwoFactor($actor, $admin),
         ] as $call) {
@@ -167,7 +174,7 @@ class TargetTierGuardTest extends TestCase
 
         $fresh = $admin->fresh();
         $this->assertTrue($fresh->is_active);
-        $this->assertSame(['system_administrator'], $fresh->roles()->pluck('name')->all());
+        $this->assertSame(['admins'], $fresh->roles()->pluck('name')->all());
         $this->assertTrue($fresh->hasTwoFactorEnabled());
     }
 }

@@ -8,10 +8,12 @@ use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +38,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read EloquentCollection<int, Role> $roles
+ * @property-read Personnel|null $personnel
  */
 #[Fillable(['name', 'email', 'password', 'office_id', 'avatar_path', 'is_active'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
@@ -107,9 +110,15 @@ class User extends Authenticatable
     }
 
     /**
-     * Personnel whose records this user's data scope reaches: their own
-     * record (DepEd email = account email) or everyone at their office.
-     * Null means no restriction.
+     * @return HasOne<Personnel, $this>
+     */
+    public function personnel(): HasOne
+    {
+        return $this->hasOne(Personnel::class);
+    }
+
+    /**
+     * Personnel this user's data scope reaches. Null means no restriction.
      *
      * @return list<int>|null
      */
@@ -122,14 +131,25 @@ class User extends Authenticatable
         }
 
         return $this->scopedPersonnelIds ??= array_values(Personnel::query()
-            ->when(
-                $scope === DataScope::School,
-                fn ($query) => $query->where('office_id', $this->office_id ?? 0),
-                fn ($query) => $query->whereRaw('lower(deped_email) = ?', [mb_strtolower($this->email)]),
-            )
+            ->where(function (Builder $query) use ($scope) {
+                $query->where('user_id', $this->id);
+
+                if ($scope === DataScope::School && $this->office_id !== null) {
+                    $query->orWhere('office_id', $this->office_id);
+                }
+            })
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all());
+    }
+
+    public function reachesOffice(?int $officeId): bool
+    {
+        if ($this->dataScope() === DataScope::All) {
+            return true;
+        }
+
+        return $officeId !== null && $this->office_id !== null && $officeId === $this->office_id;
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Management;
 
+use App\Enums\Permission;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -29,10 +30,19 @@ class UserResource extends JsonResource
                 'office_name' => $this->office->office_name,
                 'school_id' => $this->office->school_id,
             ] : null),
+            'personnel_id' => $this->whenLoaded('personnel', fn () => $this->personnel?->id),
+            'personnel' => $this->when(
+                $this->relationLoaded('personnel') && ($request->user()?->hasPermissionTo(Permission::PersonnelView) ?? false),
+                fn () => $this->personnel ? [
+                    'id' => $this->personnel->id,
+                    'full_name' => $this->personnel->full_name,
+                ] : null,
+            ),
             'is_active' => $this->is_active,
             'two_factor_enabled' => $this->hasTwoFactorEnabled(),
             'roles' => $this->whenLoaded('roles', fn () => $this->roles->pluck('name')),
             'role_ids' => $this->whenLoaded('roles', fn () => $this->roles->pluck('id')),
+            'data_scope' => $this->whenLoaded('roles', fn () => $this->dataScope()->value),
             'role' => $this->whenLoaded('roles', function () {
                 $firstRole = $this->roles->first();
 

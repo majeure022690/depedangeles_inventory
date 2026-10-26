@@ -74,20 +74,13 @@ enum Permission: string
     case RolesEdit = 'roles.edit';
     case RolesDelete = 'roles.delete';
 
-    // One profile per office, always existing, so no .create/.delete. Scoped to the user's own office_id.
+    // One profile per office, always existing, so no .create/.delete. Reach follows the role's data scope.
     case StakeholderProfileView = 'stakeholder_profile.view';
     case StakeholderProfileEdit = 'stakeholder_profile.edit';
 
-    // Division-level oversight: view and edit every office's profile, and the list of all of them.
-    case StakeholderProfileViewAll = 'stakeholder_profile.view_all';
-
-    // Internet Connectivity Survey (one row per office). .view/.edit are
-    // scoped to the acting user's own office_id (InternetConnectivitySurveyPolicy).
+    // Internet Connectivity Survey (one row per office). Reach follows the role's data scope.
     case InternetConnectivityView = 'internet_connectivity.view';
     case InternetConnectivityEdit = 'internet_connectivity.edit';
-
-    // Cross-office oversight: bypasses the office scoping above and gates the list of all surveys.
-    case InternetConnectivityViewAll = 'internet_connectivity.view_all';
 
     // Separate from ReferenceDataManage: other records depend on offices (restrictOnDelete FKs).
     case OfficeView = 'office.view';
@@ -112,16 +105,6 @@ enum Permission: string
      */
     public function label(): string
     {
-        // .view_all also grants cross-office edit (the office-scoped Policies).
-        return match ($this) {
-            self::StakeholderProfileViewAll => 'Stakeholder Profile — view & edit all offices',
-            self::InternetConnectivityViewAll => 'Internet Connectivity — view & edit all offices',
-            default => $this->defaultLabel(),
-        };
-    }
-
-    private function defaultLabel(): string
-    {
         return Str::of($this->value)->replace('.', ' ')->replace('_', ' ')->title()->toString();
     }
 
@@ -138,9 +121,8 @@ enum Permission: string
             self::EquipmentTransactionsCreate => 'Equipment',
             self::IspAccountsView, self::IspAccountsCreate, self::IspAccountsEdit, self::IspAccountsDelete => 'ISP Accounts',
             self::OfficeView, self::OfficeCreate, self::OfficeEdit, self::OfficeDelete => 'Offices',
-            self::StakeholderProfileView, self::StakeholderProfileEdit, self::StakeholderProfileViewAll => 'Stakeholder Profile',
-            self::InternetConnectivityView, self::InternetConnectivityEdit,
-            self::InternetConnectivityViewAll => 'Internet Connectivity',
+            self::StakeholderProfileView, self::StakeholderProfileEdit => 'Stakeholder Profile',
+            self::InternetConnectivityView, self::InternetConnectivityEdit => 'Internet Connectivity',
             self::ReferenceDataManage, self::UsersView, self::UsersEdit,
             self::UsersResetTwoFactor, self::RolesView, self::RolesCreate,
             self::RolesEdit, self::RolesDelete, self::AuditLogView,

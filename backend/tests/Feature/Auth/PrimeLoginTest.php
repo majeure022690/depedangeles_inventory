@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -11,11 +12,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class PrimeLoginTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -78,7 +80,7 @@ class PrimeLoginTest extends TestCase
         $this->primeUser();
         $this->login()->assertForbidden();
 
-        User::where('email', 'juan@deped.gov.ph')->firstOrFail()->assignRole('viewer');
+        $this->grantPermissions(User::where('email', 'juan@deped.gov.ph')->firstOrFail(), [Permission::EquipmentView], DataScope::Own);
 
         $this->login()->assertOk()->assertJsonPath('requires_2fa_setup', true)->assertJsonStructure(['setup_token']);
         $this->assertGuest();

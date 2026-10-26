@@ -45,11 +45,12 @@ final class RoleService
     ];
 
     /**
-     * @param  array{name: string, label: string, description: ?string}  $attributes
+     * @param  array{name: string, label: string, description: ?string, data_scope?: string}  $attributes
      * @param  array<int, string>  $permissionValues
      */
     public function create(User $actor, array $attributes, array $permissionValues): Role
     {
+        $this->guardAgainstWiderDataScope($actor, $attributes['data_scope'] ?? DataScope::Own->value);
         $this->guardAgainstGrantingUnheldPermissions($actor, $permissionValues);
 
         return DB::transaction(function () use ($actor, $attributes, $permissionValues): Role {
@@ -70,7 +71,7 @@ final class RoleService
     }
 
     /**
-     * @param  array{name: string, label: string, description: ?string}  $attributes
+     * @param  array{name: string, label: string, description: ?string, data_scope?: string}  $attributes
      * @param  array<int, string>  $permissionValues
      */
     public function update(User $actor, Role $role, array $attributes, array $permissionValues): void
@@ -105,6 +106,8 @@ final class RoleService
             }
         }
 
+        $this->guardAgainstWiderDataScope($actor, $role->data_scope);
+        $this->guardAgainstWiderDataScope($actor, $attributes['data_scope'] ?? $role->data_scope->value);
         $this->guardAgainstGrantingUnheldPermissions($actor, $permissionValues, $role);
 
         DB::transaction(function () use ($actor, $role, $attributes, $permissionValues): void {
@@ -216,6 +219,24 @@ final class RoleService
 
         if ($unheld !== []) {
             throw ValidationException::withMessages(['permissions' => self::unheldPermissionsMessage($unheld)]);
+        }
+    }
+
+    /**
+     * A role may not reach wider than the actor's own data scope.
+     */
+    private function guardAgainstWiderDataScope(User $actor, DataScope|string $scope): void
+    {
+        $scope = $scope instanceof DataScope ? $scope : DataScope::from($scope);
+        $actorScope = $actor->dataScope();
+
+        if ($scope->rank() > $actorScope->rank()) {
+            throw ValidationException::withMessages([
+                'data_scope' => __(
+                    'You can only set a data scope that does not exceed your own. Your data scope is :actor; this role would be :scope.',
+                    ['actor' => $actorScope->value, 'scope' => $scope->value],
+                ),
+            ]);
         }
     }
 

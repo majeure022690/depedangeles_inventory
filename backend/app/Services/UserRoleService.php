@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\DataScope;
 use App\Enums\Permission as PermissionEnum;
 use App\Models\Role;
 use App\Models\User;
@@ -25,37 +26,41 @@ use Spatie\Permission\Models\Permission;
  * Invariants:
  *   1. Self-edits can't deactivate the actor or drop their own
  *      roles.edit/users.edit.
- *   2. Permission-tier separation: an actor can assign only roles, and
- *      manage only accounts, whose permissions are a subset of their own.
+ *   2. Tier separation: an actor can assign only roles, and manage only
+ *      accounts, whose permissions are a subset of their own and whose
+ *      data scope is no wider than their own.
  *   3. The last remaining users.edit holder can never lose it.
  */
 final class UserRoleService
 {
     /**
-     * Every role whose permission set is a subset of the actor's own: the
-     * read-side mirror of guardAgainstPermissionTierViolation(), used by
-     * UserController::options().
+     * Every role whose permission set is a subset of the actor's own and
+     * whose data scope is no wider than theirs: the read-side mirror of
+     * guardAgainstPermissionTierViolation(), used by UserController::options().
      *
      * @return EloquentCollection<int, Role>
      */
     public function assignableRolesFor(User $actor): EloquentCollection
     {
         $actorPermissionNames = $this->permissionNamesOf($actor);
+        $actorScopeRank = $actor->dataScope()->rank();
 
         return Role::query()
             ->orderBy('label')
             ->with('permissions:id,name')
-            ->get(['id', 'name', 'label'])
-            ->filter(fn (Role $role) => $role->permissions
-                ->pluck('name')
-                ->every(fn (string $permission) => in_array($permission, $actorPermissionNames, true)))
+            ->get(['id', 'name', 'label', 'data_scope'])
+            ->filter(fn (Role $role) => $role->data_scope->rank() <= $actorScopeRank
+                && $role->permissions
+                    ->pluck('name')
+                    ->every(fn (string $permission) => in_array($permission, $actorPermissionNames, true)))
             ->values();
     }
 
     /**
      * Target-tier guard: an actor may edit, deactivate, delete, or reset
      * 2FA only for an account whose effective permissions are a subset of
-     * their own (the assignableRolesFor() rule applied to the target).
+     * their own and whose data scope is no wider than theirs (the
+     * assignableRolesFor() rule applied to the target).
      * Without it a users.edit or users.reset_two_factor holder could reset
      * an admin's 2FA and take the account over.
      */
@@ -66,8 +71,9 @@ final class UserRoleService
 
     /**
      * Which of the given user ids hold any permission (via a role or
-     * directly) the actor lacks. One query, so the users list can flag
-     * every row without resolving each user's permission set.
+     * directly) the actor lacks, or a role scoped wider than the actor's
+     * data scope. One query, so the users list can flag every row without
+     * resolving each user's permission set.
      *
      * @param  array<int, int>  $userIds
      * @return array<int, int>
@@ -80,10 +86,14 @@ final class UserRoleService
 
         $actorPermissionNames = $this->permissionNamesOf($actor);
         $exceeds = fn ($query) => $query->whereNotIn('name', $actorPermissionNames);
+        $widerScopes = $this->scopeValuesWiderThan($actor->dataScope());
 
         return User::query()
             ->whereKey($userIds)
-            ->where(fn ($query) => $query->whereHas('roles.permissions', $exceeds)->orWhereHas('permissions', $exceeds))
+            ->where(fn ($query) => $query
+                ->whereHas('roles.permissions', $exceeds)
+                ->orWhereHas('permissions', $exceeds)
+                ->when($widerScopes !== [], fn ($query) => $query->orWhereHas('roles', fn ($roles) => $roles->whereIn('data_scope', $widerScopes))))
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
@@ -353,14 +363,27 @@ final class UserRoleService
     private function guardTargetWithinTier(User $actor, User $target): void
     {
         if (! $this->canManage($actor, $target)) {
-            throw new AuthorizationException(__('You cannot manage an account that holds permissions you do not hold yourself.'));
+            throw new AuthorizationException(__('You cannot manage an account that holds permissions or a data scope you do not hold yourself.'));
         }
     }
 
     /**
+     * @return array<int, string>
+     */
+    private function scopeValuesWiderThan(DataScope $scope): array
+    {
+        return collect(DataScope::cases())
+            ->filter(fn (DataScope $case) => $case->rank() > $scope->rank())
+            ->map(fn (DataScope $case) => $case->value)
+            ->values()
+            ->all();
+    }
+
+    /**
      * An actor may only assign roles whose entire permission set is a
-     * subset of their own. Checked against the full resulting role set,
-     * not just newly added roles.
+     * subset of their own and whose data scope is no wider than theirs.
+     * Checked against the full resulting role set, not just newly added
+     * roles.
      *
      * @param  array<int, int>  $roleIds
      */
@@ -371,11 +394,29 @@ final class UserRoleService
         }
 
         $actorPermissionNames = $this->permissionNamesOf($actor);
+        $actorScope = $actor->dataScope();
 
-        $exceedingRoles = Role::query()
+        $roles = Role::query()
             ->whereIn('id', $roleIds)
             ->with('permissions:id,name')
-            ->get(['id', 'name', 'label'])
+            ->get(['id', 'name', 'label', 'data_scope']);
+
+        $widerScopedRoles = $roles->filter(fn (Role $role) => $role->data_scope->rank() > $actorScope->rank());
+
+        if ($widerScopedRoles->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'role_id' => __(
+                    'Cannot assign these roles: :roles have a data scope wider than your own (:scope). '.
+                    'You can only assign roles whose data scope does not exceed your own.',
+                    [
+                        'roles' => $widerScopedRoles->pluck('label')->implode(', '),
+                        'scope' => $actorScope->value,
+                    ],
+                ),
+            ]);
+        }
+
+        $exceedingRoles = $roles
             ->filter(fn (Role $role) => $role->permissions
                 ->pluck('name')
                 ->contains(fn (string $permission) => ! in_array($permission, $actorPermissionNames, true)));

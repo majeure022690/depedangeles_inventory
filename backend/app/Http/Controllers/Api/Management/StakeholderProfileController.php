@@ -23,7 +23,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * ONE ROW PER OFFICE: index() is the cross-office admin list (view_all
+ * ONE ROW PER OFFICE: index() is the cross-office admin list (all-scope
  * only); show()/update() are scoped to one {office}. No store/destroy: the
  * row is created on the first update() only (createOrFirst()); show()
  * returns a transient blank model until then. Both authorize a transient

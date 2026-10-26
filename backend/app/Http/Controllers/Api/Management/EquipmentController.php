@@ -152,6 +152,7 @@ class EquipmentController extends Controller
 
         if ($user->hasPermissionTo(Permission::EquipmentTransactionsCreate)) {
             $data['personnel'] = Personnel::query()
+                ->visibleTo($user)
                 ->active()
                 ->orderBy('last_name')
                 ->orderBy('first_name')
@@ -165,7 +166,9 @@ class EquipmentController extends Controller
 
     public function store(StoreEquipmentRequest $request): JsonResponse
     {
-        $equipment = Equipment::create($request->validated());
+        $equipment = new Equipment($request->validated());
+        $equipment->createdBy()->associate($request->user());
+        $equipment->save();
 
         return new EquipmentResource($equipment->fresh(self::LIST_RELATIONS))
             ->additional(['message' => 'Equipment record created.'])

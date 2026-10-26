@@ -70,19 +70,18 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     Route::put('/offices/{office}', [OfficeController::class, 'update'])->middleware($can(P::OfficeEdit))->whereNumber('office');
     Route::delete('/offices/{office}', [OfficeController::class, 'destroy'])->middleware($can(P::OfficeDelete))->whereNumber('office');
 
-    // Permission-protected, office-scoped: one profile per office. The
-    // Policy limits .view/.edit to the user's own office; .view_all is
-    // every office plus the cross-office list.
-    Route::get('/stakeholder-profiles/options', [StakeholderProfileController::class, 'options'])->middleware($can(P::StakeholderProfileView, P::StakeholderProfileViewAll));
-    Route::get('/stakeholder-profiles', [StakeholderProfileController::class, 'index'])->middleware($can(P::StakeholderProfileViewAll));
-    Route::get('/stakeholder-profiles/{office}', [StakeholderProfileController::class, 'show'])->middleware($can(P::StakeholderProfileView, P::StakeholderProfileViewAll))->whereNumber('office');
-    Route::put('/stakeholder-profiles/{office}', [StakeholderProfileController::class, 'update'])->middleware($can(P::StakeholderProfileEdit, P::StakeholderProfileViewAll))->whereNumber('office');
+    // Permission-protected, data-scoped: one profile per office. The Policy
+    // limits scoped roles to their own office; the cross-office list is all-scope only.
+    Route::get('/stakeholder-profiles/options', [StakeholderProfileController::class, 'options'])->middleware($can(P::StakeholderProfileView));
+    Route::get('/stakeholder-profiles', [StakeholderProfileController::class, 'index'])->middleware($can(P::StakeholderProfileView));
+    Route::get('/stakeholder-profiles/{office}', [StakeholderProfileController::class, 'show'])->middleware($can(P::StakeholderProfileView))->whereNumber('office');
+    Route::put('/stakeholder-profiles/{office}', [StakeholderProfileController::class, 'update'])->middleware($can(P::StakeholderProfileEdit))->whereNumber('office');
 
-    // Permission-protected, office-scoped: one survey per office (same rules as above).
-    Route::get('/internet-connectivity-surveys/options', [InternetConnectivitySurveyController::class, 'options'])->middleware($can(P::InternetConnectivityView, P::InternetConnectivityViewAll));
-    Route::get('/internet-connectivity-surveys', [InternetConnectivitySurveyController::class, 'index'])->middleware($can(P::InternetConnectivityViewAll));
-    Route::get('/internet-connectivity-surveys/{office}', [InternetConnectivitySurveyController::class, 'show'])->middleware($can(P::InternetConnectivityView, P::InternetConnectivityViewAll))->whereNumber('office');
-    Route::put('/internet-connectivity-surveys/{office}', [InternetConnectivitySurveyController::class, 'update'])->middleware($can(P::InternetConnectivityEdit, P::InternetConnectivityViewAll))->whereNumber('office');
+    // Permission-protected, data-scoped: one survey per office (same rules as above).
+    Route::get('/internet-connectivity-surveys/options', [InternetConnectivitySurveyController::class, 'options'])->middleware($can(P::InternetConnectivityView));
+    Route::get('/internet-connectivity-surveys', [InternetConnectivitySurveyController::class, 'index'])->middleware($can(P::InternetConnectivityView));
+    Route::get('/internet-connectivity-surveys/{office}', [InternetConnectivitySurveyController::class, 'show'])->middleware($can(P::InternetConnectivityView))->whereNumber('office');
+    Route::put('/internet-connectivity-surveys/{office}', [InternetConnectivitySurveyController::class, 'update'])->middleware($can(P::InternetConnectivityEdit))->whereNumber('office');
 
     // Permission-protected: reference-data.manage ({table} is a registry key).
     Route::middleware($can(P::ReferenceDataManage))->group(function () {

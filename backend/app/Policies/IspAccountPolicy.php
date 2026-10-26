@@ -5,48 +5,38 @@ namespace App\Policies;
 use App\Enums\Permission;
 use App\Models\IspAccount;
 use App\Models\User;
+use Illuminate\Auth\Access\Response;
 
 class IspAccountPolicy
 {
-    public function viewAny(User $user): bool
+    public function viewAny(User $user): Response
     {
-        return $user->hasPermissionTo(Permission::IspAccountsView);
+        return $user->hasPermissionTo(Permission::IspAccountsView) ? Response::allow() : Response::deny();
     }
 
-    public function view(User $user, IspAccount $ispAccount): bool
+    public function view(User $user, IspAccount $ispAccount): Response
     {
-        return $user->hasPermissionTo(Permission::IspAccountsView);
+        return $this->permittedAndVisible($user, $ispAccount, Permission::IspAccountsView);
     }
 
-    public function create(User $user): bool
+    public function create(User $user): Response
     {
-        return $user->hasPermissionTo(Permission::IspAccountsCreate);
-    }
-
-    /**
-     * Also the authorization gate for logging an IspSpeedTest or
-     * IspSubscriptionCost row against this account — see the doc-comment
-     * on Permission::IspAccountsEdit for why those nested logs don't get
-     * their own permission. Backend calls
-     * `$user->can('update', $ispAccount)` from the speed-test/
-     * subscription-cost store actions, the same way equipment
-     * transactions authorize against the parent Equipment.
-     */
-    public function update(User $user, IspAccount $ispAccount): bool
-    {
-        return $user->hasPermissionTo(Permission::IspAccountsEdit);
+        return $user->hasPermissionTo(Permission::IspAccountsCreate) ? Response::allow() : Response::deny();
     }
 
     /**
-     * Deletion is the most consequential IspAccount action (a government
-     * budget/procurement record), so a denial here is logged, not just
-     * silently 403'd.
+     * Also gates logging speed tests and subscription costs against the account.
      */
-    public function delete(User $user, IspAccount $ispAccount): bool
+    public function update(User $user, IspAccount $ispAccount): Response
     {
-        $allowed = $user->hasPermissionTo(Permission::IspAccountsDelete);
+        return $this->permittedAndVisible($user, $ispAccount, Permission::IspAccountsEdit);
+    }
 
-        if (! $allowed) {
+    public function delete(User $user, IspAccount $ispAccount): Response
+    {
+        $response = $this->permittedAndVisible($user, $ispAccount, Permission::IspAccountsDelete);
+
+        if ($response->denied()) {
             activity()
                 ->causedBy($user)
                 ->performedOn($ispAccount)
@@ -55,7 +45,7 @@ class IspAccountPolicy
                 ->log('authorization.denied');
         }
 
-        return $allowed;
+        return $response;
     }
 
     public function restore(User $user, IspAccount $ispAccount): bool
@@ -66,5 +56,14 @@ class IspAccountPolicy
     public function forceDelete(User $user, IspAccount $ispAccount): bool
     {
         return false;
+    }
+
+    private function permittedAndVisible(User $user, IspAccount $ispAccount, Permission $permission): Response
+    {
+        if (! $user->hasPermissionTo($permission)) {
+            return Response::deny();
+        }
+
+        return $ispAccount->isVisibleTo($user) ? Response::allow() : Response::denyAsNotFound();
     }
 }

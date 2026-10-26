@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Management;
 
+use App\Enums\DataScope;
 use App\Enums\PersonnelLibraryType;
 use App\Http\Controllers\Api\Management\Concerns\HasLookupOptions;
 use App\Http\Controllers\Api\Management\Concerns\ResolvesListParameters;
@@ -20,6 +21,7 @@ use App\Models\SdoOffice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Audit: create/update/delete rows come from Personnel's LogsActivity.
@@ -50,6 +52,14 @@ class PersonnelController extends Controller
     ];
 
     /**
+     * @var list<string>
+     */
+    private const RELATIONS = [
+        'personnelPosition:id,name', 'roOffice:id,name', 'sdoOffice:id,name',
+        'office:id,office_name', 'user:id,name',
+    ];
+
+    /**
      * @var array<string, string>
      */
     private const SORTABLE = [
@@ -67,10 +77,11 @@ class PersonnelController extends Controller
         $status = in_array($status, ['active', 'inactive', 'all'], true) ? $status : 'active';
 
         $query = Personnel::query()
+            ->visibleTo($request->user())
             ->search($request->string('search')->toString() ?: null)
             ->when($status === 'active', fn ($query) => $query->active())
             ->when($status === 'inactive', fn ($query) => $query->where('inactive', true))
-            ->with(['personnelPosition:id,name', 'roOffice:id,name', 'sdoOffice:id,name', 'office:id,office_name']);
+            ->with(self::RELATIONS);
 
         if (! $this->applySort($query, $request, self::SORTABLE)) {
             $query->orderBy('last_name')->orderBy('first_name');
@@ -101,7 +112,13 @@ class PersonnelController extends Controller
 
     public function store(StorePersonnelRequest $request): JsonResponse
     {
-        $personnel = Personnel::create($request->validated());
+        $attributes = $request->validated();
+
+        if ($request->user()->dataScope() !== DataScope::All) {
+            $attributes['office_id'] = $request->user()->office_id;
+        }
+
+        $personnel = Personnel::create($attributes);
 
         return $this->resource($personnel)
             ->additional(['message' => 'Personnel record created.'])
@@ -133,13 +150,16 @@ class PersonnelController extends Controller
     {
         $this->authorize('delete', $personnel);
 
-        $personnel->delete();
+        DB::transaction(function () use ($personnel): void {
+            $personnel->forceFill(['user_id' => null])->save();
+            $personnel->delete();
+        });
 
         return response()->noContent();
     }
 
     private function resource(Personnel $personnel): PersonnelResource
     {
-        return new PersonnelResource($personnel->fresh(['personnelPosition:id,name', 'roOffice:id,name', 'sdoOffice:id,name', 'office:id,office_name']) ?? $personnel);
+        return new PersonnelResource($personnel->fresh(self::RELATIONS) ?? $personnel);
     }
 }

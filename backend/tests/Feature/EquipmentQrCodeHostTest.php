@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\Permission;
 use App\Models\Brand;
 use App\Models\Equipment;
 use App\Models\EquipmentCategory;
@@ -14,11 +15,12 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Support\Facades\DB;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class EquipmentQrCodeHostTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     private const CONFIGURED_URL = 'https://dictis.example.gov.ph';
 
@@ -30,8 +32,7 @@ class EquipmentQrCodeHostTest extends TestCase
 
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        $this->user = User::factory()->create();
-        $this->user->assignRole('encoder');
+        $this->user = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit]);
         config(['app.url' => self::CONFIGURED_URL.'/']);
     }
 

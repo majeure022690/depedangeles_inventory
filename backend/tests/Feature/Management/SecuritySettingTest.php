@@ -29,6 +29,17 @@ class SecuritySettingTest extends TestCase
         return $user;
     }
 
+    private function userWithAllPermissionsExcept(Permission $except): User
+    {
+        $role = Role::create(['name' => 'all-but-'.$except->value, 'label' => 'All but '.$except->label()]);
+        $role->givePermissionTo(array_values(array_map(
+            fn (Permission $p) => $p->value,
+            array_filter(Permission::cases(), fn (Permission $p) => $p !== $except),
+        )));
+
+        return $this->userWithRole($role->name);
+    }
+
     private function userWithOnly(Permission $permission): User
     {
         $role = Role::create(['name' => 'only-'.$permission->value, 'label' => 'Only '.$permission->label()]);
@@ -127,7 +138,7 @@ class SecuritySettingTest extends TestCase
 
     public function test_rejected_updates_are_not_audited_as_changes(): void
     {
-        $this->actingAs($this->userWithRole('viewer'))->putJson('/api/settings/security', [
+        $this->actingAs($this->userWithAllPermissionsExcept(Permission::SecuritySettingsManage))->putJson('/api/settings/security', [
             'setting_key' => 'trusted_device_days',
             'value' => 7,
             'current_password' => 'password',
@@ -144,8 +155,7 @@ class SecuritySettingTest extends TestCase
 
     public function test_security_settings_require_the_permission(): void
     {
-        foreach (['viewer', 'encoder'] as $role) {
-            $user = $this->userWithRole($role);
+        foreach ([$this->userWithOnly(Permission::EquipmentView), $this->userWithAllPermissionsExcept(Permission::SecuritySettingsManage)] as $user) {
 
             $this->actingAs($user)->getJson('/api/settings/security')->assertForbidden();
             $this->actingAs($user)->putJson('/api/settings/security', [
@@ -202,10 +212,10 @@ class SecuritySettingTest extends TestCase
 
     public function test_idle_timeout_defaults_to_fifteen_minutes_and_is_readable_by_any_signed_in_user(): void
     {
-        $viewer = $this->userWithRole('viewer');
+        $signedIn = $this->userWithOnly(Permission::EquipmentView);
 
         $this->getJson('/api/session-settings')->assertUnauthorized();
-        $this->actingAs($viewer)->getJson('/api/session-settings')
+        $this->actingAs($signedIn)->getJson('/api/session-settings')
             ->assertOk()
             ->assertExactJson(['data' => ['idle_timeout_seconds' => 900], 'message' => 'Success']);
     }

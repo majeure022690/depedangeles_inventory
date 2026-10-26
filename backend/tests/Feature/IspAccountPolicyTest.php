@@ -2,10 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Enums\Permission;
 use App\Models\IspAccount;
-use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 /**
@@ -23,47 +24,48 @@ use Tests\TestCase;
  */
 class IspAccountPolicyTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     private function makeIspAccount(): IspAccount
     {
         return IspAccount::factory()->create();
     }
 
-    public function test_viewer_has_no_isp_account_access(): void
+    public function test_user_without_isp_permissions_has_no_isp_account_access(): void
     {
         $this->seed(RolePermissionSeeder::class);
-        $viewer = User::factory()->create();
-        $viewer->assignRole('viewer');
+        $outsider = $this->userWithAllPermissions([
+            Permission::IspAccountsView, Permission::IspAccountsCreate, Permission::IspAccountsEdit, Permission::IspAccountsDelete,
+        ]);
         $account = $this->makeIspAccount();
 
-        $this->assertFalse($viewer->can('viewAny', IspAccount::class));
-        $this->assertFalse($viewer->can('view', $account));
-        $this->assertFalse($viewer->can('create', IspAccount::class));
-        $this->assertFalse($viewer->can('update', $account));
-        $this->assertFalse($viewer->can('delete', $account));
+        $this->assertFalse($outsider->can('viewAny', IspAccount::class));
+        $this->assertFalse($outsider->can('view', $account));
+        $this->assertFalse($outsider->can('create', IspAccount::class));
+        $this->assertFalse($outsider->can('update', $account));
+        $this->assertFalse($outsider->can('delete', $account));
     }
 
-    public function test_encoder_can_view_create_and_edit_but_not_delete(): void
+    public function test_view_create_edit_holder_can_do_those_but_not_delete(): void
     {
         $this->seed(RolePermissionSeeder::class);
-        $encoder = User::factory()->create();
-        $encoder->assignRole('encoder');
+        $editor = $this->userWithPermissions([Permission::IspAccountsView, Permission::IspAccountsCreate, Permission::IspAccountsEdit]);
         $account = $this->makeIspAccount();
 
-        $this->assertTrue($encoder->can('viewAny', IspAccount::class));
-        $this->assertTrue($encoder->can('create', IspAccount::class));
+        $this->assertTrue($editor->can('viewAny', IspAccount::class));
+        $this->assertTrue($editor->can('create', IspAccount::class));
         // Also gates logging a speed test / subscription cost entry
         // against this account — see class doc-comment.
-        $this->assertTrue($encoder->can('update', $account));
-        $this->assertFalse($encoder->can('delete', $account));
+        $this->assertTrue($editor->can('update', $account));
+        $this->assertFalse($editor->can('delete', $account));
     }
 
-    public function test_division_ict_admin_can_do_everything_including_delete(): void
+    public function test_holder_of_every_isp_permission_can_do_everything_including_delete(): void
     {
         $this->seed(RolePermissionSeeder::class);
-        $admin = User::factory()->create();
-        $admin->assignRole('system_administrator');
+        $admin = $this->userWithPermissions([
+            Permission::IspAccountsView, Permission::IspAccountsCreate, Permission::IspAccountsEdit, Permission::IspAccountsDelete,
+        ]);
         $account = $this->makeIspAccount();
 
         $this->assertTrue($admin->can('create', IspAccount::class));

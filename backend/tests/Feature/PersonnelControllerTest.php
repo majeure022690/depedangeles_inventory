@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Enums\PersonnelLibraryType;
 use App\Models\Personnel;
@@ -34,9 +35,9 @@ class PersonnelControllerTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
-    private function encoder(): User
+    private function editor(): User
     {
-        return $this->userWithRole('encoder');
+        return $this->userWithPermissions([Permission::PersonnelView, Permission::PersonnelCreate, Permission::PersonnelEdit]);
     }
 
     public function test_full_name_generated_column_matches_source_workbook_format(): void
@@ -58,7 +59,7 @@ class PersonnelControllerTest extends TestCase
 
     public function test_store_validates_required_fields_and_creates_record(): void
     {
-        $user = $this->encoder();
+        $user = $this->editor();
 
         $this->actingAs($user)->postJson('/api/personnel', [])
             ->assertUnprocessable()
@@ -91,7 +92,7 @@ class PersonnelControllerTest extends TestCase
 
     public function test_store_rejects_a_nonexistent_position_id(): void
     {
-        $this->actingAs($this->encoder())->postJson('/api/personnel', [
+        $this->actingAs($this->editor())->postJson('/api/personnel', [
             'employee_id' => 'EMP-101',
             'last_name' => 'Santos',
             'first_name' => 'Maria',
@@ -106,7 +107,7 @@ class PersonnelControllerTest extends TestCase
         $position = Position::where('name', 'Administrative Officer II')->firstOrFail();
         $position->update(['is_active' => false]);
 
-        $this->actingAs($this->encoder())->postJson('/api/personnel', [
+        $this->actingAs($this->editor())->postJson('/api/personnel', [
             'employee_id' => 'EMP-102',
             'last_name' => 'Santos',
             'first_name' => 'Maria',
@@ -118,7 +119,7 @@ class PersonnelControllerTest extends TestCase
 
     public function test_store_rejects_a_lookup_backed_value_not_in_the_active_list(): void
     {
-        $this->actingAs($this->encoder())->postJson('/api/personnel', [
+        $this->actingAs($this->editor())->postJson('/api/personnel', [
             'employee_id' => 'EMP-103',
             'last_name' => 'Santos',
             'first_name' => 'Maria',
@@ -137,7 +138,7 @@ class PersonnelControllerTest extends TestCase
             ->pluck('id')
             ->all();
 
-        $this->actingAs($this->encoder())->postJson('/api/personnel', [
+        $this->actingAs($this->editor())->postJson('/api/personnel', [
             'employee_id' => 'EMP-104',
             'last_name' => 'Santos',
             'first_name' => 'Maria',
@@ -162,7 +163,7 @@ class PersonnelControllerTest extends TestCase
             ->active()
             ->value('id');
 
-        $this->actingAs($this->encoder())->postJson('/api/personnel', [
+        $this->actingAs($this->editor())->postJson('/api/personnel', [
             'employee_id' => 'EMP-105',
             'last_name' => 'Santos',
             'first_name' => 'Maria',
@@ -201,36 +202,36 @@ class PersonnelControllerTest extends TestCase
         ]);
     }
 
-    public function test_viewer_can_read_but_not_write(): void
+    public function test_own_scope_view_only_user_can_read_its_record_but_not_write(): void
     {
-        $viewer = $this->userWithRole('viewer');
-        $person = Personnel::factory()->create();
+        $reader = $this->userWithPermissions([Permission::PersonnelView], [], DataScope::Own);
+        $person = Personnel::factory()->create(['user_id' => $reader->id]);
 
-        $this->actingAs($viewer)->getJson('/api/personnel')->assertOk();
-        $this->actingAs($viewer)->getJson("/api/personnel/{$person->id}")->assertOk();
-        $this->actingAs($viewer)->postJson('/api/personnel', ['employee_id' => 'X'])->assertForbidden();
-        $this->actingAs($viewer)->putJson("/api/personnel/{$person->id}", ['employee_id' => 'X'])->assertForbidden();
-        $this->actingAs($viewer)->deleteJson("/api/personnel/{$person->id}")->assertForbidden();
+        $this->actingAs($reader)->getJson('/api/personnel')->assertOk()->assertJsonPath('data.0.id', $person->id);
+        $this->actingAs($reader)->getJson("/api/personnel/{$person->id}")->assertOk();
+        $this->actingAs($reader)->postJson('/api/personnel', ['employee_id' => 'X'])->assertForbidden();
+        $this->actingAs($reader)->putJson("/api/personnel/{$person->id}", ['employee_id' => 'X'])->assertForbidden();
+        $this->actingAs($reader)->deleteJson("/api/personnel/{$person->id}")->assertForbidden();
 
         $this->assertNotSoftDeleted('personnel', ['id' => $person->id]);
     }
 
-    public function test_encoder_cannot_delete_and_the_denial_is_audited(): void
+    public function test_editor_without_personnel_delete_cannot_delete_and_the_denial_is_audited(): void
     {
-        $encoder = $this->encoder();
+        $editor = $this->editor();
         $person = Personnel::factory()->create();
 
-        // Encoder lacks personnel.delete: the route middleware fails fast.
-        $this->actingAs($encoder)->deleteJson("/api/personnel/{$person->id}")->assertForbidden();
+        // No personnel.delete: the route middleware fails fast.
+        $this->actingAs($editor)->deleteJson("/api/personnel/{$person->id}")->assertForbidden();
         $this->assertNotSoftDeleted('personnel', ['id' => $person->id]);
 
         // The Policy (authoritative gate) audits a denial when reached.
-        $this->assertFalse($encoder->can('delete', $person));
+        $this->assertFalse($editor->can('delete', $person));
         $this->assertDatabaseHas('activity_log', [
             'event' => 'authorization.denied',
             'subject_type' => Personnel::class,
             'subject_id' => $person->id,
-            'causer_id' => $encoder->id,
+            'causer_id' => $editor->id,
         ]);
     }
 
@@ -269,7 +270,7 @@ class PersonnelControllerTest extends TestCase
 
     public function test_options_ship_id_valued_tier1_and_string_valued_tier2_options(): void
     {
-        $response = $this->actingAs($this->encoder())->getJson('/api/personnel/options')
+        $response = $this->actingAs($this->editor())->getJson('/api/personnel/options')
             ->assertOk()
             ->assertJsonStructure(['data' => [
                 'position', 'ro_office', 'sdo_office', 'name_suffix', 'cause_of_separation', 'teachers_funding_source',
@@ -296,7 +297,7 @@ class PersonnelControllerTest extends TestCase
         Personnel::factory()->inactive()->create(['first_name' => 'Ana', 'last_name' => 'Reyes']);
         Personnel::factory()->count(3)->create();
 
-        $user = $this->userWithRole('viewer');
+        $user = $this->editor();
 
         $this->actingAs($user)->getJson('/api/personnel?search=DelaCruz')
             ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.last_name', 'DelaCruz');
@@ -321,7 +322,7 @@ class PersonnelControllerTest extends TestCase
         Personnel::factory()->create(['employee_id' => 'B-2', 'last_name' => 'Alpha']);
         Personnel::factory()->create(['employee_id' => 'A-1', 'last_name' => 'Zulu']);
 
-        $user = $this->userWithRole('viewer');
+        $user = $this->editor();
 
         $this->actingAs($user)->getJson('/api/personnel?sort=employee_id&direction=asc')
             ->assertJsonPath('data.0.employee_id', 'A-1');

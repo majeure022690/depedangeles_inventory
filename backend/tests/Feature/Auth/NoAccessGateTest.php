@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Http\Controllers\Api\Auth\TwoFactorController;
 use App\Models\Role;
@@ -19,11 +20,12 @@ use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use PragmaRX\Google2FA\Google2FA;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class NoAccessGateTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     private const PASSWORD = 'CorrectHorse123!';
 
@@ -99,8 +101,7 @@ class NoAccessGateTest extends TestCase
 
     public function test_a_trusted_device_does_not_let_a_roleless_user_in(): void
     {
-        $user = $this->enrolled();
-        $user->assignRole('viewer');
+        $user = $this->grantPermissions($this->enrolled(), [Permission::EquipmentView], DataScope::Own);
 
         $twoFaToken = $this->login($user)->assertOk()->json('two_fa_token');
         $cookie = $this->postJson('/api/2fa/verify', [

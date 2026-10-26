@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Management;
 
 use App\Enums\ConnectivityLibraryType;
+use App\Enums\DataScope;
 use App\Enums\EquipmentLibraryType;
 use App\Http\Controllers\Api\Management\Concerns\HasLookupOptions;
 use App\Http\Controllers\Api\Management\Concerns\ResolvesListParameters;
@@ -16,6 +17,7 @@ use App\Models\ConnectivityLibrary;
 use App\Models\EquipmentLibrary;
 use App\Models\IspAccount;
 use App\Models\IspProvider;
+use App\Models\Office;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -66,10 +68,11 @@ class IspAccountController extends Controller
         $this->authorize('viewAny', IspAccount::class);
 
         $query = IspAccount::query()
+            ->visibleTo($request->user())
             ->search($request->string('search')->toString() ?: null)
             ->provider($request->filled('isp') ? $request->integer('isp') : null)
             ->status($request->string('status')->toString() ?: null)
-            ->with('ispProvider:id,name');
+            ->with(['ispProvider:id,name', 'office:id,office_name']);
 
         if (! $this->applySort($query, $request, self::SORTABLE)) {
             // Keeps each provider's accounts together.
@@ -89,6 +92,7 @@ class IspAccountController extends Controller
             'data' => [
                 'form' => [
                     'isp_provider' => $providers,
+                    'office' => Office::activeOptions(),
                     ...$this->libraryOptions(ConnectivityLibrary::class, self::CONNECTIVITY_FORM_TYPES),
                     ...$this->libraryOptions(EquipmentLibrary::class, self::EQUIPMENT_FORM_TYPES),
                 ],
@@ -101,9 +105,15 @@ class IspAccountController extends Controller
 
     public function store(StoreIspAccountRequest $request): JsonResponse
     {
-        $ispAccount = IspAccount::create($request->validated());
+        $attributes = $request->validated();
 
-        return new IspAccountResource($ispAccount->load('ispProvider:id,name'))
+        if ($request->user()->dataScope() !== DataScope::All) {
+            $attributes['office_id'] = $request->user()->office_id;
+        }
+
+        $ispAccount = IspAccount::create($attributes);
+
+        return new IspAccountResource($ispAccount->load(['ispProvider:id,name', 'office:id,office_name']))
             ->additional(['message' => 'ISP account created.'])
             ->response()
             ->setStatusCode(201);
@@ -117,6 +127,7 @@ class IspAccountController extends Controller
         // own (backdatable) tested_at/contract dates.
         $ispAccount->load([
             'ispProvider:id,name',
+            'office:id,office_name',
             'speedTests' => fn ($query) => $query->latest('created_at')->latest('id'),
             'subscriptionCosts' => fn ($query) => $query->latest('created_at')->latest('id'),
         ]);
@@ -132,7 +143,7 @@ class IspAccountController extends Controller
 
         $ispAccount->update($request->validated());
 
-        return new IspAccountResource($ispAccount->load('ispProvider:id,name'))
+        return new IspAccountResource($ispAccount->load(['ispProvider:id,name', 'office:id,office_name']))
             ->additional(['message' => 'ISP account updated.'])
             ->response();
     }

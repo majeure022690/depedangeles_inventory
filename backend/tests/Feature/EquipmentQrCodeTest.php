@@ -14,6 +14,7 @@ use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 /**
@@ -29,7 +30,7 @@ use Tests\TestCase;
  */
 class EquipmentQrCodeTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     private function makeEquipmentPayload(array $overrides = []): array
     {
@@ -54,8 +55,7 @@ class EquipmentQrCodeTest extends TestCase
     {
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
+        $user = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit]);
 
         $this->actingAs($user)->postJson('/api/equipment', $this->makeEquipmentPayload())->assertCreated();
 
@@ -69,8 +69,7 @@ class EquipmentQrCodeTest extends TestCase
     {
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
+        $user = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit]);
 
         $this->actingAs($user)->postJson('/api/equipment', $this->makeEquipmentPayload([
             'qr_code' => 'http://attacker.example/not-a-real-record',
@@ -85,8 +84,7 @@ class EquipmentQrCodeTest extends TestCase
     {
         $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
+        $user = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit]);
 
         // Simulate a pre-existing row created before this feature shipped:
         // insert directly via the query builder so no model event (and
@@ -134,8 +132,7 @@ class EquipmentQrCodeTest extends TestCase
     public function test_qr_code_image_endpoint_returns_a_png_for_a_user_with_equipment_view(): void
     {
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
+        $user = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit]);
 
         $equipment = Equipment::factory()->create([
             'disposition_status' => 'Normal',
@@ -151,8 +148,7 @@ class EquipmentQrCodeTest extends TestCase
     public function test_qr_code_content_disposition_survives_quotes_and_crlf_in_property_no(): void
     {
         $this->seed(RolePermissionSeeder::class);
-        $user = User::factory()->create();
-        $user->assignRole('encoder');
+        $user = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit]);
 
         $equipment = Equipment::factory()->create([
             'property_no' => "PN\"1\r\nX-Injected: yes/é",
