@@ -28,7 +28,8 @@ use Spatie\Permission\Models\Permission;
  *      roles.edit/users.edit.
  *   2. Tier separation: an actor can assign only roles, and manage only
  *      accounts, whose permissions are a subset of their own and whose
- *      data scope is no wider than their own.
+ *      data scope is no wider than their own. Below All scope, an actor
+ *      manages only accounts in their own office (none without an office).
  *   3. The last remaining users.edit holder can never lose it.
  */
 final class UserRoleService
@@ -60,7 +61,8 @@ final class UserRoleService
      * Target-tier guard: an actor may edit, deactivate, delete, or reset
      * 2FA only for an account whose effective permissions are a subset of
      * their own and whose data scope is no wider than theirs (the
-     * assignableRolesFor() rule applied to the target).
+     * assignableRolesFor() rule applied to the target), and, below All
+     * scope, that belongs to the actor's own office.
      * Without it a users.edit or users.reset_two_factor holder could reset
      * an admin's 2FA and take the account over.
      */
@@ -71,8 +73,9 @@ final class UserRoleService
 
     /**
      * Which of the given user ids hold any permission (via a role or
-     * directly) the actor lacks, or a role scoped wider than the actor's
-     * data scope. One query, so the users list can flag every row without
+     * directly) the actor lacks, a role scoped wider than the actor's data
+     * scope, or (for actors below All scope) an office other than the
+     * actor's. One query, so the users list can flag every row without
      * resolving each user's permission set.
      *
      * @param  array<int, int>  $userIds
@@ -84,16 +87,27 @@ final class UserRoleService
             return [];
         }
 
+        $actorScope = $actor->dataScope();
+        $officeBound = $actorScope !== DataScope::All;
+        $actorOfficeId = $actor->office_id;
+
+        if ($officeBound && $actorOfficeId === null) {
+            return User::query()->whereKey($userIds)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        }
+
         $actorPermissionNames = $this->permissionNamesOf($actor);
         $exceeds = fn ($query) => $query->whereNotIn('name', $actorPermissionNames);
-        $widerScopes = $this->scopeValuesWiderThan($actor->dataScope());
+        $widerScopes = $this->scopeValuesWiderThan($actorScope);
 
         return User::query()
             ->whereKey($userIds)
             ->where(fn ($query) => $query
                 ->whereHas('roles.permissions', $exceeds)
                 ->orWhereHas('permissions', $exceeds)
-                ->when($widerScopes !== [], fn ($query) => $query->orWhereHas('roles', fn ($roles) => $roles->whereIn('data_scope', $widerScopes))))
+                ->when($widerScopes !== [], fn ($query) => $query->orWhereHas('roles', fn ($roles) => $roles->whereIn('data_scope', $widerScopes)))
+                ->when($officeBound, fn ($query) => $query
+                    ->orWhereNull('office_id')
+                    ->orWhere('office_id', '!=', $actorOfficeId)))
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
@@ -363,7 +377,7 @@ final class UserRoleService
     private function guardTargetWithinTier(User $actor, User $target): void
     {
         if (! $this->canManage($actor, $target)) {
-            throw new AuthorizationException(__('You cannot manage an account that holds permissions or a data scope you do not hold yourself.'));
+            throw new AuthorizationException(__('You cannot manage an account outside your office or one that holds permissions or a data scope you do not hold yourself.'));
         }
     }
 

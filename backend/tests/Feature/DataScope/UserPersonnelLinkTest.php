@@ -128,21 +128,24 @@ class UserPersonnelLinkTest extends TestCase
         $office = Office::factory()->create();
         $other = Office::factory()->create();
         $manager = $this->scopedUserManager(DataScope::School, $office);
-        $target = $this->userWithRole('reader', ['office_id' => $other->id]);
+        $target = $this->userWithRole('reader', ['office_id' => $office->id]);
         $person = Personnel::factory()->create();
 
         $this->actingAs($manager)->putJson("/api/users/{$target->id}", ['role_id' => $this->viewerRoleId(), 'personnel_id' => $person->id])
             ->assertUnprocessable()->assertJsonValidationErrors('personnel_id');
         $this->assertNull($person->fresh()->user_id);
 
-        $third = Office::factory()->create();
-        $this->actingAs($manager)->putJson("/api/users/{$target->id}", ['role_id' => $this->viewerRoleId(), 'office_id' => $third->id])
-            ->assertUnprocessable()->assertJsonValidationErrors('office_id');
-        $this->assertSame($other->id, $target->fresh()->office_id);
-
-        $this->actingAs($manager)->putJson("/api/users/{$target->id}", ['role_id' => $this->viewerRoleId(), 'office_id' => $other->id])->assertOk();
-        $this->actingAs($manager)->putJson("/api/users/{$target->id}", ['role_id' => $this->viewerRoleId(), 'office_id' => $office->id])->assertOk();
+        foreach ([$other->id, null] as $officeId) {
+            $this->actingAs($manager)->putJson("/api/users/{$target->id}", ['role_id' => $this->viewerRoleId(), 'office_id' => $officeId])
+                ->assertUnprocessable()->assertJsonValidationErrors('office_id');
+        }
         $this->assertSame($office->id, $target->fresh()->office_id);
+
+        $this->actingAs($manager)->putJson("/api/users/{$target->id}", ['role_id' => $this->viewerRoleId(), 'office_id' => $office->id])->assertOk();
+
+        $outsider = $this->userWithRole('reader', ['office_id' => $other->id]);
+        $this->actingAs($manager)->putJson("/api/users/{$outsider->id}", ['role_id' => $this->viewerRoleId(), 'office_id' => $office->id])->assertForbidden();
+        $this->assertSame($other->id, $outsider->fresh()->office_id);
     }
 
     public function test_scoped_user_managers_cannot_clear_an_existing_link(): void
