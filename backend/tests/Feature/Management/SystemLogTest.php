@@ -11,12 +11,13 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\AllowsLocalLogin;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class SystemLogTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
+    use AllowsLocalLogin, CreatesUsersWithRoles, RefreshDatabase;
 
     /**
      * Real dev log contents, put back after each test.

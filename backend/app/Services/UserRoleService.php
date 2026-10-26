@@ -146,7 +146,11 @@ final class UserRoleService
      * can only hand out roles whose entire permission set is already a
      * subset of their own.
      *
-     * @param  array{name: string, email: string, password: string, office_id?: int|null, is_active?: bool}  $attributes
+     * Never writes a password: sign-in is PRIME's (only the
+     * `auth.local_login_emails` break-glass accounts have a local one, set
+     * via `php artisan users:set-password`).
+     *
+     * @param  array{name: string, email: string, office_id?: int|null, is_active?: bool}  $attributes
      * @param  array<int, int>  $roleIds
      */
     public function createUser(User $actor, array $attributes, array $roleIds): User
@@ -156,7 +160,7 @@ final class UserRoleService
         $roleIds = $this->normalizeRoleIds($roleIds);
 
         return DB::transaction(fn () => app(CauserResolver::class)->withCauser($actor, function () use ($actor, $attributes, $roleIds) {
-            $user = User::create($attributes);
+            $user = User::create(array_diff_key($attributes, ['password' => true]));
 
             if ($roleIds !== []) {
                 $user->syncRoles($roleIds);

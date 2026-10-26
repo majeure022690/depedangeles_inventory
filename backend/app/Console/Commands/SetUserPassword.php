@@ -9,13 +9,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
-use Throwable;
 
 class SetUserPassword extends Command
 {
-    protected $signature = 'users:set-password {email : Email address of a local-only account}';
+    protected $signature = 'users:set-password {email : Email address of a developer break-glass account (LOCAL_LOGIN_EMAILS)}';
 
-    protected $description = 'Set the password of a local account that does not exist in PRIME';
+    protected $description = 'Set the local password of a developer break-glass account';
 
     public function handle(): int
     {
@@ -27,16 +26,8 @@ class SetUserPassword extends Command
             return self::FAILURE;
         }
 
-        try {
-            $inPrime = ExternalUserAuthService::users()->where('email_address', $user->email)->exists();
-        } catch (Throwable) {
-            $this->error('PRIME could not be reached, so this account cannot be confirmed as local-only. Try again when PRIME is available.');
-
-            return self::FAILURE;
-        }
-
-        if ($inPrime) {
-            $this->error('This account exists in PRIME. Its password is managed in PRIME.');
+        if (! ExternalUserAuthService::allowsLocalPassword($user->email)) {
+            $this->error('Only developer break-glass accounts (LOCAL_LOGIN_EMAILS) have a local password. Everyone else changes their password in PRIME.');
 
             return self::FAILURE;
         }

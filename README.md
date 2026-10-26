@@ -49,12 +49,12 @@ npm install
 
 `DatabaseSeeder` seeds roles/permissions, reference data, and an admin account. Seeding is idempotent, so re-running `php artisan db:seed` is safe; use `php artisan migrate:fresh --seed` for a clean database.
 
-**Seeded admin login:**
+**Seeded admin login:** the seeded super administrator (`keithvpolintan@gmail.com`) has no password. PRIME is the only password authority, so a local login works only for a developer break-glass account. To get one:
 
-```
-Email:    keithvpolintan@gmail.com
-Password: D3pEd-Angeles!2026
-```
+1. Add the email to `LOCAL_LOGIN_EMAILS` in `backend/.env` (comma-separated, dev only — keep it empty in production).
+2. Run `php artisan users:set-password <email>` from `backend/` and choose a password.
+
+That account can then sign in locally when PRIME is unreachable or doesn't know the email; two-factor setup is still required.
 
 ### Daily development
 
@@ -87,6 +87,7 @@ Gotchas:
 - **First deploy.** Run `php artisan key:generate` once if `APP_KEY` is empty.
 - **Once, after the 2026-10-23 deploy: check stored QR URLs.** Run `php artisan equipment:regenerate-qr-codes` (a dry run listing rows whose `qr_code` doesn't point at `APP_URL`, old -> new). Review the list: a row pointing at a foreign host may be a phishing label and must be physically reprinted. Then run it again with `--force` to rewrite them (each rewrite is audited). Details: [`docs/features/equipment.md`](docs/features/equipment.md#non-obvious-design-decisions).
 - **The 2026-10-26 deploy (unified data scope, migrations `2026_10_26_000001`-`000005`).** Before deploying, run `php artisan personnel:link-preview` on the server. It is read-only and lists the user/personnel links the email backfill will create, the ambiguous emails it will skip, and the all-scope roles whose Stakeholder Profile/Connectivity access will widen to every office. That last section is only meaningful before `000005` has run. After deploying, backfill `personnel.office_id`, `isp_accounts.office_id` and `users.office_id`, and link the remaining accounts in `/users`; until then scoped users see very little. Details: [`docs/features/roles-and-permissions.md`](docs/features/roles-and-permissions.md#data-scope).
+- **The 2026-10-27 deploy (PRIME-only passwords, migrations `2026_10_27_000003`-`000004`).** `000004` clears the local password of every user whose email isn't in `LOCAL_LOGIN_EMAILS`, and can't be undone. In production that list is empty, so every local password is cleared and everyone signs in through PRIME; that's intended. Before running `migrate` anywhere else (a developer machine, staging), check `LOCAL_LOGIN_EMAILS` first: a missing or empty value clears every local password, the developer's included (recover with `php artisan users:set-password <email>` after adding the email). `migrate` reads the cached config if there is one (`deploy/plesk.sh` runs `migrate` before `artisan optimize`, so on Plesk it reads the previous deploy's cache), so after editing `.env` run `php artisan config:clear` before migrating. Once `000004` has run, everyone who is signed in is signed out once (Sanctum's `AuthenticateSession` sees the stored password hash change); that's expected and harmless, they just sign in again. Consider scheduling `php artisan users:sync-external` (nothing schedules it today); see [`docs/features/roles-and-permissions.md`](docs/features/roles-and-permissions.md#users). Details: [`docs/architecture.md`](docs/architecture.md#password-authority-prime).
 - **If a migration fails partway.** MySQL commits DDL immediately, so `2026_10_26_000002`-`000004` (which add `personnel.user_id`, `equipment.created_by_user_id` and `isp_accounts.office_id`) can't roll back. If one fails, it can leave a column, index or FK behind while the migration isn't recorded as run. Check the table (`SHOW CREATE TABLE`), drop whatever it left, then run `php artisan migrate --force` again.
 
 #### Web server rate limiting

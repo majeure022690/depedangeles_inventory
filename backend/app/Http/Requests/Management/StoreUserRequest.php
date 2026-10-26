@@ -9,7 +9,6 @@ use App\Models\User;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\Validator;
 
 class StoreUserRequest extends FormRequest
@@ -22,7 +21,9 @@ class StoreUserRequest extends FormRequest
     }
 
     /**
-     * Accounts are admin-created (there is no self-registration).
+     * Accounts come from PRIME, so UserController::store always answers
+     * 403; there is deliberately no password rule, so nothing here can
+     * ever write a local password.
      * `role_id` is required: every user must have exactly one role.
      * Which roles the actor may hand out (permission-tier separation) is
      * enforced by UserRoleService::createUser(), not duplicated here.
@@ -34,7 +35,6 @@ class StoreUserRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
-            'password' => ['required', 'string', 'confirmed', Password::defaults()],
             'office_id' => ['nullable', 'integer', $this->activeOfficeRule()],
             'is_active' => ['sometimes', 'boolean'],
             'role_id' => ['required', 'integer', Rule::exists('roles', 'id')],

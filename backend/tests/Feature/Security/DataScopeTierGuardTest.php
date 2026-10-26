@@ -11,6 +11,7 @@ use App\Services\TwoFactorAuthService;
 use App\Services\UserRoleService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AllowsLocalLogin;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
@@ -20,7 +21,7 @@ use Tests\TestCase;
  */
 class DataScopeTierGuardTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
+    use AllowsLocalLogin, CreatesUsersWithRoles, RefreshDatabase;
 
     private const ENCODER_PERMISSIONS = [
         Permission::PersonnelView, Permission::PersonnelCreate, Permission::PersonnelEdit,

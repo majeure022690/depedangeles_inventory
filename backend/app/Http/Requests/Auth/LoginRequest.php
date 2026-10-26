@@ -18,7 +18,9 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email', 'max:255'],
+            // DepEd addresses are printable ASCII; anything else is refused
+            // before PRIME is queried (it could only raise a PRIME data error).
+            'email' => ['required', 'string', 'email', 'max:255', 'regex:/^[\x20-\x7E]+$/'],
             'password' => ['required', 'string'],
             'recaptcha_token' => Recaptcha::rules('admin_login'),
         ];

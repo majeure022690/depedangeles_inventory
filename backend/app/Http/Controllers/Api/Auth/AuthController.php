@@ -18,60 +18,36 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Timebox;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class AuthController extends Controller
 {
-    public function login(LoginRequest $request, ExternalUserAuthService $externalAuth): JsonResponse
+    /**
+     * Every failed login takes at least this long, so unknown, inactive,
+     * not-allowlisted and wrong-password attempts can't be told apart by
+     * timing. Covers a PRIME lookup plus a bcrypt check.
+     */
+    private const LOGIN_TIMEBOX_MICROSECONDS = 400_000;
+
+    public function login(LoginRequest $request, ExternalUserAuthService $externalAuth, Timebox $timebox): JsonResponse
     {
-        $credentials = $request->only('email', 'password');
+        $credentials = [
+            'email' => $request->string('email')->toString(),
+            'password' => $request->string('password')->toString(),
+        ];
 
-        $user = null;
-        $primeRefused = false;
-        try {
-            $user = $externalAuth->authenticate($credentials['email'], $credentials['password']);
-        } catch (InvalidPrimeCredentials) {
-            $primeRefused = true;
-        } catch (\Exception $e) {
-            Log::warning('External authentication unavailable, falling back to local', [
-                'error' => $e->getMessage(),
-            ]);
-        }
+        /** @var User $user */
+        $user = $timebox->call(function (Timebox $timebox) use ($request, $externalAuth, $credentials): User {
+            $user = $this->verifyCredentials($request, $externalAuth, $credentials);
+            $timebox->returnEarly();
 
-        if (! $user) {
-            if ($primeRefused || ! Auth::attempt($credentials, false)) {
-                Log::channel('security')->warning('Failed login attempt', [
-                    'email' => $credentials['email'],
-                    'ip' => $request->ip(),
-                ]);
-
-                throw ValidationException::withMessages([
-                    'email' => __('Invalid credentials.'),
-                ]);
-            }
-
-            /** @var User $user */
-            $user = Auth::user();
-        } else {
-            Auth::login($user, false);
-        }
-
-        if (! $user->is_active) {
-            Auth::logout();
-
-            Log::channel('security')->warning('Login attempt on inactive account', [
-                'email' => $credentials['email'],
-                'ip' => $request->ip(),
-            ]);
-
-            throw ValidationException::withMessages([
-                'email' => __('Invalid credentials.'),
-            ]);
-        }
+            return $user;
+        }, self::LOGIN_TIMEBOX_MICROSECONDS);
 
         if (! $user->hasAppAccess()) {
             return LoginSession::refuseWithoutAccess($user, $request, 'login');
@@ -102,6 +78,86 @@ class AuthController extends Controller
         Cache::put($setupToken, TwoFactorController::pendingPayload($user), now()->addMinutes(30));
 
         return response()->json(['requires_2fa_setup' => true, 'setup_token' => $setupToken]);
+    }
+
+    /**
+     * PRIME is the password authority. Only allowlisted developer accounts
+     * may use a local password, and only when PRIME is unreachable or
+     * doesn't know them. Returns the active, authenticated user; throws the
+     * generic "Invalid credentials." otherwise.
+     *
+     * @param  array{email: string, password: string}  $credentials
+     *
+     * @throws ValidationException
+     */
+    private function verifyCredentials(Request $request, ExternalUserAuthService $externalAuth, array $credentials): User
+    {
+        $user = null;
+        $localReason = null;
+        try {
+            $user = $externalAuth->authenticate($credentials['email'], $credentials['password']);
+            $localReason = $user ? null : 'not_in_prime';
+        } catch (InvalidPrimeCredentials) {
+            // PRIME refused: never fall back.
+        } catch (Throwable $e) {
+            if (ExternalUserAuthService::isUnreachable($e)) {
+                Log::warning('External authentication unavailable', [
+                    'error' => $e->getMessage(),
+                ]);
+                $localReason = 'prime_unreachable';
+            } else {
+                // Anything else (a PRIME query/data error, an unreadable PRIME hash) is a refusal, not an outage.
+                $event = ExternalUserAuthService::isQueryError($e) ? 'PRIME query failed; refusing' : 'PRIME authentication failed unexpectedly; refusing';
+                Log::channel('security')->error($event, [
+                    'email' => $credentials['email'],
+                    'ip' => $request->ip(),
+                    'exception' => $e::class,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if (! $user) {
+            if ($localReason === null
+                || ! ExternalUserAuthService::allowsLocalPassword($credentials['email'])
+                || ! Auth::attempt($credentials, false)) {
+                Log::channel('security')->warning('Failed login attempt', [
+                    'email' => $credentials['email'],
+                    'ip' => $request->ip(),
+                ]);
+
+                throw ValidationException::withMessages([
+                    'email' => __('Invalid credentials.'),
+                ]);
+            }
+
+            /** @var User $user */
+            $user = Auth::user();
+
+            // The 2FA steps below apply unchanged.
+            Log::channel('security')->warning('Local break-glass login', [
+                'email' => $user->email,
+                'ip' => $request->ip(),
+                'reason' => $localReason,
+            ]);
+        } else {
+            Auth::login($user, false);
+        }
+
+        if (! $user->is_active) {
+            Auth::logout();
+
+            Log::channel('security')->warning('Login attempt on inactive account', [
+                'email' => $credentials['email'],
+                'ip' => $request->ip(),
+            ]);
+
+            throw ValidationException::withMessages([
+                'email' => __('Invalid credentials.'),
+            ]);
+        }
+
+        return $user;
     }
 
     public function logout(Request $request): JsonResponse
@@ -163,13 +219,8 @@ class AuthController extends Controller
             $data['avatar_path'] = null;
         }
 
-        unset($data['avatar'], $data['remove_avatar'], $data['current_password']);
-
-        if (! empty($data['password'])) {
-            $data['password'] = Hash::make($data['password']);
-        } else {
-            unset($data['password']);
-        }
+        // 'password' can only be empty here (prohibited); never write it.
+        unset($data['avatar'], $data['remove_avatar'], $data['password']);
 
         $user->update($data);
 

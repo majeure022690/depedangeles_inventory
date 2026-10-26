@@ -85,7 +85,9 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
-            'options' => [],
+            // Bounds the connect only (an unreachable PRIME fails within ~5s); it does not cut off a
+            // query that stalls after connecting. After a failure ExternalUserAuthService::guard() skips PRIME for a while.
+            'options' => [PDO::ATTR_TIMEOUT => 5],
         ],
 
         'mariadb' => [

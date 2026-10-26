@@ -16,11 +16,12 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Testing\TestResponse;
 use PragmaRX\Google2FA\Google2FA;
+use Tests\Concerns\AllowsLocalLogin;
 use Tests\TestCase;
 
 class TrustedDeviceTest extends TestCase
 {
-    use RefreshDatabase;
+    use AllowsLocalLogin, RefreshDatabase;
 
     private const PASSWORD = 'CorrectHorse123!';
 

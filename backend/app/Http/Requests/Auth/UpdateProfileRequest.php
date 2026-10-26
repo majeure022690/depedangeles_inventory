@@ -3,9 +3,11 @@
 namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 
+/**
+ * Avatar only. Name, email and password come from PRIME and are changed
+ * there; a developer break-glass account uses `users:set-password`.
+ */
 class UpdateProfileRequest extends FormRequest
 {
     public function authorize(): bool
@@ -19,18 +21,21 @@ class UpdateProfileRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$this->user()->id],
-            // rwatch only asks for it on an email change; inventory also asks
-            // on a password change (it replaces the old password-update
-            // form, which always required the current password).
-            'current_password' => [
-                Rule::requiredIf(fn () => $this->input('email') !== $this->user()->email || $this->filled('password')),
-                'current_password',
-            ],
-            'password' => ['nullable', 'confirmed', Password::defaults()],
+            // Rejected rather than silently ignored, so a stale client can't
+            // look like it changed the password.
+            'password' => ['prohibited'],
             'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'remove_avatar' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'password.prohibited' => __('Passwords are managed in PRIME.'),
         ];
     }
 }

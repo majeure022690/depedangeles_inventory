@@ -12,6 +12,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Tests\Concerns\AllowsLocalLogin;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
@@ -22,7 +23,7 @@ use Tests\TestCase;
  */
 class TargetTierGuardTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
+    use AllowsLocalLogin, CreatesUsersWithRoles, RefreshDatabase;
 
     private const PASSWORD = 'ActorPass123!x';
 

@@ -9,11 +9,12 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\AllowsLocalLogin;
 use Tests\TestCase;
 
 class PasswordConfirmedSettingsTest extends TestCase
 {
-    use RefreshDatabase;
+    use AllowsLocalLogin, RefreshDatabase;
 
     private const ENDPOINTS = [
         ['PUT', '/api/settings/security', ['setting_key' => 'trusted_device_days', 'value' => 7]],
@@ -49,7 +50,7 @@ class PasswordConfirmedSettingsTest extends TestCase
         $this->assertSame($auditedChanges, Activity::query()->whereIn('event', self::AUDITED_EVENTS)->count());
     }
 
-    public function test_the_password_confirm_limit_is_six_per_minute_and_shared_with_the_profile_page(): void
+    public function test_the_password_confirm_limit_is_six_per_minute_and_not_shared_with_the_profile_page(): void
     {
         $admin = $this->userWithOnly(Permission::SecuritySettingsManage);
         $payload = ['setting_key' => 'trusted_device_days', 'value' => 7, 'current_password' => 'wrong-password'];
@@ -59,11 +60,11 @@ class PasswordConfirmedSettingsTest extends TestCase
         }
 
         $this->actingAs($admin)->putJson('/api/settings/security', ['current_password' => 'password'] + $payload)->assertTooManyRequests();
-        $this->actingAs($admin)->postJson('/api/profile', ['name' => 'Blocked', 'email' => $admin->email])->assertTooManyRequests();
+        // The profile page confirms no password, so it has its own limiter (profile-update).
+        $this->actingAs($admin)->postJson('/api/profile', [])->assertOk();
 
         $this->travel(61)->seconds();
         $this->actingAs($admin)->putJson('/api/settings/security', ['current_password' => 'password'] + $payload)->assertOk();
-        $this->actingAs($admin)->postJson('/api/profile', ['name' => 'Allowed', 'email' => $admin->email])->assertOk();
     }
 
     public function test_successful_confirmations_count_toward_the_limit_too(): void

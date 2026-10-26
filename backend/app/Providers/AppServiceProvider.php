@@ -136,6 +136,11 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(6)->by('user:'.($request->user()?->id ?: $request->ip()));
         });
 
+        // Avatar uploads (each one is stored and image-checked); no password involved.
+        RateLimiter::for('profile-update', function (Request $request) {
+            return Limit::perMinute(10)->by('user:'.($request->user()?->id ?: $request->ip()));
+        });
+
         RateLimiter::for('user-update', function (Request $request) {
             $target = $request->route('user');
             $targetId = $target instanceof User ? $target->id : (int) $target;

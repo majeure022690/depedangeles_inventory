@@ -1,4 +1,4 @@
-import { Camera, Download, KeyRound, LockKeyhole, Save, ShieldCheck, ShieldAlert, Trash2 } from 'lucide-react'
+import { Camera, Download, KeyRound, Save, ShieldCheck, ShieldAlert, Trash2 } from 'lucide-react'
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { isAxiosError } from 'axios'
 
@@ -29,8 +29,6 @@ function getInitials(name: string): string {
 export function ProfileSettings() {
   usePageTitle('Profile Settings')
   const { user, fetchUser } = useAuth()
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
   const [avatar, setAvatar] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [removeAvatar, setRemoveAvatar] = useState(false)
@@ -47,8 +45,6 @@ export function ProfileSettings() {
 
   useEffect(() => {
     if (!user) return
-    setName(user.name)
-    setEmail(user.email)
     setAvatarPreview(user.avatar_url)
   }, [user])
 
@@ -72,8 +68,6 @@ export function ProfileSettings() {
 
     try {
       await profileService.update({
-        name,
-        email,
         avatar,
         remove_avatar: removeAvatar,
       })
@@ -172,7 +166,7 @@ export function ProfileSettings() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Profile Settings</h1>
-          <p className="text-sm text-gray-500">Update your profile photo, account details, and password.</p>
+          <p className="text-sm text-gray-500">Update your profile photo and two-factor settings.</p>
         </div>
       </div>
 
@@ -191,7 +185,7 @@ export function ProfileSettings() {
                 <img src={avatarPreview} alt="Profile preview" className="h-24 w-24 rounded-full object-cover ring-4 ring-primary-50" />
               ) : (
                 <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary-100 text-2xl font-semibold text-primary-700 ring-4 ring-primary-50">
-                  {getInitials(name)}
+                  {getInitials(user.name)}
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
@@ -214,26 +208,19 @@ export function ProfileSettings() {
         <Card>
           <CardHeader>
             <h2 className="font-semibold text-gray-900">Account details</h2>
-            <p className="mt-1 text-sm text-gray-500">Profile data is managed by PRIME. To update your name or email, please update it in the PRIME system.</p>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Input label="Name" value={name} onChange={(event) => setName(event.target.value)} disabled />
-            <Input label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} disabled />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <LockKeyhole className="h-4 w-4 text-primary-600" />
-              <h2 className="font-semibold text-gray-900">Change password</h2>
-            </div>
-            <p className="mt-1 text-sm text-gray-500">Password changes must be done in the PRIME system.</p>
+            <p className="mt-1 text-sm text-gray-500">Your name, email and password are managed in PRIME.</p>
           </CardHeader>
           <CardContent>
-            <Alert type="info">
-              To change your password, please sign in to PRIME and update it there. Your password will automatically sync to this system on your next login.
-            </Alert>
+            <dl className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <dt className="text-sm font-medium text-gray-700">Name</dt>
+                <dd className="mt-1 break-words text-sm text-gray-900">{user.name}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-700">Email</dt>
+                <dd className="mt-1 break-all text-sm text-gray-900">{user.email}</dd>
+              </div>
+            </dl>
           </CardContent>
         </Card>
 
@@ -300,13 +287,13 @@ export function ProfileSettings() {
         <DialogContent size="sm">
           <DialogTitle>Regenerate recovery codes</DialogTitle>
           <DialogDescription>
-            Your existing recovery codes will stop working. Enter your current password to confirm.
+            Your existing recovery codes will stop working. Enter your PRIME password to confirm.
           </DialogDescription>
           {twoFaModalError && <Alert type="error">{twoFaModalError}</Alert>}
           <Input
-            label="Current password"
+            label="Your PRIME password"
             type="password"
-            autoComplete="off"
+            autoComplete="current-password"
             autoFocus
             value={twoFaPassword}
             onChange={(event) => setTwoFaPassword(event.target.value)}

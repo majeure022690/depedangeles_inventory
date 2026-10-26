@@ -6,6 +6,8 @@ namespace App\Services;
 
 use App\Models\Office;
 use App\Models\User;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -25,11 +27,24 @@ use Throwable;
  */
 final class PrimeUserSync
 {
-    private const THROTTLE_SECONDS = 30;
-
-    private const COLUMNS = ['user_id', 'email_address', 'full_name', 'user_status', 'password', 'department_school_id'];
+    private const COLUMNS = ['user_id', 'email_address', 'full_name', 'user_status', 'department_school_id'];
 
     private const AUDITED = ['name', 'email', 'is_active', 'employee_no', 'office_id'];
+
+    /** Only what the live Users-list refresh needs: name and status by email, id for the mark. */
+    private const LIVE_COLUMNS = ['user_id', 'email_address', 'full_name', 'user_status'];
+
+    /**
+     * Highest PRIME `users.user_id` already imported. PRIME ids are
+     * auto-increment, so anything above it is an account IRIS hasn't seen.
+     */
+    public const HIGH_WATER_MARK_KEY = 'prime_users.max_user_id';
+
+    /** New accounts imported per list load; any rest follow on the next loads. */
+    private const IMPORT_BATCH = 100;
+
+    /** users.name is a VARCHAR(255). */
+    private const NAME_MAX = 255;
 
     public function __construct(private readonly PrimeOfficeSync $offices) {}
 
@@ -38,14 +53,22 @@ final class PrimeUserSync
      */
     public function run(): array
     {
+        // Always tries (and fails loudly), but a PRIME failure still opens the breaker.
+        return ExternalUserAuthService::guard(fn () => $this->runFullSync(), skipWhileDown: false);
+    }
+
+    /**
+     * @return SyncCounts
+     */
+    private function runFullSync(): array
+    {
         $directory = new PrimeDirectory;
         $directory->departments();
         $directory->employees();
         $directory->primeUsers();
 
-        $prime = ExternalUserAuthService::users()
-            ->get(self::COLUMNS)
-            ->keyBy(fn (stdClass $row) => mb_strtolower($row->email_address));
+        $read = self::withEmail(ExternalUserAuthService::users())->get(self::COLUMNS);
+        $prime = self::uniqueByEmail($read);
 
         $officeCounts = $this->offices->run($directory);
 
@@ -62,35 +85,201 @@ final class PrimeUserSync
             }
         }
 
-        return [...$counts, ...$this->assignAll($directory), 'office_sync' => $officeCounts];
+        $result = [...$counts, ...$this->assignAll($directory), 'office_sync' => $officeCounts];
+
+        // The max this run actually read, so accounts created mid-run are still picked up by importNew().
+        Cache::forever(self::HIGH_WATER_MARK_KEY, (int) $read->max('user_id'));
+
+        return $result;
     }
 
-    public function runThrottled(): void
+    /**
+     * Live pickup of new PRIME accounts for the Users list: one PRIME query
+     * for active accounts above the high-water mark. Never throws: PRIME
+     * being down leaves the local copy as-is.
+     */
+    public function importNew(): void
     {
-        if (! Cache::add('prime-user-sync', true, self::THROTTLE_SECONDS)) {
-            return;
-        }
-
         try {
-            $this->run();
+            // Concurrent list loads would otherwise race to create the same account.
+            ExternalUserAuthService::guard(
+                fn () => Cache::lock(self::HIGH_WATER_MARK_KEY.'.lock', 30)->get(fn () => $this->importAboveMark()),
+            );
         } catch (Throwable $e) {
             Log::warning('PRIME user sync failed; showing the local copy', ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Refreshes name and deactivation (same semantics and audit trail as
+     * the full sync) for exactly these local users, in one PRIME query.
+     * Office and employee number stay on login and `users:sync-external`.
+     * Never throws: PRIME being down leaves the local copy as-is.
+     *
+     * @param  Collection<int, User>  $users
+     */
+    public function syncVisible(Collection $users): void
+    {
+        if ($users->isEmpty()) {
+            return;
+        }
+
+        // PRIME's MySQL collation is case-insensitive; the lowercased copy covers a case-sensitive one.
+        $emails = $users->pluck('email')
+            ->flatMap(fn (string $email) => [$email, mb_strtolower($email)])
+            ->unique()
+            ->values()
+            ->all();
+
+        try {
+            $prime = self::uniqueByEmail(ExternalUserAuthService::guard(fn () => self::withEmail(ExternalUserAuthService::users())
+                ->whereIn('email_address', $emails)
+                ->get(self::LIVE_COLUMNS)));
+
+            foreach ($users as $user) {
+                $row = $prime->get(mb_strtolower($user->email));
+
+                if ($row !== null) {
+                    $this->applySafely($row, $user);
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('PRIME user sync failed; showing the local copy', ['error' => $e->getMessage()]);
+        }
+    }
+
+    private function importAboveMark(): void
+    {
+        $mark = Cache::get(self::HIGH_WATER_MARK_KEY);
+
+        // First run: start from PRIME's current top instead of importing the
+        // whole directory on a page load; users:sync-external does that.
+        if (! is_numeric($mark)) {
+            Cache::forever(self::HIGH_WATER_MARK_KEY, (int) ExternalUserAuthService::users()->max('user_id'));
+
+            return;
+        }
+
+        $rows = self::withEmail(ExternalUserAuthService::users())
+            ->where('user_id', '>', (int) $mark)
+            ->where('user_status', ExternalUserAuthService::ACTIVE_STATUS)
+            ->orderBy('user_id')
+            ->limit(self::IMPORT_BATCH)
+            ->get(self::LIVE_COLUMNS);
+
+        if ($rows->isEmpty()) {
+            // A mark above PRIME's top means PRIME was restored or re-seeded,
+            // so ids at or below the old mark may be accounts IRIS never saw:
+            // rescan from the start (IMPORT_BATCH per load; apply() only
+            // writes what changed). users:sync-external resets it in one go.
+            if ((int) ExternalUserAuthService::users()->max('user_id') < (int) $mark) {
+                Cache::forever(self::HIGH_WATER_MARK_KEY, 0);
+            }
+
+            return;
+        }
+
+        // Duplicates are checked across all of PRIME, not just this batch:
+        // the twin of a new row may sit below the mark.
+        $emails = $rows->pluck('email_address')
+            ->flatMap(fn (string $email) => [$email, mb_strtolower($email)])
+            ->unique()
+            ->values()
+            ->all();
+        $unique = self::uniqueByEmail(ExternalUserAuthService::users()->whereIn('email_address', $emails)->get(['user_id', 'email_address']));
+        $byEmail = $rows->keyBy(fn (stdClass $row) => mb_strtolower($row->email_address))->only($unique->keys()->all());
+
+        $locals = User::query()
+            ->whereIn(DB::raw('LOWER(email)'), $byEmail->keys()->all())
+            ->get()
+            ->keyBy(fn (User $user) => mb_strtolower($user->email));
+
+        foreach ($byEmail as $email => $row) {
+            $this->applySafely($row, $locals->get($email));
+        }
+
+        // Past every row read, skipped or failed ones included, so one bad
+        // PRIME row can never wedge the import.
+        Cache::forever(self::HIGH_WATER_MARK_KEY, (int) $rows->max('user_id'));
+    }
+
+    /**
+     * One bad PRIME row (e.g. an over-long email) is logged and skipped
+     * instead of stopping the rest of the batch.
+     */
+    private function applySafely(stdClass $row, ?User $local): void
+    {
+        try {
+            $this->apply($row, $local);
+        } catch (Throwable $e) {
+            Log::warning('PRIME user row skipped', ['prime_user_id' => $row->user_id ?? null, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * PRIME rows keyed by lowercased email. An email on more than one row is
+     * dropped (logged on the security channel, as login does): which row
+     * is the real account can't be decided safely.
+     *
+     * @param  Collection<int, stdClass>  $rows
+     * @return Collection<string, stdClass>
+     */
+    private static function uniqueByEmail(Collection $rows): Collection
+    {
+        return $rows->groupBy(fn (stdClass $row) => mb_strtolower($row->email_address))
+            ->filter(function (Collection $group, string $email): bool {
+                if ($group->count() > 1) {
+                    Log::channel('security')->warning('Ambiguous PRIME account: several rows share an email', ['email' => $email]);
+
+                    return false;
+                }
+
+                return true;
+            })
+            ->map(fn (Collection $group) => $group->sole());
+    }
+
+    /**
+     * PRIME rows without an email can't be matched to an IRIS account.
+     */
+    private static function withEmail(Builder $query): Builder
+    {
+        return $query->whereNotNull('email_address')->where('email_address', '!=', '');
+    }
+
+    /**
+     * PRIME's full_name, cut to IRIS's column size; null when it's missing
+     * or blank (logged with the PRIME id only, no PII).
+     */
+    private static function primeName(stdClass $row): ?string
+    {
+        $name = is_string($row->full_name ?? null) ? trim($row->full_name) : '';
+
+        if ($name === '') {
+            Log::warning('PRIME user has no name; name not synced', ['prime_user_id' => $row->user_id ?? null]);
+
+            return null;
+        }
+
+        return mb_substr($name, 0, self::NAME_MAX);
     }
 
     public function syncUser(User $user): void
     {
         try {
-            $rows = ExternalUserAuthService::users()->where('email_address', $user->email)->get(self::COLUMNS);
-            $assignment = $rows->count() === 1 ? $this->assignment($rows->sole(), $user) : ['employee_no' => null, 'office_id' => null];
+            [$row, $assignment] = ExternalUserAuthService::guard(function () use ($user): array {
+                $row = self::uniqueByEmail(ExternalUserAuthService::users()->where('email_address', $user->email)->get(self::COLUMNS))->first();
+
+                return [$row, $row === null ? null : $this->assignment($row, $user)];
+            });
         } catch (Throwable $e) {
             Log::warning('PRIME user sync failed; showing the local copy', ['error' => $e->getMessage()]);
 
             return;
         }
 
-        if ($rows->isNotEmpty()) {
-            $this->apply($rows->first(), $user, $assignment);
+        if ($row !== null) {
+            $this->apply($row, $user, $assignment);
         }
     }
 
@@ -168,23 +357,27 @@ final class PrimeUserSync
     private function apply(stdClass $row, ?User $local, ?array $assignment = null): ?string
     {
         $active = $row->user_status === ExternalUserAuthService::ACTIVE_STATUS;
+        $name = self::primeName($row);
 
         if (! $local) {
-            if (! $active) {
+            if (! $active || $name === null) {
                 return null;
             }
 
             $this->save(new User([
-                'name' => $row->full_name,
+                'name' => $name,
                 'email' => $row->email_address,
-                'password' => $row->password,
                 'is_active' => true,
             ]), 'created');
 
             return 'created';
         }
 
-        $local->name = $row->full_name;
+        // A nameless PRIME row keeps the local name but still deactivates.
+        if ($name !== null) {
+            $local->name = $name;
+        }
+
         $deactivating = ! $active && $local->is_active;
 
         if ($deactivating) {

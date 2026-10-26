@@ -99,7 +99,7 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
         Route::post('/users', [UserController::class, 'store']); // Disabled - returns 403
         Route::put('/users/{user}', [UserController::class, 'update'])->middleware('throttle:user-update', $can(P::UsersEdit))->whereNumber('user');
         Route::delete('/users/{user}', [UserController::class, 'destroy']); // Disabled - returns 403
-        Route::post('/users/{user}/2fa/reset', [UserController::class, 'resetTwoFactor'])->middleware($can(P::UsersResetTwoFactor))->whereNumber('user');
+        Route::post('/users/{user}/2fa/reset', [UserController::class, 'resetTwoFactor'])->middleware('throttle:password-confirm', $can(P::UsersResetTwoFactor))->whereNumber('user');
     });
 
     // Administration: reading roles and the permission catalog (roles.view or users.edit for role assignment).

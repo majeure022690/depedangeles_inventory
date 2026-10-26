@@ -47,11 +47,16 @@ class UserController extends Controller
      */
     private const RELATIONS = ['roles:id,name,label,data_scope', 'office:id,office_name,school_id', 'personnel:id,employee_id,full_name'];
 
-    public function index(Request $request, UserRoleService $userRoleService, PrimeUserSync $primeSync): JsonResponse
+    /**
+     * Reflects PRIME live but cheaply: new PRIME accounts are imported
+     * first (so they can appear on this page), then only this page's rows
+     * are refreshed. PRIME being down falls back to the local copy.
+     */
+    public function index(Request $request, UserRoleService $userRoleService, PrimeUserSync $primeUserSync): JsonResponse
     {
         $this->authorize('viewAny', User::class);
 
-        $primeSync->runThrottled();
+        $primeUserSync->importNew();
 
         $search = $request->string('search')->trim()->toString();
         $role = $request->string('role')->toString();
@@ -71,6 +76,7 @@ class UserController extends Controller
         }
 
         $users = $query->paginate($this->perPage($request))->withQueryString();
+        $primeUserSync->syncVisible($users->getCollection());
         $this->flagManageable($request->user(), $users->getCollection(), $userRoleService);
 
         return UserResource::collection($users)

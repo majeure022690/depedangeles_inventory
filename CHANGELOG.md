@@ -2,6 +2,37 @@
 
 All notable changes to this project, in terms of user/developer impact. Entries up to 2026-07-15 were reconstructed from migration filename timestamps and source file modification times, before the project had git history; they are accurate to the day where backed by a migration timestamp, and entries reconstructed from file mtimes alone are noted as such. Later entries cite their commits.
 
+## 2026-10-27 — PRIME is the only password authority
+
+On `iris-staging`. Migrations `2026_10_27_000003`-`000004`. Covered by `backend/tests/Feature/Auth/{PrimeLoginTest,PrimeOnlyPasswordEdgeCasesTest,CurrentPasswordTest}.php`, `Settings/ProfileUpdateTest.php`, `UserControllerTest.php`, `SetUserPasswordTest.php`, `DeveloperAdminSeederTest.php` and `Migrations/ClearLocalPasswordsMigrationTest.php`.
+
+### Security
+
+- **IRIS no longer stores or falls back to PRIME passwords.** Login and the full sync used to copy PRIME's password hash into `users.password`, and login fell back to that copy whenever PRIME was unreachable, so a password changed or revoked in PRIME kept working during an outage. Now sign-in checks PRIME only, and a PRIME refusal (wrong password, inactive, or two PRIME rows sharing the email) is final. `users.password` is nullable (`000003`), and `000004` clears it for everyone outside the allowlist below. Its `down()` is a no-op: cleared hashes can't be restored. See [`docs/architecture.md`](docs/architecture.md#password-authority-prime).
+- **Developer break-glass login.** New `LOCAL_LOGIN_EMAILS` (config `auth.local_login_emails`): listed emails may use a local password, only when PRIME is unreachable (a connection-level failure: SQLSTATE `08`, MySQL 2002/2003/2006/2013, or the open breaker) or doesn't know the email. Any other PRIME query error (collation, bad data, missing column) is a refusal: no break-glass, security-logged; sync paths show the local copy. Each use is logged as `Local break-glass login` on the `security` channel; 2FA is still required. Production keeps it empty. `users:set-password` now works only for listed emails.
+- **Password re-confirmation checks PRIME too.** New `App\Rules\CurrentPassword` replaces Laravel's `current_password` rule on recovery-code regeneration, clearing a system log, resetting another user's 2FA and changing a security setting. The 2FA reset now also uses the `password-confirm` limiter. The SPA labels these fields "Your PRIME password".
+- **Login rejects non-ASCII emails** with a 422 before PRIME is queried.
+- **Login timing.** The credential check takes at least 400 ms, so unknown, inactive, not-allowlisted and wrong-password attempts can't be told apart by response time.
+- **PRIME circuit breaker.** PRIME reads go through `ExternalUserAuthService::guard()`. After a connection-level PRIME failure (not other query errors), the cache flag `prime.unreachable` is set for 30 s, and login, `CurrentPassword`, `GET /api/user` and the Users list skip PRIME and behave as "PRIME unreachable" (local copy; break-glass login for allowlisted emails only). `users:sync-external` always tries PRIME and sets the flag if it fails. The `external_users` connection also gets a 5 s `PDO::ATTR_TIMEOUT`, which bounds connecting only, not a slow query.
+- **Duplicate PRIME emails are skipped everywhere.** Two PRIME rows sharing an email (case-insensitive) are refused at login and now also skipped, and logged as `Ambiguous PRIME account` on the `security` channel, by `users:sync-external`, the Users list and `GET /api/user`.
+- **A PRIME password change no longer revokes trusted devices or ends other IRIS sessions**, since IRIS never sees it. Deactivation and an admin 2FA reset still revoke trusted devices.
+- **`POST /api/profile` has its own `profile-update` limiter** (10/min per user, per IP without one), replacing `password-confirm` there.
+
+### Changed
+
+- **Profile is avatar-only.** `POST /api/profile` accepts `avatar`/`remove_avatar`; name and email are read-only, and a `password` field returns 422 "Passwords are managed in PRIME."
+- **The Users list reads PRIME live.** Each load refreshes name and deactivation for the rows shown (never reactivates; audited `Synced from PRIME`) and imports up to 100 new active PRIME accounts above a high-water mark in the cache (`prime_users.max_user_id`). This replaces the full sync on list load, throttled to once per 30 seconds (`PrimeUserSync::runThrottled()`). Office and employee number refresh on `GET /api/user` and `users:sync-external` only. PRIME down: the list shows the local copy. See [`docs/features/roles-and-permissions.md`](docs/features/roles-and-permissions.md#users).
+- **The seeded admin has no password** (`DeveloperAdminSeeder`). A developer adds the email to `LOCAL_LOGIN_EMAILS` and runs `php artisan users:set-password <email>`; re-seeding leaves that password alone, and removes it if the email isn't listed.
+- Removed the unused `CombinedUserService`.
+
+### Deploy notes
+
+- Check `LOCAL_LOGIN_EMAILS` before running `migrate`: if it's missing, `000004` clears every local password, a developer's included. With cached config, `migrate` reads the cached value, so run `php artisan config:clear` after editing `.env`. See README "Production build".
+- `php artisan cache:clear` resets the Users-list high-water mark. Accounts created in PRIME between the last `users:sync-external` and the clear then arrive on their first sign-in or the next full sync, not via the list.
+- After `000004` runs, everyone currently signed in is signed out once (Sanctum's `AuthenticateSession` sees the password hash change). Expected and harmless.
+- The Users-list import moves its mark past inactive PRIME rows, so an account created inactive and activated later arrives only on first sign-in or `users:sync-external`. Nothing schedules `users:sync-external` yet; scheduling it is recommended.
+- Ask PRIME's owners to index `users.email_address` and `users.user_id`.
+
 ## 2026-10-26 — Unified data scope
 
 On `iris-staging`. Commits `80f37ce` (backend), `113f79f` (frontend), `047f83a` (docs) and follow-ups such as `9a17273`. Migrations `2026_10_26_000001`-`000005`. Decision: [`docs/architecture-decisions/unified-data-scope.md`](docs/architecture-decisions/unified-data-scope.md). Covered by `backend/tests/Feature/DataScope/`, `EquipmentDataScopeTest.php`, `RolePermissionSeederTest.php` and `Migrations/UnifiedDataScopeMigrationsTest.php`.

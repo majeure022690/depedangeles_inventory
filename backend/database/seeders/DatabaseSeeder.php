@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -26,26 +25,8 @@ class DatabaseSeeder extends Seeder
 
         $this->call(RolePermissionSeeder::class);
 
-        // firstOrCreate() merges $values over $attributes on key collision,
-        // so 'email' must be repeated here too — otherwise raw()'s random
-        // fake email silently wins over the fixed email below. 'password'
-        // is likewise overridden here (not in UserFactory's shared
-        // default), so this seeded admin gets a real password rather than
-        // the weak literal 'password' every test-created user has.
-        $testUser = User::firstOrCreate(
-            ['email' => 'keithvpolintan@gmail.com'],
-            fn () => User::factory()->raw([
-                'name' => 'Test User',
-                'email' => 'keithvpolintan@gmail.com',
-                'password' => Hash::make('D3pEd-Angeles!2026'),
-            ]),
-        );
-
-        if (! Hash::check('D3pEd-Angeles!2026', $testUser->password)) {
-            $testUser->forceFill(['password' => Hash::make('D3pEd-Angeles!2026')])->save();
-        }
-
-        $testUser->syncRoles(['super_administrator']);
+        // Gets a local password only when allowlisted in LOCAL_LOGIN_EMAILS.
+        $this->call(DeveloperAdminSeeder::class);
 
         // The 13 Tier 1/Tier 2 reference tables from the lookup-
         // normalization ADR. Supersedes the old LookupSeeder/`lookups`

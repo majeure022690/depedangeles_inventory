@@ -107,7 +107,7 @@ function PasswordConfirmForm({
           ref={inputRef}
           id={inputId}
           name="current_password"
-          label="Current password"
+          label="Your PRIME password"
           type="password"
           autoComplete="current-password"
           autoFocus

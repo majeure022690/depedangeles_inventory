@@ -10,12 +10,13 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use PragmaRX\Google2FA\Google2FA;
+use Tests\Concerns\AllowsLocalLogin;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
+    use AllowsLocalLogin, CreatesUsersWithRoles, RefreshDatabase;
 
     protected function setUp(): void
     {

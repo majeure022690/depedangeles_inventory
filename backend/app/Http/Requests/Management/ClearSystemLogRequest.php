@@ -4,6 +4,7 @@ namespace App\Http\Requests\Management;
 
 use App\Enums\Permission;
 use App\Http\Requests\Management\Concerns\ConfirmsCurrentPassword;
+use App\Rules\CurrentPassword;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ClearSystemLogRequest extends FormRequest
@@ -21,7 +22,7 @@ class ClearSystemLogRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'current_password' => ['required', 'string', 'current_password'],
+            'current_password' => ['required', 'string', new CurrentPassword($this->user())],
         ];
     }
 }

@@ -17,13 +17,14 @@ use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use PragmaRX\Google2FA\Google2FA;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\AllowsLocalLogin;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\Concerns\FakesPrime;
 use Tests\TestCase;
 
 class NoAccessGateTest extends TestCase
 {
-    use CreatesUsersWithRoles, FakesPrime, RefreshDatabase;
+    use AllowsLocalLogin, CreatesUsersWithRoles, FakesPrime, RefreshDatabase;
 
     private const PASSWORD = 'CorrectHorse123!';
 

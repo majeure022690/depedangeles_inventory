@@ -21,7 +21,7 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
     Route::get('/session-settings', [AuthController::class, 'sessionSettings']);
-    Route::post('/profile', [AuthController::class, 'updateProfile'])->middleware('throttle:password-confirm');
+    Route::post('/profile', [AuthController::class, 'updateProfile'])->middleware('throttle:profile-update');
     Route::post('/2fa/recovery-codes/regenerate', [TwoFactorController::class, 'regenerateRecoveryCodes'])->middleware('throttle:password-confirm');
     Route::get('/trusted-devices', [TrustedDeviceController::class, 'index']);
     Route::delete('/trusted-devices', [TrustedDeviceController::class, 'destroyAll']);

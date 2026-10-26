@@ -3,11 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
 use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
@@ -21,16 +19,7 @@ class SetUserPasswordTest extends TestCase
     {
         parent::setUp();
 
-        config(['database.connections.external_users' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']]);
-        DB::purge('external_users');
-
-        Schema::connection('external_users')->create('users', function (Blueprint $table) {
-            $table->increments('user_id');
-            $table->string('full_name');
-            $table->string('email_address');
-            $table->string('password');
-            $table->string('user_status');
-        });
+        config(['auth.local_login_emails' => ['admin@example.test']]);
     }
 
     private function localUser(): User
@@ -62,33 +51,28 @@ class SetUserPasswordTest extends TestCase
         $this->assertStringNotContainsString(self::NEW_PASSWORD, json_encode($activity->properties));
     }
 
-    public function test_refuses_an_account_that_exists_in_prime(): void
+    public function test_refuses_an_account_that_is_not_on_the_local_login_allowlist(): void
     {
         $user = $this->localUser();
-        DB::connection('external_users')->table('users')->insert([
-            'full_name' => 'Admin', 'email_address' => 'admin@example.test',
-            'password' => Hash::make('PrimePass123!'), 'user_status' => 'Active',
-        ]);
+        config(['auth.local_login_emails' => ['someone-else@example.test']]);
 
         $this->artisan('users:set-password', ['email' => 'admin@example.test'])
-            ->expectsOutputToContain('managed in PRIME')
+            ->expectsOutputToContain('Only developer break-glass accounts')
             ->assertFailed();
 
         $this->assertTrue(Hash::check('OldPassword123!', $user->fresh()->password));
         $this->assertSame(0, Activity::query()->where('event', 'user.password_set')->count());
     }
 
-    public function test_refuses_when_prime_cannot_be_reached(): void
+    public function test_allowlist_match_ignores_case(): void
     {
-        $user = $this->localUser();
-        config(['database.connections.external_users' => ['driver' => 'sqlite', 'database' => '/nonexistent/prime.sqlite', 'prefix' => '']]);
-        DB::purge('external_users');
+        $this->localUser();
+        config(['auth.local_login_emails' => ['ADMIN@Example.test']]);
 
         $this->artisan('users:set-password', ['email' => 'admin@example.test'])
-            ->expectsOutputToContain('PRIME could not be reached')
-            ->assertFailed();
-
-        $this->assertTrue(Hash::check('OldPassword123!', $user->fresh()->password));
+            ->expectsQuestion('New password', self::NEW_PASSWORD)
+            ->expectsQuestion('Confirm new password', self::NEW_PASSWORD)
+            ->assertSuccessful();
     }
 
     public function test_rejects_a_weak_or_mismatched_password(): void

@@ -4,6 +4,7 @@ namespace App\Http\Requests\Management;
 
 use App\Enums\Permission;
 use App\Http\Requests\Management\Concerns\ConfirmsCurrentPassword;
+use App\Rules\CurrentPassword;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateSecuritySettingRequest extends FormRequest
@@ -23,7 +24,7 @@ class UpdateSecuritySettingRequest extends FormRequest
         return [
             'setting_key' => ['required', 'string'],
             'value' => ['required', 'integer'],
-            'current_password' => ['required', 'string', 'current_password'],
+            'current_password' => ['required', 'string', new CurrentPassword($this->user())],
         ];
     }
 }

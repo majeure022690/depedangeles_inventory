@@ -114,4 +114,20 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Local Login Allowlist (developer break-glass)
+    |--------------------------------------------------------------------------
+    |
+    | PRIME is the only password authority. These emails may also sign in
+    | with their local IRIS password, but only when PRIME is unreachable or
+    | does not know them; a PRIME refusal never falls back.
+    |
+    */
+
+    'local_login_emails' => array_values(array_filter(array_map(
+        fn (string $email): string => mb_strtolower(trim($email)),
+        explode(',', (string) env('LOCAL_LOGIN_EMAILS', '')),
+    ))),
+
 ];

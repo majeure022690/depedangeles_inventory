@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Rules\CurrentPassword;
 use Illuminate\Foundation\Http\FormRequest;
 
 class RegenerateRecoveryCodesRequest extends FormRequest
@@ -17,7 +18,7 @@ class RegenerateRecoveryCodesRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'current_password' => ['required', 'string', 'current_password'],
+            'current_password' => ['required', 'string', new CurrentPassword($this->user())],
         ];
     }
 }

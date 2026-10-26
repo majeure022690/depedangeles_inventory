@@ -528,12 +528,12 @@ export function UserList() {
           <DialogTitle>Reset two-factor authentication?</DialogTitle>
           <DialogDescription>
             {resetting2fa?.name} will be asked to set up two-factor authentication again the next time they sign in, and their trusted
-            devices are forgotten. Use this for a lost or replaced authenticator device. Enter your own password to confirm.
+            devices are forgotten. Use this for a lost or replaced authenticator device. Enter your PRIME password to confirm.
           </DialogDescription>
           <form onSubmit={handleReset2fa} className="space-y-3">
             {reset2faError && <Alert type="error">{reset2faError}</Alert>}
             <Input
-              label="Your current password"
+              label="Your PRIME password"
               type="password"
               autoComplete="current-password"
               value={reset2faPassword}

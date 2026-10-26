@@ -9,11 +9,12 @@ use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\AllowsLocalLogin;
 use Tests\TestCase;
 
 class SecuritySettingTest extends TestCase
 {
-    use RefreshDatabase;
+    use AllowsLocalLogin, RefreshDatabase;
 
     protected function setUp(): void
     {

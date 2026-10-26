@@ -36,97 +36,40 @@ class ProfileUpdateTest extends TestCase
             ->givePermissionTo(Permission::EquipmentView->value);
     }
 
-    public function test_name_can_be_changed_without_the_current_password(): void
+    public function test_name_and_email_come_from_prime_and_are_ignored(): void
     {
-        $user = $this->user(['name' => 'Old Name']);
+        $user = $this->user(['name' => 'Old Name', 'email' => 'old@example.com']);
 
         $this->actingAs($user)->postJson('/api/profile', [
             'name' => 'New Name',
-            'email' => $user->email,
-        ])->assertOk()->assertJsonPath('data.name', 'New Name');
-
-        $this->assertSame('New Name', $user->fresh()->name);
-    }
-
-    public function test_email_change_requires_the_correct_current_password(): void
-    {
-        $user = $this->user(['email' => 'old@example.com']);
-
-        $this->actingAs($user)->postJson('/api/profile', [
-            'name' => $user->name,
-            'email' => 'new@example.com',
-        ])->assertUnprocessable()->assertJsonValidationErrors('current_password');
-
-        $this->actingAs($user)->postJson('/api/profile', [
-            'name' => $user->name,
-            'email' => 'new@example.com',
-            'current_password' => 'wrong-password',
-        ])->assertUnprocessable()->assertJsonValidationErrors('current_password');
-
-        $this->assertSame('old@example.com', $user->fresh()->email);
-
-        $this->actingAs($user)->postJson('/api/profile', [
-            'name' => $user->name,
             'email' => 'new@example.com',
             'current_password' => self::PASSWORD,
-        ])->assertOk()->assertJsonPath('data.email', 'new@example.com');
+        ])->assertOk()->assertJsonPath('data.name', 'Old Name')->assertJsonPath('data.email', 'old@example.com');
+
+        $this->assertSame('Old Name', $user->fresh()->name);
+        $this->assertSame('old@example.com', $user->fresh()->email);
     }
 
-    public function test_password_change_requires_the_correct_current_password(): void
+    public function test_password_cannot_be_changed_in_iris(): void
     {
         $user = $this->user();
 
         $this->actingAs($user)->postJson('/api/profile', [
-            'name' => $user->name,
-            'email' => $user->email,
+            'current_password' => self::PASSWORD,
             'password' => 'NewPassword123!',
             'password_confirmation' => 'NewPassword123!',
-        ])->assertUnprocessable()->assertJsonValidationErrors('current_password');
-
-        $this->actingAs($user)->postJson('/api/profile', [
-            'name' => $user->name,
-            'email' => $user->email,
-            'current_password' => 'wrong-password',
-            'password' => 'NewPassword123!',
-            'password_confirmation' => 'NewPassword123!',
-        ])->assertUnprocessable()->assertJsonValidationErrors('current_password');
+        ])->assertUnprocessable()->assertJsonValidationErrors(['password' => 'Passwords are managed in PRIME.']);
 
         $this->assertTrue(Hash::check(self::PASSWORD, $user->fresh()->password));
-
-        $this->actingAs($user)->postJson('/api/profile', [
-            'name' => $user->name,
-            'email' => $user->email,
-            'current_password' => self::PASSWORD,
-            'password' => 'NewPassword123!',
-            'password_confirmation' => 'NewPassword123!',
-        ])->assertOk();
-
-        $this->assertTrue(Hash::check('NewPassword123!', $user->fresh()->password));
     }
 
-    public function test_new_password_must_meet_the_password_policy(): void
+    public function test_an_empty_password_field_does_not_clear_the_password(): void
     {
         $user = $this->user();
 
-        $this->actingAs($user)->postJson('/api/profile', [
-            'name' => $user->name,
-            'email' => $user->email,
-            'current_password' => self::PASSWORD,
-            'password' => 'password',
-            'password_confirmation' => 'password',
-        ])->assertUnprocessable()->assertJsonValidationErrors('password');
-    }
+        $this->actingAs($user)->postJson('/api/profile', ['password' => '', 'password_confirmation' => ''])->assertOk();
 
-    public function test_email_must_be_unique(): void
-    {
-        $other = User::factory()->create(['email' => 'taken@example.com']);
-        $user = $this->user();
-
-        $this->actingAs($user)->postJson('/api/profile', [
-            'name' => $user->name,
-            'email' => $other->email,
-            'current_password' => self::PASSWORD,
-        ])->assertUnprocessable()->assertJsonValidationErrors('email');
+        $this->assertTrue(Hash::check(self::PASSWORD, $user->fresh()->password));
     }
 
     public function test_avatar_can_be_uploaded_and_replaced(): void
@@ -232,14 +175,12 @@ class ProfileUpdateTest extends TestCase
 
     public function test_profile_changes_are_audited_without_secrets_and_keep_the_actor_snapshot(): void
     {
-        $user = $this->user(['name' => 'Old Name', 'email' => 'me@example.com']);
+        $user = $this->user(['name' => 'My Name', 'email' => 'me@example.com', 'avatar_path' => 'avatars/old.png']);
+        Storage::disk('public')->put('avatars/old.png', 'image');
 
         $this->actingAs($user)->postJson('/api/profile', [
-            'name' => 'New Name',
-            'email' => 'me@example.com',
             'current_password' => self::PASSWORD,
-            'password' => 'NewPassword123!',
-            'password_confirmation' => 'NewPassword123!',
+            'remove_avatar' => true,
         ])->assertOk();
 
         $log = Activity::where('event', 'updated')
@@ -248,12 +189,31 @@ class ProfileUpdateTest extends TestCase
             ->sole();
 
         $this->assertSame($user->id, $log->causer_id);
-        $this->assertSame(['name' => 'New Name'], $log->attribute_changes['attributes']);
-        $this->assertSame(['name' => 'New Name', 'email' => 'me@example.com'], $log->properties['actor_snapshot']);
+        $this->assertSame(['avatar_path' => null], $log->attribute_changes['attributes']);
+        $this->assertStringNotContainsString(self::PASSWORD, json_encode($log->properties));
+        $this->assertSame(['name' => 'My Name', 'email' => 'me@example.com'], $log->properties['actor_snapshot']);
 
         // The snapshot outlives the account; causer_id has no FK.
         $user->delete();
         $this->assertSame('me@example.com', $log->fresh()->properties['actor_snapshot']['email']);
+    }
+
+    public function test_profile_updates_are_limited_to_ten_per_minute_per_user(): void
+    {
+        $user = $this->user();
+        $other = $this->user();
+
+        foreach (range(1, 10) as $ignored) {
+            $this->actingAs($user)->postJson('/api/profile', [])->assertOk();
+        }
+
+        $this->actingAs($user)->postJson('/api/profile', [])->assertTooManyRequests();
+        $this->flushSession();
+        $this->actingAs($other)->postJson('/api/profile', [])->assertOk();
+        $this->flushSession();
+
+        $this->travel(61)->seconds();
+        $this->actingAs($user)->postJson('/api/profile', [])->assertOk();
     }
 
     public function test_guests_cannot_update_a_profile(): void

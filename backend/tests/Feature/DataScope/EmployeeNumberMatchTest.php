@@ -13,12 +13,13 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use PragmaRX\Google2FA\Google2FA;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\AllowsLocalLogin;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class EmployeeNumberMatchTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
+    use AllowsLocalLogin, CreatesUsersWithRoles, RefreshDatabase;
 
     private const PERSONNEL_WRITE = [Permission::PersonnelView, Permission::PersonnelEdit];
 

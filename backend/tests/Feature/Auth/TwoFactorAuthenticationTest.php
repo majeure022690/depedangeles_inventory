@@ -13,12 +13,13 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use PragmaRX\Google2FA\Google2FA;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\AllowsLocalLogin;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class TwoFactorAuthenticationTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
+    use AllowsLocalLogin, CreatesUsersWithRoles, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -211,6 +212,23 @@ class TwoFactorAuthenticationTest extends TestCase
         $this->actingAs($admin)->postJson("/api/users/{$target->id}/2fa/reset", [
             'current_password' => 'wrong-password',
         ])->assertUnprocessable();
+
+        $this->assertTrue($target->fresh()->hasTwoFactorEnabled());
+    }
+
+    public function test_reset_two_factor_is_rate_limited_per_admin(): void
+    {
+        $admin = User::factory()->create(['password' => Hash::make('AdminPass123!')]);
+        $this->grantPermissions($admin, [Permission::UsersResetTwoFactor, Permission::EquipmentView]);
+        $target = $this->createEnrolledUser((new TwoFactorAuthService)->generateSecret());
+
+        for ($i = 0; $i < 6; $i++) {
+            $this->actingAs($admin)->postJson("/api/users/{$target->id}/2fa/reset", ['current_password' => 'wrong-password'])
+                ->assertUnprocessable();
+        }
+
+        $this->actingAs($admin)->postJson("/api/users/{$target->id}/2fa/reset", ['current_password' => 'AdminPass123!'])
+            ->assertStatus(429);
 
         $this->assertTrue($target->fresh()->hasTwoFactorEnabled());
     }

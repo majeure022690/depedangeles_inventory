@@ -2,11 +2,15 @@
 
 namespace App\Http\Requests\Management;
 
+use App\Http\Requests\Management\Concerns\ConfirmsCurrentPassword;
 use App\Models\User;
+use App\Rules\CurrentPassword;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ResetTwoFactorRequest extends FormRequest
 {
+    use ConfirmsCurrentPassword;
+
     public function authorize(): bool
     {
         $target = $this->route('user');
@@ -20,7 +24,7 @@ class ResetTwoFactorRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'current_password' => ['required', 'string', 'current_password'],
+            'current_password' => ['required', 'string', new CurrentPassword($this->user())],
         ];
     }
 }
