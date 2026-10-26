@@ -153,6 +153,27 @@ class User extends Authenticatable
     }
 
     /**
+     * Accounts the actor's data scope reaches: everyone for All, otherwise
+     * the actor's own office, or only the actor when they have no office.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeVisibleTo(Builder $query, User $actor): void
+    {
+        if ($actor->dataScope() === DataScope::All) {
+            return;
+        }
+
+        if ($actor->office_id === null) {
+            $query->whereKey($actor->id);
+
+            return;
+        }
+
+        $query->where($query->qualifyColumn('office_id'), $actor->office_id);
+    }
+
+    /**
      * @return HasMany<TrustedDevice, $this>
      */
     public function trustedDevices(): HasMany

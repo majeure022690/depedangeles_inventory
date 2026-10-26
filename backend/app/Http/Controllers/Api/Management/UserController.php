@@ -62,6 +62,7 @@ class UserController extends Controller
         $role = $request->string('role')->toString();
 
         $query = User::query()
+            ->visibleTo($request->user())
             ->with(self::RELATIONS)
             ->when($search !== '', fn ($query) => $query->where(
                 fn ($q) => $q->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"),

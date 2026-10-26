@@ -68,9 +68,13 @@ The stored value stays `school`, but `offices` holds division units (OSDS-*, CID
 | `GET /api/dashboard/summary` | equipment figures, `recent_transactions` (items visible now), personnel counts and ISP figures |
 | `GET /api/equipment/options` `personnel`, transaction targets | limited to reachable personnel. An out-of-reach or non-existent `accountable_officer_id`/`end_user_id`/`received_by_id` gets the same 422 ("Choose someone within your access."), so the error doesn't reveal which ids exist |
 
-**Not filtered:** the full transaction history on a visible item (it can name people outside the scope), Offices, Reference Data, Users, Roles, the Audit Log and the other settings screens.
+**Users list:** a scoped actor sees only users at their own office (only themself if they have no office). A scoped actor can manage (edit, change roles, reset 2FA, link personnel) only accounts at their own office, on top of the permission and scope tiers; a scoped actor with no office manages nobody.
 
-**Grant admin permissions only to all-scope roles.** `audit_log.view`, `users.view`, `reference-data.manage`, `office.*` and the settings permissions see division-wide data whatever the role's scope, so giving one of them to an `own`/`school` role gives division-wide reach for that area. (`users.edit`, `roles.*` and the personnel link are additionally capped by the scope-tier guard; see [Guards](#guards).)
+**Audit Log:** a scoped actor sees the rows they caused, plus rows about subjects in reach: Personnel, Equipment and its transactions, ISP accounts with their speed tests and subscription costs, their office's Stakeholder Profile and Connectivity Survey, and users in reach (including their own account). Other people's `authorization.denied` and `auth.*` rows, and rows about roles, permissions, offices, reference data, settings and system jobs, are hidden. The `/audit-log/options` lists are built from the same visible rows.
+
+**Not filtered:** the full transaction history on a visible item (it can name people outside the scope), Offices, Reference Data, Roles and the other settings screens.
+
+**Grant those admin permissions only to all-scope roles.** `reference-data.manage`, `office.*`, `roles.view` and the settings permissions see division-wide data whatever the role's scope. (`users.edit`, `roles.*` and the personnel link are additionally capped by the scope-tier guard; see [Guards](#guards).)
 
 ### Writes stay inside reach
 

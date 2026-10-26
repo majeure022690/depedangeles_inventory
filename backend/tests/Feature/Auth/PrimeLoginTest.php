@@ -142,8 +142,7 @@ class PrimeLoginTest extends TestCase
 
     public function test_users_page_reflects_prime_changes_on_load(): void
     {
-        $admin = User::factory()->create();
-        $admin->givePermissionTo(Permission::UsersView->value);
+        $admin = $this->userWithPermissions([Permission::UsersView], [], DataScope::All);
         $this->primeUser();
         $local = User::factory()->create(['email' => 'juan@deped.gov.ph', 'name' => 'Old Name']);
 
