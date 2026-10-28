@@ -2,6 +2,14 @@
 
 All notable changes to this project, in terms of user/developer impact. Entries up to 2026-07-15 were reconstructed from migration filename timestamps and source file modification times, before the project had git history; they are accurate to the day where backed by a migration timestamp, and entries reconstructed from file mtimes alone are noted as such. Later entries cite their commits.
 
+## 2026-10-29 — Scheduled PRIME sync
+
+### Changed
+- **`users:sync-external` runs every 15 minutes** (`routes/console.php`, `withoutOverlapping`). Since the Users list stopped running the full sync (2026-10-26), employee numbers and offices only refreshed when that user loaded the SPA, so people who hadn't signed in kept an empty employee number. See [`docs/features/roles-and-permissions.md`](docs/features/roles-and-permissions.md#users).
+
+### Changed (deploy)
+- Production needs a Plesk Scheduled Task (Websites & Domains → Scheduled Tasks → Run a command, every minute) running `cd /var/www/vhosts/deped-angeles.com/iris.deped-angeles.com/backend && /opt/plesk/php/8.4/bin/php artisan schedule:run`. Use the PHP 8.4 binary; the server's default `php` is 8.2. Check with `php artisan schedule:list`.
+
 ## 2026-10-28 — SPA document served by Laravel with a per-response CSP nonce
 
 ### Security

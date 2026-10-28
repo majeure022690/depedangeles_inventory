@@ -1,6 +1,6 @@
 # Handoff — work in progress
 
-Last updated: 2026-10-28, branch `iris-staging` at `9df13bf`.
+Last updated: 2026-10-29, branch `iris-staging` (scheduled PRIME sync committed and pushed, not deployed).
 
 ## Done and pushed
 
@@ -16,6 +16,22 @@ New migrations: `2026_10_28_000001` … `000005` — run `php artisan migrate`.
 ## Desktop bundles follow-up (`45c5e88`, `a8a7f25`)
 
 Desktop bundles follow-up (no migrations): peripherals on create, `POST /api/equipment/{id}/peripherals/batch`, opt-in `renumber_peripherals` on update, `original_bundle` / `renumberable_peripherals_count` on the resource; reCAPTCHA provider moved to the `/login` route. Contract in [`features/equipment.md`](features/equipment.md#desktop-bundles), summary in `CHANGELOG.md` (2026-10-28). Tests: `backend/tests/Feature/EquipmentBundleTest.php`. QA, security and reviewer signed off; not yet checked in a browser.
+
+## Scheduled PRIME sync — finish at the office (2026-10-30)
+
+Why: a user had no employee number although PRIME has one. Two causes: (a) since `b1923b2` (2026-10-26) nothing runs the full sync, so numbers and offices only refresh when that user loads the SPA; (b) their `deped_id_no` was on two PRIME employee rows, so the sync refused it. (b) no longer showed in `prime:sync-preview` on 2026-10-29.
+
+Code (pushed to `iris-staging`, pushing does not deploy): `routes/console.php` schedules `users:sync-external` every 15 minutes with `withoutOverlapping`; docs in `features/roles-and-permissions.md` and `CHANGELOG.md` (2026-10-29).
+
+On the server (Plesk SSH): `cd /var/www/vhosts/deped-angeles.com/iris.deped-angeles.com/backend && P=/opt/plesk/php/8.4/bin/php` (the default `php` is 8.2).
+
+1. **Time one full sync** (also fills the missing numbers now): `time $P artisan users:sync-external`. If `real` is over about a minute, switch the schedule to `hourly()` in a follow-up commit before deploying.
+2. **Check the reported user** now has an employee number on the Users page. If not, `$P artisan prime:sync-preview --section=users` gives the reason.
+3. **Deploy** `iris-staging` to the server the usual way (the schedule change is already pushed).
+4. **Add the Plesk Scheduled Task:** Websites & Domains → iris.deped-angeles.com → Scheduled Tasks → Add Task → Run a command, cron `* * * * *`, notify on errors only:
+   `cd /var/www/vhosts/deped-angeles.com/iris.deped-angeles.com/backend && /opt/plesk/php/8.4/bin/php artisan schedule:run`
+5. **Verify:** `$P artisan schedule:list` shows `users:sync-external`; after the next quarter-hour, numbers fill in on their own.
+6. **Review who is still skipped:** `$P artisan prime:sync-preview --section=users`. Each listed user has a PRIME data problem (duplicate `deped_id_no`, unlinked employee row, …) to send to the PRIME team.
 
 ## Not done — do these next, in order
 
