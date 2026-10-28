@@ -101,10 +101,11 @@ class AuthController extends Controller
             // PRIME refused: never fall back.
         } catch (Throwable $e) {
             if (ExternalUserAuthService::isUnreachable($e)) {
+                $localReason = ExternalUserAuthService::outageReason();
                 Log::warning('External authentication unavailable', [
                     'error' => $e->getMessage(),
+                    'reason' => $localReason,
                 ]);
-                $localReason = 'prime_unreachable';
             } else {
                 // Anything else (a PRIME query/data error, an unreadable PRIME hash) is a refusal, not an outage.
                 $event = ExternalUserAuthService::isQueryError($e) ? 'PRIME query failed; refusing' : 'PRIME authentication failed unexpectedly; refusing';

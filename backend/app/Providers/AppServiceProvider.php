@@ -22,6 +22,7 @@ use App\Models\User;
 use App\Observers\EquipmentObserver;
 use App\Policies\ReferenceDataPolicy;
 use App\Policies\RolePolicy;
+use App\Services\ExternalUserAuthService;
 use App\Services\SecuritySettings;
 use App\Services\SlowQueryLog;
 use Carbon\CarbonImmutable;
@@ -38,6 +39,8 @@ use Spatie\Activitylog\Models\Activity;
 
 class AppServiceProvider extends ServiceProvider
 {
+    public const PRIME_DISABLED_NOTICE_KEY = 'prime.disabled_boot_notice';
+
     /**
      * Register any application services.
      */
@@ -57,6 +60,14 @@ class AppServiceProvider extends ServiceProvider
         $this->configureAuditTrail();
         $this->configureObservers();
         $this->configureSystemLogs();
+        $this->warnIfPrimeDisabled();
+    }
+
+    protected function warnIfPrimeDisabled(): void
+    {
+        if (app()->isProduction() && ExternalUserAuthService::disabled()) {
+            ExternalUserAuthService::reportDisabledOncePerHour(self::PRIME_DISABLED_NOTICE_KEY, 'error', 'PRIME is disabled in production (PRIME_ENABLED=false): logins fall back to break-glass accounts only and user sync is stopped');
+        }
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Enums\Permission;
 use App\Models\User;
 use App\Rules\CurrentPassword;
 use App\Services\ExternalUserAuthService;
+use App\Services\PrimeUnreachable;
 use App\Services\PrimeUserSync;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Database\QueryException;
@@ -189,6 +190,46 @@ class PrimeLoginTest extends TestCase
         $this->assertGuest();
         $this->assertStringContainsString('Failed login attempt', $log);
         $this->assertStringNotContainsString('Local break-glass login', $log);
+    }
+
+    public function test_disabled_prime_is_never_dialled_and_counts_as_unreachable(): void
+    {
+        config(['auth.prime_enabled' => false]);
+        $dialled = false;
+
+        try {
+            ExternalUserAuthService::guard(function () use (&$dialled) {
+                $dialled = true;
+            });
+            $this->fail('A disabled PRIME should count as unreachable.');
+        } catch (PrimeUnreachable) {
+            // Expected.
+        }
+
+        $this->assertFalse($dialled);
+    }
+
+    public function test_with_prime_disabled_an_allowlisted_account_logs_in_locally(): void
+    {
+        config(['auth.prime_enabled' => false]);
+        $user = $this->localAccount(allowlisted: true, twoFactor: true);
+
+        $log = $this->captureSecurityLog(fn () => $this->postJson('/api/login', ['email' => $user->email, 'password' => 'LocalPass123!'])
+            ->assertOk()
+            ->assertJsonPath('requires_2fa', true));
+
+        $this->assertStringContainsString('"reason":"prime_disabled"', $log);
+    }
+
+    public function test_with_prime_disabled_a_non_allowlisted_account_is_refused(): void
+    {
+        config(['auth.prime_enabled' => false]);
+        $user = $this->localAccount(allowlisted: false);
+
+        $this->postJson('/api/login', ['email' => $user->email, 'password' => 'LocalPass123!'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.email.0', 'Invalid credentials.');
+        $this->assertGuest();
     }
 
     public function test_local_password_is_refused_for_an_account_prime_does_not_know_unless_allowlisted(): void

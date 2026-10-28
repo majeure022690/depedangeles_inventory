@@ -130,4 +130,16 @@ return [
         explode(',', (string) env('LOCAL_LOGIN_EMAILS', '')),
     ))),
 
+    /*
+    |--------------------------------------------------------------------------
+    | PRIME Connection
+    |--------------------------------------------------------------------------
+    |
+    | Off treats PRIME as unreachable without dialling it, for development
+    | machines with no PRIME tunnel. Production leaves it on.
+    |
+    */
+
+    'prime_enabled' => (bool) env('PRIME_ENABLED', true),
+
 ];

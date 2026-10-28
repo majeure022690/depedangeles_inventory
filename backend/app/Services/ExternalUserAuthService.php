@@ -35,6 +35,27 @@ final class ExternalUserAuthService
 
     public const UNREACHABLE_KEY = 'prime.unreachable';
 
+    public static function disabled(): bool
+    {
+        return ! config('auth.prime_enabled');
+    }
+
+    public static function outageReason(): string
+    {
+        return self::disabled() ? 'prime_disabled' : 'prime_unreachable';
+    }
+
+    // Never throws: callers include boot and the never-throwing sync paths, where the cache or log may be unavailable.
+    public static function reportDisabledOncePerHour(string $key, string $level, string $message): void
+    {
+        try {
+            if (Cache::add($key, true, now()->addHour())) {
+                Log::channel('security')->log($level, $message);
+            }
+        } catch (Throwable) {
+        }
+    }
+
     // Throws when PRIME knows the user but refuses them (or the email is ambiguous), so the caller never falls back to a local password.
     public function authenticate(string $email, string $password): ?User
     {
@@ -164,6 +185,10 @@ final class ExternalUserAuthService
      */
     public static function guard(Closure $read, bool $skipWhileDown = true): mixed
     {
+        if (self::disabled()) {
+            throw new PrimeUnreachable('PRIME is disabled (PRIME_ENABLED=false).');
+        }
+
         if ($skipWhileDown && Cache::has(self::UNREACHABLE_KEY)) {
             throw new PrimeUnreachable('PRIME was unreachable moments ago; not retrying yet.');
         }

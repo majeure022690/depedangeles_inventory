@@ -40,6 +40,8 @@ final class PrimeUserSync
      */
     public const HIGH_WATER_MARK_KEY = 'prime_users.max_user_id';
 
+    public const DISABLED_NOTICE_KEY = 'prime_users.disabled_notice';
+
     /** New accounts imported per list load; any rest follow on the next loads. */
     private const IMPORT_BATCH = 100;
 
@@ -106,7 +108,7 @@ final class PrimeUserSync
                 fn () => Cache::lock(self::HIGH_WATER_MARK_KEY.'.lock', 30)->get(fn () => $this->importAboveMark()),
             );
         } catch (Throwable $e) {
-            Log::warning('PRIME user sync failed; showing the local copy', ['error' => $e->getMessage()]);
+            self::reportFailure($e);
         }
     }
 
@@ -144,8 +146,19 @@ final class PrimeUserSync
                 }
             }
         } catch (Throwable $e) {
-            Log::warning('PRIME user sync failed; showing the local copy', ['error' => $e->getMessage()]);
+            self::reportFailure($e);
         }
+    }
+
+    private static function reportFailure(Throwable $e): void
+    {
+        if ($e instanceof PrimeUnreachable && ExternalUserAuthService::disabled()) {
+            ExternalUserAuthService::reportDisabledOncePerHour(self::DISABLED_NOTICE_KEY, 'warning', 'PRIME sync disabled by PRIME_ENABLED=false');
+
+            return;
+        }
+
+        Log::warning('PRIME user sync failed; showing the local copy', ['error' => $e->getMessage()]);
     }
 
     private function importAboveMark(): void
@@ -273,7 +286,7 @@ final class PrimeUserSync
                 return [$row, $row === null ? null : $this->assignment($row, $user)];
             });
         } catch (Throwable $e) {
-            Log::warning('PRIME user sync failed; showing the local copy', ['error' => $e->getMessage()]);
+            self::reportFailure($e);
 
             return;
         }

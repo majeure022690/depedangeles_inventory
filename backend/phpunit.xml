@@ -28,6 +28,7 @@
         <env name="DB_URL" value=""/>
         <env name="EXTERNAL_DB_DRIVER" value="sqlite"/>
         <env name="EXTERNAL_DB_DATABASE" value=":memory:"/>
+        <env name="PRIME_ENABLED" value="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

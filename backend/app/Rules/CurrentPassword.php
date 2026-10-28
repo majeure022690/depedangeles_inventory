@@ -31,6 +31,7 @@ final class CurrentPassword implements ValidationRule
         }
 
         $localAllowed = ExternalUserAuthService::allowsLocalPassword($this->user->email);
+        $localReason = null;
 
         try {
             $verdict = app(ExternalUserAuthService::class)->checkPassword($this->user->email, $value);
@@ -47,7 +48,8 @@ final class CurrentPassword implements ValidationRule
                 return;
             }
 
-            Log::warning('PRIME unavailable for password confirmation', ['error' => $e->getMessage()]);
+            $localReason = ExternalUserAuthService::outageReason();
+            Log::warning('PRIME unavailable for password confirmation', ['error' => $e->getMessage(), 'reason' => $localReason]);
 
             if (! $localAllowed) {
                 $fail(__("Your password can't be checked right now because PRIME is unavailable. Please try again later."));
@@ -59,6 +61,10 @@ final class CurrentPassword implements ValidationRule
         }
 
         if ($verdict === null && $localAllowed) {
+            Log::channel('security')->warning('Local break-glass password confirmation', [
+                'user_id' => $this->user->id,
+                'reason' => $localReason ?? 'not_in_prime',
+            ]);
             $verdict = Hash::check($value, (string) $this->user->getAuthPassword());
         }
 
