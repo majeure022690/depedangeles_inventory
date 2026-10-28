@@ -1,10 +1,12 @@
 import { lazy, Suspense, type ComponentType } from 'react'
+import { GoogleReCaptchaProvider } from 'react-google-recaptcha-v3'
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Spinner } from '@/components/ui/Spinner'
 import { ManagementLayout } from '@/layouts/ManagementLayout'
 import { SETTINGS_PERMISSIONS } from '@/lib/permissions'
+import { recaptchaSiteKey } from '@/lib/recaptcha'
 import { NotFound } from '@/pages/NotFound'
 import { GuestOnly, RequireAuth, RequireDataScope, RequirePermission } from '@/router/Guards'
 
@@ -54,7 +56,9 @@ export function App() {
             path="/login"
             element={
               <GuestOnly>
-                <Login />
+                <GoogleReCaptchaProvider reCaptchaKey={recaptchaSiteKey}>
+                  <Login />
+                </GoogleReCaptchaProvider>
               </GuestOnly>
             }
           />
