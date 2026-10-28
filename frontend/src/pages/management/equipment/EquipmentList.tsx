@@ -1,6 +1,6 @@
 import { ArrowRight, Filter, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -11,11 +11,13 @@ import { FilterChips, FilterSearch, FilterSelect, type FilterChip } from '@/comp
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useServerTable } from '@/hooks/useServerTable'
+import { DASHBOARD_GROUP_LABELS } from '@/lib/dashboardGroups'
 import { scopedTitle } from '@/lib/dataScope'
 import { extractError } from '@/lib/errors'
 import { equipmentService } from '@/services/equipmentService'
 import { optionLabel } from '@/services/lookupService'
 import type { Equipment, EquipmentFilterOptions } from '@/types/equipment'
+import type { Option } from '@/types/lookup'
 
 const column = gridColumnHelper<Equipment>()
 
@@ -24,6 +26,8 @@ const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: '
 const EMPTY_FILTERS = { search: '', condition: '', category: '', disposition_status: '' }
 
 type FilterKey = keyof typeof EMPTY_FILTERS
+
+type ChipKey = FilterKey | 'dashboard_group' | 'item_type'
 
 export function EquipmentList() {
   const { can, user } = useAuth()
@@ -37,14 +41,37 @@ export function EquipmentList() {
 
   const [flash, setFlash] = useState<string | null>((location.state as { flash?: string } | null)?.flash ?? null)
   useEffect(() => {
-    if (location.state) navigate(location.pathname, { replace: true, state: null })
-  }, [location.pathname, location.state, navigate])
+    if (location.state) navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null })
+  }, [location.pathname, location.search, location.state, navigate])
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedGroup = searchParams.get('dashboard_group') ?? ''
+  const dashboardGroup = requestedGroup in DASHBOARD_GROUP_LABELS ? requestedGroup : ''
+  const itemTypeIds = (searchParams.get('item_type') ?? '')
+    .split(',')
+    .filter((id) => /^\d+$/.test(id))
+    .map(Number)
+  const itemTypeFilter = itemTypeIds.join(',')
+
+  function clearUrlFilter(key: 'dashboard_group' | 'item_type') {
+    setSearchParams(
+      (params) => {
+        params.delete(key)
+        return params
+      },
+      { replace: true },
+    )
+  }
 
   const [filterOptions, setFilterOptions] = useState<EquipmentFilterOptions | null>(null)
+  const [itemTypeOptions, setItemTypeOptions] = useState<Option<number>[]>([])
   useEffect(() => {
     equipmentService
       .options()
-      .then((options) => setFilterOptions(options.filters))
+      .then((options) => {
+        setFilterOptions(options.filters)
+        setItemTypeOptions(options.form.item_type)
+      })
       .catch(() => setFilterOptions(null))
   }, [])
 
@@ -54,7 +81,7 @@ export function EquipmentList() {
 
   const { items, meta, loading, error, page, setPage, perPage, setPerPage, sortBy, sortDir, onSortChange, reload } = useServerTable(
     (params) => equipmentService.list(params),
-    { filters: applied, waitForPerPage: true },
+    { filters: { ...applied, dashboard_group: dashboardGroup, item_type: itemTypeFilter }, waitForPerPage: true },
   )
 
   function applyFilters() {
@@ -64,15 +91,35 @@ export function EquipmentList() {
   function clearFilters() {
     setDraft(EMPTY_FILTERS)
     setApplied(EMPTY_FILTERS)
+    setSearchParams(
+      (params) => {
+        params.delete('dashboard_group')
+        params.delete('item_type')
+        return params
+      },
+      { replace: true },
+    )
   }
 
-  function removeFilter(key: FilterKey) {
+  function removeFilter(key: ChipKey) {
+    if (key === 'dashboard_group' || key === 'item_type') {
+      clearUrlFilter(key)
+      return
+    }
     const next = { ...applied, [key]: '' }
     setApplied(next)
     setDraft(next)
   }
 
-  const chips: FilterChip<FilterKey>[] = (
+  const groupChip: FilterChip<ChipKey>[] = dashboardGroup
+    ? [{ key: 'dashboard_group', label: `Showing: ${DASHBOARD_GROUP_LABELS[dashboardGroup]}`, removable: true }]
+    : []
+  const itemTypeNames = itemTypeOptions.filter((option) => itemTypeIds.includes(option.value)).map((option) => option.label)
+  const itemTypeChip: FilterChip<ChipKey>[] = itemTypeFilter
+    ? [{ key: 'item_type', label: `Item type: ${itemTypeNames.length > 0 ? itemTypeNames.join(', ') : 'selected'}`, removable: true }]
+    : []
+
+  const filterChips: FilterChip<ChipKey>[] = (
     [
       { key: 'search', label: `Search: ${applied.search}` },
       { key: 'condition', label: `Condition: ${optionLabel(filterOptions?.condition, Number(applied.condition))}` },
@@ -82,6 +129,8 @@ export function EquipmentList() {
   )
     .filter((chip) => applied[chip.key] !== '')
     .map((chip) => ({ ...chip, removable: true }))
+
+  const chips = [...groupChip, ...itemTypeChip, ...filterChips]
 
   const [pendingDelete, setPendingDelete] = useState<Equipment | null>(null)
   const [deleting, setDeleting] = useState(false)

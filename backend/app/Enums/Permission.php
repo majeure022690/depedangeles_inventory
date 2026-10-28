@@ -21,6 +21,13 @@ use Illuminate\Support\Str;
  */
 enum Permission: string
 {
+    // One per dashboard section, so each role can be shown a different dashboard.
+    case DashboardPpe = 'dashboard.ppe';
+    case DashboardSemiExpendable = 'dashboard.semi_expendable';
+    case DashboardEquipmentOverview = 'dashboard.equipment_overview';
+    case DashboardEquipmentDistribution = 'dashboard.equipment_distribution';
+    case DashboardInternetConnectivity = 'dashboard.internet_connectivity';
+
     // Personnel
     case PersonnelView = 'personnel.view';
     case PersonnelCreate = 'personnel.create';
@@ -100,7 +107,14 @@ enum Permission: string
      */
     public function label(): string
     {
-        return Str::of($this->value)->replace('.', ' ')->replace('_', ' ')->title()->toString();
+        return match ($this) {
+            self::DashboardPpe => 'View Property, Plant & Equipment total',
+            self::DashboardSemiExpendable => 'View Semi-Expendable Property total',
+            self::DashboardEquipmentOverview => 'View ICT equipment overview',
+            self::DashboardEquipmentDistribution => 'View ICT equipment distribution chart',
+            self::DashboardInternetConnectivity => 'View internet connectivity summary',
+            default => Str::of($this->value)->replace('.', ' ')->replace('_', ' ')->title()->toString(),
+        };
     }
 
     /**
@@ -111,6 +125,8 @@ enum Permission: string
     public function group(): string
     {
         return match ($this) {
+            self::DashboardPpe, self::DashboardSemiExpendable, self::DashboardEquipmentOverview,
+            self::DashboardEquipmentDistribution, self::DashboardInternetConnectivity => 'Dashboard',
             self::PersonnelView, self::PersonnelCreate, self::PersonnelEdit, self::PersonnelDelete => 'Personnel',
             self::EquipmentView, self::EquipmentCreate, self::EquipmentEdit, self::EquipmentDelete,
             self::EquipmentTransactionsCreate => 'Equipment',

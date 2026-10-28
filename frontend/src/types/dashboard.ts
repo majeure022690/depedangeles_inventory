@@ -1,47 +1,66 @@
 /**
  * GET /api/dashboard/summary. Every key is optional: the backend omits a
- * section entirely (never null) when the user lacks that resource's view
- * permission, so check presence, not truthiness of nested values.
+ * section entirely (never null) when the user lacks its dashboard permission,
+ * so check presence, not truthiness of nested values.
  */
-export interface DashboardCount {
+export interface DashboardPropertyValue {
+  total_value: number
+  item_count: number
+}
+
+export interface DashboardEquipmentBreakdown {
+  label: string
+  count: number
+  item_type_ids: number[]
+}
+
+export interface DashboardEquipmentGroup {
+  key: string
+  label: string
+  count: number
+  breakdown: DashboardEquipmentBreakdown[]
+}
+
+export interface DashboardEquipmentOverview {
+  groups: DashboardEquipmentGroup[]
+  other: { count: number }
+}
+
+export interface DashboardDistributionSlice {
+  key: string
+  label: string
+  count: number
+  percentage: number
+}
+
+export interface DashboardEquipmentDistribution {
+  total: number
+  slices: DashboardDistributionSlice[]
+}
+
+export interface DashboardProviderCount {
+  name: string
+  count: number
+  percentage: number
+}
+
+export interface DashboardConnectionTypeCount {
   value: string
   count: number
+  percentage: number
 }
 
-export interface DashboardEquipmentSummary {
-  total: number
-  by_condition: DashboardCount[]
-  by_category: DashboardCount[]
-  by_disposition_status: DashboardCount[]
-  total_acquisition_cost: number
-  non_functional_count: number
-  warranty_expiring_soon_count: number
-}
-
-export interface DashboardPersonnelSummary {
-  active_count: number
-  inactive_count: number
-  oic_count: number
-}
-
-export interface DashboardIspAccountsSummary {
-  total_monthly_cost: number
-  contracts_expiring_soon_count: number
-}
-
-export interface DashboardRecentTransaction {
-  id: number
-  transaction_type: string
-  equipment: { id: number; property_no: string | null; item: string | null } | null
-  accountable_officer: { id: number; full_name: string } | null
-  end_user: { id: number; full_name: string } | null
-  recorded_by: { id: number; name: string } | null
-  created_at: string | null
+export interface DashboardInternetConnectivity {
+  total_accounts: number
+  total_cost: number
+  by_provider: DashboardProviderCount[]
+  by_connection_type: DashboardConnectionTypeCount[]
 }
 
 export interface DashboardSummary {
-  equipment?: DashboardEquipmentSummary
-  recent_transactions?: DashboardRecentTransaction[]
-  personnel?: DashboardPersonnelSummary
-  isp_accounts?: DashboardIspAccountsSummary
+  ppe?: DashboardPropertyValue
+  semi_expendable?: DashboardPropertyValue
+  equipment_overview?: DashboardEquipmentOverview
+  equipment_distribution?: DashboardEquipmentDistribution
+  internet_connectivity?: DashboardInternetConnectivity
 }

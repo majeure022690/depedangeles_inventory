@@ -66,6 +66,9 @@ class PermissionCatalogTest extends TestCase
         $this->assertEqualsCanonicalizing($all, $this->permissionsOf('super_administrator'));
         $this->assertEqualsCanonicalizing(array_values(array_diff($all, $roleWrites)), $this->permissionsOf('system_administrator'));
         $this->assertNotContains(Permission::IspAccountsView->value, $this->permissionsOf('viewer'));
+        $equipmentSections = [Permission::DashboardPpe->value, Permission::DashboardSemiExpendable->value, Permission::DashboardEquipmentOverview->value, Permission::DashboardEquipmentDistribution->value];
+        $this->assertEqualsCanonicalizing($equipmentSections, array_values(array_filter($this->permissionsOf('viewer'), fn (string $name) => str_starts_with($name, 'dashboard.'))));
+        $this->assertEqualsCanonicalizing([...$equipmentSections, Permission::DashboardInternetConnectivity->value], array_values(array_filter($this->permissionsOf('encoder'), fn (string $name) => str_starts_with($name, 'dashboard.'))));
         $this->assertEqualsCanonicalizing($this->permissionsOf('encoder'), $this->permissionsOf('office_encoder'));
 
         $scopes = Role::pluck('data_scope', 'name')->map(fn (DataScope $scope) => $scope->value)->all();
@@ -88,7 +91,7 @@ class PermissionCatalogTest extends TestCase
 
     public function test_every_permission_has_one_of_the_picker_groups(): void
     {
-        $groups = ['Personnel', 'Equipment', 'ISP Accounts', 'Offices', 'Stakeholder Profile', 'Internet Connectivity', 'Administration'];
+        $groups = ['Dashboard', 'Personnel', 'Equipment', 'ISP Accounts', 'Offices', 'Stakeholder Profile', 'Internet Connectivity', 'Administration'];
 
         foreach (Permission::cases() as $permission) {
             $this->assertContains($permission->group(), $groups, $permission->value);
@@ -98,6 +101,8 @@ class PermissionCatalogTest extends TestCase
         $this->assertSame('Administration', Permission::ReferenceDataManage->group());
         $this->assertSame('Administration', Permission::SecuritySettingsManage->group());
         $this->assertSame('Offices', Permission::OfficeDelete->group());
+        $this->assertSame('Dashboard', Permission::DashboardInternetConnectivity->group());
+        $this->assertSame('View Property, Plant & Equipment total', Permission::DashboardPpe->label());
     }
 
     public function test_view_all_permissions_no_longer_exist(): void

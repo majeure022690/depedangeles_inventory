@@ -15,7 +15,16 @@ class RolePermissionSeeder extends Seeder
 
     private const SYSTEM_ADMIN_EXCLUDED = ['roles.create', 'roles.edit', 'roles.delete'];
 
+    private const EQUIPMENT_DASHBOARD_PERMISSIONS = [
+        PermissionEnum::DashboardPpe,
+        PermissionEnum::DashboardSemiExpendable,
+        PermissionEnum::DashboardEquipmentOverview,
+        PermissionEnum::DashboardEquipmentDistribution,
+    ];
+
     private const ENCODER_PERMISSIONS = [
+        ...self::EQUIPMENT_DASHBOARD_PERMISSIONS,
+        PermissionEnum::DashboardInternetConnectivity,
         PermissionEnum::PersonnelView,
         PermissionEnum::PersonnelCreate,
         PermissionEnum::PersonnelEdit,
@@ -76,6 +85,7 @@ class RolePermissionSeeder extends Seeder
                     'Internet Connectivity Survey records.',
                 'data_scope' => DataScope::Own,
                 'permissions' => [
+                    ...array_map(fn (PermissionEnum $permission) => $permission->value, self::EQUIPMENT_DASHBOARD_PERMISSIONS),
                     PermissionEnum::PersonnelView->value,
                     PermissionEnum::EquipmentView->value,
                     PermissionEnum::StakeholderProfileView->value,
