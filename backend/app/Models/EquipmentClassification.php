@@ -8,13 +8,10 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Tier 1 reference-data entity (lookup-normalization ADR). Bare-bones
- * structural model — fillable/casts/activeValues()/activeOptions() only.
- * Backend owns: `belongsTo` wiring on Equipment
- * (`equipment_classification_id`), Form Request validation, and any admin
- * CRUD for managing these rows (Step 2).
+ * Tier 1 reference-data entity (lookup-normalization ADR). The `default_*`
+ * columns fill blank equipment fields on save (DerivesEquipmentFields).
  */
-#[Fillable(['name', 'description', 'sort_order', 'is_active'])]
+#[Fillable(['name', 'description', 'default_gl_sl_code', 'default_uacs', 'default_useful_life', 'sort_order', 'is_active'])]
 class EquipmentClassification extends Model
 {
     use HasActiveReferenceOptions, LogsReferenceDataActivity;
@@ -22,6 +19,7 @@ class EquipmentClassification extends Model
     protected function casts(): array
     {
         return [
+            'default_useful_life' => 'integer',
             'sort_order' => 'integer',
             'is_active' => 'boolean',
         ];

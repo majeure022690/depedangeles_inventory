@@ -51,10 +51,10 @@ class ReferenceDataSeeder extends Seeder
     public function run(): void
     {
         // Tier 1 — dedicated entity tables, unique on `name`.
-        $this->seedTier1('item_types', ItemType::class);
+        $this->seedTier1('item_types', ItemType::class, ['dashboard_group']);
         $this->seedTier1('brands', Brand::class);
         $this->seedTier1('equipment_categories', EquipmentCategory::class);
-        $this->seedTier1('equipment_classifications', EquipmentClassification::class);
+        $this->seedTier1('equipment_classifications', EquipmentClassification::class, ['default_gl_sl_code', 'default_uacs', 'default_useful_life']);
         $this->seedTier1('equipment_conditions', EquipmentCondition::class);
         $this->seedTier1('positions', Position::class);
         $this->seedTier1('ro_offices', RoOffice::class);
@@ -70,8 +70,9 @@ class ReferenceDataSeeder extends Seeder
 
     /**
      * @param  class-string<Model>  $modelClass
+     * @param  list<string>  $extraColumns
      */
-    private function seedTier1(string $jsonFile, string $modelClass): void
+    private function seedTier1(string $jsonFile, string $modelClass, array $extraColumns = []): void
     {
         /** @var array<int, array{name: string, description: ?string, sort_order: int}> $rows */
         $rows = $this->readJson($jsonFile);
@@ -81,6 +82,7 @@ class ReferenceDataSeeder extends Seeder
         $records = array_map(static fn (array $row): array => [
             'name' => $row['name'],
             'description' => $row['description'] ?? null,
+            ...array_combine($extraColumns, array_map(static fn (string $column): mixed => $row[$column] ?? null, $extraColumns)),
             'sort_order' => $row['sort_order'],
             'is_active' => true,
             'created_at' => $now,

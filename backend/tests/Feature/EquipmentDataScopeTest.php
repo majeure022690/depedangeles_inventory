@@ -6,7 +6,6 @@ use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Models\Brand;
 use App\Models\Equipment;
-use App\Models\EquipmentCategory;
 use App\Models\EquipmentClassification;
 use App\Models\EquipmentCondition;
 use App\Models\EquipmentTransaction;
@@ -161,10 +160,9 @@ class EquipmentDataScopeTest extends TestCase
 
     public function test_dashboard_totals_cover_only_the_users_scope(): void
     {
-        $this->actingAs($this->userWithScope(DataScope::Own))->getJson('/api/dashboard/summary')
+        $this->actingAs($this->userWithScope(DataScope::Own, [Permission::DashboardSemiExpendable]))->getJson('/api/dashboard/summary')
             ->assertOk()
-            ->assertJsonPath('data.equipment.total', 1)
-            ->assertJsonPath('data.equipment.total_acquisition_cost', 1000);
+            ->assertJsonPath('data.semi_expendable', ['total_value' => 1000, 'item_count' => 1]);
     }
 
     public function test_user_without_roles_or_link_sees_nothing(): void
@@ -183,7 +181,6 @@ class EquipmentDataScopeTest extends TestCase
             'item_type_id' => ItemType::where('name', 'Laptop')->value('id'),
             'uom' => 'Piece',
             'brand_id' => Brand::where('name', 'Dell')->value('id'),
-            'equipment_category_id' => EquipmentCategory::where('name', 'High-value')->value('id'),
             'equipment_condition_id' => EquipmentCondition::where('name', 'Serviceable')->value('id'),
             'disposition_status' => 'Normal',
             'equipment_classification_id' => EquipmentClassification::query()->active()->value('id'),

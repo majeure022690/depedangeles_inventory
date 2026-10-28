@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Management;
 
+use App\Enums\DashboardEquipmentGroup;
+use App\Models\EquipmentClassification;
+use App\Models\ItemType;
 use App\Services\ReferenceDataResolver;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -70,6 +73,14 @@ class UpdateReferenceDataRequest extends FormRequest
                 'max:255',
                 Rule::unique($table, 'name')->ignore($this->route('id')),
             ];
+        }
+
+        if ($entry['model'] === ItemType::class) {
+            $rules['dashboard_group'] = ['nullable', Rule::enum(DashboardEquipmentGroup::class)];
+        }
+
+        if ($entry['model'] === EquipmentClassification::class) {
+            $rules = [...$rules, ...StoreReferenceDataRequest::classificationDefaultRules()];
         }
 
         return $rules;

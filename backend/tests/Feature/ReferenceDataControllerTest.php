@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Enums\DashboardEquipmentGroup;
 use App\Enums\EquipmentLibraryType;
 use App\Enums\Permission;
 use App\Enums\PersonnelLibraryType;
+use App\Models\Brand;
 use App\Models\Equipment;
+use App\Models\EquipmentClassification;
 use App\Models\EquipmentLibrary;
 use App\Models\InternetConnectivitySurvey;
 use App\Models\IspProvider;
@@ -109,7 +112,7 @@ class ReferenceDataControllerTest extends TestCase
 
         $this->actingAs($this->admin())->getJson('/api/reference-data/item-types')
             ->assertOk()
-            ->assertJsonPath('meta.table', ['key' => 'item-types', 'label' => 'Item Types', 'tier' => 1, 'types' => null])
+            ->assertJsonPath('meta.table', ['key' => 'item-types', 'label' => 'Item Types', 'tier' => 1, 'types' => null, 'dashboard_groups' => DashboardEquipmentGroup::options(), 'classification_defaults' => false])
             ->assertJsonPath('meta.total', 3)
             ->assertJsonPath('data.0.name', 'Laptop')
             ->assertJsonMissingPath('data.0.value')
@@ -154,7 +157,7 @@ class ReferenceDataControllerTest extends TestCase
             'sort_order' => 5,
             'is_active' => false,
         ])->assertOk()
-            ->assertJsonPath('data', ['id' => $itemType->id, 'name' => 'Laptop', 'description' => 'Corrected.', 'sort_order' => 5, 'is_active' => false]);
+            ->assertJsonPath('data', ['id' => $itemType->id, 'name' => 'Laptop', 'dashboard_group' => null, 'description' => 'Corrected.', 'sort_order' => 5, 'is_active' => false]);
 
         $activity = $this->activityFor('reference_data.updated', $itemType->id);
         $this->assertSame($admin->id, $activity->causer_id);
@@ -224,6 +227,72 @@ class ReferenceDataControllerTest extends TestCase
         $this->assertSame('created', $activity->event);
         $this->assertSame('item-types', $activity->properties['table']);
         $this->assertSame('Tablet', $activity->attribute_changes['attributes']['name']);
+    }
+
+    public function test_item_types_read_and_write_a_validated_dashboard_group_and_it_is_audited(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->postJson('/api/reference-data/item-types', ['name' => 'Phablet', 'dashboard_group' => 'not_a_group'])
+            ->assertJsonValidationErrors('dashboard_group');
+
+        $id = $this->actingAs($admin)->postJson('/api/reference-data/item-types', ['name' => 'Phablet', 'dashboard_group' => 'tablet'])
+            ->assertCreated()
+            ->assertJsonPath('data.dashboard_group', 'tablet')
+            ->json('data.id');
+
+        $this->actingAs($admin)->patchJson("/api/reference-data/item-types/{$id}", ['name' => 'Phablet', 'dashboard_group' => null, 'sort_order' => 0, 'is_active' => true])
+            ->assertOk()
+            ->assertJsonPath('data.dashboard_group', null);
+
+        $this->assertNull(ItemType::findOrFail($id)->dashboard_group);
+        $activity = $this->activityFor('reference_data.updated', $id);
+        $this->assertSame('tablet', $activity->attribute_changes['old']['dashboard_group']);
+        $this->assertNull($activity->attribute_changes['attributes']['dashboard_group']);
+
+        $this->actingAs($admin)->getJson('/api/reference-data/brands')->assertJsonPath('meta.table.dashboard_groups', null);
+    }
+
+    public function test_equipment_classifications_read_and_write_validated_defaults_and_they_are_audited(): void
+    {
+        $admin = $this->admin();
+        $url = '/api/reference-data/equipment-classifications';
+
+        $this->actingAs($admin)->postJson($url, ['name' => 'Furniture', 'default_useful_life' => 'five', 'default_uacs' => str_repeat('9', 256)])
+            ->assertJsonValidationErrors(['default_useful_life', 'default_uacs']);
+
+        $id = $this->actingAs($admin)->postJson($url, [
+            'name' => 'Furniture',
+            'default_gl_sl_code' => '10605030',
+            'default_uacs' => '1060503000',
+            'default_useful_life' => 5,
+        ])->assertCreated()
+            ->assertJsonPath('data.default_gl_sl_code', '10605030')
+            ->assertJsonPath('data.default_uacs', '1060503000')
+            ->assertJsonPath('data.default_useful_life', 5)
+            ->json('data.id');
+
+        $this->actingAs($admin)->patchJson("{$url}/{$id}", [
+            'name' => 'Furniture', 'default_useful_life' => 10, 'default_uacs' => null, 'sort_order' => 0, 'is_active' => true,
+        ])->assertOk()
+            ->assertJsonPath('data.default_gl_sl_code', '10605030')
+            ->assertJsonPath('data.default_uacs', null)
+            ->assertJsonPath('data.default_useful_life', 10);
+
+        $activity = $this->activityFor('reference_data.updated', $id, EquipmentClassification::class);
+        $this->assertSame(5, $activity->attribute_changes['old']['default_useful_life']);
+        $this->assertSame(10, $activity->attribute_changes['attributes']['default_useful_life']);
+        $this->assertNull($activity->attribute_changes['attributes']['default_uacs']);
+        $this->assertSame('1060503000', $this->activityFor('reference_data.created', $id, EquipmentClassification::class)->attribute_changes['attributes']['default_uacs']);
+
+        $this->actingAs($admin)->getJson($url)
+            ->assertJsonPath('meta.table.classification_defaults', true)
+            ->assertJsonPath('data.0.default_useful_life', 10);
+
+        $this->actingAs($admin)->postJson('/api/reference-data/brands', ['name' => 'Acer', 'default_uacs' => '1'])
+            ->assertCreated()
+            ->assertJsonMissingPath('data.default_uacs');
+        $this->assertArrayNotHasKey('default_uacs', Activity::query()->where('description', 'reference_data.created')->where('subject_type', Brand::class)->sole()->attribute_changes['attributes']);
     }
 
     public function test_store_rejects_a_tier1_name_duplicating_another_row_in_the_same_table(): void

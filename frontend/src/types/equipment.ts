@@ -22,11 +22,41 @@ export interface EquipmentTransaction {
   created_at: string | null
 }
 
+export interface EquipmentParentSummary {
+  id: number
+  property_no: string | null
+}
+
+/** A Monitor, Keyboard or Mouse bundled with a desktop, as listed under the desktop's `children`. */
+export interface EquipmentPeripheral {
+  id: number
+  property_no: string | null
+  item: string | null
+  serial_number: string | null
+  brand_manufacturer: string | null
+  model: string | null
+  equipment_condition: string | null
+}
+
+/** Mirrors StoreEquipmentPeripheralRequest; ids are `null` when not chosen. */
+export interface EquipmentPeripheralFormData {
+  item_type_id: number | null
+  serial_number: string
+  brand_id: number | null
+  model: string
+  specifications: string
+  equipment_condition_id: number | null
+  acquisition_cost: string
+  remarks: string
+}
+
+export type EquipmentPeripheralPayload = { [K in keyof EquipmentPeripheralFormData]: EquipmentPeripheralFormData[K] | null }
+
 /**
  * `EquipmentResource`. Tier 1 fields ship the FK id the form binds to
  * (`item_type_id`) and the resolved display name under the historical key
  * (`item`); never derive the name from the id client-side.
- * `transactions` is only present on the detail endpoint.
+ * `transactions`, `parent` and `children` are only present on the detail and update endpoints.
  */
 export interface Equipment {
   id: number
@@ -66,10 +96,15 @@ export interface Equipment {
   remarks: string | null
   qr_code: string | null
   under_warranty: boolean
+  warranty_active: boolean | null
   end_warranty_date: string | null
   supplier: string | null
   current_accountable_officer: PersonnelSummary | null
   current_end_user: PersonnelSummary | null
+  dashboard_group: string | null
+  parent_equipment_id: number | null
+  parent?: EquipmentParentSummary | null
+  children?: EquipmentPeripheral[]
   transactions?: EquipmentTransaction[]
   created_at: string | null
   updated_at: string | null
@@ -101,20 +136,27 @@ export interface EquipmentTransactionOptions {
   supporting_document_type: Option<string>[]
 }
 
+export interface ClassificationDefaults {
+  default_gl_sl_code: string | null
+  default_uacs: string | null
+  default_useful_life: number | null
+}
+
 /** `GET /api/equipment/options`. `personnel` is only sent to `equipment.transactions.create` holders. */
 export interface EquipmentOptions {
   form: EquipmentFormOptions
   filters: EquipmentFilterOptions
   transaction: EquipmentTransactionOptions
+  classification_defaults: Record<string, ClassificationDefaults>
   personnel?: Option<number>[]
 }
 
 /**
- * Form state for create/edit, mirroring Store/UpdateEquipmentRequest.
+ * Form state for create/edit, a subset of Store/UpdateEquipmentRequest.
  * Tier 1 ids use `null` for "not chosen yet"; numeric text inputs stay
- * strings while editing and are converted by `toEquipmentPayload`.
- * Excludes current_* accountability pointers and qr_code by design: those
- * only change through a recorded transaction.
+ * strings while editing and are converted by `toEquipmentPayload`. A blank
+ * category is derived server-side from the acquisition cost; current_*
+ * pointers and qr_code only change through a recorded transaction.
  */
 export interface EquipmentFormData {
   property_no: string
@@ -128,8 +170,8 @@ export interface EquipmentFormData {
   non_dcp: boolean
   dcp_package: string
   dcp_year: string
-  equipment_category_id: number | null
   equipment_classification_id: number | null
+  equipment_category_id: number | null
   gl_sl_code: string
   uacs: string
   acquisition_cost: string

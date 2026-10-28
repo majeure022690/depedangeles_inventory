@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Enums\Permission;
 use App\Models\Brand;
 use App\Models\Equipment;
-use App\Models\EquipmentCategory;
 use App\Models\EquipmentClassification;
 use App\Models\EquipmentCondition;
 use App\Models\ItemType;
@@ -43,7 +42,6 @@ class EquipmentQrCodeHostTest extends TestCase
             'item_type_id' => ItemType::where('name', 'Laptop')->value('id'),
             'uom' => 'Piece',
             'brand_id' => Brand::where('name', 'Dell')->value('id'),
-            'equipment_category_id' => EquipmentCategory::where('name', 'High-value')->value('id'),
             'equipment_classification_id' => EquipmentClassification::query()->active()->value('id'),
             'acquisition_cost' => 55000,
             'mode_acquisition' => 'DepEd Purchase',

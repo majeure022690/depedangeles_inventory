@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Management;
 
+use App\Enums\DashboardEquipmentGroup;
+use App\Models\EquipmentClassification;
+use App\Models\ItemType;
 use App\Services\ReferenceDataResolver;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -62,6 +65,14 @@ class StoreReferenceDataRequest extends FormRequest
         if ($entry['tier'] === 1) {
             $rules['name'] = ['required', 'string', 'max:255', Rule::unique($table, 'name')];
 
+            if ($entry['model'] === ItemType::class) {
+                $rules['dashboard_group'] = ['nullable', Rule::enum(DashboardEquipmentGroup::class)];
+            }
+
+            if ($entry['model'] === EquipmentClassification::class) {
+                $rules = [...$rules, ...self::classificationDefaultRules()];
+            }
+
             return $rules;
         }
 
@@ -83,6 +94,22 @@ class StoreReferenceDataRequest extends FormRequest
     {
         return [
             'is_active' => 'active status',
+            'dashboard_group' => 'dashboard group',
+            'default_gl_sl_code' => 'default GL/SL code',
+            'default_uacs' => 'default UACS code',
+            'default_useful_life' => 'default useful life',
+        ];
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    public static function classificationDefaultRules(): array
+    {
+        return [
+            'default_gl_sl_code' => ['nullable', 'string', 'max:255'],
+            'default_uacs' => ['nullable', 'string', 'max:255'],
+            'default_useful_life' => ['nullable', 'integer', 'min:0', 'max:100'],
         ];
     }
 }

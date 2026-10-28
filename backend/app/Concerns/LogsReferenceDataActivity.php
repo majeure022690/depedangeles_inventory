@@ -9,7 +9,9 @@ use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * Audit trail for the 13 reference-data models (config/reference-data.php).
- * The allowlist is explicit per registry tier (tier 1: name; tier 2
+ * The allowlist is explicit per registry tier (tier 1: name, plus
+ * dashboard_group on item types and the default_* codes on equipment
+ * classifications; tier 2
  * libraries: type/value; both: description, sort_order, is_active; nothing
  * sensitive), the description keeps the `reference_data.<event>` names the
  * old audit_logs rows used, and every row records which registry table it
@@ -26,7 +28,12 @@ trait LogsReferenceDataActivity
             : ['name'];
 
         return LogOptions::defaults()
-            ->logOnly([...$identity, 'description', 'sort_order', 'is_active'])
+            ->logOnly([
+                ...$identity,
+                ...($this->isFillable('dashboard_group') ? ['dashboard_group'] : []),
+                ...($this->isFillable('default_gl_sl_code') ? ['default_gl_sl_code', 'default_uacs', 'default_useful_life'] : []),
+                'description', 'sort_order', 'is_active',
+            ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
             ->setDescriptionForEvent(fn (string $event): string => "reference_data.{$event}");

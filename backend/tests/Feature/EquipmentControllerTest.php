@@ -54,15 +54,12 @@ class EquipmentControllerTest extends TestCase
         return array_merge([
             'property_no' => 'AC-2026-IT-LT-000123',
             'item_type_id' => ItemType::where('name', 'Laptop')->value('id'),
-            'uom' => 'Piece',
             'brand_id' => Brand::where('name', 'Dell')->value('id'),
-            'equipment_category_id' => EquipmentCategory::where('name', 'High-value')->value('id'),
             'equipment_classification_id' => EquipmentClassification::query()->active()->value('id'),
             'acquisition_cost' => 55000,
             'mode_acquisition' => 'DepEd Purchase',
             'source_acquisition' => 'Central Office',
             'source_fund' => 'Maintenance and Other Operating Expenses (MOOE)',
-            'allotment_class' => 'Maintenance and Other Operating Expenses (MOOE)',
             'equipment_condition_id' => EquipmentCondition::where('name', 'Serviceable')->value('id'),
             'disposition_status' => 'Normal',
         ], $overrides);
@@ -87,10 +84,9 @@ class EquipmentControllerTest extends TestCase
         // property_no and acquisition_cost are nullable ("pending" items).
         $this->actingAs($user)->postJson('/api/equipment', [])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['item_type_id', 'uom', 'brand_id', 'equipment_category_id'])
-            ->assertJsonMissingValidationErrors(['property_no', 'acquisition_cost'])
-            ->assertJsonPath('errors.item_type_id.0', 'The item type field is required.')
-            ->assertJsonPath('errors.uom.0', 'The unit of measure field is required.');
+            ->assertJsonValidationErrors(['item_type_id', 'brand_id', 'equipment_classification_id'])
+            ->assertJsonMissingValidationErrors(['property_no', 'acquisition_cost', 'uom', 'allotment_class', 'equipment_category_id', 'under_warranty', 'old_property_no', 'pm_plan', 'non_functional'])
+            ->assertJsonPath('errors.item_type_id.0', 'The item type field is required.');
 
         $response = $this->actingAs($user)->postJson('/api/equipment', $this->payload())
             ->assertCreated()
@@ -208,7 +204,7 @@ class EquipmentControllerTest extends TestCase
 
         $this->makeEquipment(['property_no' => 'A-1', 'equipment_condition_id' => $serviceableId, 'equipment_category_id' => $highValueId, 'disposition_status' => 'Normal']);
         $this->makeEquipment(['property_no' => 'A-2', 'equipment_condition_id' => $forRepairId, 'equipment_category_id' => $lowValueId, 'disposition_status' => 'For Disposal']);
-        $this->makeEquipment(['property_no' => null]);
+        $this->makeEquipment(['property_no' => null, 'equipment_category_id' => $highValueId]);
 
         $user = $this->editor();
 
@@ -223,6 +219,44 @@ class EquipmentControllerTest extends TestCase
         $this->actingAs($user)->getJson("/api/equipment?category={$lowValueId}")->assertJsonPath('data.0.property_no', 'A-2')->assertJsonPath('meta.total', 1);
         $this->actingAs($user)->getJson('/api/equipment?disposition_status=For%20Disposal')->assertJsonPath('meta.total', 1);
         $this->actingAs($user)->getJson('/api/equipment?search=A-1')->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.property_no', 'A-1');
+    }
+
+    public function test_index_filters_by_dashboard_group_including_other_and_ships_the_group(): void
+    {
+        $itemType = fn (string $name) => ItemType::where('name', $name)->valueOrFail('id');
+
+        $this->makeEquipment(['property_no' => 'D-1', 'item_type_id' => $itemType('Desktop (package)')]);
+        $this->makeEquipment(['property_no' => 'D-2', 'item_type_id' => $itemType('Monitor')]);
+        $this->makeEquipment(['property_no' => 'L-1', 'item_type_id' => $itemType('Laptop')]);
+        $this->makeEquipment(['property_no' => 'O-1', 'item_type_id' => $itemType('Thin Client Server (Set)')]);
+
+        $user = $this->editor();
+
+        $this->actingAs($user)->getJson('/api/equipment?dashboard_group=desktop_computer')
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('data.0.dashboard_group', 'desktop_computer');
+        $this->actingAs($user)->getJson('/api/equipment?dashboard_group=other')
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.property_no', 'O-1')
+            ->assertJsonPath('data.0.dashboard_group', null);
+        $this->actingAs($user)->getJson('/api/equipment?dashboard_group=not_a_group')->assertJsonPath('meta.total', 4);
+    }
+
+    public function test_index_filters_by_comma_separated_item_types(): void
+    {
+        $itemType = fn (string $name) => ItemType::where('name', $name)->valueOrFail('id');
+
+        $this->makeEquipment(['property_no' => 'D-1', 'item_type_id' => $itemType('Desktop (package)')]);
+        $this->makeEquipment(['property_no' => 'C-1', 'item_type_id' => $itemType('CPU')]);
+        $this->makeEquipment(['property_no' => 'M-1', 'item_type_id' => $itemType('Monitor')]);
+
+        $user = $this->editor();
+
+        $this->actingAs($user)->getJson('/api/equipment?item_type='.$itemType('Desktop (package)').','.$itemType('CPU'))->assertJsonPath('meta.total', 2);
+        $this->actingAs($user)->getJson('/api/equipment?item_type='.$itemType('Monitor'))
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.property_no', 'M-1');
+        $this->actingAs($user)->getJson('/api/equipment?item_type=abc,-1')->assertJsonPath('meta.total', 3);
     }
 
     public function test_options_ship_form_filter_and_transaction_lists_and_personnel_only_to_transaction_recorders(): void

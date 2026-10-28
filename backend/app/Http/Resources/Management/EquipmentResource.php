@@ -11,7 +11,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Tier 1 fields ship both the FK id the form binds to (`item_type_id`)
  * and the related row's display name under its historical key (`item`,
  * `brand_manufacturer`, `category`, `classification`,
- * `equipment_condition`). `transactions` only on the detail endpoint.
+ * `equipment_condition`). `transactions`, `parent` and `children` only
+ * on the detail and update endpoints.
  *
  * @mixin Equipment
  */
@@ -29,6 +30,7 @@ class EquipmentResource extends JsonResource
             'serial_number' => $this->serial_number,
             'item_type_id' => $this->item_type_id,
             'item' => $this->whenLoaded('itemType', fn () => $this->itemType?->name),
+            'dashboard_group' => $this->whenLoaded('itemType', fn () => $this->itemType?->dashboard_group?->value),
             'uom' => $this->uom,
             'brand_id' => $this->brand_id,
             'brand_manufacturer' => $this->whenLoaded('brand', fn () => $this->brand?->name),
@@ -61,13 +63,45 @@ class EquipmentResource extends JsonResource
             'remarks' => $this->remarks,
             'qr_code' => $this->qr_code,
             'under_warranty' => $this->under_warranty,
+            'warranty_active' => $this->end_warranty_date === null ? null : $this->isUnderWarranty(),
             'end_warranty_date' => $this->end_warranty_date?->toDateString(),
             'supplier' => $this->supplier,
             'current_accountable_officer' => $this->whenLoaded('currentAccountableOfficer', fn () => self::person($this->currentAccountableOfficer)),
             'current_end_user' => $this->whenLoaded('currentEndUser', fn () => self::person($this->currentEndUser)),
+            'parent_equipment_id' => $this->parent_equipment_id,
+            'parent' => $this->whenLoaded('parent', fn () => $this->parent ? [
+                'id' => $this->parent->id,
+                'property_no' => $this->parent->property_no,
+            ] : null),
+            'children' => $this->whenLoaded('children', fn () => $this->children
+                ->sortBy('property_no')
+                ->values()
+                ->map(fn (Equipment $child) => self::peripheral($child, $request))
+                ->all()),
             'transactions' => EquipmentTransactionResource::collection($this->whenLoaded('transactions')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+        ];
+    }
+
+    /**
+     * A peripheral outside the user's data scope shows only its id and property number.
+     *
+     * @return array<string, mixed>
+     */
+    private static function peripheral(Equipment $child, Request $request): array
+    {
+        $user = $request->user();
+        $visible = $user !== null && $child->isVisibleTo($user);
+
+        return [
+            'id' => $child->id,
+            'property_no' => $child->property_no,
+            'item' => $visible ? $child->itemType?->name : null,
+            'serial_number' => $visible ? $child->serial_number : null,
+            'brand_manufacturer' => $visible ? $child->brand?->name : null,
+            'model' => $visible ? $child->model : null,
+            'equipment_condition' => $visible ? $child->equipmentCondition?->name : null,
         ];
     }
 

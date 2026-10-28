@@ -44,7 +44,7 @@ class StoreEquipmentRequest extends FormRequest
             'serial_number' => ['nullable', 'string', 'max:255'],
 
             'item_type_id' => ['required', 'integer', Rule::exists('item_types', 'id')->where('is_active', true)],
-            'uom' => ['required', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::UnitOfMeasure))],
+            'uom' => ['nullable', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::UnitOfMeasure))],
             'brand_id' => ['required', 'integer', Rule::exists('brands', 'id')->where('is_active', true)],
             'model' => ['nullable', 'string', 'max:255'],
             'specifications' => ['nullable', 'string'],
@@ -53,7 +53,7 @@ class StoreEquipmentRequest extends FormRequest
             'dcp_package' => ['nullable', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::DcpPackage))],
             'dcp_year' => ['nullable', 'integer', 'digits:4'],
 
-            'equipment_category_id' => ['required', 'integer', Rule::exists('equipment_categories', 'id')->where('is_active', true)],
+            'equipment_category_id' => ['nullable', 'integer', Rule::exists('equipment_categories', 'id')->where('is_active', true)],
             'equipment_classification_id' => ['required', 'integer', Rule::exists('equipment_classifications', 'id')->where('is_active', true)],
 
             'gl_sl_code' => ['nullable', 'string', 'max:255'],
@@ -67,7 +67,7 @@ class StoreEquipmentRequest extends FormRequest
             'source_acquisition' => ['required', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::SourceOfAcquisition))],
             'donor' => ['nullable', 'string', 'max:255'],
             'source_fund' => ['required', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::SourceOfFunds))],
-            'allotment_class' => ['required', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::AllotmentClass))],
+            'allotment_class' => ['nullable', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::AllotmentClass))],
 
             'pm_plan' => ['nullable', 'string', 'max:255'],
             'equipment_location' => ['nullable', 'string'],
@@ -78,7 +78,7 @@ class StoreEquipmentRequest extends FormRequest
 
             'remarks' => ['nullable', 'string'],
 
-            'under_warranty' => ['boolean'],
+            'under_warranty' => ['nullable', 'boolean'],
             'end_warranty_date' => ['nullable', 'date'],
             'supplier' => ['nullable', 'string', 'max:255'],
         ];

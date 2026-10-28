@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Management;
 
+use App\Enums\DashboardEquipmentGroup;
 use App\Enums\EquipmentLibraryType;
 use App\Enums\Permission;
 use App\Http\Controllers\Api\Management\Concerns\HasLookupOptions;
@@ -26,6 +27,7 @@ use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\HeaderUtils;
 
 /**
@@ -96,14 +98,22 @@ class EquipmentController extends Controller
         'created_at' => 'created_at',
     ];
 
-    private const LIST_RELATIONS = [
+    public const LIST_RELATIONS = [
         'currentAccountableOfficer:id,full_name',
         'currentEndUser:id,full_name',
-        'itemType:id,name',
+        'itemType:id,name,dashboard_group',
         'brand:id,name',
         'equipmentCategory:id,name',
         'equipmentClassification:id,name',
         'equipmentCondition:id,name',
+    ];
+
+    private const BUNDLE_RELATIONS = [
+        'parent:id,property_no',
+        'children.itemType:id,name,dashboard_group',
+        'children.brand:id,name',
+        'children.equipmentCondition:id,name',
+        'children.createdBy:id,office_id',
     ];
 
     public function index(Request $request): JsonResponse
@@ -116,6 +126,8 @@ class EquipmentController extends Controller
             ->condition($request->filled('condition') ? $request->integer('condition') : null)
             ->category($request->filled('category') ? $request->integer('category') : null)
             ->dispositionStatus($request->string('disposition_status')->toString() ?: null)
+            ->dashboardGroup($this->dashboardGroupFilter($request))
+            ->itemTypes($this->itemTypeFilter($request))
             ->with(self::LIST_RELATIONS);
 
         if (! $this->applySort($query, $request, self::SORTABLE)) {
@@ -126,6 +138,23 @@ class EquipmentController extends Controller
         return EquipmentResource::collection($query->paginate($this->perPage($request))->withQueryString())
             ->additional(['message' => 'Success'])
             ->response();
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function itemTypeFilter(Request $request): array
+    {
+        $ids = array_map('intval', array_filter(explode(',', $request->string('item_type')->toString()), 'ctype_digit'));
+
+        return array_slice(array_values(array_unique(array_filter($ids, fn (int $id) => $id > 0))), 0, 50);
+    }
+
+    private function dashboardGroupFilter(Request $request): ?string
+    {
+        $group = $request->string('dashboard_group')->toString();
+
+        return $group === 'other' || DashboardEquipmentGroup::tryFrom($group) !== null ? $group : null;
     }
 
     /**
@@ -148,6 +177,15 @@ class EquipmentController extends Controller
                 ...$this->libraryOptions(EquipmentLibrary::class, self::TIER2_FILTER_TYPES),
             ],
             'transaction' => $this->libraryOptions(EquipmentLibrary::class, self::TRANSACTION_FORM_TYPES),
+            'classification_defaults' => (object) EquipmentClassification::query()
+                ->active()
+                ->get(['id', 'default_gl_sl_code', 'default_uacs', 'default_useful_life'])
+                ->mapWithKeys(fn (EquipmentClassification $classification) => [$classification->id => [
+                    'default_gl_sl_code' => $classification->default_gl_sl_code,
+                    'default_uacs' => $classification->default_uacs,
+                    'default_useful_life' => $classification->default_useful_life,
+                ]])
+                ->all(),
         ];
 
         if ($user->hasPermissionTo(Permission::EquipmentTransactionsCreate)) {
@@ -182,6 +220,7 @@ class EquipmentController extends Controller
 
         $equipment->load([
             ...self::LIST_RELATIONS,
+            ...self::BUNDLE_RELATIONS,
             'transactions' => fn ($query) => $query
                 ->with(['accountableOfficer:id,full_name', 'endUser:id,full_name', 'receivedBy:id,full_name'])
                 ->latest('created_at')
@@ -199,7 +238,7 @@ class EquipmentController extends Controller
 
         $equipment->update($request->validated());
 
-        return new EquipmentResource($equipment->fresh(self::LIST_RELATIONS))
+        return new EquipmentResource($equipment->fresh([...self::LIST_RELATIONS, ...self::BUNDLE_RELATIONS]))
             ->additional(['message' => 'Equipment record updated.'])
             ->response();
     }
@@ -207,6 +246,10 @@ class EquipmentController extends Controller
     public function destroy(Equipment $equipment): Response
     {
         $this->authorize('delete', $equipment);
+
+        if ($equipment->children()->exists()) {
+            throw ValidationException::withMessages(['equipment' => __('Unlink or remove its peripherals first.')]);
+        }
 
         $equipment->delete();
 

@@ -26,6 +26,10 @@ interface ReferenceDataRowBase {
 /** Tier 1 (dedicated table) row: `name` is editable. */
 export interface ReferenceDataTier1Row extends ReferenceDataRowBase {
   name: string
+  dashboard_group?: string | null
+  default_gl_sl_code?: string | null
+  default_uacs?: string | null
+  default_useful_life?: number | null
 }
 
 /** Tier 2 (library table) row: `type` and `value` are fixed after creation. */
@@ -36,12 +40,24 @@ export interface ReferenceDataTier2Row extends ReferenceDataRowBase {
 
 export type ReferenceDataRow = ReferenceDataTier1Row | ReferenceDataTier2Row
 
-/** `meta.table` on GET /api/reference-data/{table}. `types` is null for Tier 1. */
+/**
+ * `meta.table` on GET /api/reference-data/{table}. `types` is null for Tier 1; `dashboard_groups` is only non-null
+ * for item types; `classification_defaults` is only true for equipment classifications.
+ */
 export interface ReferenceDataTableMeta {
   key: string
   label: string
   tier: ReferenceDataTier
   types: Option<string>[] | null
+  dashboard_groups: Option<string>[] | null
+  classification_defaults: boolean
+}
+
+/** Equipment-classification defaults applied to equipment saved with these fields blank. */
+export interface ClassificationDefaultsPayload {
+  default_gl_sl_code: string | null
+  default_uacs: string | null
+  default_useful_life: number | null
 }
 
 export interface ReferenceDataPage extends PaginatedResponse<ReferenceDataRow> {
@@ -49,18 +65,20 @@ export interface ReferenceDataPage extends PaginatedResponse<ReferenceDataRow> {
 }
 
 /** POST body. Tier 1 sends `name`; Tier 2 sends `type` + `value`. */
-export interface ReferenceDataCreatePayload {
+export interface ReferenceDataCreatePayload extends Partial<ClassificationDefaultsPayload> {
   name?: string
   type?: string
   value?: string
+  dashboard_group?: string | null
   description: string | null
   sort_order: number
   is_active: boolean
 }
 
 /** PATCH body. `name` is only accepted for Tier 1; Tier 2 type/value are never editable. */
-export interface ReferenceDataUpdatePayload {
+export interface ReferenceDataUpdatePayload extends Partial<ClassificationDefaultsPayload> {
   name?: string
+  dashboard_group?: string | null
   description: string | null
   sort_order: number
   is_active: boolean

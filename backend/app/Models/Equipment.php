@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\DerivesEquipmentFields;
 use App\Enums\DataScope;
 use App\Exceptions\AccountabilitySyncRequiredException;
 use Closure;
@@ -99,7 +100,12 @@ use Spatie\Activitylog\Support\LogOptions;
 class Equipment extends Model
 {
     /** @use HasFactory<EquipmentFactory> */
-    use HasFactory, LogsActivity, SoftDeletes;
+    use DerivesEquipmentFields, HasFactory, LogsActivity, SoftDeletes;
+
+    /**
+     * Acquisition cost at and above which an item is Property, Plant & Equipment rather than semi-expendable.
+     */
+    public const int PPE_THRESHOLD = 50000;
 
     protected function casts(): array
     {
@@ -145,6 +151,36 @@ class Equipment extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(EquipmentTransaction::class);
+    }
+
+    /**
+     * The desktop bundle this peripheral is linked to.
+     *
+     * @return BelongsTo<Equipment, $this>
+     */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(Equipment::class, 'parent_equipment_id');
+    }
+
+    /**
+     * Peripherals linked to this desktop bundle.
+     *
+     * @return HasMany<Equipment, $this>
+     */
+    public function children(): HasMany
+    {
+        return $this->hasMany(Equipment::class, 'parent_equipment_id');
+    }
+
+    public function canHavePeripherals(): bool
+    {
+        return $this->parent_equipment_id === null && $this->itemType?->isBundleParent() === true;
+    }
+
+    public function isPeripheral(): bool
+    {
+        return $this->itemType?->isPeripheral() === true;
     }
 
     /**
@@ -283,6 +319,33 @@ class Equipment extends Model
 
     /**
      * @param  Builder<Equipment>  $query
+     * @param  list<int>  $itemTypeIds
+     */
+    public function scopeItemTypes(Builder $query, array $itemTypeIds): void
+    {
+        if ($itemTypeIds !== []) {
+            $query->whereIn('item_type_id', $itemTypeIds);
+        }
+    }
+
+    /**
+     * A DashboardEquipmentGroup value, or `other` for item types outside every group.
+     *
+     * @param  Builder<Equipment>  $query
+     */
+    public function scopeDashboardGroup(Builder $query, ?string $group): void
+    {
+        if (blank($group)) {
+            return;
+        }
+
+        $query->whereHas('itemType', fn (Builder $query) => $group === 'other'
+            ? $query->whereNull('dashboard_group')
+            : $query->where('dashboard_group', $group));
+    }
+
+    /**
+     * @param  Builder<Equipment>  $query
      */
     public function scopeDispositionStatus(Builder $query, ?string $status): void
     {
@@ -372,7 +435,7 @@ class Equipment extends Model
                 'under_warranty', 'end_warranty_date', 'supplier',
                 'item_type_id', 'brand_id', 'equipment_category_id',
                 'equipment_classification_id', 'equipment_condition_id',
-                'created_by_user_id',
+                'created_by_user_id', 'parent_equipment_id',
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()

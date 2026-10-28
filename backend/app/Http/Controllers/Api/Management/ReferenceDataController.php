@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Management;
 
+use App\Enums\DashboardEquipmentGroup;
 use App\Enums\Permission;
 use App\Http\Controllers\Api\Management\Concerns\ResolvesListParameters;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Management\StoreReferenceDataRequest;
 use App\Http\Requests\Management\UpdateReferenceDataRequest;
 use App\Http\Resources\Management\ReferenceDataRowResource;
+use App\Models\EquipmentClassification;
+use App\Models\ItemType;
 use App\Models\Office;
 use App\Services\ReferenceDataResolver;
 use Illuminate\Database\Eloquent\Model;
@@ -104,6 +107,8 @@ class ReferenceDataController extends Controller
                             fn ($case) => ['value' => $case->value, 'label' => $case->label()],
                             $entry['type_enum']::cases(),
                         ),
+                        'dashboard_groups' => $modelClass === ItemType::class ? DashboardEquipmentGroup::options() : null,
+                        'classification_defaults' => $modelClass === EquipmentClassification::class,
                     ],
                 ],
                 'message' => 'Success',

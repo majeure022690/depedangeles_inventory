@@ -28,6 +28,10 @@ interface RowForm {
   name: string
   type: string
   value: string
+  dashboard_group: string
+  default_gl_sl_code: string
+  default_uacs: string
+  default_useful_life: string
   description: string
   sort_order: string
   is_active: boolean
@@ -35,7 +39,20 @@ interface RowForm {
 
 type RowFormErrors = Partial<Record<keyof RowForm, string>>
 
-const EMPTY_FORM: RowForm = { name: '', type: '', value: '', description: '', sort_order: '0', is_active: true }
+const EMPTY_FORM: RowForm = {
+  name: '',
+  type: '',
+  value: '',
+  dashboard_group: '',
+  default_gl_sl_code: '',
+  default_uacs: '',
+  default_useful_life: '',
+  description: '',
+  sort_order: '0',
+  is_active: true,
+}
+
+const blankToNull = (value: string) => (value.trim() === '' ? null : value.trim())
 
 function isTier2Row(row: ReferenceDataRow): row is ReferenceDataTier2Row {
   return 'value' in row
@@ -59,6 +76,9 @@ function ReferenceDataTableView({ table }: { table: string }) {
   const isTier1 = (tableMeta?.tier ?? 1) === 1
   const types = useMemo(() => tableMeta?.types ?? [], [tableMeta])
   const typeLabels = useMemo(() => new Map(types.map((type) => [type.value, type.label])), [types])
+  const dashboardGroups = tableMeta?.dashboard_groups ?? null
+  const dashboardGroupLabels = useMemo(() => new Map((dashboardGroups ?? []).map((group) => [group.value, group.label])), [dashboardGroups])
+  const hasClassificationDefaults = tableMeta?.classification_defaults ?? false
 
   const [typeFilter, setTypeFilter] = useState('')
   const { items, meta, loading, error, page, setPage, perPage, setPerPage, setSearch, reload } = useServerTable(
@@ -102,6 +122,10 @@ function ReferenceDataTableView({ table }: { table: string }) {
       name: isTier2Row(row) ? '' : row.name,
       type: isTier2Row(row) ? row.type : '',
       value: isTier2Row(row) ? row.value : '',
+      dashboard_group: isTier2Row(row) ? '' : (row.dashboard_group ?? ''),
+      default_gl_sl_code: isTier2Row(row) ? '' : (row.default_gl_sl_code ?? ''),
+      default_uacs: isTier2Row(row) ? '' : (row.default_uacs ?? ''),
+      default_useful_life: isTier2Row(row) || row.default_useful_life == null ? '' : String(row.default_useful_life),
       description: row.description ?? '',
       sort_order: String(row.sort_order),
       is_active: row.is_active,
@@ -125,6 +149,14 @@ function ReferenceDataTableView({ table }: { table: string }) {
       description: form.description.trim() === '' ? null : form.description.trim(),
       sort_order: form.sort_order.trim() === '' ? 0 : Number(form.sort_order),
       is_active: form.is_active,
+      ...(dashboardGroups ? { dashboard_group: form.dashboard_group === '' ? null : form.dashboard_group } : {}),
+      ...(hasClassificationDefaults
+        ? {
+            default_gl_sl_code: blankToNull(form.default_gl_sl_code),
+            default_uacs: blankToNull(form.default_uacs),
+            default_useful_life: form.default_useful_life.trim() === '' ? null : Number(form.default_useful_life),
+          }
+        : {}),
     }
 
     try {
@@ -198,8 +230,47 @@ function ReferenceDataTableView({ table }: { table: string }) {
           }),
         ]
 
+    const dashboardGroupColumn: GridColumn<ReferenceDataRow>[] = dashboardGroups
+      ? [
+          column.display({
+            id: 'dashboard_group',
+            header: 'Dashboard group',
+            cell: ({ row }) => {
+              const group = isTier2Row(row.original) ? null : row.original.dashboard_group
+              return group ? (dashboardGroupLabels.get(group) ?? group) : <span className="text-gray-400">Other equipment</span>
+            },
+          }),
+        ]
+      : []
+
+    const classificationDefaultColumns: GridColumn<ReferenceDataRow>[] = hasClassificationDefaults
+      ? [
+          column.display({
+            id: 'default_gl_sl_code',
+            header: 'Default GL/SL code',
+            cell: ({ row }) => (isTier2Row(row.original) ? null : row.original.default_gl_sl_code) || <span className="text-gray-400">—</span>,
+          }),
+          column.display({
+            id: 'default_uacs',
+            header: 'Default UACS',
+            cell: ({ row }) => (isTier2Row(row.original) ? null : row.original.default_uacs) || <span className="text-gray-400">—</span>,
+          }),
+          column.display({
+            id: 'default_useful_life',
+            header: 'Default useful life',
+            meta: { align: 'center', className: 'tabular-nums whitespace-nowrap' },
+            cell: ({ row }) => {
+              const years = isTier2Row(row.original) ? null : row.original.default_useful_life
+              return years != null ? `${years} yr${years === 1 ? '' : 's'}` : <span className="text-gray-400">—</span>
+            },
+          }),
+        ]
+      : []
+
     return [
       ...identity,
+      ...dashboardGroupColumn,
+      ...classificationDefaultColumns,
       column.accessor('description', {
         header: 'Description',
         enableSorting: false,
@@ -235,7 +306,7 @@ function ReferenceDataTableView({ table }: { table: string }) {
     ]
     // openEdit only closes over state setters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTier1, typeLabels])
+  }, [isTier1, typeLabels, dashboardGroups, dashboardGroupLabels, hasClassificationDefaults])
 
   const noun = isTier1 ? 'entry' : 'library value'
 
@@ -378,6 +449,58 @@ function ReferenceDataTableView({ table }: { table: string }) {
                   error={formErrors.value}
                 />
               </>
+            )}
+
+            {dashboardGroups && (
+              <Select
+                id="reference-dashboard-group"
+                label="Dashboard group (optional)"
+                placeholder="None (Other equipment)"
+                hint="Where this item type is counted on the dashboard's ICT equipment overview."
+                options={dashboardGroups.map((group) => ({ value: group.value, label: group.label }))}
+                value={form.dashboard_group}
+                onChange={(e) => patchForm({ dashboard_group: e.target.value })}
+                error={formErrors.dashboard_group}
+              />
+            )}
+
+            {hasClassificationDefaults && (
+              <fieldset aria-describedby="reference-defaults-hint" className="space-y-3 rounded-lg border border-gray-200 p-3">
+                <legend className="px-1 text-sm font-medium text-gray-700">Equipment defaults (optional)</legend>
+                <p id="reference-defaults-hint" className="text-xs text-gray-500">
+                  Filled into equipment saved under this classification when the field is left blank.
+                </p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Input
+                    id="reference-default-gl-sl-code"
+                    label="GL/SL code (optional)"
+                    maxLength={255}
+                    value={form.default_gl_sl_code}
+                    onChange={(e) => patchForm({ default_gl_sl_code: e.target.value })}
+                    error={formErrors.default_gl_sl_code}
+                  />
+                  <Input
+                    id="reference-default-uacs"
+                    label="UACS (optional)"
+                    maxLength={255}
+                    value={form.default_uacs}
+                    onChange={(e) => patchForm({ default_uacs: e.target.value })}
+                    error={formErrors.default_uacs}
+                  />
+                </div>
+                <Input
+                  id="reference-default-useful-life"
+                  label="Useful life in years (optional)"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={form.default_useful_life}
+                  onChange={(e) => patchForm({ default_useful_life: e.target.value })}
+                  error={formErrors.default_useful_life}
+                />
+              </fieldset>
             )}
 
             <Textarea

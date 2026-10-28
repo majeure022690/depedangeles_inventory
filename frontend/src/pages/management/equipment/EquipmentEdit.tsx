@@ -1,9 +1,17 @@
-import { ArrowLeft, Download, Printer, Tag, Trash2, UserRound } from 'lucide-react'
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Download, Info, Printer, Tag, Trash2, UserRound } from 'lucide-react'
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { DetailPageSkeleton } from '@/components/DetailPageSkeleton'
-import { EquipmentFields, equipmentToForm } from '@/components/equipment/EquipmentFields'
+import { BundledPeripherals } from '@/components/equipment/BundledPeripherals'
+import {
+  EQUIPMENT_FIELD_SECTIONS,
+  EquipmentFields,
+  equipmentToForm,
+  firstSectionWithError,
+  isEquipmentFieldSection,
+  sectionErrorCount,
+} from '@/components/equipment/EquipmentFields'
 import { TransactionLog } from '@/components/equipment/TransactionLog'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -12,22 +20,30 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DetailSection } from '@/components/ui/DetailSection'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { TabPanel, Tabs, type TabItem } from '@/components/ui/Tabs'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { scopedTitle } from '@/lib/dataScope'
+import { BUNDLE_PARENT_ITEMS } from '@/lib/equipmentBundles'
 import { extractError, extractFieldErrors, extractLoadError, isNotFound, OUT_OF_REACH_MESSAGE, type FieldErrors } from '@/lib/errors'
+import { formatDate } from '@/lib/utils'
 import { equipmentService, toEquipmentPayload } from '@/services/equipmentService'
 import type { Equipment, EquipmentFormData, EquipmentOptions } from '@/types/equipment'
+
+const TABS_ID = 'equipment-record'
+const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
 
 export function EquipmentEdit() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { can, user } = useAuth()
   const listTitle = scopedTitle('equipment', user?.data_scope)
   const canEdit = can('equipment.edit')
   const canDelete = can('equipment.delete')
   const canRecord = can('equipment.transactions.create')
+  const canCreate = can('equipment.create')
 
   const [equipment, setEquipment] = useState<Equipment | null>(null)
   const [loading, setLoading] = useState(true)
@@ -46,14 +62,29 @@ export function EquipmentEdit() {
   usePageTitle(equipment ? `${canEdit ? 'Edit' : 'Equipment'} ${displayPropertyNo}` : listTitle)
 
   useEffect(() => {
-    if (location.state) navigate(location.pathname, { replace: true, state: null })
-  }, [location.pathname, location.state, navigate])
+    if (location.state) navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null })
+  }, [location.pathname, location.search, location.state, navigate])
 
-  const load = useCallback(async () => {
+  const selectTab = useCallback(
+    (next: string) => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev)
+          if (next === 'overview') params.delete('tab')
+          else params.set('tab', next)
+          return params
+        },
+        { replace: true },
+      )
+    },
+    [setSearchParams],
+  )
+
+  const load = useCallback(async (keepEdits = false) => {
     try {
       const record = await equipmentService.show(id!)
       setEquipment(record)
-      setForm(equipmentToForm(record))
+      setForm((current) => (keepEdits && current ? current : equipmentToForm(record)))
       setLoadError(null)
     } catch (e) {
       if (isNotFound(e)) {
@@ -85,13 +116,21 @@ export function EquipmentEdit() {
     setSuccess(null)
     try {
       const response = await equipmentService.update(equipment.id, toEquipmentPayload(form))
-      const updated = { ...response.data, transactions: equipment.transactions }
+      const updated = {
+        ...response.data,
+        parent: response.data.parent ?? equipment.parent,
+        children: response.data.children ?? equipment.children,
+        transactions: equipment.transactions,
+      }
       setEquipment(updated)
       setForm(equipmentToForm(updated))
       setSuccess(response.message)
     } catch (e) {
-      setErrors(extractFieldErrors(e))
+      const fieldErrors = extractFieldErrors(e)
+      setErrors(fieldErrors)
       setFormError(extractError(e, 'Unable to save this equipment record. Please try again.'))
+      const errorTab = firstSectionWithError(fieldErrors)
+      if (errorTab) selectTab(errorTab)
     } finally {
       setSaving(false)
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -115,11 +154,20 @@ export function EquipmentEdit() {
   }
 
   async function handleRecorded(message: string) {
-    await load()
+    await load(true)
+    setSuccess(message)
+  }
+
+  async function handlePeripheralsChanged(message: string) {
+    setFormError(null)
+    await load(true)
     setSuccess(message)
   }
 
   if (loading) return <DetailPageSkeleton />
+
+  const isPeripheral = equipment?.parent_equipment_id != null
+  const showBundle = !!equipment && !isPeripheral && (BUNDLE_PARENT_ITEMS.includes(equipment.item ?? '') || (equipment.children?.length ?? 0) > 0)
 
   if (!equipment || !form) {
     return (
@@ -134,8 +182,18 @@ export function EquipmentEdit() {
     )
   }
 
+  const tabs: TabItem[] = [
+    { value: 'overview', label: 'Overview' },
+    ...EQUIPMENT_FIELD_SECTIONS.map((section) => ({ value: section.value, label: section.label, errorCount: sectionErrorCount(section.value, errors) })),
+    ...(showBundle ? [{ value: 'peripherals', label: 'Peripherals', count: equipment.children?.length ?? 0 }] : []),
+    { value: 'history', label: 'History', count: equipment.transactions?.length ?? 0 },
+  ]
+  const requestedTab = searchParams.get('tab')
+  const tab = tabs.some((item) => item.value === requestedTab) ? requestedTab! : 'overview'
+  const fieldTab = isEquipmentFieldSection(tab) ? tab : null
+
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate('/equipment')} aria-label={`Back to ${listTitle.toLowerCase()}`} className="mt-0.5">
@@ -162,6 +220,20 @@ export function EquipmentEdit() {
         )}
       </div>
 
+      {isPeripheral && (
+        <Alert type="info">
+          Part of desktop{' '}
+          {equipment.parent ? (
+            <Link to={`/equipment/${equipment.parent.id}/edit`} className="font-medium underline hover:no-underline">
+              {equipment.parent.property_no ?? 'pending property no.'}
+            </Link>
+          ) : (
+            'record'
+          )}
+          . Issuance, transfer and return follow the desktop.
+        </Alert>
+      )}
+
       <div role="status" className="empty:hidden">
         {success && <Alert type="success">{success}</Alert>}
       </div>
@@ -170,49 +242,69 @@ export function EquipmentEdit() {
         {formError && <Alert type="error">{formError}</Alert>}
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
-        <QrCodeCard equipmentId={equipment.id} propertyNo={equipment.property_no} displayPropertyNo={displayPropertyNo} />
-        <Card className="lg:col-span-2">
-          <DetailSection icon={<UserRound className="h-3.5 w-3.5" />} title="Current accountability">
-            <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-              <SummaryItem label="Accountable officer" value={equipment.current_accountable_officer?.full_name} />
-              <SummaryItem label="End user" value={equipment.current_end_user?.full_name} />
-            </dl>
-          </DetailSection>
-          <DetailSection icon={<Tag className="h-3.5 w-3.5" />} title="Status" last>
-            <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-              <SummaryItem label="Condition" value={equipment.equipment_condition} />
-              <SummaryItem label="Disposition" value={equipment.disposition_status} />
-              <SummaryItem label="Category" value={equipment.category} />
-              <SummaryItem label="Brand / model" value={[equipment.brand_manufacturer, equipment.model].filter(Boolean).join(' — ') || null} />
-            </dl>
-          </DetailSection>
-        </Card>
-      </div>
+      <div>
+        <Tabs id={TABS_ID} label="Equipment record sections" tabs={tabs} value={tab} onChange={selectTab} />
 
-      <form onSubmit={submit} noValidate className="space-y-4">
-        {!canEdit && <Alert type="info">You can view this record but not edit it.</Alert>}
-        <EquipmentFields value={form} onChange={setForm} options={options?.form ?? null} errors={errors} disabled={!canEdit} current={equipment} />
-        {canEdit && (
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={() => navigate('/equipment')}>
-              Cancel
-            </Button>
-            <Button type="submit" isLoading={saving} disabled={!options}>
-              Save changes
-            </Button>
-          </div>
+        <TabPanel tabsId={TABS_ID} value="overview" active={tab === 'overview'}>
+          <Overview equipment={equipment} displayPropertyNo={displayPropertyNo} />
+        </TabPanel>
+
+        {fieldTab && (
+          <form onSubmit={submit} noValidate aria-label="Equipment details">
+            {EQUIPMENT_FIELD_SECTIONS.map((section) => (
+              <TabPanel key={section.value} tabsId={TABS_ID} value={section.value} active={fieldTab === section.value}>
+                <div className="space-y-4">
+                  {!canEdit && <Alert type="info">You can view this record but not edit it.</Alert>}
+                  <EquipmentFields
+                    section={section.value}
+                    value={form}
+                    onChange={setForm}
+                    options={options?.form ?? null}
+                    classificationDefaults={options?.classification_defaults}
+                    errors={errors}
+                    disabled={!canEdit}
+                    current={equipment}
+                  />
+                </div>
+              </TabPanel>
+            ))}
+            {canEdit && (
+              <div className="sticky bottom-0 z-10 mt-4 flex flex-col-reverse gap-2 rounded-t-lg border-t border-gray-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_-8px_rgb(0_0_0/0.15)] backdrop-blur sm:flex-row sm:justify-end">
+                <Button variant="outline" onClick={() => navigate('/equipment')}>
+                  Cancel
+                </Button>
+                <Button type="submit" isLoading={saving} disabled={!options}>
+                  Save changes
+                </Button>
+              </div>
+            )}
+          </form>
         )}
-      </form>
 
-      <TransactionLog
-        equipmentId={equipment.id}
-        transactions={equipment.transactions ?? []}
-        options={options?.transaction ?? null}
-        personnelOptions={options?.personnel ?? []}
-        canRecord={canRecord}
-        onRecorded={handleRecorded}
-      />
+        {showBundle && (
+          <TabPanel tabsId={TABS_ID} value="peripherals" active={tab === 'peripherals'}>
+            <BundledPeripherals
+              equipment={equipment}
+              options={options?.form ?? null}
+              canLink={canEdit && canRecord}
+              canAdd={canEdit && canCreate && canRecord}
+              canUnlink={canEdit}
+              onChanged={handlePeripheralsChanged}
+            />
+          </TabPanel>
+        )}
+
+        <TabPanel tabsId={TABS_ID} value="history" active={tab === 'history'}>
+          <TransactionLog
+            equipmentId={equipment.id}
+            transactions={equipment.transactions ?? []}
+            options={options?.transaction ?? null}
+            personnelOptions={options?.personnel ?? []}
+            canRecord={canRecord && !isPeripheral}
+            onRecorded={handleRecorded}
+          />
+        </TabPanel>
+      </div>
 
       <ConfirmDialog
         open={deleteOpen}
@@ -229,7 +321,50 @@ export function EquipmentEdit() {
   )
 }
 
-function SummaryItem({ label, value }: { label: string; value: string | null | undefined }) {
+function Overview({ equipment, displayPropertyNo }: { equipment: Equipment; displayPropertyNo: string }) {
+  return (
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+      <QrCodeCard equipmentId={equipment.id} propertyNo={equipment.property_no} displayPropertyNo={displayPropertyNo} />
+      <Card className="min-w-0 lg:col-span-2">
+        <DetailSection icon={<UserRound className="h-3.5 w-3.5" />} title="Current accountability">
+          <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+            <SummaryItem label="Accountable officer" value={equipment.current_accountable_officer?.full_name} />
+            <SummaryItem label="End user" value={equipment.current_end_user?.full_name} />
+          </dl>
+        </DetailSection>
+        <DetailSection icon={<Tag className="h-3.5 w-3.5" />} title="Status">
+          <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+            <SummaryItem label="Condition" value={equipment.equipment_condition} />
+            <SummaryItem label="Disposition" value={equipment.disposition_status} />
+          </dl>
+        </DetailSection>
+        <DetailSection icon={<Info className="h-3.5 w-3.5" />} title="Key facts" last>
+          <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+            <SummaryItem label="Item" value={equipment.item} />
+            <SummaryItem label="Brand / model" value={[equipment.brand_manufacturer, equipment.model].filter(Boolean).join(' — ') || null} />
+            <SummaryItem label="Serial number" value={equipment.serial_number} />
+            <SummaryItem label="Received date" value={formatDate(equipment.received_date)} />
+            <SummaryItem label="Acquisition cost" value={equipment.acquisition_cost !== null ? currency.format(equipment.acquisition_cost) : null} />
+            <SummaryItem label="Category" value={equipment.category} />
+            <SummaryItem label="Location" value={equipment.equipment_location} />
+            <SummaryItem label="Warranty" value={<WarrantyBadge equipment={equipment} />} />
+          </dl>
+        </DetailSection>
+      </Card>
+    </div>
+  )
+}
+
+function WarrantyBadge({ equipment }: { equipment: Equipment }) {
+  if (equipment.warranty_active) {
+    return <Badge color="success">Under warranty until {formatDate(equipment.end_warranty_date)}</Badge>
+  }
+  if (equipment.warranty_active === false) return <Badge color="gray">Warranty expired</Badge>
+  if (equipment.under_warranty) return <Badge color="success">Under warranty</Badge>
+  return <>—</>
+}
+
+function SummaryItem({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0">
       <dt className="text-xs text-gray-500">{label}</dt>

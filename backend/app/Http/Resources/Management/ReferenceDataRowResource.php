@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources\Management;
 
+use App\Models\EquipmentClassification;
+use App\Models\ItemType;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -32,6 +34,12 @@ class ReferenceDataRowResource extends JsonResource
             ] : [
                 'name' => $row->getAttribute('name'),
             ]),
+            ...($row instanceof ItemType ? ['dashboard_group' => $row->dashboard_group?->value] : []),
+            ...($row instanceof EquipmentClassification ? [
+                'default_gl_sl_code' => $row->default_gl_sl_code,
+                'default_uacs' => $row->default_uacs,
+                'default_useful_life' => $row->default_useful_life,
+            ] : []),
             'description' => $row->getAttribute('description'),
             'sort_order' => $row->getAttribute('sort_order'),
             'is_active' => $row->getAttribute('is_active'),
