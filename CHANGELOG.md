@@ -2,6 +2,26 @@
 
 All notable changes to this project, in terms of user/developer impact. Entries up to 2026-07-15 were reconstructed from migration filename timestamps and source file modification times, before the project had git history; they are accurate to the day where backed by a migration timestamp, and entries reconstructed from file mtimes alone are noted as such. Later entries cite their commits.
 
+## 2026-10-28 — Desktop bundles: peripherals on create, batch add, renumbering
+
+Commits `45c5e88` (feature) and `a8a7f25` (reCAPTCHA) on `iris-staging`; builds on `d76e133` (desktop bundles) and `9df13bf` (tabbed equipment form). No migrations. Covered by `backend/tests/Feature/EquipmentBundleTest.php`. See [`docs/features/equipment.md`](docs/features/equipment.md#desktop-bundles).
+
+### Added
+
+- **Peripherals on create.** `POST /api/equipment` accepts `peripherals[]` (up to 10 Monitor/Keyboard/Mouse rows) for a Desktop (package) or CPU. `property_no` is then required, everything is saved atomically, and each row is numbered `<property_no>-001`, `-002`, …. A blank brand or condition takes the desktop's. The response includes `parent` and `children`. The create page gets a Peripherals tab that starts empty, with an "Add monitor, keyboard and mouse" button.
+- **Batch add.** `POST /api/equipment/{id}/peripherals/batch` (`{peripherals: [1..10]}`, all or none, same permissions as the single add). The record page's "Add new peripherals" dialog uses it; the single `POST /api/equipment/{id}/peripherals` stays routed but the SPA no longer calls it.
+- **Renumbering.** `PUT /api/equipment/{id}` accepts `renumber_peripherals`. When a Desktop (package) or CPU's property number changes, the SPA asks whether to rename its `<old>-NNN` peripherals (including ones since moved or deleted) to `<new>-NNN`. Only Monitor/Keyboard/Mouse rows within the editor's data scope are renamed. Any collision fails the whole update with a 422. Audited as `equipment.peripheral.renumbered`.
+- **`EquipmentResource`** (detail and update) adds `renumberable_peripherals_count` (`0` unless the record is a Desktop (package) or CPU) and `original_bundle` (peripherals only: the visible, live Desktop (package) or CPU its number extends, else `null`). The record page shows the original and current bundle when they differ, and the Overview tab summarises the bundle.
+
+### Security
+
+- **Renumbering is limited to the editor's data scope.** Without that, an office-scoped editor could mass-rename other offices' records sharing the prefix. Collision messages name only numbers the editor can see.
+- **reCAPTCHA loads only on `/login`.** `GoogleReCaptchaProvider` moved from `main.tsx` to the `/login` route in `App.tsx`, so Google's script no longer runs on every authenticated page.
+
+### Owner decisions
+
+- One property number per desktop set; the `-NNN` suffix records the original bundle and `parent_equipment_id` the current one. No manual number override in batch flows. Existing data is never changed automatically: no backfill, and renumbering is opt-in per edit. The create page adds no peripherals unless the encoder adds rows; the edit page's batch dialog still pre-fills a Monitor, Keyboard and Mouse (only a Monitor when the desktop already has peripherals).
+
 ## 2026-10-27 — PRIME is the only password authority
 
 On `iris-staging`. Migrations `2026_10_27_000003`-`000004`. Covered by `backend/tests/Feature/Auth/{PrimeLoginTest,PrimeOnlyPasswordEdgeCasesTest,CurrentPasswordTest}.php`, `Settings/ProfileUpdateTest.php`, `UserControllerTest.php`, `SetUserPasswordTest.php`, `DeveloperAdminSeederTest.php` and `Migrations/ClearLocalPasswordsMigrationTest.php`.

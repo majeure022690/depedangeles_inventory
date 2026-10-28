@@ -36,7 +36,7 @@ Adopted from rwatch as-is:
 
 `frontend/src/` mirrors `rwatch/frontend/src`:
 
-- `App.tsx` — the whole route table, every page lazy-loaded. `/` redirects to `/dashboard`; `/equipment/:id/edit` is the QR alias.
+- `App.tsx` — the whole route table, every page lazy-loaded. `/` redirects to `/dashboard`; `/equipment/:id/edit` is the QR alias. `GoogleReCaptchaProvider` wraps only the `/login` route, so Google's reCAPTCHA script loads on the login page and nowhere else.
 - `layouts/ManagementLayout.tsx` — sidebar (`NAV_GROUPS`), each item gated by a permission. The scoped items take their title and link from the user's `data_scope` (`lib/dataScope.ts`, which page titles use too):
 
   | Item | `own` | `school` | `all` |
