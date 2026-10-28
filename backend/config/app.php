@@ -56,6 +56,10 @@ return [
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
 
+    // The built SPA's index.html, kept outside public/ so it is only served by
+    // SpaController (per-response CSP nonce). deploy/plesk.sh puts it here.
+    'spa_index' => storage_path('app/spa/index.html'),
+
     // Reverse proxies or load balancers allowed to report the visitor's real IP
     // (comma-separated IPs/CIDRs, or * when only the proxy can reach the app).
     // Leave empty when PHP is reached directly, or per-IP rate limits can be spoofed.

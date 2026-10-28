@@ -23,7 +23,7 @@ Desktop bundles follow-up (no migrations): peripherals on create, `POST /api/equ
    `cd backend && php artisan test` and `cd frontend && npm run build`. Fix anything red.
 2. **Finish security finding L-2** (`auth` agent was stopped mid-way). Goal: when `PRIME_ENABLED=false`, log the reason as `prime_disabled` (not `prime_unreachable`) in `AuthController::verifyCredentials` and `Rules/CurrentPassword`; throttled `security`-channel warning from `PrimeUserSync` failure paths; throttled `security` ERROR at boot in production. `tests/Feature/Auth/PrimeDisabledTest.php` may be incomplete — check it.
 3. **QA pass** (`qa` agent), then **security re-check** of M-1/L-1 fixes, then **reviewer**.
-4. **Docs:** dashboard endpoint contract (peripheral endpoints are now in `features/equipment.md`); update `README.md:131` (still says not to loosen the CSP for Cloudflare — owner chose to allow the analytics beacon).
+4. **Docs:** dashboard endpoint contract (peripheral endpoints are now in `features/equipment.md`).
 
 5. **`FileUploadService::storeImage()` returns 500 instead of 422 when an uploaded temp file can't be read** (`backend/app/Services/FileUploadService.php:41`, the `finfo->file()` call). Seen in `ProfileUpdateTest`'s "php disguised as jpg" case, probably local antivirus locking or removing the temp file. An unreadable upload should be rejected with a 422 on the error field.
 

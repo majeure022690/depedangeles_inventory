@@ -24,6 +24,8 @@ In production the frontend's web server serves the SPA and reverse-proxies `/api
 
 *Note (2026-10-23): production runs on Plesk (nginx in front of Apache), not a Docker nginx. `deploy/plesk.sh` copies the built SPA into `backend/public`, and `.htaccess` routes `/api`, `/sanctum` and `/up` to Laravel. The single origin is unchanged.*
 
+*Note (2026-10-28): Laravel now serves the SPA document itself (`SpaController`, from `backend/storage/app/spa/index.html`) with a per-response CSP nonce, so Cloudflare's injected bot-detection script runs without `'unsafe-inline'`. `.htaccess` sends everything that isn't a real file to Laravel; `deploy/plesk.sh` never puts `index.html` in `backend/public`.*
+
 ### 2. Backend layout mirrors rwatch's audience namespacing
 
 - `routes/api.php` only `require`s `routes/api/auth.php` and `routes/api/management.php`. There is **no `public.php`**: inventory has no unauthenticated portal.

@@ -2,6 +2,14 @@
 
 All notable changes to this project, in terms of user/developer impact. Entries up to 2026-07-15 were reconstructed from migration filename timestamps and source file modification times, before the project had git history; they are accurate to the day where backed by a migration timestamp, and entries reconstructed from file mtimes alone are noted as such. Later entries cite their commits.
 
+## 2026-10-28 — SPA document served by Laravel with a per-response CSP nonce
+
+### Security
+- Laravel (`SpaController`) serves the SPA's `index.html` (kept at `backend/storage/app/spa/index.html`, `config('app.spa_index')`) on every non-`api`/`sanctum`/`up` GET, with `Cache-Control: no-store` and a CSP whose `script-src` carries a fresh `random_bytes(16)` nonce, so Cloudflare's Bot "JavaScript detections" inline script runs without loosening the CSP (no `'unsafe-inline'`). Only that document may keep its own CSP; every other response gets the strict one from `SecurityHeaders`. Covered by `tests/Feature/Security/{SpaDocumentTest,ContentSecurityPolicyTest}.php`.
+
+### Changed (deploy)
+- `deploy/plesk.sh` copies `dist/` into `backend/public` except `index.html`, installs that into storage, deletes any stale `backend/public/index.html`, and fails if one remains. On the first deploy it seeds storage from the old `public/index.html` so the site stays up during the build. `.htaccess` sends everything that isn't a real file to Laravel. Cloudflare must never edge-cache HTML (see README, "Cloudflare and the CSP").
+
 ## 2026-10-28 — Desktop bundles: peripherals on create, batch add, renumbering
 
 Commits `45c5e88` (feature) and `a8a7f25` (reCAPTCHA) on `iris-staging`; builds on `d76e133` (desktop bundles) and `9df13bf` (tabbed equipment form). No migrations. Covered by `backend/tests/Feature/EquipmentBundleTest.php`. See [`docs/features/equipment.md`](docs/features/equipment.md#desktop-bundles).

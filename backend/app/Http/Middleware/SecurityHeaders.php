@@ -8,6 +8,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SecurityHeaders
 {
+    public const SPA_DOCUMENT = 'security_headers.spa_document';
+
     public function handle(Request $request, Closure $next): Response
     {
         /** @var Response $response */
@@ -31,7 +33,11 @@ class SecurityHeaders
             "worker-src 'self' blob:",
             "frame-ancestors 'none'",
         ]);
-        $response->headers->set('Content-Security-Policy', $csp);
+        $isSpaDocument = $request->attributes->get(self::SPA_DOCUMENT) === true
+            && $response->headers->has('Content-Security-Policy');
+        if (! $isSpaDocument) {
+            $response->headers->set('Content-Security-Policy', $csp);
+        }
 
         if (app()->environment('production')) {
             $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
