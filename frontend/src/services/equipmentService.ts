@@ -3,6 +3,7 @@ import { lookupService } from '@/services/lookupService'
 import type { ApiResponse, PaginatedResponse } from '@/types/api'
 import type {
   Equipment,
+  EquipmentCreatePayload,
   EquipmentFormData,
   EquipmentOptions,
   EquipmentPayload,
@@ -11,6 +12,7 @@ import type {
   EquipmentTransaction,
   EquipmentTransactionFormData,
   EquipmentTransactionPayload,
+  EquipmentUpdatePayload,
 } from '@/types/equipment'
 
 /** Blank text inputs are sent as `null` so nullable columns stay null rather than ''. */
@@ -37,16 +39,16 @@ export const equipmentService = {
     api.get<PaginatedResponse<Equipment>>('/equipment', { params }).then((r) => r.data),
   options: () => lookupService.options<EquipmentOptions>('/equipment/options'),
   show: (id: number | string) => api.get<ApiResponse<Equipment>>(`/equipment/${id}`).then((r) => r.data.data),
-  create: (payload: EquipmentPayload) => api.post<ApiResponse<Equipment>>('/equipment', payload).then((r) => r.data),
-  update: (id: number, payload: EquipmentPayload) =>
+  create: (payload: EquipmentCreatePayload) => api.post<ApiResponse<Equipment>>('/equipment', payload).then((r) => r.data),
+  update: (id: number, payload: EquipmentUpdatePayload) =>
     api.put<ApiResponse<Equipment>>(`/equipment/${id}`, payload).then((r) => r.data),
   remove: (id: number) => api.delete(`/equipment/${id}`),
   /** The QR label PNG; the caller owns (and must revoke) an object URL made from it. */
   qrCode: (id: number) => api.get<Blob>(`/equipment/${id}/qr-code`, { responseType: 'blob' }).then((r) => r.data),
   recordTransaction: (id: number, payload: EquipmentTransactionPayload) =>
     api.post<ApiResponse<EquipmentTransaction>>(`/equipment/${id}/transactions`, payload).then((r) => r.data),
-  addPeripheral: (id: number, payload: EquipmentPeripheralPayload) =>
-    api.post<ApiResponse<Equipment>>(`/equipment/${id}/peripherals`, payload).then((r) => r.data),
+  addPeripherals: (id: number, peripherals: EquipmentPeripheralPayload[]) =>
+    api.post<ApiResponse<Equipment[]>>(`/equipment/${id}/peripherals/batch`, { peripherals }).then((r) => r.data),
   linkPeripheral: (id: number, equipmentId: number) =>
     api.post<ApiResponse<Equipment>>(`/equipment/${id}/peripherals/link`, { equipment_id: equipmentId }).then((r) => r.data),
   unlinkPeripheral: (id: number, peripheralId: number) => api.delete(`/equipment/${id}/peripherals/${peripheralId}`),

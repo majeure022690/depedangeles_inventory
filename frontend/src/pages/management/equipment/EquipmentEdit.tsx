@@ -1,4 +1,4 @@
-import { ArrowLeft, Download, Info, Printer, Tag, Trash2, UserRound } from 'lucide-react'
+import { ArrowLeft, Download, Info, Printer, Tag, Trash2, Unplug, UserRound } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
@@ -19,18 +19,20 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DetailSection } from '@/components/ui/DetailSection'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/Dialog'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { TabPanel, Tabs, type TabItem } from '@/components/ui/Tabs'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { scopedTitle } from '@/lib/dataScope'
-import { BUNDLE_PARENT_ITEMS } from '@/lib/equipmentBundles'
+import { BUNDLE_PARENT_ITEMS, PERIPHERAL_ITEMS } from '@/lib/equipmentBundles'
 import { extractError, extractFieldErrors, extractLoadError, isNotFound, OUT_OF_REACH_MESSAGE, type FieldErrors } from '@/lib/errors'
 import { formatDate } from '@/lib/utils'
 import { equipmentService, toEquipmentPayload } from '@/services/equipmentService'
-import type { Equipment, EquipmentFormData, EquipmentOptions } from '@/types/equipment'
+import type { Equipment, EquipmentFormData, EquipmentOptions, EquipmentParentSummary, EquipmentPeripheral } from '@/types/equipment'
 
 const TABS_ID = 'equipment-record'
+const PERIPHERALS_TAB = 'peripherals'
 const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
 
 export function EquipmentEdit() {
@@ -107,15 +109,40 @@ export function EquipmentEdit() {
       .catch((e: unknown) => setOptionsError(extractError(e, 'Unable to load the form options. Please reload the page.')))
   }, [])
 
-  async function submit(event: FormEvent) {
+  const [renumberPrompt, setRenumberPrompt] = useState<{ from: string; to: string; count: number } | null>(null)
+
+  function submit(event: FormEvent) {
     event.preventDefault()
+    if (!equipment || !form) return
+    const from = equipment.property_no?.trim() ?? ''
+    const to = form.property_no.trim()
+    const count = equipment.renumberable_peripherals_count ?? 0
+    const itemTypeName =
+      options?.form.item_type.find((option) => option.value === form.item_type_id)?.label ?? (form.item_type_id === equipment.item_type_id ? equipment.item : null)
+    const bundleParent = itemTypeName !== null && BUNDLE_PARENT_ITEMS.includes(itemTypeName)
+    if (bundleParent && from !== '' && to !== '' && from !== to && count > 0) {
+      setRenumberPrompt({ from, to, count })
+      return
+    }
+    void save()
+  }
+
+  function answerRenumber(renumber: boolean) {
+    setRenumberPrompt(null)
+    void save(renumber)
+  }
+
+  async function save(renumberPeripherals?: boolean) {
     if (!equipment || !form) return
     setSaving(true)
     setErrors({})
     setFormError(null)
     setSuccess(null)
     try {
-      const response = await equipmentService.update(equipment.id, toEquipmentPayload(form))
+      const response = await equipmentService.update(equipment.id, {
+        ...toEquipmentPayload(form),
+        ...(renumberPeripherals === undefined ? {} : { renumber_peripherals: renumberPeripherals }),
+      })
       const updated = {
         ...response.data,
         parent: response.data.parent ?? equipment.parent,
@@ -167,6 +194,10 @@ export function EquipmentEdit() {
   if (loading) return <DetailPageSkeleton />
 
   const isPeripheral = equipment?.parent_equipment_id != null
+  const originalBundle =
+    equipment?.original_bundle && equipment.original_bundle.id !== equipment.id && (isPeripheral || PERIPHERAL_ITEMS.includes(equipment.item ?? ''))
+      ? equipment.original_bundle
+      : null
   const showBundle = !!equipment && !isPeripheral && (BUNDLE_PARENT_ITEMS.includes(equipment.item ?? '') || (equipment.children?.length ?? 0) > 0)
 
   if (!equipment || !form) {
@@ -185,7 +216,7 @@ export function EquipmentEdit() {
   const tabs: TabItem[] = [
     { value: 'overview', label: 'Overview' },
     ...EQUIPMENT_FIELD_SECTIONS.map((section) => ({ value: section.value, label: section.label, errorCount: sectionErrorCount(section.value, errors) })),
-    ...(showBundle ? [{ value: 'peripherals', label: 'Peripherals', count: equipment.children?.length ?? 0 }] : []),
+    ...(showBundle ? [{ value: PERIPHERALS_TAB, label: 'Peripherals', count: equipment.children?.length ?? 0 }] : []),
     { value: 'history', label: 'History', count: equipment.transactions?.length ?? 0 },
   ]
   const requestedTab = searchParams.get('tab')
@@ -220,17 +251,9 @@ export function EquipmentEdit() {
         )}
       </div>
 
-      {isPeripheral && (
+      {(isPeripheral || originalBundle) && (
         <Alert type="info">
-          Part of desktop{' '}
-          {equipment.parent ? (
-            <Link to={`/equipment/${equipment.parent.id}/edit`} className="font-medium underline hover:no-underline">
-              {equipment.parent.property_no ?? 'pending property no.'}
-            </Link>
-          ) : (
-            'record'
-          )}
-          . Issuance, transfer and return follow the desktop.
+          <BundleMembership isPeripheral={isPeripheral} current={equipment.parent ?? null} original={originalBundle} />
         </Alert>
       )}
 
@@ -246,7 +269,7 @@ export function EquipmentEdit() {
         <Tabs id={TABS_ID} label="Equipment record sections" tabs={tabs} value={tab} onChange={selectTab} />
 
         <TabPanel tabsId={TABS_ID} value="overview" active={tab === 'overview'}>
-          <Overview equipment={equipment} displayPropertyNo={displayPropertyNo} />
+          <Overview equipment={equipment} displayPropertyNo={displayPropertyNo} showBundle={showBundle} />
         </TabPanel>
 
         {fieldTab && (
@@ -282,7 +305,7 @@ export function EquipmentEdit() {
         )}
 
         {showBundle && (
-          <TabPanel tabsId={TABS_ID} value="peripherals" active={tab === 'peripherals'}>
+          <TabPanel tabsId={TABS_ID} value={PERIPHERALS_TAB} active={tab === PERIPHERALS_TAB}>
             <BundledPeripherals
               equipment={equipment}
               options={options?.form ?? null}
@@ -306,6 +329,29 @@ export function EquipmentEdit() {
         </TabPanel>
       </div>
 
+      <Dialog open={renumberPrompt !== null} onOpenChange={(open) => !open && setRenumberPrompt(null)}>
+        <DialogContent size="md">
+          <DialogTitle>Also renumber peripherals?</DialogTitle>
+          {renumberPrompt && (
+            <DialogDescription>
+              Also renumber {renumberPrompt.count === 1 ? '1 peripheral' : `${renumberPrompt.count} peripherals`} numbered{' '}
+              <span className="font-mono text-xs font-medium text-gray-900">{renumberPrompt.from}-NNN</span> to{' '}
+              <span className="font-mono text-xs font-medium text-gray-900">{renumberPrompt.to}-NNN</span>? This includes any since moved to another desktop and deleted records. Each
+              keeps its number suffix; choosing to keep their numbers leaves them unchanged.
+            </DialogDescription>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setRenumberPrompt(null)}>
+              Cancel
+            </Button>
+            <Button variant="outline" onClick={() => answerRenumber(false)}>
+              Keep their numbers
+            </Button>
+            <Button onClick={() => answerRenumber(true)}>Renumber</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={(open) => !deleting && setDeleteOpen(open)}
@@ -321,7 +367,49 @@ export function EquipmentEdit() {
   )
 }
 
-function Overview({ equipment, displayPropertyNo }: { equipment: Equipment; displayPropertyNo: string }) {
+function BundleLink({ bundle }: { bundle: EquipmentParentSummary }) {
+  return (
+    <Link to={`/equipment/${bundle.id}/edit`} className="font-medium underline hover:no-underline">
+      {bundle.property_no ?? 'pending property no.'}
+    </Link>
+  )
+}
+
+function BundleMembership({ isPeripheral, current, original }: { isPeripheral: boolean; current: EquipmentParentSummary | null; original: EquipmentParentSummary | null }) {
+  if (!isPeripheral) {
+    return original ? (
+      <>
+        Original bundle: desktop <BundleLink bundle={original} />. It is not linked to a desktop now.
+      </>
+    ) : null
+  }
+  const moved = original !== null && original.id !== current?.id
+  return (
+    <>
+      {moved ? 'Currently with desktop' : 'Part of desktop'} {current ? <BundleLink bundle={current} /> : 'record'}. Issuance, transfer and return follow the desktop.
+      {moved && (
+        <>
+          {' '}
+          Original bundle: <BundleLink bundle={original} />.
+        </>
+      )}
+    </>
+  )
+}
+
+const PLURALS: Partial<Record<string, string>> = { Monitor: 'Monitors', Keyboard: 'Keyboards', Mouse: 'Mice' }
+
+function bundleSummary(children: EquipmentPeripheral[]): string {
+  const counts = new Map<string, number>()
+  for (const child of children) {
+    const name = child.item ?? 'peripheral(s) outside your access'
+    counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+  return [...counts].map(([name, count]) => `${count} ${count === 1 || !PLURALS[name] ? name : PLURALS[name]}`).join(', ')
+}
+
+function Overview({ equipment, displayPropertyNo, showBundle }: { equipment: Equipment; displayPropertyNo: string; showBundle: boolean }) {
+  const children = equipment.children ?? []
   return (
     <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
       <QrCodeCard equipmentId={equipment.id} propertyNo={equipment.property_no} displayPropertyNo={displayPropertyNo} />
@@ -332,6 +420,19 @@ function Overview({ equipment, displayPropertyNo }: { equipment: Equipment; disp
             <SummaryItem label="End user" value={equipment.current_end_user?.full_name} />
           </dl>
         </DetailSection>
+        {showBundle && (
+          <DetailSection
+            icon={<Unplug className="h-3.5 w-3.5" />}
+            title="Bundle"
+            action={
+              <Link to={{ search: `?tab=${PERIPHERALS_TAB}` }} replace className="text-sm font-medium text-primary-700 hover:underline focus-visible:underline">
+                {children.length > 0 ? 'View peripherals' : 'Manage peripherals'}
+              </Link>
+            }
+          >
+            <p className="text-sm font-medium text-gray-900">{children.length > 0 ? bundleSummary(children) : 'No peripherals linked yet.'}</p>
+          </DetailSection>
+        )}
         <DetailSection icon={<Tag className="h-3.5 w-3.5" />} title="Status">
           <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
             <SummaryItem label="Condition" value={equipment.equipment_condition} />

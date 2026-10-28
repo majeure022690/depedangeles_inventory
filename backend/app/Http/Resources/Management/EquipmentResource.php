@@ -11,13 +11,27 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Tier 1 fields ship both the FK id the form binds to (`item_type_id`)
  * and the related row's display name under its historical key (`item`,
  * `brand_manufacturer`, `category`, `classification`,
- * `equipment_condition`). `transactions`, `parent` and `children` only
- * on the detail and update endpoints.
+ * `equipment_condition`). `parent` and `children` only on the create,
+ * detail and update endpoints; `transactions` only on the detail endpoint;
+ * `original_bundle` and `renumberable_peripherals_count` on detail and update.
  *
  * @mixin Equipment
  */
 class EquipmentResource extends JsonResource
 {
+    private bool $withBundleNumbering = false;
+
+    /**
+     * Adds `original_bundle` and `renumberable_peripherals_count`, which
+     * cost a query each and so stay off list responses.
+     */
+    public function withBundleNumbering(): static
+    {
+        $this->withBundleNumbering = true;
+
+        return $this;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -78,6 +92,13 @@ class EquipmentResource extends JsonResource
                 ->values()
                 ->map(fn (Equipment $child) => self::peripheral($child, $request))
                 ->all()),
+            'original_bundle' => $this->when($this->withBundleNumbering, fn () => self::originalBundle($this->resource, $request)),
+            'renumberable_peripherals_count' => $this->when(
+                $this->withBundleNumbering,
+                fn () => $this->property_no === null || $request->user() === null || $this->itemType?->isBundleParent() !== true
+                    ? 0
+                    : Equipment::countNumberedAfter($this->property_no, $request->user()),
+            ),
             'transactions' => EquipmentTransactionResource::collection($this->whenLoaded('transactions')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
@@ -103,6 +124,19 @@ class EquipmentResource extends JsonResource
             'model' => $visible ? $child->model : null,
             'equipment_condition' => $visible ? $child->equipmentCondition?->name : null,
         ];
+    }
+
+    /**
+     * @return array{id: int, property_no: string|null}|null
+     */
+    private static function originalBundle(Equipment $equipment, Request $request): ?array
+    {
+        $user = $request->user();
+        $bundle = $equipment->originalBundle();
+
+        return $user !== null && $bundle !== null && $bundle->isVisibleTo($user)
+            ? ['id' => $bundle->id, 'property_no' => $bundle->property_no]
+            : null;
     }
 
     /**

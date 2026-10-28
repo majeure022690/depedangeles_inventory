@@ -79,6 +79,8 @@ class UpdateEquipmentRequest extends FormRequest
             'under_warranty' => ['nullable', 'boolean'],
             'end_warranty_date' => ['nullable', 'date'],
             'supplier' => ['nullable', 'string', 'max:255'],
+
+            'renumber_peripherals' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -98,6 +100,10 @@ class UpdateEquipmentRequest extends FormRequest
                 return;
             }
 
+            if ($this->boolean('renumber_peripherals') && ! $validator->errors()->has('renumber_peripherals') && ! $itemType->isBundleParent()) {
+                $validator->errors()->add('renumber_peripherals', __('Only a Desktop (package) or CPU can renumber its peripherals.'));
+            }
+
             if ($equipment->parent_equipment_id !== null && ! $itemType->isPeripheral()) {
                 $validator->errors()->add('item_type_id', __('A linked peripheral must stay a Monitor, Keyboard or Mouse.'));
             } elseif (! $itemType->isBundleParent() && $equipment->children()->exists()) {
@@ -111,6 +117,9 @@ class UpdateEquipmentRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return (new StoreEquipmentRequest)->attributes();
+        return [
+            ...(new StoreEquipmentRequest)->attributes(),
+            'renumber_peripherals' => 'renumber peripherals',
+        ];
     }
 }

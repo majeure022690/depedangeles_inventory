@@ -38,7 +38,7 @@ export interface EquipmentPeripheral {
   equipment_condition: string | null
 }
 
-/** Mirrors StoreEquipmentPeripheralRequest; ids are `null` when not chosen. */
+/** One row of `peripherals` on create or the batch add; a `null` brand or condition takes the desktop's. */
 export interface EquipmentPeripheralFormData {
   item_type_id: number | null
   serial_number: string
@@ -56,7 +56,9 @@ export type EquipmentPeripheralPayload = { [K in keyof EquipmentPeripheralFormDa
  * `EquipmentResource`. Tier 1 fields ship the FK id the form binds to
  * (`item_type_id`) and the resolved display name under the historical key
  * (`item`); never derive the name from the id client-side.
- * `transactions`, `parent` and `children` are only present on the detail and update endpoints.
+ * `parent` (the current bundle) and `children` are present on the create, detail and update endpoints;
+ * `transactions` on detail only; `original_bundle` (the desktop whose number this one extends)
+ * and `renumberable_peripherals_count` on detail and update.
  */
 export interface Equipment {
   id: number
@@ -105,6 +107,8 @@ export interface Equipment {
   parent_equipment_id: number | null
   parent?: EquipmentParentSummary | null
   children?: EquipmentPeripheral[]
+  original_bundle?: EquipmentParentSummary | null
+  renumberable_peripherals_count?: number
   transactions?: EquipmentTransaction[]
   created_at: string | null
   updated_at: string | null
@@ -209,5 +213,9 @@ export interface EquipmentTransactionFormData {
 }
 
 export type EquipmentPayload = { [K in keyof EquipmentFormData]: EquipmentFormData[K] | null }
+
+export type EquipmentCreatePayload = EquipmentPayload & { peripherals?: EquipmentPeripheralPayload[] }
+
+export type EquipmentUpdatePayload = EquipmentPayload & { renumber_peripherals?: boolean }
 
 export type EquipmentTransactionPayload = { [K in keyof EquipmentTransactionFormData]: EquipmentTransactionFormData[K] | null }

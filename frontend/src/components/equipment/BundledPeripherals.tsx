@@ -2,6 +2,13 @@ import { Link2, Link2Off, Plus, Search, Unplug } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
+import {
+  PeripheralRowsEditor,
+  defaultPeripheralRows,
+  peripheralRowErrors,
+  toPeripheralPayloads,
+  type PeripheralRow,
+} from "@/components/equipment/PeripheralRowsEditor";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -15,54 +22,23 @@ import {
   DialogTitle,
 } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
-import { Textarea } from "@/components/ui/Textarea";
 import { PERIPHERAL_ITEMS } from "@/lib/equipmentBundles";
 import {
   extractError,
   extractFieldErrors,
-  isValidationError,
-  type FieldErrors,
+  NO_ROW_ERRORS,
+  type RowErrors,
 } from "@/lib/errors";
-import {
-  equipmentService,
-  toPeripheralPayload,
-} from "@/services/equipmentService";
+import { equipmentService } from "@/services/equipmentService";
 import type {
   Equipment,
   EquipmentFormOptions,
   EquipmentPeripheral,
-  EquipmentPeripheralFormData,
 } from "@/types/equipment";
-
-const EMPTY_PERIPHERAL: EquipmentPeripheralFormData = {
-  item_type_id: null,
-  serial_number: "",
-  brand_id: null,
-  model: "",
-  specifications: "",
-  equipment_condition_id: null,
-  acquisition_cost: "",
-  remarks: "",
-};
 
 function describe(item: { property_no: string | null }): string {
   return item.property_no ?? "pending property no.";
-}
-
-/** The 422 message to show above a form when none of its fields owns it. */
-function generalError(
-  error: unknown,
-  fields: readonly string[],
-  fallback: string,
-): string | null {
-  if (!isValidationError(error)) return extractError(error, fallback);
-  const fieldErrors = extractFieldErrors(error);
-  const unowned = Object.entries(fieldErrors).find(
-    ([key]) => !fields.includes(key),
-  );
-  return unowned ? unowned[1] : null;
 }
 
 interface BundledPeripheralsProps {
@@ -142,7 +118,7 @@ export function BundledPeripherals({
                 onClick={() => setAddOpen(true)}
                 disabled={!canAddNew || !options}
               >
-                Add new peripheral
+                Add new peripherals
               </Button>
             )}
           </div>
@@ -268,7 +244,7 @@ export function BundledPeripherals({
       )}
 
       {canAdd && (
-        <AddPeripheralDialog
+        <AddPeripheralsDialog
           open={addOpen}
           onOpenChange={setAddOpen}
           equipment={equipment}
@@ -305,9 +281,7 @@ export function BundledPeripherals({
   );
 }
 
-const PERIPHERAL_FIELDS = Object.keys(EMPTY_PERIPHERAL);
-
-function AddPeripheralDialog({
+function AddPeripheralsDialog({
   open,
   onOpenChange,
   equipment,
@@ -320,55 +294,63 @@ function AddPeripheralDialog({
   options: EquipmentFormOptions | null;
   onAdded: (message: string) => Promise<void>;
 }) {
-  const [form, setForm] =
-    useState<EquipmentPeripheralFormData>(EMPTY_PERIPHERAL);
-  const [errors, setErrors] = useState<FieldErrors>({});
+  const [rows, setRows] = useState<PeripheralRow[]>([]);
+  const [errors, setErrors] = useState<RowErrors>(NO_ROW_ERRORS);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const hasChildren = (equipment.children?.length ?? 0) > 0;
 
   useEffect(() => {
     if (!open) return;
-    setForm(EMPTY_PERIPHERAL);
-    setErrors({});
-    setFormError(null);
-  }, [open]);
-
-  const itemTypes = useMemo(
-    () =>
-      (options?.item_type ?? []).filter((option) =>
-        PERIPHERAL_ITEMS.includes(option.label),
+    setRows(
+      defaultPeripheralRows(
+        options,
+        hasChildren ? [PERIPHERAL_ITEMS[0]] : PERIPHERAL_ITEMS,
       ),
-    [options],
-  );
-
-  function set<K extends keyof EquipmentPeripheralFormData>(
-    key: K,
-    value: EquipmentPeripheralFormData[K],
-  ) {
-    setForm((current) => ({ ...current, [key]: value }));
-  }
+    );
+    setErrors(NO_ROW_ERRORS);
+    setFormError(null);
+  }, [open, options, hasChildren]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (rows.length === 0) {
+      setFormError("Add at least one peripheral row.");
+      return;
+    }
     setSaving(true);
-    setErrors({});
+    setErrors(NO_ROW_ERRORS);
     setFormError(null);
     try {
-      const response = await equipmentService.addPeripheral(
+      const response = await equipmentService.addPeripherals(
         equipment.id,
-        toPeripheralPayload(form),
+        toPeripheralPayloads(rows),
       );
+      const numbers = response.data
+        .map((peripheral) => peripheral.property_no)
+        .filter((number): number is string => number !== null);
       await onAdded(
-        `${response.data.item ?? "Peripheral"} ${describe(response.data)} was added to this desktop.`,
+        numbers.length > 0
+          ? `${response.message} New numbers: ${numbers.join(", ")}.`
+          : response.message,
       );
     } catch (e) {
-      setErrors(extractFieldErrors(e));
+      const rowErrors = peripheralRowErrors(e, rows);
+      const otherError = Object.entries(extractFieldErrors(e)).find(
+        ([field]) => field !== "peripherals",
+      );
+      setErrors(rowErrors);
       setFormError(
-        generalError(
-          e,
-          PERIPHERAL_FIELDS,
-          "Unable to add this peripheral. Please try again.",
-        ),
+        Object.keys(rowErrors.rows).length > 0
+          ? "Some rows need attention. Check the highlighted fields."
+          : otherError
+            ? otherError[1]
+            : rowErrors.general
+              ? null
+              : extractError(
+                  e,
+                  "Unable to add these peripherals. Please try again.",
+                ),
       );
     } finally {
       setSaving(false);
@@ -377,116 +359,31 @@ function AddPeripheralDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
-      <DialogContent size="lg">
-        <DialogTitle>Add new peripheral</DialogTitle>
+      <DialogContent size="xl">
+        <DialogTitle>Add new peripherals</DialogTitle>
         <DialogDescription>
-          Creates a new Monitor, Keyboard or Mouse record bundled with this
-          desktop. Its property number is generated automatically from the
-          desktop&apos;s (for example,{" "}
-          {equipment.property_no ?? "the desktop number"}-001), and it shares
-          the desktop&apos;s accountability.
+          Creates new Monitor, Keyboard or Mouse records bundled with this
+          desktop. Their property numbers are generated from the desktop&apos;s,
+          and they share the desktop&apos;s accountability. A blank brand or
+          condition takes the desktop&apos;s.
         </DialogDescription>
 
         <div role="alert" className="empty:hidden">
           {formError && <Alert type="error">{formError}</Alert>}
         </div>
 
-        <form
-          id="add-peripheral-form"
-          onSubmit={submit}
-          noValidate
-          className="grid gap-4 sm:grid-cols-2"
-        >
-          <Select
-            id="peripheral-item-type"
-            label="Item"
-            required
-            placeholder="Select an item"
-            options={itemTypes}
-            value={form.item_type_id ?? ""}
-            onChange={(e) =>
-              set(
-                "item_type_id",
-                e.target.value === "" ? null : Number(e.target.value),
-              )
-            }
-            error={errors.item_type_id}
+        <form id="add-peripherals-form" onSubmit={submit} noValidate>
+          <PeripheralRowsEditor
+            idPrefix="add-peripheral"
+            label="New peripherals"
+            rows={rows}
+            onChange={setRows}
+            options={options}
+            errors={errors}
+            desktopPropertyNo={equipment.property_no}
+            numbering={hasChildren ? "continue" : "sequence"}
+            missingPropertyNoNote="Give this desktop a property number before adding new peripherals; their numbers are based on it."
           />
-          <Input
-            id="peripheral-serial-number"
-            label="Serial number (optional)"
-            maxLength={255}
-            value={form.serial_number}
-            onChange={(e) => set("serial_number", e.target.value)}
-            error={errors.serial_number}
-          />
-          <Select
-            id="peripheral-brand"
-            label="Brand/manufacturer"
-            required
-            placeholder="Select a brand"
-            options={options?.brand ?? []}
-            value={form.brand_id ?? ""}
-            onChange={(e) =>
-              set(
-                "brand_id",
-                e.target.value === "" ? null : Number(e.target.value),
-              )
-            }
-            error={errors.brand_id}
-          />
-          <Input
-            id="peripheral-model"
-            label="Model (optional)"
-            maxLength={255}
-            value={form.model}
-            onChange={(e) => set("model", e.target.value)}
-            error={errors.model}
-          />
-          <Select
-            id="peripheral-condition"
-            label="Equipment condition"
-            required
-            placeholder="Select a condition"
-            options={options?.condition ?? []}
-            value={form.equipment_condition_id ?? ""}
-            onChange={(e) =>
-              set(
-                "equipment_condition_id",
-                e.target.value === "" ? null : Number(e.target.value),
-              )
-            }
-            error={errors.equipment_condition_id}
-          />
-          <Input
-            id="peripheral-acquisition-cost"
-            label="Acquisition cost (optional)"
-            type="number"
-            step="0.01"
-            min="0"
-            inputMode="decimal"
-            value={form.acquisition_cost}
-            onChange={(e) => set("acquisition_cost", e.target.value)}
-            error={errors.acquisition_cost}
-          />
-          <div className="sm:col-span-2">
-            <Textarea
-              id="peripheral-specifications"
-              label="Specifications (optional)"
-              value={form.specifications}
-              onChange={(e) => set("specifications", e.target.value)}
-              error={errors.specifications}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Textarea
-              id="peripheral-remarks"
-              label="Remarks (optional)"
-              value={form.remarks}
-              onChange={(e) => set("remarks", e.target.value)}
-              error={errors.remarks}
-            />
-          </div>
         </form>
 
         <DialogFooter>
@@ -497,8 +394,13 @@ function AddPeripheralDialog({
           >
             Cancel
           </Button>
-          <Button type="submit" form="add-peripheral-form" isLoading={saving}>
-            Add peripheral
+          <Button
+            type="submit"
+            form="add-peripherals-form"
+            isLoading={saving}
+            disabled={rows.length === 0}
+          >
+            {rows.length === 1 ? "Add peripheral" : `Add ${rows.length} peripherals`}
           </Button>
         </DialogFooter>
       </DialogContent>

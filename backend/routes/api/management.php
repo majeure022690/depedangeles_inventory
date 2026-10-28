@@ -54,6 +54,7 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
 
     // Permission-protected: equipment.edit on the desktop; adding or linking also needs equipment.transactions.create (adding also equipment.create).
     Route::post('/equipment/{equipment}/peripherals', [EquipmentPeripheralController::class, 'store'])->middleware([$can(P::EquipmentEdit), $can(P::EquipmentTransactionsCreate)])->whereNumber('equipment');
+    Route::post('/equipment/{equipment}/peripherals/batch', [EquipmentPeripheralController::class, 'storeMany'])->middleware([$can(P::EquipmentEdit), $can(P::EquipmentTransactionsCreate)])->whereNumber('equipment');
     Route::post('/equipment/{equipment}/peripherals/link', [EquipmentPeripheralController::class, 'link'])->middleware([$can(P::EquipmentEdit), $can(P::EquipmentTransactionsCreate)])->whereNumber('equipment');
     Route::delete('/equipment/{equipment}/peripherals/{peripheral}', [EquipmentPeripheralController::class, 'destroy'])->middleware($can(P::EquipmentEdit))->whereNumber(['equipment', 'peripheral']);
 

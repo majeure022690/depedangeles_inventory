@@ -9,6 +9,7 @@ use Closure;
 use Database\Factories\EquipmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -181,6 +182,69 @@ class Equipment extends Model
     public function isPeripheral(): bool
     {
         return $this->itemType?->isPeripheral() === true;
+    }
+
+    /**
+     * Peripherals within the user's scope numbered "<$propertyNo>-<digits>",
+     * soft-deleted ones included, wherever they are linked now.
+     *
+     * @return Collection<int, Equipment>
+     */
+    public static function numberedAfter(string $propertyNo, User $user, bool $lockForUpdate = false): Collection
+    {
+        return self::numberedAfterQuery($propertyNo, $user)
+            ->when($lockForUpdate, fn (Builder $query) => $query->lockForUpdate())
+            ->orderBy('property_no')
+            ->get()
+            ->filter(fn (Equipment $equipment) => self::isNumberedAfter($equipment->property_no, $propertyNo))
+            ->values();
+    }
+
+    public static function countNumberedAfter(string $propertyNo, User $user): int
+    {
+        return self::numberedAfterQuery($propertyNo, $user)
+            ->pluck('property_no')
+            ->filter(fn (?string $number) => self::isNumberedAfter($number, $propertyNo))
+            ->count();
+    }
+
+    /**
+     * The LIKE prefilter is case-insensitive on MySQL; isNumberedAfter() makes the match exact.
+     *
+     * @return Builder<Equipment>
+     */
+    private static function numberedAfterQuery(string $propertyNo, User $user): Builder
+    {
+        $pattern = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $propertyNo.'-').'%';
+
+        return self::withTrashed()
+            ->whereRaw("property_no LIKE ? ESCAPE '!'", [$pattern])
+            ->whereHas('itemType', fn (Builder $query) => $query->whereIn('name', ItemType::PERIPHERAL_NAMES))
+            ->visibleTo($user);
+    }
+
+    private static function isNumberedAfter(?string $number, string $propertyNo): bool
+    {
+        $prefix = $propertyNo.'-';
+
+        return $number !== null && str_starts_with($number, $prefix) && ctype_digit(substr($number, strlen($prefix)));
+    }
+
+    /**
+     * For a peripheral, the live desktop whose number is this one without
+     * its trailing "-<digits>".
+     */
+    public function originalBundle(): ?Equipment
+    {
+        if ($this->property_no === null || ! $this->isPeripheral() || preg_match('/^(.+)-\d+$/', $this->property_no, $matches) !== 1) {
+            return null;
+        }
+
+        return self::query()
+            ->with('createdBy:id,office_id')
+            ->where('property_no', $matches[1])
+            ->whereHas('itemType', fn (Builder $query) => $query->whereIn('name', ItemType::BUNDLE_PARENT_NAMES))
+            ->first();
     }
 
     /**

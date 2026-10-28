@@ -22,17 +22,20 @@ use App\Models\EquipmentLibrary;
 use App\Models\ItemType;
 use App\Models\Personnel;
 use App\Models\User;
+use App\Services\EquipmentPeripheralService;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\HeaderUtils;
 
 /**
  * Audit: create/update/delete rows come from Equipment's LogsActivity;
- * accountability moves are logged by EquipmentAccountabilityService.
+ * accountability moves are logged by EquipmentAccountabilityService;
+ * peripherals created or renumbered here by EquipmentPeripheralService.
  */
 class EquipmentController extends Controller
 {
@@ -115,6 +118,10 @@ class EquipmentController extends Controller
         'children.equipmentCondition:id,name',
         'children.createdBy:id,office_id',
     ];
+
+    public function __construct(
+        private readonly EquipmentPeripheralService $peripherals,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -204,11 +211,20 @@ class EquipmentController extends Controller
 
     public function store(StoreEquipmentRequest $request): JsonResponse
     {
-        $equipment = new Equipment($request->validated());
-        $equipment->createdBy()->associate($request->user());
-        $equipment->save();
+        /** @var User $user */
+        $user = $request->user();
 
-        return new EquipmentResource($equipment->fresh(self::LIST_RELATIONS))
+        $equipment = DB::transaction(function () use ($request, $user) {
+            $equipment = new Equipment($request->safe()->except('peripherals'));
+            $equipment->createdBy()->associate($user);
+            $equipment->save();
+
+            $this->peripherals->createMany($equipment, $request->peripheralRows(), $user);
+
+            return $equipment;
+        });
+
+        return new EquipmentResource($equipment->fresh([...self::LIST_RELATIONS, ...self::BUNDLE_RELATIONS]))
             ->additional(['message' => 'Equipment record created.'])
             ->response()
             ->setStatusCode(201);
@@ -228,6 +244,7 @@ class EquipmentController extends Controller
         ]);
 
         return new EquipmentResource($equipment)
+            ->withBundleNumbering()
             ->additional(['message' => 'Success'])
             ->response();
     }
@@ -236,9 +253,22 @@ class EquipmentController extends Controller
     {
         $this->authorize('update', $equipment);
 
-        $equipment->update($request->validated());
+        /** @var User $user */
+        $user = $request->user();
+
+        DB::transaction(function () use ($request, $equipment, $user) {
+            $locked = Equipment::query()->lockForUpdate()->findOrFail($equipment->id);
+            $previous = $locked->property_no;
+
+            $locked->update($request->safe()->except('renumber_peripherals'));
+
+            if ($request->boolean('renumber_peripherals')) {
+                $this->peripherals->renumber($locked, $previous, $user);
+            }
+        });
 
         return new EquipmentResource($equipment->fresh([...self::LIST_RELATIONS, ...self::BUNDLE_RELATIONS]))
+            ->withBundleNumbering()
             ->additional(['message' => 'Equipment record updated.'])
             ->response();
     }

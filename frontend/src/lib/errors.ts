@@ -51,3 +51,33 @@ export function extractFieldErrors(error: unknown): Record<string, string> {
   }
   return fieldErrors
 }
+
+/** 422 messages for an array of objects: `general` is the array key's own, `rows[n]` holds `<field>.n.<column>` keyed by column. */
+export interface RowErrors {
+  general: string | null
+  rows: Partial<Record<number, FieldErrors>>
+}
+
+export const NO_ROW_ERRORS: RowErrors = { general: null, rows: {} }
+
+export function extractRowErrors(error: unknown, field: string): RowErrors {
+  const result: RowErrors = { general: null, rows: {} }
+  if (!isValidationError(error)) return result
+  for (const [key, messages] of Object.entries(error.response?.data?.errors ?? {})) {
+    const message = messages[0]
+    if (!message) continue
+    if (key === field) {
+      result.general ??= message
+      continue
+    }
+    const [root, index, column = ''] = key.split('.')
+    if (root !== field || index === undefined || !/^\d+$/.test(index)) continue
+    const row = (result.rows[Number(index)] ??= {})
+    row[column] ??= message
+  }
+  return result
+}
+
+export function rowErrorCount(errors: RowErrors): number {
+  return (errors.general ? 1 : 0) + Object.values(errors.rows).reduce((total, row) => total + Object.keys(row ?? {}).length, 0)
+}

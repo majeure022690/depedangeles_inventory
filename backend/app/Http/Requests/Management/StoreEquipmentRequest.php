@@ -5,13 +5,18 @@ declare(strict_types=1);
 namespace App\Http\Requests\Management;
 
 use App\Enums\EquipmentLibraryType;
+use App\Http\Requests\Management\Concerns\ValidatesDesktopBundles;
 use App\Models\Equipment;
 use App\Models\EquipmentLibrary;
+use App\Models\ItemType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreEquipmentRequest extends FormRequest
 {
+    use ValidatesDesktopBundles;
+
     public function authorize(): bool
     {
         return $this->user()->can('create', Equipment::class);
@@ -81,7 +86,37 @@ class StoreEquipmentRequest extends FormRequest
             'under_warranty' => ['nullable', 'boolean'],
             'end_warranty_date' => ['nullable', 'date'],
             'supplier' => ['nullable', 'string', 'max:255'],
+
+            ...$this->peripheralRowsRules(required: false),
         ];
+    }
+
+    /**
+     * Peripherals take the desktop's property number plus a sequence.
+     *
+     * @return array<int, callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            if (blank($this->input('peripherals')) || $validator->errors()->has('item_type_id')) {
+                return;
+            }
+
+            if (ItemType::find($this->integer('item_type_id'))?->isBundleParent() !== true) {
+                $validator->errors()->add('peripherals', __('Only a Desktop (package) or CPU can have peripherals.'));
+            } elseif (blank($this->input('property_no'))) {
+                $validator->errors()->add('property_no', __('Enter the property number: the peripherals are numbered after it.'));
+            }
+        }];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return $this->peripheralRowsMessages();
     }
 
     /**
@@ -108,6 +143,7 @@ class StoreEquipmentRequest extends FormRequest
             'pm_plan' => 'PM plan',
             'equipment_condition_id' => 'equipment condition',
             'end_warranty_date' => 'warranty end date',
+            ...$this->peripheralRowsAttributes(),
         ];
     }
 }

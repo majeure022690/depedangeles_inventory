@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\Management;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Management\LinkEquipmentPeripheralRequest;
+use App\Http\Requests\Management\StoreEquipmentPeripheralBatchRequest;
 use App\Http\Requests\Management\StoreEquipmentPeripheralRequest;
 use App\Http\Resources\Management\EquipmentResource;
 use App\Models\Equipment;
@@ -37,6 +38,19 @@ class EquipmentPeripheralController extends Controller
 
         return new EquipmentResource($peripheral->load(self::RELATIONS))
             ->additional(['message' => 'Peripheral added.'])
+            ->response()
+            ->setStatusCode(201);
+    }
+
+    public function storeMany(StoreEquipmentPeripheralBatchRequest $request, Equipment $equipment): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $peripherals = $this->peripherals->createMany($equipment, $request->peripheralRows(), $user);
+
+        return EquipmentResource::collection($peripherals->load(self::RELATIONS))
+            ->additional(['message' => trans_choice('Peripheral added.|:count peripherals added.', $peripherals->count())])
             ->response()
             ->setStatusCode(201);
     }
