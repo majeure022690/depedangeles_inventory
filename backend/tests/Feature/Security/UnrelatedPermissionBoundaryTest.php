@@ -36,6 +36,7 @@ class UnrelatedPermissionBoundaryTest extends TestCase
         $parameters = [
             'personnel' => Personnel::factory()->create()->id,
             'equipment' => Equipment::factory()->create()->id,
+            'peripheral' => Equipment::factory()->create()->id,
             'ispAccount' => IspAccount::factory()->create()->id,
             'office' => Office::create(['office_name' => 'Boundary ES'])->id,
             'user' => $target->id,

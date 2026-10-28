@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Requests\Management;
 
 use App\Enums\EquipmentLibraryType;
+use App\Models\Equipment;
 use App\Models\EquipmentLibrary;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreEquipmentTransactionRequest extends FormRequest
 {
@@ -53,6 +55,23 @@ class StoreEquipmentTransactionRequest extends FormRequest
             'supporting_documents2' => ['nullable', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::SupportingDocumentType))],
             'par_ics_rrsp_rs_wmr_no' => ['nullable', 'string', 'max:255'],
         ];
+    }
+
+    /**
+     * @return array<int, callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            /** @var Equipment $equipment */
+            $equipment = $this->route('equipment');
+
+            if ($equipment->parent_equipment_id !== null) {
+                $validator->errors()->add('equipment', __('This peripheral moves with its desktop :property_no.', [
+                    'property_no' => $equipment->parent()->withTrashed()->value('property_no'),
+                ]));
+            }
+        }];
     }
 
     /**

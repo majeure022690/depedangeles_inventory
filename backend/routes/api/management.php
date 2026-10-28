@@ -4,6 +4,7 @@ use App\Enums\Permission as P;
 use App\Http\Controllers\Api\Management\AuditLogController;
 use App\Http\Controllers\Api\Management\DashboardController;
 use App\Http\Controllers\Api\Management\EquipmentController;
+use App\Http\Controllers\Api\Management\EquipmentPeripheralController;
 use App\Http\Controllers\Api\Management\EquipmentTransactionController;
 use App\Http\Controllers\Api\Management\InternetConnectivitySurveyController;
 use App\Http\Controllers\Api\Management\IspAccountController;
@@ -30,7 +31,7 @@ use Illuminate\Support\Facades\Route;
 $can = fn (P ...$permissions): string => 'permission:'.implode('|', array_map(fn (P $p) => $p->value, $permissions));
 
 Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout::class, 'throttle:authenticated-api'])->group(function () use ($can) {
-    // Authenticated: each section is included only for holders of its .view permission.
+    // Authenticated: each section is included only for holders of its dashboard.* permission.
     Route::get('/dashboard/summary', DashboardController::class);
 
     // Permission-protected: personnel.*.
@@ -50,6 +51,11 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     Route::put('/equipment/{equipment}', [EquipmentController::class, 'update'])->middleware($can(P::EquipmentEdit))->whereNumber('equipment');
     Route::delete('/equipment/{equipment}', [EquipmentController::class, 'destroy'])->middleware($can(P::EquipmentDelete))->whereNumber('equipment');
     Route::post('/equipment/{equipment}/transactions', [EquipmentTransactionController::class, 'store'])->middleware($can(P::EquipmentTransactionsCreate))->whereNumber('equipment');
+
+    // Permission-protected: equipment.edit on the desktop; adding or linking also needs equipment.transactions.create (adding also equipment.create).
+    Route::post('/equipment/{equipment}/peripherals', [EquipmentPeripheralController::class, 'store'])->middleware([$can(P::EquipmentEdit), $can(P::EquipmentTransactionsCreate)])->whereNumber('equipment');
+    Route::post('/equipment/{equipment}/peripherals/link', [EquipmentPeripheralController::class, 'link'])->middleware([$can(P::EquipmentEdit), $can(P::EquipmentTransactionsCreate)])->whereNumber('equipment');
+    Route::delete('/equipment/{equipment}/peripherals/{peripheral}', [EquipmentPeripheralController::class, 'destroy'])->middleware($can(P::EquipmentEdit))->whereNumber(['equipment', 'peripheral']);
 
     // Permission-protected: isp_accounts.*. Speed tests and subscription
     // costs are append-only logs authorized against the parent's `update`.

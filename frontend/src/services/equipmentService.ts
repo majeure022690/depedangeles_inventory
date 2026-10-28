@@ -6,6 +6,8 @@ import type {
   EquipmentFormData,
   EquipmentOptions,
   EquipmentPayload,
+  EquipmentPeripheralFormData,
+  EquipmentPeripheralPayload,
   EquipmentTransaction,
   EquipmentTransactionFormData,
   EquipmentTransactionPayload,
@@ -26,6 +28,10 @@ export function toTransactionPayload(form: EquipmentTransactionFormData): Equipm
   return blankToNull(form)
 }
 
+export function toPeripheralPayload(form: EquipmentPeripheralFormData): EquipmentPeripheralPayload {
+  return blankToNull(form)
+}
+
 export const equipmentService = {
   list: (params: Record<string, string | number>) =>
     api.get<PaginatedResponse<Equipment>>('/equipment', { params }).then((r) => r.data),
@@ -39,4 +45,9 @@ export const equipmentService = {
   qrCode: (id: number) => api.get<Blob>(`/equipment/${id}/qr-code`, { responseType: 'blob' }).then((r) => r.data),
   recordTransaction: (id: number, payload: EquipmentTransactionPayload) =>
     api.post<ApiResponse<EquipmentTransaction>>(`/equipment/${id}/transactions`, payload).then((r) => r.data),
+  addPeripheral: (id: number, payload: EquipmentPeripheralPayload) =>
+    api.post<ApiResponse<Equipment>>(`/equipment/${id}/peripherals`, payload).then((r) => r.data),
+  linkPeripheral: (id: number, equipmentId: number) =>
+    api.post<ApiResponse<Equipment>>(`/equipment/${id}/peripherals/link`, { equipment_id: equipmentId }).then((r) => r.data),
+  unlinkPeripheral: (id: number, peripheralId: number) => api.delete(`/equipment/${id}/peripherals/${peripheralId}`),
 }
