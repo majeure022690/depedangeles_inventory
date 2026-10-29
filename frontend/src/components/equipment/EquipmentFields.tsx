@@ -310,10 +310,10 @@ export function EquipmentFields({
     )
   }
 
-  function idSelect(key: IdKey, label: string, hint: string, list: SelectOption[] | undefined, placeholder: string, currentLabel: string | null | undefined) {
+  function idSelect(key: IdKey, label: string, hint: string, list: SelectOption[] | undefined, placeholder: string, currentLabel: string | null | undefined, required = true) {
     const selected = value[key]
     return (
-      <FormField id={key} label={label} hint={hint} error={errors[key]} required>
+      <FormField id={key} label={label} hint={hint} error={errors[key]} required={required}>
         {(aria) => (
           <Select
             id={key}
@@ -380,12 +380,12 @@ export function EquipmentFields({
     )
   }
 
-  function personField(key: PersonKey, label: string, hint: string) {
+  function personField(key: PersonKey, label: string, hint: string, required = true) {
     const id = `accountability-${key}`
     const selected = accountability?.[key] ?? null
     const people = (options?.personnel ?? []).map((option) => ({ value: String(option.value), label: option.label }))
     return (
-      <FormField id={id} label={label} hint={hint} error={errors[`accountability.${key}`]} required>
+      <FormField id={id} label={label} hint={hint} error={errors[`accountability.${key}`]} required={required}>
         {(aria) => (
           <SelectPicker
             id={id}
@@ -426,9 +426,10 @@ export function EquipmentFields({
             formOptions?.item_type,
             'Select an item type',
             current?.item,
+            true,
           )}
           {stringSelect('uom', 'Unit of measure', 'Select the unit of measure of the item.', formOptions?.unit_of_measure, 'Select a unit of measure', true)}
-          {idSelect('brand_id', 'Brand/manufacturer', 'Choose the Brand/Manufacturer from the dropdown.', formOptions?.brand, 'Select a brand', current?.brand_manufacturer)}
+          {idSelect('brand_id', 'Brand/manufacturer', 'Choose the Brand/Manufacturer from the dropdown.', formOptions?.brand, 'Select a brand', current?.brand_manufacturer, true)}
           {text('model', 'Model', 'Input the equipment\'s Model Name or Number.', { required: true })}
           {text('serial_number', 'Serial number', 'Input the equipment\'s Serial number', { required: true })}
           {longText(
@@ -494,6 +495,7 @@ export function EquipmentFields({
             formOptions?.classification,
             'Select a classification',
             current?.classification,
+            true,
           )}
           {checkbox('non_dcp', 'Non-DCP', 'Leave unticked if the item was delivered under the DepEd Computerization Program (DCP).')}
           {!value.non_dcp && (
@@ -597,9 +599,10 @@ export function EquipmentFields({
           {personField('received_by_id', 'Received by', 'Choose the Accountable Officer, Custodian, or End User who received the equipment.')}
           {accountabilityText(
             'date_received_new_accountable',
-            'Date received (optional)',
+            'Date received by new accountable',
             'Enter the date when the equipment was received in the \'MM/DD/YYYY\' format.',
             'date',
+            true,
           )}
           {accountabilitySelect(
             'supporting_documents2',
@@ -659,6 +662,7 @@ export function EquipmentFields({
           formOptions?.condition,
           'Select a condition',
           current?.equipment_condition,
+          true,
         )}
         {stringSelect(
           'disposition_status',

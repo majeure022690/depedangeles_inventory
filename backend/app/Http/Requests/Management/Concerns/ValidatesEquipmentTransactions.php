@@ -30,7 +30,7 @@ trait ValidatesEquipmentTransactions
 
             "{$prefix}date_assigned_accountable_officer" => [$presence, 'date'],
             "{$prefix}date_assigned_end_user" => [$presence, 'date'],
-            "{$prefix}date_received_new_accountable" => ['nullable', 'date'],
+            "{$prefix}date_received_new_accountable" => [$presence, 'date'],
 
             "{$prefix}supporting_documents1" => ['nullable', 'string', Rule::in($documentTypes)],
             "{$prefix}or_si_dr_iar_no" => ['nullable', 'string', 'max:255'],
