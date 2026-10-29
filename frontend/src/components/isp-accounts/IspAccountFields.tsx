@@ -166,7 +166,6 @@ export function IspAccountFields({ form, onChange, options, errors, disabled = f
             </div>
           </DetailSection>
         </TabPanel>
-      </>
     </>
   )
 }
