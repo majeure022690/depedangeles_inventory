@@ -121,6 +121,13 @@ export interface EquipmentActivity {
   properties: {
     attributes?: Record<string, unknown>
     old?: Record<string, unknown>
+    // Direct properties for peripheral events (equipment.peripheral.linked/unlinked/created)
+    // On parent equipment: shows which peripheral was linked/unlinked
+    peripheral_id?: number
+    peripheral_property_no?: string
+    // On peripheral equipment: shows which parent it was linked to/unlinked from
+    parent_equipment_id?: number
+    parent_property_no?: string
   }
   causer: { id: number; name: string } | null
   created_at: string

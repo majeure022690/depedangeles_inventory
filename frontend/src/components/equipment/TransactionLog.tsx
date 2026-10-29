@@ -1,5 +1,6 @@
 import { ClipboardList, History } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 
 import { FormField } from '@/components/forms/FormField'
 import { Alert } from '@/components/ui/Alert'
@@ -127,11 +128,11 @@ export function TransactionLog({ equipmentId, transactions, activities, options,
   }
 
   // SelectPicker (searchable) for the personnel lists, which can be long.
-  function personField(key: PersonKey, label: string, hint: string) {
+  function personField(key: PersonKey, label: string, hint: string, required = true) {
     const id = `tx-${key}`
     const selected = form[key]
     return (
-      <FormField id={id} label={`${label} (optional)`} hint={hint} error={errors[key]}>
+      <FormField id={id} label={label} hint={hint} error={errors[key]} required={required}>
         {(aria) => (
           <SelectPicker
             id={id}
@@ -310,12 +311,15 @@ function DocumentLine({ type, number }: { type: string | null; number: string | 
 
 function ActivityItem({ activity }: { activity: EquipmentActivity }) {
   const eventType = activity.description.split('.').pop() || 'updated'
-  const changes = activity.properties.attributes || {}
+  
+  // For peripheral events, the relevant data is directly in properties, not in properties.attributes
+  const isPeripheralEvent = eventType === 'linked' || eventType === 'unlinked' || eventType === 'created'
+  const changes = isPeripheralEvent ? {} : (activity.properties.attributes || {})
   const oldValues = activity.properties.old || {}
 
   // Field labels mapping
   const fieldLabels: Record<string, string> = {
-    parent_equipment_id: 'Parent Equipment',
+    parent_equipment_id: 'Bundle Linkage',
     serial_number: 'Serial Number',
     model: 'Model',
     brand_id: 'Brand',
@@ -325,9 +329,31 @@ function ActivityItem({ activity }: { activity: EquipmentActivity }) {
     disposition_status: 'Disposition Status',
     remarks: 'Remarks',
     used_by: 'Used By',
+    item_type_id: 'Item Type',
+    uom: 'Unit of Measure',
+    specifications: 'Specifications',
+    non_dcp: 'Non-DCP',
+    dcp_package: 'DCP Package',
+    dcp_year: 'DCP Year',
+    gl_sl_code: 'GL-SL Code',
+    uacs: 'UACS',
+    acquisition_cost: 'Acquisition Cost',
+    received_date: 'Acquisition Date',
+    estimated_useful_life: 'Estimated Useful Life',
+    mode_acquisition: 'Mode of Acquisition',
+    source_acquisition: 'Source of Acquisition',
+    donor: 'Donor',
+    source_fund: 'Source of Funds',
+    allotment_class: 'Allotment Class',
+    pm_plan: 'PM Plan',
+    under_warranty: 'Under Warranty',
+    end_warranty_date: 'Warranty End Date',
+    supplier: 'Supplier',
+    old_property_no: 'Old Property Number',
+    property_no: 'Property Number',
   }
 
-  const changedFields = Object.keys(changes).filter(key => key !== 'updated_at')
+  const changedFields = Object.keys(changes).filter(key => key !== 'updated_at' && key !== 'parent_equipment_property_no')
 
   return (
     <div className="px-5 py-4">
@@ -337,11 +363,103 @@ function ActivityItem({ activity }: { activity: EquipmentActivity }) {
             {eventType === 'created' && 'Equipment created'}
             {eventType === 'updated' && 'Equipment updated'}
             {eventType === 'deleted' && 'Equipment deleted'}
+            {eventType === 'linked' && 'Peripheral linked to bundle'}
+            {eventType === 'unlinked' && 'Peripheral unlinked from bundle'}
           </p>
           <p className="mt-1 text-xs text-gray-500">
             {activity.causer?.name || 'System'} · {formatTimestamp(activity.created_at)}
           </p>
-          {changedFields.length > 0 && (
+          
+          {/* Handle peripheral linking/unlinking events */}
+          {isPeripheralEvent && (
+            <div className="mt-2 space-y-1">
+              {eventType === 'linked' && (
+                <div className="text-sm text-gray-700">
+                  {activity.properties.peripheral_property_no ? (
+                    <>
+                      <span className="font-medium">Peripheral linked:</span>{' '}
+                      <Link 
+                        to={`/equipment/${activity.properties.peripheral_id}/edit`}
+                        className="font-mono text-sm font-medium text-primary-700 hover:underline"
+                      >
+                        {String(activity.properties.peripheral_property_no)}
+                      </Link>
+                    </>
+                  ) : activity.properties.parent_property_no ? (
+                    <>
+                      <span className="font-medium">Linked to bundle:</span>{' '}
+                      <Link 
+                        to={`/equipment/${activity.properties.parent_equipment_id}/edit`}
+                        className="font-mono text-sm font-medium text-primary-700 hover:underline"
+                      >
+                        {String(activity.properties.parent_property_no)}
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium">Peripheral linked</span>
+                      {activity.properties.peripheral_id && ` (Equipment ID: ${String(activity.properties.peripheral_id)})`}
+                      {activity.properties.parent_equipment_id && ` to bundle (Equipment ID: ${String(activity.properties.parent_equipment_id)})`}
+                    </>
+                  )}
+                </div>
+              )}
+              {eventType === 'unlinked' && (
+                <div className="text-sm text-gray-700">
+                  {activity.properties.peripheral_property_no ? (
+                    <>
+                      <span className="font-medium">Peripheral unlinked:</span>{' '}
+                      <Link 
+                        to={`/equipment/${activity.properties.peripheral_id}/edit`}
+                        className="font-mono text-sm font-medium text-primary-700 hover:underline"
+                      >
+                        {String(activity.properties.peripheral_property_no)}
+                      </Link>
+                    </>
+                  ) : activity.properties.parent_property_no ? (
+                    <>
+                      <span className="font-medium">Unlinked from bundle:</span>{' '}
+                      <Link 
+                        to={`/equipment/${activity.properties.parent_equipment_id}/edit`}
+                        className="font-mono text-sm font-medium text-primary-700 hover:underline"
+                      >
+                        {String(activity.properties.parent_property_no)}
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium">Peripheral unlinked</span>
+                      {activity.properties.peripheral_id && ` (Equipment ID: ${String(activity.properties.peripheral_id)})`}
+                      {activity.properties.parent_equipment_id && ` from bundle (Equipment ID: ${String(activity.properties.parent_equipment_id)})`}
+                    </>
+                  )}
+                </div>
+              )}
+              {eventType === 'created' && (
+                <div className="text-sm text-gray-700">
+                  {activity.properties.parent_property_no ? (
+                    <>
+                      <span className="font-medium">Created as peripheral of bundle:</span>{' '}
+                      <Link 
+                        to={`/equipment/${activity.properties.parent_equipment_id}/edit`}
+                        className="font-mono text-sm font-medium text-primary-700 hover:underline"
+                      >
+                        {String(activity.properties.parent_property_no)}
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium">Peripheral created</span>
+                      {activity.properties.parent_equipment_id && ` as part of bundle (Equipment ID: ${String(activity.properties.parent_equipment_id)})`}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Handle regular field changes for updated events */}
+          {!isPeripheralEvent && changedFields.length > 0 ? (
             <div className="mt-2 space-y-1">
               {changedFields.map((field) => {
                 const label = fieldLabels[field] || field
@@ -350,42 +468,57 @@ function ActivityItem({ activity }: { activity: EquipmentActivity }) {
                 
                 // Special handling for parent_equipment_id (peripheral linking)
                 if (field === 'parent_equipment_id') {
+                  const newPropertyNo = changes['parent_equipment_property_no']
+                  const oldPropertyNo = oldValues['parent_equipment_property_no']
+                  
                   if (newValue && !oldValue) {
                     return (
                       <div key={field} className="text-sm text-gray-700">
-                        <span className="font-medium">Linked to bundle:</span> Equipment ID {String(newValue)}
+                        <span className="font-medium">Linked to bundle:</span> {newPropertyNo ? String(newPropertyNo) : `Equipment ID: ${String(newValue)}`}
                       </div>
                     )
                   }
                   if (!newValue && oldValue) {
                     return (
                       <div key={field} className="text-sm text-gray-700">
-                        <span className="font-medium">Unlinked from bundle:</span> Equipment ID {String(oldValue)}
+                        <span className="font-medium">Unlinked from bundle:</span> {oldPropertyNo ? String(oldPropertyNo) : `Equipment ID: ${String(oldValue)}`}
                       </div>
                     )
                   }
                   if (newValue && oldValue) {
                     return (
                       <div key={field} className="text-sm text-gray-700">
-                        <span className="font-medium">Transferred to different bundle:</span> from ID {String(oldValue)} to ID {String(newValue)}
+                        <span className="font-medium">Transferred to different bundle:</span>{' '}
+                        {oldPropertyNo ? String(oldPropertyNo) : `ID: ${String(oldValue)}`} → {newPropertyNo ? String(newPropertyNo) : `ID: ${String(newValue)}`}
                       </div>
                     )
                   }
                 }
 
+                // Format boolean values
+                const formatValue = (val: any) => {
+                  if (typeof val === 'boolean') return val ? 'Yes' : 'No'
+                  if (val === null || val === undefined) return '—'
+                  return String(val)
+                }
+
                 return (
                   <div key={field} className="text-sm text-gray-700">
                     <span className="font-medium">{label}:</span>{' '}
-                    {oldValue !== undefined && (
-                      <span className="text-gray-500 line-through">{String(oldValue)}</span>
+                    {oldValue !== undefined && oldValue !== null && (
+                      <>
+                        <span className="text-gray-500 line-through">{formatValue(oldValue)}</span>
+                        {' → '}
+                      </>
                     )}
-                    {oldValue !== undefined && ' → '}
-                    <span>{String(newValue)}</span>
+                    <span>{formatValue(newValue)}</span>
                   </div>
                 )
               })}
             </div>
-          )}
+          ) : !isPeripheralEvent ? (
+            <p className="mt-2 text-sm italic text-gray-500">No field changes recorded</p>
+          ) : null}
         </div>
       </div>
     </div>

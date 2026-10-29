@@ -486,6 +486,34 @@ class Equipment extends Model
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
-            ->setDescriptionForEvent(fn (string $event): string => "equipment.{$event}");
+            ->setDescriptionForEvent(fn (string $event): string => "equipment.{$event}")
+            ->useLogName('equipment');
+    }
+
+    /**
+     * Customize the activity log to include human-readable property numbers
+     * when parent_equipment_id changes (peripheral linking/unlinking).
+     */
+    public function tapActivity(\Spatie\Activitylog\Contracts\Activity $activity, string $eventName): void
+    {
+        $properties = $activity->properties->toArray();
+        
+        // If parent_equipment_id changed, add property numbers for better readability
+        if (isset($properties['attributes']['parent_equipment_id']) || isset($properties['old']['parent_equipment_id'])) {
+            $newParentId = $properties['attributes']['parent_equipment_id'] ?? null;
+            $oldParentId = $properties['old']['parent_equipment_id'] ?? null;
+
+            if ($newParentId) {
+                $newParent = self::find($newParentId);
+                $properties['attributes']['parent_equipment_property_no'] = $newParent?->property_no;
+            }
+
+            if ($oldParentId) {
+                $oldParent = self::find($oldParentId);
+                $properties['old']['parent_equipment_property_no'] = $oldParent?->property_no;
+            }
+
+            $activity->properties = $properties;
+        }
     }
 }

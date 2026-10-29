@@ -542,17 +542,99 @@ export function EquipmentFields({
   }
 
   if (section === 'accountability') {
+    if (!isCreate) {
+      // EDIT mode - show read-only accountability information
+      const latestTransaction = current?.transactions?.[0]
+      return (
+        <div className="space-y-4">
+          <Card className="overflow-visible">
+            <FormSection title="Accountability">
+              {readOnly(
+                'accountable_officer',
+                'Accountable officer',
+                current?.current_accountable_officer?.full_name ?? '',
+                'Current accountable officer. Changes must be recorded in the History tab.',
+                '',
+              )}
+              {readOnly(
+                'date_assigned_accountable_officer',
+                'Date assigned to accountable officer',
+                latestTransaction?.date_assigned_accountable_officer ?? '',
+                'Date from the latest transaction.',
+                '',
+              )}
+              {readOnly(
+                'end_user',
+                'Custodian / end user',
+                current?.current_end_user?.full_name ?? '',
+                'Current custodian/end user. Changes must be recorded in the History tab.',
+                '',
+              )}
+              {readOnly(
+                'date_assigned_end_user',
+                'Date assigned to end user',
+                latestTransaction?.date_assigned_end_user ?? '',
+                'Date from the latest transaction.',
+                '',
+              )}
+              {readOnly(
+                'received_by',
+                'Received by',
+                latestTransaction?.received_by?.full_name ?? '',
+                'Person who received the equipment in the latest transaction.',
+                '',
+              )}
+              {readOnly(
+                'date_received_new_accountable',
+                'Date received by new accountable',
+                latestTransaction?.date_received_new_accountable ?? '',
+                'Date from the latest transaction.',
+                '',
+              )}
+              {readOnly(
+                'supporting_documents2',
+                'Supporting document (PAR/ICS/RRSP/RS/WMR)',
+                latestTransaction?.supporting_documents2 ?? '',
+                'Document from the latest transaction.',
+                '',
+              )}
+              {readOnly(
+                'par_ics_rrsp_rs_wmr_no',
+                'PAR/ICS/RRSP/RS/WMR no.',
+                latestTransaction?.par_ics_rrsp_rs_wmr_no ?? '',
+                'Document number from the latest transaction.',
+                '',
+              )}
+              {stringSelect(
+                'used_by',
+                'Used by',
+                'Select who primarily uses the equipment: Learner, Teacher, Teaching-Related or Non-Teaching personnel.',
+                formOptions?.used_by,
+                'Select who uses it',
+                true,
+              )}
+              <p className="text-sm text-gray-600 sm:col-span-2">
+                To update accountability information, log a new transaction in the{' '}
+                <strong>History tab</strong>.
+              </p>
+            </FormSection>
+          </Card>
+        </div>
+      )
+    }
+
+    // CREATE mode - show full accountability form
     return (
       <div className="space-y-4">
-        {isCreate && errors.accountability && <Alert type="error">{errors.accountability}</Alert>}
-        {isCreate && options && !options.personnel && (
+        {errors.accountability && <Alert type="error">{errors.accountability}</Alert>}
+        {options && !options.personnel && (
           <Alert type="warning">Your account can&apos;t assign accountability, so this record can&apos;t be saved. Ask an administrator for access to record equipment transactions.</Alert>
         )}
-        {isCreate && options?.personnel?.length === 0 && (
+        {options?.personnel?.length === 0 && (
           <Alert type="warning">No personnel are within your access, so accountability can&apos;t be assigned and this record can&apos;t be saved. Ask an administrator.</Alert>
         )}
-        <Card>
-          <FormSection title="Accountability">
+        <Card className="overflow-visible">
+          <FormSection title="Initial accountability">
             {personField('accountable_officer_id', 'Accountable officer', 'Choose the employee accountable for the equipment from the dropdown.')}
             {accountabilityText(
               'date_assigned_accountable_officer',
