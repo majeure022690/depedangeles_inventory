@@ -15,6 +15,7 @@ use App\Http\Requests\Management\UpdateEquipmentRequest;
 use App\Http\Resources\Management\EquipmentResource;
 use App\Models\Brand;
 use App\Models\Equipment;
+use App\Models\EquipmentAttachment;
 use App\Models\EquipmentCategory;
 use App\Models\EquipmentClassification;
 use App\Models\EquipmentCondition;
@@ -200,6 +201,7 @@ class EquipmentController extends Controller
                 ->all(),
             'donor_sources' => Equipment::DONOR_SOURCES,
             'category_rules' => Equipment::categoryRules(),
+            'attachment_document_types' => EquipmentAttachment::documentTypes(),
         ];
 
         if ($user->hasAnyPermission([Permission::EquipmentCreate, Permission::EquipmentTransactionsCreate])) {
@@ -249,6 +251,7 @@ class EquipmentController extends Controller
                 ->with(['accountableOfficer:id,full_name', 'endUser:id,full_name', 'receivedBy:id,full_name'])
                 ->latest('created_at')
                 ->latest('id'),
+            'attachments' => fn ($query) => $query->with('uploadedBy:id,name')->latest('id'),
         ]);
 
         return new EquipmentResource($equipment)

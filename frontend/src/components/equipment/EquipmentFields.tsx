@@ -637,6 +637,7 @@ export function EquipmentFields({
             </>
           )}
         </FormSection>
+        {isCreate && <Alert type="info">You can attach scanned documents or photos after saving the record.</Alert>}
       </div>
     )
   }

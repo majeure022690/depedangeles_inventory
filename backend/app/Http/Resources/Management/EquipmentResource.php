@@ -94,6 +94,7 @@ class EquipmentResource extends JsonResource
                 ->all()),
             'original_bundle' => $this->when($this->withOriginalBundle, fn () => self::originalBundle($this->resource, $request)),
             'transactions' => EquipmentTransactionResource::collection($this->whenLoaded('transactions')),
+            'attachments' => EquipmentAttachmentResource::collection($this->whenLoaded('attachments')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

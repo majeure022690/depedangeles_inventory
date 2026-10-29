@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 
 import { DetailPageSkeleton } from '@/components/DetailPageSkeleton'
 import { BundledPeripherals } from '@/components/equipment/BundledPeripherals'
+import { EquipmentAttachments } from '@/components/equipment/EquipmentAttachments'
 import {
   EQUIPMENT_FIELD_SECTIONS,
   EquipmentFields,
@@ -262,6 +263,15 @@ export function EquipmentEdit() {
                     disabled={!canEdit}
                     current={equipment}
                   />
+                  {section.value === 'documents' && (
+                    <EquipmentAttachments
+                      equipmentId={equipment.id}
+                      attachments={equipment.attachments ?? []}
+                      documentTypes={options?.attachment_document_types ?? []}
+                      canEdit={canEdit}
+                      onChanged={(attachments) => setEquipment((current) => (current ? { ...current, attachments } : current))}
+                    />
+                  )}
                 </div>
               </TabPanel>
             ))}

@@ -109,8 +109,21 @@ export interface Equipment {
   children?: EquipmentPeripheral[]
   original_bundle?: EquipmentParentSummary | null
   transactions?: EquipmentTransaction[]
+  attachments?: EquipmentAttachment[]
   created_at: string | null
   updated_at: string | null
+}
+
+/** A scanned document or photo kept on an equipment record; downloaded through the API only. */
+export interface EquipmentAttachment {
+  id: number
+  document_type: string
+  document_no: string | null
+  original_filename: string
+  mime_type: string
+  file_size: number
+  uploaded_by?: string | null
+  created_at: string | null
 }
 
 export interface EquipmentFormOptions {
@@ -165,6 +178,7 @@ export interface EquipmentOptions {
   classification_defaults: Record<string, ClassificationDefaults>
   donor_sources: string[]
   category_rules: EquipmentCategoryRules
+  attachment_document_types: string[]
   personnel?: Option<number>[]
 }
 

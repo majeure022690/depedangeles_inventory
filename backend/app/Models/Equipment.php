@@ -166,6 +166,14 @@ class Equipment extends Model
     }
 
     /**
+     * @return HasMany<EquipmentAttachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(EquipmentAttachment::class);
+    }
+
+    /**
      * The desktop bundle this peripheral is linked to.
      *
      * @return BelongsTo<Equipment, $this>

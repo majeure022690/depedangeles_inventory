@@ -3,6 +3,7 @@ import { lookupService } from '@/services/lookupService'
 import type { ApiResponse, PaginatedResponse } from '@/types/api'
 import type {
   Equipment,
+  EquipmentAttachment,
   EquipmentCreatePayload,
   EquipmentFormData,
   EquipmentOptions,
@@ -56,4 +57,15 @@ export const equipmentService = {
   linkPeripheral: (id: number, equipmentId: number) =>
     api.post<ApiResponse<Equipment>>(`/equipment/${id}/peripherals/link`, { equipment_id: equipmentId }).then((r) => r.data),
   unlinkPeripheral: (id: number, peripheralId: number) => api.delete(`/equipment/${id}/peripherals/${peripheralId}`),
+  uploadAttachment: (id: number, file: File, documentType: string, documentNo: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('document_type', documentType)
+    if (documentNo.trim() !== '') formData.append('document_no', documentNo.trim())
+    return api.post<ApiResponse<EquipmentAttachment>>(`/equipment/${id}/attachments`, formData).then((r) => r.data)
+  },
+  /** The stored file; the caller owns (and must revoke) an object URL made from it. */
+  attachmentFile: (id: number, attachmentId: number) =>
+    api.get<Blob>(`/equipment/${id}/attachments/${attachmentId}`, { responseType: 'blob' }).then((r) => r.data),
+  removeAttachment: (id: number, attachmentId: number) => api.delete(`/equipment/${id}/attachments/${attachmentId}`),
 }

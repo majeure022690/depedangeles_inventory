@@ -115,6 +115,43 @@ class FileUploadService
         ];
     }
 
+    /**
+     * A PDF is stored as-is after a real-MIME and header check; anything else goes through storeImage().
+     *
+     * @return array<string, mixed>
+     */
+    public function storeDocument(UploadedFile $file, string $disk, string $directory, string $errorField = 'file'): array
+    {
+        if (strtolower($file->getClientOriginalExtension()) !== 'pdf') {
+            return $this->storeImage($file, $disk, $directory, $errorField);
+        }
+
+        $realMimeType = (new \finfo(FILEINFO_MIME_TYPE))->file($file->getRealPath());
+        $header = (string) file_get_contents($file->getRealPath(), false, null, 0, 5);
+
+        if ($realMimeType !== 'application/pdf' || $header !== '%PDF-') {
+            $this->reject($errorField, 'The uploaded file is not a genuine PDF.');
+        }
+
+        $storedFilename = Str::uuid()->toString().'.pdf';
+        $path = Storage::disk($disk)->putFileAs(trim($directory, '/'), $file, $storedFilename);
+
+        if ($path === false) {
+            $this->reject($errorField, 'The file could not be stored.');
+        }
+
+        return [
+            'original_filename' => $file->getClientOriginalName(),
+            'stored_filename' => $storedFilename,
+            'disk' => $disk,
+            'mime_type' => 'application/pdf',
+            'file_size' => Storage::disk($disk)->size($path),
+            'file_hash' => hash_file('sha256', Storage::disk($disk)->path($path)),
+            'path' => $path,
+            'uploaded_at' => now(),
+        ];
+    }
+
     private function reject(string $field, string $message): never
     {
         throw ValidationException::withMessages([$field => $message]);

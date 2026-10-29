@@ -3,6 +3,7 @@
 use App\Enums\Permission as P;
 use App\Http\Controllers\Api\Management\AuditLogController;
 use App\Http\Controllers\Api\Management\DashboardController;
+use App\Http\Controllers\Api\Management\EquipmentAttachmentController;
 use App\Http\Controllers\Api\Management\EquipmentController;
 use App\Http\Controllers\Api\Management\EquipmentPeripheralController;
 use App\Http\Controllers\Api\Management\EquipmentTransactionController;
@@ -51,6 +52,9 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     Route::put('/equipment/{equipment}', [EquipmentController::class, 'update'])->middleware($can(P::EquipmentEdit))->whereNumber('equipment');
     Route::delete('/equipment/{equipment}', [EquipmentController::class, 'destroy'])->middleware($can(P::EquipmentDelete))->whereNumber('equipment');
     Route::post('/equipment/{equipment}/transactions', [EquipmentTransactionController::class, 'store'])->middleware($can(P::EquipmentTransactionsCreate))->whereNumber('equipment');
+    Route::post('/equipment/{equipment}/attachments', [EquipmentAttachmentController::class, 'store'])->middleware([$can(P::EquipmentEdit), 'throttle:attachment-upload'])->whereNumber('equipment');
+    Route::get('/equipment/{equipment}/attachments/{attachment}', [EquipmentAttachmentController::class, 'download'])->middleware($can(P::EquipmentView))->whereNumber(['equipment', 'attachment'])->scopeBindings();
+    Route::delete('/equipment/{equipment}/attachments/{attachment}', [EquipmentAttachmentController::class, 'destroy'])->middleware($can(P::EquipmentEdit))->whereNumber(['equipment', 'attachment'])->scopeBindings();
 
     // Permission-protected: equipment.edit on the desktop; adding or linking also needs equipment.transactions.create (adding also equipment.create).
     Route::post('/equipment/{equipment}/peripherals', [EquipmentPeripheralController::class, 'store'])->middleware([$can(P::EquipmentEdit), $can(P::EquipmentTransactionsCreate)])->whereNumber('equipment');
