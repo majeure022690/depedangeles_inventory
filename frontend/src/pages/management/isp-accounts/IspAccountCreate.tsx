@@ -14,26 +14,24 @@ import { extractError, extractFieldErrors, isValidationError, type FieldErrors }
 import { emptyIspAccountForm, ispAccountService } from '@/services/ispAccountService'
 import type { IspAccountFormData, IspAccountOptions } from '@/types/isp-account'
 
-type TabId = 'provider' | 'billing' | 'coverage' | 'acquisition'
+type TabId = 'provider' | 'billing' | 'coverage'
 
 const TABS_ID = 'isp-account-create'
 const ISP_TABS: { value: TabId; label: string }[] = [
   { value: 'provider', label: 'ISP Provider' },
   { value: 'billing', label: 'Billing and Contract' },
   { value: 'coverage', label: 'Coverage and Speed' },
-  { value: 'acquisition', label: 'Package Details' },
 ]
 
 function isIspTab(value: string | null): value is TabId {
-  return value === 'provider' || value === 'billing' || value === 'coverage' || value === 'acquisition'
+  return value === 'provider' || value === 'billing' || value === 'coverage'
 }
 
 function errorCount(tabId: TabId, errors: FieldErrors): number {
   const fieldsByTab: Record<TabId, (keyof IspAccountFormData)[]> = {
-    provider: ['isp_provider_id', 'office_id', 'isp_billing_account_no', 'cost_per_month', 'package_purchased_inclusion', 'fund_source'],
-    billing: ['subscription_type', 'isp_connection_type', 'contract_start_date', 'contract_end_date', 'inactive_contract', 'donor', 'purpose_of_subscription'],
-    coverage: ['school_area_coverage', 'min_speed', 'max_speed', 'number_access_points_linked', 'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas', 'number_classrooms_covered', 'rate_connectivity_classroom'],
-    acquisition: ['mode_of_acquisition', 'source_of_acquisition', 'overall_signal_quality', 'rate_isp_service'],
+    provider: ['isp_provider_id', 'office_id', 'cost_per_month', 'fund_source', 'subscription_type', 'isp_connection_type', 'min_speed', 'max_speed'],
+    billing: ['isp_billing_account_no', 'contract_start_date', 'contract_end_date', 'subscriber_speed_upload', 'subscriber_speed_download', 'mode_of_acquisition', 'source_of_acquisition', 'donor', 'inactive_contract', 'package_purchased_inclusion'],
+    coverage: ['purpose_of_subscription', 'school_area_coverage', 'number_access_points_linked', 'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas', 'number_classrooms_covered', 'rate_connectivity_classroom', 'overall_signal_quality', 'rate_isp_service'],
   }
   return fieldsByTab[tabId].filter((field) => !!errors[field]).length
 }

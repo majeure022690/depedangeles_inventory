@@ -19,25 +19,24 @@ import { ispAccountFormFrom, ispAccountService } from '@/services/ispAccountServ
 import type { IspAccount, IspAccountFormData, IspAccountOptions } from '@/types/isp-account'
 
 type Feedback = { type: 'success' | 'error'; message: string } | null
-type Tab = 'provider' | 'billing' | 'coverage' | 'acquisition' | 'speed-tests' | 'subscription-costs'
+type Tab = 'provider' | 'billing' | 'coverage' | 'speed-tests' | 'subscription-costs'
+type FieldTab = 'provider' | 'billing' | 'coverage'
 
-const ISP_FIELD_TABS: { value: Tab; label: string }[] = [
+const ISP_FIELD_TABS: { value: FieldTab; label: string }[] = [
   { value: 'provider', label: 'ISP Provider' },
   { value: 'billing', label: 'Billing and Contract' },
   { value: 'coverage', label: 'Coverage and Speed' },
-  { value: 'acquisition', label: 'Package Details' },
 ]
 
-function isFieldTab(value: string | null): value is 'provider' | 'billing' | 'coverage' | 'acquisition' {
-  return value === 'provider' || value === 'billing' || value === 'coverage' || value === 'acquisition'
+function isFieldTab(value: string | null): value is FieldTab {
+  return value === 'provider' || value === 'billing' || value === 'coverage'
 }
 
-function errorCount(tabId: 'provider' | 'billing' | 'coverage' | 'acquisition', errors: FieldErrors): number {
-  const fieldsByTab: Record<'provider' | 'billing' | 'coverage' | 'acquisition', (keyof IspAccountFormData)[]> = {
-    provider: ['isp_provider_id', 'office_id', 'isp_billing_account_no', 'cost_per_month', 'package_purchased_inclusion', 'fund_source'],
-    billing: ['subscription_type', 'isp_connection_type', 'contract_start_date', 'contract_end_date', 'inactive_contract', 'donor', 'purpose_of_subscription'],
-    coverage: ['school_area_coverage', 'min_speed', 'max_speed', 'number_access_points_linked', 'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas', 'number_classrooms_covered', 'rate_connectivity_classroom'],
-    acquisition: ['mode_of_acquisition', 'source_of_acquisition', 'overall_signal_quality', 'rate_isp_service'],
+function errorCount(tabId: FieldTab, errors: FieldErrors): number {
+  const fieldsByTab: Record<FieldTab, (keyof IspAccountFormData)[]> = {
+    provider: ['isp_provider_id', 'office_id', 'cost_per_month', 'fund_source', 'subscription_type', 'isp_connection_type', 'min_speed', 'max_speed'],
+    billing: ['isp_billing_account_no', 'contract_start_date', 'contract_end_date', 'subscriber_speed_upload', 'subscriber_speed_download', 'mode_of_acquisition', 'source_of_acquisition', 'donor', 'inactive_contract', 'package_purchased_inclusion'],
+    coverage: ['purpose_of_subscription', 'school_area_coverage', 'number_access_points_linked', 'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas', 'number_classrooms_covered', 'rate_connectivity_classroom', 'overall_signal_quality', 'rate_isp_service'],
   }
   return fieldsByTab[tabId].filter((field) => !!errors[field]).length
 }
@@ -200,7 +199,7 @@ export function IspAccountEdit() {
           {ISP_FIELD_TABS.map((t) => (
             <TabPanel key={t.value} tabsId="isp-account" value={t.value} active={tab === t.value}>
               <Card>
-                <IspAccountFields section={t.value as 'provider' | 'billing' | 'coverage' | 'acquisition'} form={form!} onChange={setField} options={options?.form ?? null} errors={errors} disabled={!canEdit || saving} current={account} />
+                <IspAccountFields section={t.value} form={form!} onChange={setField} options={options?.form ?? null} errors={errors} disabled={!canEdit || saving} current={account} />
               </Card>
             </TabPanel>
           ))}
