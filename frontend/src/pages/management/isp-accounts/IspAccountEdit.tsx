@@ -83,7 +83,7 @@ export function IspAccountEdit() {
     [setSearchParams],
   )
 
-  usePageTitle(account ? `${canEdit ? 'Edit ' : ''}${account.isp_provider?.name ?? 'ISP account'}` : 'ISP account')
+  usePageTitle(account ? `${canEdit ? 'Edit ' : ''}${account.isp ?? 'ISP account'}` : 'ISP account')
 
   // The create page's flash is one-shot: drop it from history so a refresh doesn't repeat it.
   useEffect(() => {
@@ -182,7 +182,7 @@ export function IspAccountEdit() {
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900">
               {canEdit ? 'Edit ' : ''}
-              {account.isp_provider?.name ?? 'ISP account'}
+              {account.isp ?? 'ISP account'}
             </h1>
             <Badge color={account.inactive_contract ? 'error' : 'success'}>{account.inactive_contract ? 'Inactive' : 'Active'}</Badge>
           </div>
@@ -199,7 +199,7 @@ export function IspAccountEdit() {
           <Tabs id="isp-account" label="ISP account sections" tabs={tabs} value={tab} onChange={selectTab} />
           {ISP_FIELD_TABS.map((t) => (
             <TabPanel key={t.value} tabsId="isp-account" value={t.value} active={tab === t.value}>
-              <IspAccountFields section={t.value} form={form!} onChange={setField} options={options?.form ?? null} errors={errors} disabled={!canEdit || saving} current={account} />
+              <IspAccountFields section={t.value as 'provider' | 'billing' | 'coverage' | 'acquisition'} form={form!} onChange={setField} options={options?.form ?? null} errors={errors} disabled={!canEdit || saving} current={account} />
             </TabPanel>
           ))}
           <TabPanel tabsId="isp-account" value="speed-tests" active={tab === 'speed-tests'}>
