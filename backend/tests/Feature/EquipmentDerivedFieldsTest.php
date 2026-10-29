@@ -13,16 +13,16 @@ use App\Models\User;
 use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\BuildsEquipmentPayloads;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class EquipmentDerivedFieldsTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
-
-    private const OFFICE_ICT = 'Office, ICT Equipment, Furniture And Fixtures';
+    use BuildsEquipmentPayloads, CreatesUsersWithRoles, RefreshDatabase;
 
     private User $editor;
 
@@ -34,7 +34,7 @@ class EquipmentDerivedFieldsTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
 
         $this->editor = $this->userWithPermissions([
-            Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit,
+            Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit, Permission::EquipmentTransactionsCreate,
         ]);
     }
 
@@ -43,25 +43,9 @@ class EquipmentDerivedFieldsTest extends TestCase
         return EquipmentClassification::where('name', $name)->valueOrFail('id');
     }
 
-    /**
-     * @param  array<string, mixed>  $overrides
-     * @return array<string, mixed>
-     */
-    private function payload(array $overrides = []): array
+    private function categoryId(string $name): int
     {
-        return [
-            'property_no' => 'AC-2026-IT-LT-000500',
-            'item_type_id' => ItemType::where('name', 'Laptop')->valueOrFail('id'),
-            'brand_id' => Brand::where('name', 'Dell')->valueOrFail('id'),
-            'equipment_classification_id' => $this->classification(self::OFFICE_ICT),
-            'acquisition_cost' => 30000,
-            'mode_acquisition' => 'DepEd Purchase',
-            'source_acquisition' => 'Central Office',
-            'source_fund' => 'Maintenance and Other Operating Expenses (MOOE)',
-            'equipment_condition_id' => EquipmentCondition::where('name', 'Serviceable')->valueOrFail('id'),
-            'disposition_status' => 'Normal',
-            ...$overrides,
-        ];
+        return EquipmentCategory::where('name', $name)->valueOrFail('id');
     }
 
     /**
@@ -70,126 +54,130 @@ class EquipmentDerivedFieldsTest extends TestCase
      */
     private function store(array $overrides = []): array
     {
-        return $this->actingAs($this->editor)->postJson('/api/equipment', $this->payload($overrides))
+        return $this->actingAs($this->editor)->postJson('/api/equipment', $this->newEquipmentPayload($overrides))
             ->assertCreated()
             ->json('data');
     }
 
     /**
-     * @return array<string, array{0: float|int|null, 1: string}>
+     * @param  array<string, mixed>  $overrides
+     */
+    private function update(int $id, array $overrides = []): TestResponse
+    {
+        return $this->actingAs($this->editor)->putJson("/api/equipment/{$id}", $this->equipmentFields($overrides));
+    }
+
+    /**
+     * @return array<string, array{0: float|int, 1: string, 2: string}>
      */
     public static function costCategories(): array
     {
         return [
-            'just below the threshold' => [49999.99, 'Low-value'],
-            'at the threshold' => [50000, 'High-value'],
-            'no cost on file' => [null, 'Low-value'],
+            'zero' => [0, 'Low-value', '10405030'],
+            'just below the threshold' => [49999.99, 'Low-value', '10405030'],
+            'at the threshold' => [50000.00, 'High-value', '10605030'],
+            'above the threshold' => [250000, 'High-value', '10605030'],
         ];
     }
 
     #[DataProvider('costCategories')]
-    public function test_category_is_derived_from_cost(float|int|null $cost, string $category): void
+    public function test_category_and_gl_sl_code_are_derived_from_cost_on_create(float|int $cost, string $category, string $glSlCode): void
     {
         $data = $this->store(['acquisition_cost' => $cost]);
 
         $this->assertSame($category, $data['category']);
-        $this->assertSame(EquipmentCategory::where('name', $category)->valueOrFail('id'), $data['equipment_category_id']);
+        $this->assertSame($this->categoryId($category), $data['equipment_category_id']);
+        $this->assertSame($glSlCode, $data['gl_sl_code']);
     }
 
-    private function categoryId(string $name): int
+    #[DataProvider('costCategories')]
+    public function test_a_cost_change_on_update_rederives_both_and_is_audited(float|int $cost, string $category, string $glSlCode): void
     {
-        return EquipmentCategory::where('name', $name)->valueOrFail('id');
-    }
+        $id = $this->store(['acquisition_cost' => $cost >= 50000 ? 100 : 90000])['id'];
 
-    public function test_provided_category_and_under_warranty_are_kept_even_when_they_disagree_with_the_derivation(): void
-    {
-        $data = $this->store([
-            'acquisition_cost' => 100,
-            'equipment_category_id' => $this->categoryId('High-value'),
-            'under_warranty' => true,
-            'end_warranty_date' => null,
-        ]);
-
-        $this->assertSame('High-value', $data['category']);
-        $this->assertTrue($data['under_warranty']);
-        $this->assertNull($data['warranty_active']);
-
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$data['id']}", $this->payload([
-            'acquisition_cost' => 90000,
-            'equipment_category_id' => $this->categoryId('Low-value'),
-            'under_warranty' => false,
-            'end_warranty_date' => now()->addYear()->toDateString(),
-        ]))->assertOk()
-            ->assertJsonPath('data.category', 'Low-value')
-            ->assertJsonPath('data.under_warranty', false)
-            ->assertJsonPath('data.warranty_active', true);
-    }
-
-    public function test_blank_category_and_under_warranty_are_derived_on_store(): void
-    {
-        $data = $this->store([
-            'acquisition_cost' => 75000,
-            'equipment_category_id' => null,
-            'under_warranty' => null,
-            'end_warranty_date' => now()->addMonth()->toDateString(),
-        ]);
-
-        $this->assertSame('High-value', $data['category']);
-        $this->assertTrue($data['under_warranty']);
-        $this->assertTrue($data['warranty_active']);
-    }
-
-    public function test_update_without_the_fields_keeps_stored_values_even_if_cost_changes(): void
-    {
-        $id = $this->store([
-            'acquisition_cost' => 100,
-            'equipment_category_id' => $this->categoryId('High-value'),
-            'under_warranty' => true,
-        ])['id'];
-
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$id}", $this->payload([
-            'acquisition_cost' => 200,
-            'end_warranty_date' => now()->subYear()->toDateString(),
-        ]))->assertOk()
-            ->assertJsonPath('data.category', 'High-value')
-            ->assertJsonPath('data.under_warranty', true)
-            ->assertJsonPath('data.warranty_active', false);
-    }
-
-    public function test_update_sending_blank_rederives_and_is_audited(): void
-    {
-        $id = $this->store([
-            'acquisition_cost' => 49999.99,
-            'under_warranty' => true,
-        ])['id'];
-
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$id}", $this->payload([
-            'acquisition_cost' => 50000,
-            'equipment_category_id' => null,
-            'under_warranty' => null,
-            'end_warranty_date' => null,
-        ]))->assertOk()
-            ->assertJsonPath('data.category', 'High-value')
-            ->assertJsonPath('data.under_warranty', false);
+        $this->update($id, ['acquisition_cost' => $cost])
+            ->assertOk()
+            ->assertJsonPath('data.category', $category)
+            ->assertJsonPath('data.gl_sl_code', $glSlCode);
 
         $activity = Activity::query()->where('subject_type', Equipment::class)->where('subject_id', $id)->where('event', 'updated')->sole();
-        $this->assertSame($this->categoryId('Low-value'), $activity->attribute_changes['old']['equipment_category_id']);
-        $this->assertSame($this->categoryId('High-value'), $activity->attribute_changes['attributes']['equipment_category_id']);
-        $this->assertTrue($activity->attribute_changes['old']['under_warranty']);
-        $this->assertFalse($activity->attribute_changes['attributes']['under_warranty']);
+        $this->assertSame($this->categoryId($category), $activity->attribute_changes['attributes']['equipment_category_id']);
+        $this->assertSame($glSlCode, $activity->attribute_changes['attributes']['gl_sl_code']);
+    }
 
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$id}", $this->payload(['acquisition_cost' => null, 'equipment_category_id' => '']))
+    public function test_category_and_gl_sl_code_sent_by_the_client_are_ignored(): void
+    {
+        $data = $this->store([
+            'acquisition_cost' => 100,
+            'equipment_category_id' => $this->categoryId('High-value'),
+            'gl_sl_code' => '999',
+        ]);
+
+        $this->assertSame('Low-value', $data['category']);
+        $this->assertSame('10405030', $data['gl_sl_code']);
+
+        $this->update($data['id'], [
+            'acquisition_cost' => 100,
+            'equipment_category_id' => $this->categoryId('High-value'),
+            'gl_sl_code' => '999',
+        ])->assertOk()
+            ->assertJsonPath('data.category', 'Low-value')
+            ->assertJsonPath('data.gl_sl_code', '10405030');
+    }
+
+    public function test_an_existing_record_keeps_its_stored_category_and_gl_sl_code_until_its_cost_changes(): void
+    {
+        $legacy = Equipment::factory()->create($this->equipmentFields([
+            'property_no' => 'AC-2019-IT-LPT-000007',
+            'acquisition_cost' => 30000,
+            'equipment_category_id' => $this->categoryId('High-value'),
+            'gl_sl_code' => '10605030',
+            'current_accountable_officer_id' => null,
+            'current_end_user_id' => null,
+        ]));
+
+        $this->update($legacy->id, ['acquisition_cost' => '30000.00', 'remarks' => 'Checked.'])
             ->assertOk()
-            ->assertJsonPath('data.category', 'Low-value');
+            ->assertJsonPath('data.category', 'High-value')
+            ->assertJsonPath('data.gl_sl_code', '10605030')
+            ->assertJsonPath('data.property_no', 'AC-2019-IT-LPT-000007');
+
+        $activity = Activity::query()->where('subject_id', $legacy->id)->where('event', 'updated')->sole();
+        $this->assertArrayNotHasKey('equipment_category_id', $activity->attribute_changes['attributes']);
+        $this->assertArrayNotHasKey('gl_sl_code', $activity->attribute_changes['attributes']);
+
+        $this->update($legacy->id, ['acquisition_cost' => 30000.01])
+            ->assertOk()
+            ->assertJsonPath('data.category', 'Low-value')
+            ->assertJsonPath('data.gl_sl_code', '10405030');
+    }
+
+    public function test_under_warranty_is_derived_when_blank_and_kept_when_provided(): void
+    {
+        $derived = $this->store(['under_warranty' => null, 'end_warranty_date' => now()->addMonth()->toDateString()]);
+        $this->assertTrue($derived['under_warranty']);
+        $this->assertTrue($derived['warranty_active']);
+
+        $provided = $this->store(['under_warranty' => true, 'end_warranty_date' => null]);
+        $this->assertTrue($provided['under_warranty']);
+        $this->assertNull($provided['warranty_active']);
+
+        $this->update($provided['id'], ['under_warranty' => false, 'end_warranty_date' => now()->addYear()->toDateString()])
+            ->assertOk()
+            ->assertJsonPath('data.under_warranty', false)
+            ->assertJsonPath('data.warranty_active', true);
+
+        $this->actingAs($this->editor)->postJson('/api/equipment', $this->newEquipmentPayload(['under_warranty' => 'maybe']))
+            ->assertJsonValidationErrors(['under_warranty']);
     }
 
     public function test_resource_returns_the_stored_flag_and_a_computed_warranty_active(): void
     {
-        $this->assertFalse($this->store(['property_no' => 'W-1', 'end_warranty_date' => null])['under_warranty']);
-        $this->assertFalse($this->store(['property_no' => 'W-2', 'end_warranty_date' => now()->subDay()->toDateString()])['warranty_active']);
-        $this->assertTrue($this->store(['property_no' => 'W-3', 'end_warranty_date' => now()->toDateString()])['warranty_active']);
+        $this->assertFalse($this->store(['end_warranty_date' => null])['under_warranty']);
+        $this->assertFalse($this->store(['end_warranty_date' => now()->subDay()->toDateString()])['warranty_active']);
+        $this->assertTrue($this->store(['end_warranty_date' => now()->toDateString()])['warranty_active']);
 
-        $future = $this->store(['property_no' => 'W-4', 'end_warranty_date' => now()->addDay()->toDateString()]);
+        $future = $this->store(['end_warranty_date' => now()->addDay()->toDateString()]);
         $this->assertTrue($future['under_warranty']);
         $this->assertTrue($future['warranty_active']);
 
@@ -201,93 +189,128 @@ class EquipmentDerivedFieldsTest extends TestCase
             ->assertJsonPath('data.warranty_active', false);
     }
 
-    public function test_category_must_be_an_active_category(): void
+    public function test_classification_defaults_fill_blank_uacs_and_useful_life_but_not_the_gl_sl_code(): void
     {
-        $inactive = EquipmentCategory::where('name', 'High-value')->firstOrFail();
-        $inactive->update(['is_active' => false]);
-
-        $this->actingAs($this->editor)->postJson('/api/equipment', $this->payload(['equipment_category_id' => $inactive->id]))
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['equipment_category_id']);
-
-        $this->actingAs($this->editor)->postJson('/api/equipment', $this->payload(['under_warranty' => 'maybe']))
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['under_warranty']);
-    }
-
-    public function test_classification_defaults_fill_blank_codes_without_overwriting_provided_values(): void
-    {
-        $defaulted = $this->store(['property_no' => 'C-1']);
-        $this->assertSame('10605030', $defaulted['gl_sl_code']);
+        $defaulted = $this->store(['acquisition_cost' => 1000]);
+        $this->assertSame('10405030', $defaulted['gl_sl_code']);
         $this->assertSame('1060503000', $defaulted['uacs']);
         $this->assertSame(5, $defaulted['estimated_useful_life']);
 
-        $overridden = $this->store(['property_no' => 'C-2', 'gl_sl_code' => '999', 'uacs' => '888', 'estimated_useful_life' => 7]);
-        $this->assertSame('999', $overridden['gl_sl_code']);
+        $overridden = $this->store(['uacs' => '888', 'estimated_useful_life' => 7]);
         $this->assertSame('888', $overridden['uacs']);
         $this->assertSame(7, $overridden['estimated_useful_life']);
 
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$overridden['id']}", $this->payload([
-            'property_no' => 'C-2', 'gl_sl_code' => null, 'uacs' => '777', 'estimated_useful_life' => 3,
-        ]))->assertOk()
-            ->assertJsonPath('data.gl_sl_code', '10605030')
-            ->assertJsonPath('data.uacs', '777')
+        $this->update($overridden['id'], ['uacs' => null, 'estimated_useful_life' => 3])
+            ->assertOk()
+            ->assertJsonPath('data.uacs', '1060503000')
             ->assertJsonPath('data.estimated_useful_life', 3);
 
-        $none = $this->store(['property_no' => 'C-3', 'equipment_classification_id' => $this->classification('Machinery and Equipment')]);
-        $this->assertNull($none['gl_sl_code']);
+        $none = $this->store(['equipment_classification_id' => $this->classification('Machinery and Equipment')]);
+        $this->assertSame('10605030', $none['gl_sl_code']);
         $this->assertNull($none['uacs']);
         $this->assertNull($none['estimated_useful_life']);
     }
 
     public function test_classification_stays_required(): void
     {
-        $this->actingAs($this->editor)->postJson('/api/equipment', $this->payload(['equipment_classification_id' => null]))
+        $this->actingAs($this->editor)->postJson('/api/equipment', $this->newEquipmentPayload(['equipment_classification_id' => null]))
             ->assertJsonValidationErrors('equipment_classification_id');
     }
 
-    public function test_uom_and_allotment_class_default_when_blank_and_keep_provided_values(): void
+    public function test_allotment_class_defaults_when_blank_and_lookup_values_are_validated(): void
     {
-        $laptop = $this->store(['property_no' => 'U-1']);
-        $this->assertSame('Piece', $laptop['uom']);
-        $this->assertSame('Not Applicable', $laptop['allotment_class']);
+        $this->assertSame('Not Applicable', $this->store()['allotment_class']);
+        $this->assertSame('Capital Outlay (CO)', $this->store(['allotment_class' => 'Capital Outlay (CO)'])['allotment_class']);
+        $this->assertSame('Lot', $this->store(['uom' => 'Lot'])['uom']);
 
-        $desktop = $this->store(['property_no' => 'U-2', 'item_type_id' => ItemType::where('name', 'Desktop (package)')->valueOrFail('id'), 'uom' => '']);
-        $this->assertSame('Set (bundled)', $desktop['uom']);
-
-        $provided = $this->store(['property_no' => 'U-3', 'uom' => 'Lot', 'allotment_class' => 'Capital Outlay (CO)']);
-        $this->assertSame('Lot', $provided['uom']);
-        $this->assertSame('Capital Outlay (CO)', $provided['allotment_class']);
-
-        $this->actingAs($this->editor)->postJson('/api/equipment', $this->payload(['uom' => 'Bushel', 'allotment_class' => 'Nope']))
+        $this->actingAs($this->editor)->postJson('/api/equipment', $this->newEquipmentPayload(['uom' => 'Bushel', 'allotment_class' => 'Nope']))
             ->assertJsonValidationErrors(['uom', 'allotment_class']);
     }
 
-    public function test_dropped_fields_stay_optional_but_accepted(): void
+    public function test_optional_fields_are_accepted(): void
     {
-        $data = $this->store(['old_property_no' => 'OLD-1', 'pm_plan' => 'PPMP-1', 'non_functional' => true]);
+        $data = $this->store(['old_property_no' => 'OLD-1', 'pm_plan' => 'PPMP-1', 'non_functional' => true, 'supplier' => 'Acme', 'remarks' => 'Spare.']);
 
         $this->assertSame('OLD-1', $data['old_property_no']);
         $this->assertSame('PPMP-1', $data['pm_plan']);
         $this->assertTrue($data['non_functional']);
+        $this->assertSame('Acme', $data['supplier']);
     }
 
-    public function test_new_peripherals_get_their_own_category_uom_and_classification_defaults(): void
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function donorSources(): array
     {
-        $user = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit, Permission::EquipmentTransactionsCreate]);
+        return array_combine(Equipment::DONOR_SOURCES, array_map(fn (string $source) => [$source], Equipment::DONOR_SOURCES));
+    }
+
+    #[DataProvider('donorSources')]
+    public function test_donor_is_required_for_donor_sources(string $source): void
+    {
+        $this->actingAs($this->editor)->postJson('/api/equipment', $this->newEquipmentPayload(['source_acquisition' => $source, 'donor' => '']))
+            ->assertJsonValidationErrors(['donor']);
+
+        $this->assertSame('Angeles City LGU', $this->store(['source_acquisition' => $source, 'donor' => 'Angeles City LGU'])['donor']);
+    }
+
+    public function test_donor_is_stored_as_null_for_other_sources(): void
+    {
+        $data = $this->store(['source_acquisition' => 'Central Office', 'donor' => 'Someone']);
+        $this->assertNull($data['donor']);
+
+        $donated = $this->store(['source_acquisition' => 'DICT', 'donor' => 'DICT Region III']);
+
+        $this->update($donated['id'], ['source_acquisition' => 'School Division Office', 'donor' => 'DICT Region III'])
+            ->assertOk()
+            ->assertJsonPath('data.donor', null);
+    }
+
+    public function test_dcp_package_and_year_are_required_unless_non_dcp(): void
+    {
+        $this->actingAs($this->editor)->postJson('/api/equipment', $this->newEquipmentPayload(['non_dcp' => false, 'dcp_package' => null, 'dcp_year' => null]))
+            ->assertJsonValidationErrors(['dcp_package', 'dcp_year']);
+
+        $this->actingAs($this->editor)->postJson('/api/equipment', $this->newEquipmentPayload(['non_dcp' => false, 'dcp_package' => 'Not a package', 'dcp_year' => 24]))
+            ->assertJsonValidationErrors(['dcp_package', 'dcp_year']);
+
+        $dcp = $this->store(['non_dcp' => false, 'dcp_package' => 'Laptop for Teaching', 'dcp_year' => 2024]);
+        $this->assertFalse($dcp['non_dcp']);
+        $this->assertSame('Laptop for Teaching', $dcp['dcp_package']);
+        $this->assertSame(2024, $dcp['dcp_year']);
+
+        $this->update($dcp['id'], ['non_dcp' => true, 'dcp_package' => 'Laptop for Teaching', 'dcp_year' => 2024])
+            ->assertOk()
+            ->assertJsonPath('data.dcp_package', null)
+            ->assertJsonPath('data.dcp_year', null);
+    }
+
+    public function test_non_dcp_ignores_any_package_sent(): void
+    {
+        $data = $this->store(['non_dcp' => true, 'dcp_package' => 'Not a package', 'dcp_year' => 'abc']);
+
+        $this->assertTrue($data['non_dcp']);
+        $this->assertNull($data['dcp_package']);
+        $this->assertNull($data['dcp_year']);
+    }
+
+    public function test_new_peripherals_get_their_own_category_gl_sl_code_and_uom(): void
+    {
         $desktop = Equipment::factory()->create([
             'property_no' => 'AC-2016-IT-DST-000009',
             'item_type_id' => ItemType::where('name', 'Desktop (package)')->valueOrFail('id'),
-            'equipment_classification_id' => $this->classification(self::OFFICE_ICT),
+            'equipment_classification_id' => $this->classification('Office, ICT Equipment, Furniture And Fixtures'),
             'uom' => 'Set (bundled)',
             'acquisition_cost' => 75000,
             'equipment_category_id' => null,
+            'gl_sl_code' => null,
             'current_accountable_officer_id' => null,
             'current_end_user_id' => null,
         ]);
         $this->assertSame('High-value', $desktop->equipmentCategory?->name);
+        $this->assertSame('10605030', $desktop->gl_sl_code);
 
-        $add = fn (?float $cost) => $this->actingAs($user)->postJson("/api/equipment/{$desktop->id}/peripherals", [
+        $add = fn (?float $cost) => $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/peripherals", [
             'item_type_id' => ItemType::where('name', 'Monitor')->valueOrFail('id'),
             'brand_id' => Brand::where('name', 'Dell')->valueOrFail('id'),
             'equipment_condition_id' => EquipmentCondition::where('name', 'Serviceable')->valueOrFail('id'),
@@ -296,26 +319,24 @@ class EquipmentDerivedFieldsTest extends TestCase
 
         $add(8000)->assertJsonPath('data.category', 'Low-value')
             ->assertJsonPath('data.uom', 'Piece')
-            ->assertJsonPath('data.gl_sl_code', '10605030')
+            ->assertJsonPath('data.gl_sl_code', '10405030')
             ->assertJsonPath('data.estimated_useful_life', 5);
-        $add(60000)->assertJsonPath('data.category', 'High-value');
+        $add(60000)->assertJsonPath('data.category', 'High-value')->assertJsonPath('data.gl_sl_code', '10605030');
         $add(null)->assertJsonPath('data.category', 'Low-value');
     }
 
     public function test_options_ship_classification_defaults_keyed_by_id(): void
     {
-        $officeIct = $this->classification(self::OFFICE_ICT);
+        $officeIct = $this->classification('Office, ICT Equipment, Furniture And Fixtures');
         $machinery = $this->classification('Machinery and Equipment');
 
         $this->actingAs($this->editor)->getJson('/api/equipment/options')
             ->assertOk()
             ->assertJsonPath("data.classification_defaults.{$officeIct}", [
-                'default_gl_sl_code' => '10605030',
                 'default_uacs' => '1060503000',
                 'default_useful_life' => 5,
             ])
             ->assertJsonPath("data.classification_defaults.{$machinery}", [
-                'default_gl_sl_code' => null,
                 'default_uacs' => null,
                 'default_useful_life' => null,
             ]);

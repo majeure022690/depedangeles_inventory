@@ -4,10 +4,8 @@ namespace Tests\Feature;
 
 use App\Enums\Permission;
 use App\Exceptions\AccountabilitySyncRequiredException;
-use App\Models\Brand;
 use App\Models\Equipment;
 use App\Models\EquipmentCategory;
-use App\Models\EquipmentClassification;
 use App\Models\EquipmentCondition;
 use App\Models\EquipmentTransaction;
 use App\Models\ItemType;
@@ -17,18 +15,20 @@ use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\BuildsEquipmentPayloads;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 /**
  * Tier 1 fields (item type, brand, category, classification, condition)
  * are real FKs validated against active reference rows; Tier 2 fields are
- * validated strings. Accountability (current_* pointers) only ever moves
- * through POST /equipment/{id}/transactions.
+ * validated strings. Accountability (current_* pointers) is set by the
+ * create form's initial transaction and afterwards only moves through
+ * POST /equipment/{id}/transactions.
  */
 class EquipmentControllerTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
+    use BuildsEquipmentPayloads, CreatesUsersWithRoles, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -51,18 +51,7 @@ class EquipmentControllerTest extends TestCase
      */
     private function payload(array $overrides = []): array
     {
-        return array_merge([
-            'property_no' => 'AC-2026-IT-LT-000123',
-            'item_type_id' => ItemType::where('name', 'Laptop')->value('id'),
-            'brand_id' => Brand::where('name', 'Dell')->value('id'),
-            'equipment_classification_id' => EquipmentClassification::query()->active()->value('id'),
-            'acquisition_cost' => 55000,
-            'mode_acquisition' => 'DepEd Purchase',
-            'source_acquisition' => 'Central Office',
-            'source_fund' => 'Maintenance and Other Operating Expenses (MOOE)',
-            'equipment_condition_id' => EquipmentCondition::where('name', 'Serviceable')->value('id'),
-            'disposition_status' => 'Normal',
-        ], $overrides);
+        return $this->equipmentFields($overrides);
     }
 
     /**
@@ -77,33 +66,69 @@ class EquipmentControllerTest extends TestCase
         ));
     }
 
-    public function test_store_validates_required_fields_and_creates_record_without_a_current_holder(): void
+    public function test_store_validates_required_fields(): void
     {
-        $user = $this->editor();
-
-        // property_no and acquisition_cost are nullable ("pending" items).
-        $this->actingAs($user)->postJson('/api/equipment', [])
+        $this->actingAs($this->editor())->postJson('/api/equipment', [])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['item_type_id', 'brand_id', 'equipment_classification_id'])
-            ->assertJsonMissingValidationErrors(['property_no', 'acquisition_cost', 'uom', 'allotment_class', 'equipment_category_id', 'under_warranty', 'old_property_no', 'pm_plan', 'non_functional'])
+            ->assertJsonValidationErrors([
+                'item_type_id', 'uom', 'brand_id', 'model', 'serial_number', 'specifications', 'acquisition_cost',
+                'received_date', 'mode_acquisition', 'source_acquisition', 'source_fund', 'equipment_classification_id',
+                'non_dcp', 'used_by', 'equipment_location', 'non_functional', 'equipment_condition_id', 'disposition_status',
+                'accountability',
+            ])
+            ->assertJsonMissingValidationErrors(['property_no', 'old_property_no', 'uacs', 'allotment_class', 'estimated_useful_life',
+                'pm_plan', 'remarks', 'supplier', 'under_warranty', 'end_warranty_date', 'equipment_category_id', 'gl_sl_code'])
             ->assertJsonPath('errors.item_type_id.0', 'The item type field is required.');
 
-        $response = $this->actingAs($user)->postJson('/api/equipment', $this->payload())
+        $this->assertSame(0, Equipment::count());
+    }
+
+    public function test_store_creates_the_record_with_its_initial_accountability_and_audits_both(): void
+    {
+        $user = $this->editor();
+        $officer = Personnel::factory()->create();
+        $endUser = Personnel::factory()->create();
+        $receiver = Personnel::factory()->create();
+
+        $response = $this->actingAs($user)->postJson('/api/equipment', $this->newEquipmentPayload([
+            'accountability' => [
+                'transaction_type' => 'Beginning Inventory',
+                'accountable_officer_id' => $officer->id,
+                'date_assigned_accountable_officer' => '2026-03-16',
+                'end_user_id' => $endUser->id,
+                'date_assigned_end_user' => '2026-03-17',
+                'received_by_id' => $receiver->id,
+                'date_received_new_accountable' => '2026-03-18',
+                'supporting_documents2' => 'Property Acknowledgment Receipt (PAR)',
+                'par_ics_rrsp_rs_wmr_no' => 'PAR-2026-001',
+                'supporting_documents1' => 'Sales Invoice (SI)',
+                'or_si_dr_iar_no' => 'SI-778',
+            ],
+        ]))
             ->assertCreated()
-            ->assertJsonPath('data.property_no', 'AC-2026-IT-LT-000123')
+            ->assertJsonPath('data.property_no', 'AC-2026-IT-LPT-000001')
             ->assertJsonPath('data.item', 'Laptop')
             ->assertJsonPath('data.brand_manufacturer', 'Dell')
             ->assertJsonPath('data.category', 'High-value')
+            ->assertJsonPath('data.gl_sl_code', '10605030')
+            ->assertJsonPath('data.used_by', 'Teacher')
             ->assertJsonPath('data.equipment_condition', 'Serviceable')
-            ->assertJsonPath('data.current_accountable_officer', null)
-            ->assertJsonPath('data.current_end_user', null);
+            ->assertJsonPath('data.current_accountable_officer.id', $officer->id)
+            ->assertJsonPath('data.current_end_user.id', $endUser->id);
 
         $this->assertEquals(55000, $response->json('data.acquisition_cost'));
 
         $equipment = Equipment::findOrFail($response->json('data.id'));
-        $this->assertNull($equipment->current_accountable_officer_id);
-        $this->assertNull($equipment->current_end_user_id);
         $this->assertSame($equipment->qrCodeUrl(), $response->json('data.qr_code'));
+
+        $transaction = EquipmentTransaction::sole();
+        $this->assertSame($equipment->id, $transaction->equipment_id);
+        $this->assertSame('Beginning Inventory', $transaction->transaction_type);
+        $this->assertSame($receiver->id, $transaction->received_by_id);
+        $this->assertSame('PAR-2026-001', $transaction->par_ics_rrsp_rs_wmr_no);
+        $this->assertSame('Sales Invoice (SI)', $transaction->supporting_documents1);
+        $this->assertSame('SI-778', $transaction->or_si_dr_iar_no);
+        $this->assertSame($user->id, $transaction->recorded_by_user_id);
 
         $this->assertDatabaseHas('activity_log', [
             'subject_type' => Equipment::class,
@@ -112,38 +137,68 @@ class EquipmentControllerTest extends TestCase
             'description' => 'equipment.created',
             'causer_id' => $user->id,
         ]);
+        $this->assertDatabaseHas('activity_log', [
+            'subject_type' => Equipment::class,
+            'subject_id' => $equipment->id,
+            'event' => 'equipment.transaction.recorded',
+            'causer_id' => $user->id,
+        ]);
     }
 
-    public function test_store_creates_a_pending_record_without_property_no_or_acquisition_cost(): void
+    public function test_store_requires_the_accountability_holders_and_dates(): void
     {
-        $response = $this->actingAs($this->editor())->postJson('/api/equipment', $this->payload([
-            'property_no' => null,
-            'acquisition_cost' => null,
-        ]))->assertCreated()
-            ->assertJsonPath('data.property_no', null)
-            ->assertJsonPath('data.acquisition_cost', null);
+        $this->actingAs($this->editor())->postJson('/api/equipment', $this->newEquipmentPayload(['accountability' => ['transaction_type' => '']]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'accountability.transaction_type', 'accountability.accountable_officer_id', 'accountability.date_assigned_accountable_officer',
+                'accountability.end_user_id', 'accountability.date_assigned_end_user', 'accountability.received_by_id',
+            ])
+            ->assertJsonMissingValidationErrors(['accountability.date_received_new_accountable', 'accountability.supporting_documents1',
+                'accountability.or_si_dr_iar_no', 'accountability.supporting_documents2', 'accountability.par_ics_rrsp_rs_wmr_no']);
 
-        $equipment = Equipment::findOrFail($response->json('data.id'));
-        $this->assertNull($equipment->property_no);
-        $this->assertNull($equipment->acquisition_cost);
+        $this->actingAs($this->editor())->postJson('/api/equipment', $this->newEquipmentPayload([
+            'accountability' => $this->accountabilityFields(overrides: [
+                'accountable_officer_id' => 999999,
+                'transaction_type' => 'Borrowed',
+                'supporting_documents2' => 'Napkin',
+            ]),
+        ]))->assertJsonValidationErrors(['accountability.accountable_officer_id', 'accountability.transaction_type', 'accountability.supporting_documents2']);
+
+        $this->assertSame(0, Equipment::count());
+        $this->assertSame(0, EquipmentTransaction::count());
     }
 
-    public function test_store_allows_a_second_pending_record_with_no_property_no(): void
+    public function test_equipment_create_alone_covers_the_initial_accountability(): void
     {
-        $user = $this->editor();
+        $creator = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentCreate]);
+        $holder = Personnel::factory()->create();
 
-        $this->actingAs($user)->postJson('/api/equipment', $this->payload(['property_no' => null]))->assertCreated();
-        $this->actingAs($user)->postJson('/api/equipment', $this->payload(['property_no' => null]))->assertCreated();
+        $this->actingAs($creator)->getJson('/api/equipment/options')
+            ->assertOk()
+            ->assertJsonPath('data.personnel.0.value', $holder->id);
 
-        $this->assertSame(2, Equipment::whereNull('property_no')->count());
+        $this->actingAs($creator)->postJson('/api/equipment', $this->newEquipmentPayload(holder: $holder))
+            ->assertCreated()
+            ->assertJsonPath('data.current_accountable_officer.id', $holder->id);
+
+        $this->assertSame($creator->id, EquipmentTransaction::sole()->recorded_by_user_id);
+    }
+
+    public function test_store_is_forbidden_without_equipment_create(): void
+    {
+        $this->actingAs($this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentTransactionsCreate]))
+            ->postJson('/api/equipment', $this->newEquipmentPayload())
+            ->assertForbidden();
+
+        $this->assertSame(0, Equipment::count());
     }
 
     public function test_store_rejects_a_nonexistent_item_type_id(): void
     {
-        $this->actingAs($this->editor())->postJson('/api/equipment', $this->payload(['item_type_id' => 999999]))
+        $this->actingAs($this->editor())->postJson('/api/equipment', $this->newEquipmentPayload(['item_type_id' => 999999]))
             ->assertJsonValidationErrors(['item_type_id']);
 
-        $this->assertDatabaseMissing('equipment', ['property_no' => 'AC-2026-IT-LT-000123']);
+        $this->assertSame(0, Equipment::count());
     }
 
     public function test_store_rejects_an_item_type_id_that_has_been_deactivated(): void
@@ -151,30 +206,49 @@ class EquipmentControllerTest extends TestCase
         $itemType = ItemType::where('name', 'Laptop')->firstOrFail();
         $itemType->update(['is_active' => false]);
 
-        $this->actingAs($this->editor())->postJson('/api/equipment', $this->payload(['item_type_id' => $itemType->id]))
+        $this->actingAs($this->editor())->postJson('/api/equipment', $this->newEquipmentPayload(['item_type_id' => $itemType->id]))
             ->assertJsonValidationErrors(['item_type_id']);
 
-        $this->assertDatabaseMissing('equipment', ['property_no' => 'AC-2026-IT-LT-000123']);
+        $this->assertSame(0, Equipment::count());
     }
 
-    public function test_update_silently_ignores_current_holder_fields_not_accepted_by_the_form_request(): void
+    public function test_update_silently_ignores_current_holder_and_accountability_fields(): void
     {
         $equipment = $this->makeEquipment();
         $someoneElse = Personnel::factory()->create();
 
         $this->actingAs($this->editor())->putJson("/api/equipment/{$equipment->id}", $this->payload([
-            'property_no' => $equipment->property_no,
             'acquisition_cost' => 60000,
             'current_accountable_officer_id' => $someoneElse->id,
-        ]))->assertOk();
+            'accountability' => $this->accountabilityFields($someoneElse),
+        ]))->assertOk()
+            ->assertJsonPath('data.current_accountable_officer', null);
 
         $equipment->refresh();
         $this->assertEquals(60000, $equipment->acquisition_cost);
         $this->assertNull($equipment->current_accountable_officer_id);
+        $this->assertSame(0, EquipmentTransaction::count());
 
         $updated = Activity::query()->where('subject_id', $equipment->id)->where('event', 'updated')->sole();
         $this->assertSame('equipment.updated', $updated->description);
         $this->assertArrayHasKey('acquisition_cost', $updated->attribute_changes['attributes']);
+    }
+
+    public function test_update_validates_the_same_required_fields(): void
+    {
+        $equipment = $this->makeEquipment();
+
+        $this->actingAs($this->editor())->putJson("/api/equipment/{$equipment->id}", [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'item_type_id', 'uom', 'brand_id', 'model', 'serial_number', 'specifications', 'acquisition_cost',
+                'received_date', 'mode_acquisition', 'source_acquisition', 'source_fund', 'equipment_classification_id',
+                'non_dcp', 'used_by', 'equipment_location', 'non_functional', 'equipment_condition_id', 'disposition_status',
+            ])
+            ->assertJsonMissingValidationErrors(['property_no', 'accountability']);
+
+        $this->actingAs($this->editor())->putJson("/api/equipment/{$equipment->id}", $this->payload(['used_by' => 'Visitor']))
+            ->assertJsonValidationErrors(['used_by']);
     }
 
     public function test_show_returns_the_record_with_its_transaction_history_newest_first(): void
@@ -268,17 +342,32 @@ class EquipmentControllerTest extends TestCase
             ->assertOk()
             ->assertJsonStructure(['data' => [
                 'form' => ['item_type', 'brand', 'category', 'classification', 'condition', 'unit_of_measure', 'dcp_package',
-                    'mode_of_acquisition', 'source_of_acquisition', 'source_of_funds', 'allotment_class', 'disposition_status'],
+                    'mode_of_acquisition', 'source_of_acquisition', 'source_of_funds', 'allotment_class', 'disposition_status', 'used_by'],
                 'filters' => ['condition', 'category', 'disposition_status'],
                 'transaction' => ['transaction_type', 'supporting_document_type'],
                 'personnel',
             ]])
-            ->assertJsonCount(1, 'data.personnel');
+            ->assertJsonCount(1, 'data.personnel')
+            ->assertJsonPath('data.form.used_by', [
+                ['value' => 'Learner', 'label' => 'Learner'],
+                ['value' => 'Teacher', 'label' => 'Teacher'],
+                ['value' => 'Teaching-Related', 'label' => 'Teaching-Related'],
+                ['value' => 'Non-Teaching', 'label' => 'Non-Teaching'],
+            ])
+            ->assertJsonPath('data.donor_sources', [
+                'Local Government Unit (LGU)', 'Private Corporation', 'Non-Governmental Organization (NGO)',
+                'DICT', 'Other National Government Agency', "Parent Teacher's Association",
+            ])
+            ->assertJsonPath('data.category_rules', [
+                'threshold' => 50000,
+                'low' => ['category' => 'Low-value', 'gl_sl_code' => '10405030'],
+                'high' => ['category' => 'High-value', 'gl_sl_code' => '10605030'],
+            ]);
 
         $this->assertIsInt($response->json('data.form.item_type.0.value'));
         $this->assertIsString($response->json('data.form.unit_of_measure.0.value'));
 
-        // Without equipment.transactions.create: no personnel list.
+        // Without equipment.create or equipment.transactions.create: no personnel list.
         $this->actingAs($this->userWithPermissions([Permission::EquipmentView]))->getJson('/api/equipment/options')
             ->assertOk()
             ->assertJsonMissingPath('data.personnel');

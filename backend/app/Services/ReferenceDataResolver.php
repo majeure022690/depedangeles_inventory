@@ -185,6 +185,7 @@ final class ReferenceDataResolver
             EquipmentLibraryType::SourceOfFunds => Equipment::where('source_fund', $value)->exists()
                 || IspAccount::where('fund_source', $value)->exists(),
             EquipmentLibraryType::AllotmentClass => Equipment::where('allotment_class', $value)->exists(),
+            EquipmentLibraryType::UsedBy => Equipment::where('used_by', $value)->exists(),
             EquipmentLibraryType::SupportingDocumentType => EquipmentTransaction::where('supporting_documents1', $value)
                 ->orWhere('supporting_documents2', $value)
                 ->exists(),

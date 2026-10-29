@@ -10,7 +10,7 @@ use Spatie\Activitylog\Support\LogOptions;
 /**
  * Audit trail for the 13 reference-data models (config/reference-data.php).
  * The allowlist is explicit per registry tier (tier 1: name, plus
- * dashboard_group on item types and the default_* codes on equipment
+ * abbreviation and dashboard_group on item types and the default_* codes on equipment
  * classifications; tier 2
  * libraries: type/value; both: description, sort_order, is_active; nothing
  * sensitive), the description keeps the `reference_data.<event>` names the
@@ -30,6 +30,7 @@ trait LogsReferenceDataActivity
         return LogOptions::defaults()
             ->logOnly([
                 ...$identity,
+                ...($this->isFillable('abbreviation') ? ['abbreviation'] : []),
                 ...($this->isFillable('dashboard_group') ? ['dashboard_group'] : []),
                 ...($this->isFillable('default_gl_sl_code') ? ['default_gl_sl_code', 'default_uacs', 'default_useful_life'] : []),
                 'description', 'sort_order', 'is_active',

@@ -22,7 +22,7 @@ final class EquipmentPeripheralService
         'non_dcp', 'dcp_package', 'dcp_year', 'equipment_classification_id',
         'received_date', 'mode_acquisition', 'source_acquisition', 'donor', 'source_fund',
         'allotment_class', 'equipment_location', 'disposition_status',
-        'end_warranty_date', 'supplier',
+        'end_warranty_date', 'supplier', 'used_by',
         'current_accountable_officer_id', 'current_end_user_id',
     ];
 
@@ -68,74 +68,6 @@ final class EquipmentPeripheralService
             fn (array $row) => $this->create($parent, $row, $creator),
             $rows,
         )));
-    }
-
-    /**
-     * After the desktop's number changed from $previous, renames every row
-     * within the editor's scope numbered "<$previous>-<digits>" to the same
-     * suffix under the new number, including peripherals since moved to
-     * another desktop.
-     */
-    public function renumber(Equipment $desktop, ?string $previous, User $editor): int
-    {
-        $current = $desktop->property_no;
-
-        if (blank($previous) || blank($current) || $previous === $current) {
-            return 0;
-        }
-
-        return DB::transaction(function () use ($desktop, $previous, $current, $editor) {
-            $rows = Equipment::numberedAfter($previous, $editor, lockForUpdate: true);
-
-            if ($rows->isEmpty()) {
-                return 0;
-            }
-
-            $targets = $rows->mapWithKeys(fn (Equipment $row) => [$row->id => $current.substr((string) $row->property_no, strlen($previous))]);
-
-            if ($targets->contains(fn (string $target) => mb_strlen($target) > 255)) {
-                throw ValidationException::withMessages(['renumber_peripherals' => __('Cannot renumber the peripherals: the new property number is too long to add their suffixes.')]);
-            }
-
-            $taken = fn () => Equipment::withTrashed()
-                ->whereIn('property_no', $targets->values()->all())
-                ->whereKeyNot([$desktop->id, ...$rows->modelKeys()]);
-
-            $takenCount = $taken()->count();
-
-            if ($takenCount > 0) {
-                $visible = array_values(array_filter($taken()->visibleTo($editor)->orderBy('property_no')->pluck('property_no')->all(), is_string(...)));
-
-                throw ValidationException::withMessages([
-                    'renumber_peripherals' => $this->takenMessage($visible, $takenCount - count($visible)),
-                ]);
-            }
-
-            $rows->each(function (Equipment $row) use ($desktop, $targets) {
-                $previousNo = (string) $row->property_no;
-                $row->property_no = $targets[$row->id];
-
-                if (blank($row->old_property_no)) {
-                    $row->old_property_no = $previousNo;
-                }
-
-                $this->saveNumbered($row, 'renumber_peripherals');
-
-                activity()
-                    ->performedOn($row)
-                    ->event('equipment.peripheral.renumbered')
-                    ->withProperties(['old' => $previousNo, 'new' => $row->property_no, 'renumbered_from_equipment_id' => $desktop->id])
-                    ->log('equipment.peripheral.renumbered');
-            });
-
-            activity()
-                ->performedOn($desktop)
-                ->event('equipment.peripheral.renumbered')
-                ->withProperties(['old' => $previous, 'new' => $current, 'renumbered_equipment_ids' => $rows->modelKeys()])
-                ->log('equipment.peripheral.renumbered');
-
-            return $rows->count();
-        });
     }
 
     /**
@@ -215,27 +147,6 @@ final class EquipmentPeripheralService
                 $errorKey => __('Property number :number was just taken by another record. Please try again.', ['number' => $equipment->property_no]),
             ]);
         }
-    }
-
-    /**
-     * @param  list<string>  $visible
-     */
-    private function takenMessage(array $visible, int $hidden): string
-    {
-        if ($visible === []) {
-            return trans_choice(
-                'Cannot renumber the peripherals: :count of the new property numbers is already in use.|Cannot renumber the peripherals: :count of the new property numbers are already in use.',
-                $hidden,
-            );
-        }
-
-        $numbers = implode(', ', $visible);
-
-        if ($hidden > 0) {
-            $numbers .= ' '.trans_choice('and :count other|and :count others', $hidden);
-        }
-
-        return __('Cannot renumber the peripherals: these new property numbers are already in use: :numbers.', ['numbers' => $numbers]);
     }
 
     private function log(string $event, Equipment $parent, Equipment $peripheral): void

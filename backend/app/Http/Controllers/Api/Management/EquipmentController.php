@@ -22,7 +22,9 @@ use App\Models\EquipmentLibrary;
 use App\Models\ItemType;
 use App\Models\Personnel;
 use App\Models\User;
+use App\Services\EquipmentAccountabilityService;
 use App\Services\EquipmentPeripheralService;
+use App\Services\EquipmentPropertyNumberService;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\JsonResponse;
@@ -34,8 +36,8 @@ use Symfony\Component\HttpFoundation\HeaderUtils;
 
 /**
  * Audit: create/update/delete rows come from Equipment's LogsActivity;
- * accountability moves are logged by EquipmentAccountabilityService;
- * peripherals created or renumbered here by EquipmentPeripheralService.
+ * the initial accountability and later moves are logged by EquipmentAccountabilityService;
+ * peripherals created here by EquipmentPeripheralService.
  */
 class EquipmentController extends Controller
 {
@@ -63,6 +65,7 @@ class EquipmentController extends Controller
         'source_of_funds' => EquipmentLibraryType::SourceOfFunds,
         'allotment_class' => EquipmentLibraryType::AllotmentClass,
         'disposition_status' => EquipmentLibraryType::DispositionStatus,
+        'used_by' => EquipmentLibraryType::UsedBy,
     ];
 
     /**
@@ -121,6 +124,8 @@ class EquipmentController extends Controller
 
     public function __construct(
         private readonly EquipmentPeripheralService $peripherals,
+        private readonly EquipmentAccountabilityService $accountability,
+        private readonly EquipmentPropertyNumberService $propertyNumbers,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -166,8 +171,9 @@ class EquipmentController extends Controller
 
     /**
      * Form, list-filter and transaction-form options in one payload.
-     * `personnel` (active personnel, for the transaction form) is only
-     * sent to users who may record transactions.
+     * `personnel` (active personnel within the user's scope, for the
+     * create form's accountability and the transaction form) is only sent
+     * to users who may create equipment or record transactions.
      */
     public function options(Request $request): JsonResponse
     {
@@ -186,16 +192,17 @@ class EquipmentController extends Controller
             'transaction' => $this->libraryOptions(EquipmentLibrary::class, self::TRANSACTION_FORM_TYPES),
             'classification_defaults' => (object) EquipmentClassification::query()
                 ->active()
-                ->get(['id', 'default_gl_sl_code', 'default_uacs', 'default_useful_life'])
+                ->get(['id', 'default_uacs', 'default_useful_life'])
                 ->mapWithKeys(fn (EquipmentClassification $classification) => [$classification->id => [
-                    'default_gl_sl_code' => $classification->default_gl_sl_code,
                     'default_uacs' => $classification->default_uacs,
                     'default_useful_life' => $classification->default_useful_life,
                 ]])
                 ->all(),
+            'donor_sources' => Equipment::DONOR_SOURCES,
+            'category_rules' => Equipment::categoryRules(),
         ];
 
-        if ($user->hasPermissionTo(Permission::EquipmentTransactionsCreate)) {
+        if ($user->hasAnyPermission([Permission::EquipmentCreate, Permission::EquipmentTransactionsCreate])) {
             $data['personnel'] = Personnel::query()
                 ->visibleTo($user)
                 ->active()
@@ -215,10 +222,11 @@ class EquipmentController extends Controller
         $user = $request->user();
 
         $equipment = DB::transaction(function () use ($request, $user) {
-            $equipment = new Equipment($request->safe()->except('peripherals'));
+            $equipment = new Equipment($request->equipmentAttributesToSave());
             $equipment->createdBy()->associate($user);
-            $equipment->save();
+            $this->propertyNumbers->saveNumbered($equipment);
 
+            $this->accountability->recordTransaction($equipment, $request->accountability());
             $this->peripherals->createMany($equipment, $request->peripheralRows(), $user);
 
             return $equipment;
@@ -244,7 +252,7 @@ class EquipmentController extends Controller
         ]);
 
         return new EquipmentResource($equipment)
-            ->withBundleNumbering()
+            ->withOriginalBundle()
             ->additional(['message' => 'Success'])
             ->response();
     }
@@ -253,22 +261,10 @@ class EquipmentController extends Controller
     {
         $this->authorize('update', $equipment);
 
-        /** @var User $user */
-        $user = $request->user();
-
-        DB::transaction(function () use ($request, $equipment, $user) {
-            $locked = Equipment::query()->lockForUpdate()->findOrFail($equipment->id);
-            $previous = $locked->property_no;
-
-            $locked->update($request->safe()->except('renumber_peripherals'));
-
-            if ($request->boolean('renumber_peripherals')) {
-                $this->peripherals->renumber($locked, $previous, $user);
-            }
-        });
+        $equipment->update($request->safe()->except('property_no'));
 
         return new EquipmentResource($equipment->fresh([...self::LIST_RELATIONS, ...self::BUNDLE_RELATIONS]))
-            ->withBundleNumbering()
+            ->withOriginalBundle()
             ->additional(['message' => 'Equipment record updated.'])
             ->response();
     }

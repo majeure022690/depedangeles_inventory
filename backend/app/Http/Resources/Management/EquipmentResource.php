@@ -13,21 +13,20 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * `brand_manufacturer`, `category`, `classification`,
  * `equipment_condition`). `parent` and `children` only on the create,
  * detail and update endpoints; `transactions` only on the detail endpoint;
- * `original_bundle` and `renumberable_peripherals_count` on detail and update.
+ * `original_bundle` on detail and update.
  *
  * @mixin Equipment
  */
 class EquipmentResource extends JsonResource
 {
-    private bool $withBundleNumbering = false;
+    private bool $withOriginalBundle = false;
 
     /**
-     * Adds `original_bundle` and `renumberable_peripherals_count`, which
-     * cost a query each and so stay off list responses.
+     * Adds `original_bundle`, which costs a query and so stays off list responses.
      */
-    public function withBundleNumbering(): static
+    public function withOriginalBundle(): static
     {
-        $this->withBundleNumbering = true;
+        $this->withOriginalBundle = true;
 
         return $this;
     }
@@ -80,6 +79,7 @@ class EquipmentResource extends JsonResource
             'warranty_active' => $this->end_warranty_date === null ? null : $this->isUnderWarranty(),
             'end_warranty_date' => $this->end_warranty_date?->toDateString(),
             'supplier' => $this->supplier,
+            'used_by' => $this->used_by,
             'current_accountable_officer' => $this->whenLoaded('currentAccountableOfficer', fn () => self::person($this->currentAccountableOfficer)),
             'current_end_user' => $this->whenLoaded('currentEndUser', fn () => self::person($this->currentEndUser)),
             'parent_equipment_id' => $this->parent_equipment_id,
@@ -92,13 +92,7 @@ class EquipmentResource extends JsonResource
                 ->values()
                 ->map(fn (Equipment $child) => self::peripheral($child, $request))
                 ->all()),
-            'original_bundle' => $this->when($this->withBundleNumbering, fn () => self::originalBundle($this->resource, $request)),
-            'renumberable_peripherals_count' => $this->when(
-                $this->withBundleNumbering,
-                fn () => $this->property_no === null || $request->user() === null || $this->itemType?->isBundleParent() !== true
-                    ? 0
-                    : Equipment::countNumberedAfter($this->property_no, $request->user()),
-            ),
+            'original_bundle' => $this->when($this->withOriginalBundle, fn () => self::originalBundle($this->resource, $request)),
             'transactions' => EquipmentTransactionResource::collection($this->whenLoaded('transactions')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

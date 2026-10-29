@@ -67,6 +67,7 @@ class StoreReferenceDataRequest extends FormRequest
 
             if ($entry['model'] === ItemType::class) {
                 $rules['dashboard_group'] = ['nullable', Rule::enum(DashboardEquipmentGroup::class)];
+                $rules['abbreviation'] = ['required', ...self::abbreviationRules()];
             }
 
             if ($entry['model'] === EquipmentClassification::class) {
@@ -95,10 +96,28 @@ class StoreReferenceDataRequest extends FormRequest
         return [
             'is_active' => 'active status',
             'dashboard_group' => 'dashboard group',
-            'default_gl_sl_code' => 'default GL/SL code',
+            'abbreviation' => 'abbreviation',
             'default_uacs' => 'default UACS code',
             'default_useful_life' => 'default useful life',
         ];
+    }
+
+    /**
+     * Item type abbreviations go into generated property numbers.
+     *
+     * @return list<mixed>
+     */
+    public static function abbreviationRules(?int $ignoreId = null): array
+    {
+        return ['string', 'regex:/^[A-Z0-9]{3}\z/', Rule::unique('item_types', 'abbreviation')->ignore($ignoreId)];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return ['abbreviation.regex' => __('The abbreviation must be exactly 3 uppercase letters or digits.')];
     }
 
     /**
@@ -107,7 +126,6 @@ class StoreReferenceDataRequest extends FormRequest
     public static function classificationDefaultRules(): array
     {
         return [
-            'default_gl_sl_code' => ['nullable', 'string', 'max:255'],
             'default_uacs' => ['nullable', 'string', 'max:255'],
             'default_useful_life' => ['nullable', 'integer', 'min:0', 'max:100'],
         ];

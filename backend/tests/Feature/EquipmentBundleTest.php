@@ -6,7 +6,6 @@ use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Models\Brand;
 use App\Models\Equipment;
-use App\Models\EquipmentClassification;
 use App\Models\EquipmentCondition;
 use App\Models\EquipmentTransaction;
 use App\Models\ItemType;
@@ -18,16 +17,21 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\BuildsEquipmentPayloads;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class EquipmentBundleTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
+    use BuildsEquipmentPayloads, CreatesUsersWithRoles, RefreshDatabase;
 
     private const PN = 'AC-2016-IT-DST-000001';
 
     private const NEW_PN = 'AC-2016-IT-DST-000099';
+
+    private const CPU_PN = 'AC-2016-IT-CPU-000001';
+
+    private Personnel $holder;
 
     private User $editor;
 
@@ -42,6 +46,8 @@ class EquipmentBundleTest extends TestCase
             Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit,
             Permission::EquipmentDelete, Permission::EquipmentTransactionsCreate,
         ]);
+
+        $this->holder = Personnel::factory()->create();
     }
 
     private function itemType(string $name): int
@@ -87,20 +93,13 @@ class EquipmentBundleTest extends TestCase
      */
     private function desktopPayload(array $overrides = []): array
     {
-        return [
-            'property_no' => self::PN,
+        return $this->newEquipmentPayload([
             'item_type_id' => $this->itemType('Desktop (package)'),
-            'brand_id' => $this->dell(),
-            'equipment_classification_id' => EquipmentClassification::query()->active()->value('id'),
+            'uom' => 'Set (bundled)',
             'acquisition_cost' => 60000,
-            'mode_acquisition' => 'DepEd Purchase',
-            'source_acquisition' => 'Central Office',
-            'source_fund' => 'Maintenance and Other Operating Expenses (MOOE)',
-            'equipment_condition_id' => $this->serviceable(),
-            'disposition_status' => 'Normal',
-            'equipment_location' => 'ICT Unit',
+            'received_date' => '2016-05-02',
             ...$overrides,
-        ];
+        ], $this->holder);
     }
 
     /**
@@ -125,17 +124,13 @@ class EquipmentBundleTest extends TestCase
      */
     private function updatePayload(Equipment $equipment, array $overrides = []): array
     {
-        return [
-            ...$equipment->only(['property_no', 'item_type_id', 'brand_id', 'equipment_classification_id', 'equipment_condition_id']),
-            'mode_acquisition' => 'DepEd Purchase',
-            'source_acquisition' => 'Central Office',
-            'source_fund' => 'Maintenance and Other Operating Expenses (MOOE)',
-            'disposition_status' => 'Normal',
+        return $this->equipmentFields([
+            ...$equipment->only(['item_type_id', 'brand_id', 'equipment_classification_id', 'equipment_condition_id']),
             ...$overrides,
-        ];
+        ]);
     }
 
-    public function test_store_creates_a_desktop_with_numbered_peripherals_inheriting_blank_brand_and_condition(): void
+    public function test_store_creates_a_desktop_with_numbered_peripherals_inheriting_blank_brand_condition_and_accountability(): void
     {
         $otherBrand = Brand::query()->where('is_active', true)->where('name', '!=', 'Dell')->valueOrFail('id');
         $otherCondition = EquipmentCondition::query()->where('is_active', true)->where('name', '!=', 'Serviceable')->valueOrFail('id');
@@ -168,13 +163,18 @@ class EquipmentBundleTest extends TestCase
         foreach ([$monitor, $keyboard, $mouse] as $peripheral) {
             $this->assertSame('ICT Unit', $peripheral->equipment_location);
             $this->assertSame($this->editor->id, $peripheral->created_by_user_id);
-            $this->assertNull($peripheral->current_accountable_officer_id);
+            $this->assertSame($this->holder->id, $peripheral->current_accountable_officer_id);
+            $this->assertSame($this->holder->id, $peripheral->current_end_user_id);
+            $this->assertSame('Teacher', $peripheral->used_by);
+            $this->assertSame('Beginning Inventory', $peripheral->transactions()->sole()->transaction_type);
             $this->assertDatabaseHas('activity_log', ['event' => 'equipment.peripheral.created', 'subject_id' => $peripheral->id, 'subject_type' => Equipment::class]);
             $this->assertDatabaseHas('activity_log', ['event' => 'created', 'subject_id' => $peripheral->id, 'subject_type' => Equipment::class]);
         }
 
         $this->assertSame(3, Activity::query()->where('event', 'equipment.peripheral.created')->where('subject_id', $desktop->id)->count());
-        $this->assertSame(0, EquipmentTransaction::count());
+        $this->assertSame(4, EquipmentTransaction::count());
+        $this->assertSame($desktop->transactions()->sole()->id, Activity::query()
+            ->where('event', 'equipment.transaction.recorded')->where('subject_id', $monitor->id)->sole()->properties['copied_from_transaction_id']);
 
         $issued = Personnel::factory()->create();
         $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", [
@@ -184,19 +184,12 @@ class EquipmentBundleTest extends TestCase
         $this->assertSame(3, Equipment::where('parent_equipment_id', $desktop->id)->where('current_accountable_officer_id', $issued->id)->count());
     }
 
-    public function test_store_rejects_peripherals_on_a_non_bundle_type_or_without_a_property_number(): void
+    public function test_store_rejects_peripherals_on_a_non_bundle_type(): void
     {
         $this->actingAs($this->editor)->postJson('/api/equipment', $this->desktopPayload([
             'item_type_id' => $this->itemType('Laptop'),
             'peripherals' => [$this->row()],
         ]))->assertUnprocessable()->assertJsonValidationErrors('peripherals');
-
-        $this->actingAs($this->editor)->postJson('/api/equipment', $this->desktopPayload([
-            'property_no' => null,
-            'peripherals' => [$this->row()],
-        ]))
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['property_no' => 'the peripherals are numbered after it']);
 
         $this->actingAs($this->editor)->postJson('/api/equipment', $this->desktopPayload([
             'peripherals' => array_fill(0, 11, $this->row()),
@@ -298,76 +291,6 @@ class EquipmentBundleTest extends TestCase
         $this->assertSame(0, $desktop->children()->count());
     }
 
-    public function test_an_unscoped_editor_renumbers_linked_moved_and_deleted_rows_only(): void
-    {
-        $desktop = $this->desktop();
-        $otherDesktop = $this->desktop(['property_no' => 'PN-OTHER']);
-        $linked = $this->equipment('Monitor', ['property_no' => self::PN.'-001', 'parent_equipment_id' => $desktop->id]);
-        $keepsOldNo = $this->equipment('Keyboard', ['property_no' => self::PN.'-002', 'old_property_no' => 'LEGACY-7', 'parent_equipment_id' => $desktop->id]);
-        $moved = $this->equipment('Mouse', ['property_no' => self::PN.'-003', 'parent_equipment_id' => $otherDesktop->id]);
-        $trashed = $this->equipment('Mouse', ['property_no' => self::PN.'-004']);
-        $trashed->delete();
-        $untouched = [
-            $this->equipment('Mouse', ['property_no' => self::PN.'-A1', 'parent_equipment_id' => $desktop->id]),
-            $this->equipment('Mouse', ['property_no' => self::PN.'-001-2']),
-            $this->equipment('Mouse', ['property_no' => self::PN.'0-001']),
-            $this->equipment('Mouse', ['property_no' => self::PN.'-']),
-        ];
-
-        $this->actingAs($this->editor)->getJson("/api/equipment/{$desktop->id}")
-            ->assertJsonPath('data.renumberable_peripherals_count', 4);
-
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
-            'property_no' => self::NEW_PN,
-            'renumber_peripherals' => true,
-        ]))
-            ->assertOk()
-            ->assertJsonPath('data.property_no', self::NEW_PN)
-            ->assertJsonPath('data.renumberable_peripherals_count', 4)
-            ->assertJsonPath('data.children.1.property_no', self::NEW_PN.'-001');
-
-        $this->assertSame(self::NEW_PN.'-001', $linked->fresh()?->property_no);
-        $this->assertSame(self::PN.'-001', $linked->fresh()?->old_property_no);
-        $this->assertSame(self::NEW_PN.'-002', $keepsOldNo->fresh()?->property_no);
-        $this->assertSame('LEGACY-7', $keepsOldNo->fresh()?->old_property_no);
-        $this->assertSame(self::NEW_PN.'-003', $moved->fresh()?->property_no);
-        $this->assertSame($otherDesktop->id, $moved->fresh()?->parent_equipment_id);
-        $this->assertSame(self::NEW_PN.'-004', Equipment::withTrashed()->findOrFail($trashed->id)->property_no);
-
-        foreach ($untouched as $row) {
-            $this->assertSame($row->property_no, $row->fresh()?->property_no);
-            $this->assertNull($row->fresh()?->old_property_no);
-        }
-
-        $activity = Activity::query()->where('event', 'equipment.peripheral.renumbered')->where('subject_id', $moved->id)->sole();
-        $this->assertSame(self::PN.'-003', $activity->properties['old']);
-        $this->assertSame(self::NEW_PN.'-003', $activity->properties['new']);
-        $this->assertSame(5, Activity::query()->where('event', 'equipment.peripheral.renumbered')->count());
-        $this->assertDatabaseHas('activity_log', ['event' => 'equipment.peripheral.renumbered', 'subject_id' => $desktop->id]);
-    }
-
-    public function test_renumber_fails_without_changing_anything_when_a_target_number_is_taken(): void
-    {
-        $desktop = $this->desktop();
-        $first = $this->equipment('Monitor', ['property_no' => self::PN.'-001', 'parent_equipment_id' => $desktop->id]);
-        $this->equipment('Keyboard', ['property_no' => self::PN.'-002', 'parent_equipment_id' => $desktop->id]);
-        $this->equipment('Mouse', ['property_no' => self::NEW_PN.'-002'])->delete();
-
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
-            'property_no' => self::NEW_PN,
-            'remarks' => 'Corrected',
-            'renumber_peripherals' => true,
-        ]))
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['renumber_peripherals' => 'already in use: '.self::NEW_PN.'-002.']);
-
-        $this->assertSame(self::PN, $desktop->fresh()?->property_no);
-        $this->assertSame($desktop->remarks, $desktop->fresh()?->remarks);
-        $this->assertSame(self::PN.'-001', $first->fresh()?->property_no);
-        $this->assertNull($first->fresh()?->old_property_no);
-        $this->assertSame(0, Activity::query()->where('event', 'equipment.peripheral.renumbered')->count());
-    }
-
     /**
      * @return array{User, Personnel, Personnel}
      */
@@ -381,75 +304,6 @@ class EquipmentBundleTest extends TestCase
             Personnel::factory()->create(['office_id' => $office->id]),
             Personnel::factory()->create(['office_id' => Office::factory()->create()->id]),
         ];
-    }
-
-    public function test_a_scoped_editor_renumbers_and_counts_only_rows_within_their_scope(): void
-    {
-        [$scoped, $colleague, $outsider] = $this->schoolEditor();
-        $desktop = $this->desktop(['current_accountable_officer_id' => $colleague->id]);
-        $outsideDesktop = $this->desktop(['property_no' => 'PN-OUT', 'current_accountable_officer_id' => $outsider->id]);
-        $linked = $this->equipment('Monitor', ['property_no' => self::PN.'-001', 'parent_equipment_id' => $desktop->id, 'current_accountable_officer_id' => $colleague->id]);
-        $movedOut = $this->equipment('Mouse', ['property_no' => self::PN.'-002', 'parent_equipment_id' => $outsideDesktop->id, 'current_accountable_officer_id' => $outsider->id]);
-        $trashed = $this->equipment('Keyboard', ['property_no' => self::PN.'-003', 'current_accountable_officer_id' => $colleague->id]);
-        $trashed->delete();
-
-        $this->actingAs($this->editor)->getJson("/api/equipment/{$desktop->id}")->assertJsonPath('data.renumberable_peripherals_count', 3);
-        $this->actingAs($scoped)->getJson("/api/equipment/{$desktop->id}")->assertJsonPath('data.renumberable_peripherals_count', 2);
-
-        $this->actingAs($scoped)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
-            'property_no' => self::NEW_PN,
-            'renumber_peripherals' => true,
-        ]))->assertOk();
-
-        $this->assertSame(self::NEW_PN.'-001', $linked->fresh()?->property_no);
-        $this->assertSame(self::NEW_PN.'-003', Equipment::withTrashed()->findOrFail($trashed->id)->property_no);
-        $this->assertSame(self::PN.'-002', $movedOut->fresh()?->property_no);
-        $this->assertNull($movedOut->fresh()?->old_property_no);
-        $this->assertSame(0, Activity::query()->where('event', 'equipment.peripheral.renumbered')->where('subject_id', $movedOut->id)->count());
-        $this->assertSame(0, Activity::query()->where('subject_id', $movedOut->id)->where('event', 'updated')->count());
-
-        $summary = Activity::query()->where('event', 'equipment.peripheral.renumbered')->where('subject_id', $desktop->id)->sole();
-        $this->assertEqualsCanonicalizing([$linked->id, $trashed->id], $summary->properties['renumbered_equipment_ids']);
-    }
-
-    public function test_the_collision_message_names_only_numbers_within_the_editors_scope(): void
-    {
-        [$scoped, $colleague, $outsider] = $this->schoolEditor();
-        $desktop = $this->desktop(['current_accountable_officer_id' => $colleague->id]);
-        $this->equipment('Monitor', ['property_no' => self::PN.'-001', 'parent_equipment_id' => $desktop->id, 'current_accountable_officer_id' => $colleague->id]);
-        $this->equipment('Keyboard', ['property_no' => self::PN.'-002', 'parent_equipment_id' => $desktop->id, 'current_accountable_officer_id' => $colleague->id]);
-        $this->equipment('Mouse', ['property_no' => self::NEW_PN.'-001', 'current_accountable_officer_id' => $outsider->id]);
-        $visibleClash = $this->equipment('Mouse', ['property_no' => self::NEW_PN.'-002', 'current_accountable_officer_id' => $colleague->id]);
-
-        $renumber = fn () => $this->actingAs($scoped)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
-            'property_no' => self::NEW_PN,
-            'renumber_peripherals' => true,
-        ]))->assertUnprocessable();
-
-        $message = $renumber()->json('errors.renumber_peripherals.0');
-        $this->assertStringContainsString(self::NEW_PN.'-002 and 1 other', $message);
-        $this->assertStringNotContainsString(self::NEW_PN.'-001', $message);
-
-        $visibleClash->forceDelete();
-
-        $message = $renumber()->json('errors.renumber_peripherals.0');
-        $this->assertSame('Cannot renumber the peripherals: 1 of the new property numbers is already in use.', $message);
-
-        $this->assertSame(self::PN, $desktop->fresh()?->property_no);
-    }
-
-    public function test_renumber_is_rejected_unless_the_item_type_is_a_bundle_parent(): void
-    {
-        $laptop = $this->equipment('Laptop', ['property_no' => self::PN]);
-        $stray = $this->equipment('Mouse', ['property_no' => self::PN.'-001']);
-
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$laptop->id}", $this->updatePayload($laptop, [
-            'property_no' => self::NEW_PN,
-            'renumber_peripherals' => true,
-        ]))->assertJsonValidationErrors(['renumber_peripherals' => 'Only a Desktop (package) or CPU']);
-
-        $this->assertSame(self::PN, $laptop->fresh()?->property_no);
-        $this->assertSame(self::PN.'-001', $stray->fresh()?->property_no);
     }
 
     public function test_a_number_taken_mid_request_is_a_validation_error(): void
@@ -470,39 +324,6 @@ class EquipmentBundleTest extends TestCase
             ->assertJsonValidationErrors(['peripherals' => 'was just taken by another record']);
 
         $this->assertSame(0, $desktop->children()->count());
-    }
-
-    public function test_without_the_flag_or_a_previous_number_peripherals_keep_their_numbers(): void
-    {
-        $desktop = $this->desktop();
-        $linked = $this->equipment('Monitor', ['property_no' => self::PN.'-001', 'parent_equipment_id' => $desktop->id]);
-
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, ['property_no' => self::NEW_PN]))->assertOk();
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, ['property_no' => 'PN-3', 'renumber_peripherals' => false]))->assertOk();
-
-        $pending = $this->desktop(['property_no' => null]);
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$pending->id}", $this->updatePayload($pending, ['property_no' => 'PN-4', 'renumber_peripherals' => true]))->assertOk();
-
-        $this->assertSame(self::PN.'-001', $linked->fresh()?->property_no);
-        $this->assertNull($linked->fresh()?->old_property_no);
-        $this->assertSame(0, Activity::query()->where('event', 'equipment.peripheral.renumbered')->count());
-
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, ['renumber_peripherals' => 'yes']))
-            ->assertJsonValidationErrors('renumber_peripherals');
-    }
-
-    public function test_renumbering_needs_permission_to_edit_the_desktop(): void
-    {
-        $desktop = $this->desktop();
-        $linked = $this->equipment('Monitor', ['property_no' => self::PN.'-001', 'parent_equipment_id' => $desktop->id]);
-        $viewer = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentCreate]);
-
-        $this->actingAs($viewer)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
-            'property_no' => self::NEW_PN,
-            'renumber_peripherals' => true,
-        ]))->assertForbidden();
-
-        $this->assertSame(self::PN.'-001', $linked->fresh()?->property_no);
     }
 
     public function test_original_bundle_is_shown_on_detail_only_when_visible(): void
@@ -565,8 +386,8 @@ class EquipmentBundleTest extends TestCase
         $created = Equipment::where('parent_equipment_id', $id)->sole();
         $this->assertSame(self::PN.'-001', $created->property_no);
         $this->assertNull($created->old_property_no);
-        $this->assertNull($created->current_accountable_officer_id);
-        $this->assertNull($created->current_end_user_id);
+        $this->assertSame($this->holder->id, $created->current_accountable_officer_id);
+        $this->assertSame($this->holder->id, $created->current_end_user_id);
         $this->assertSame($this->editor->id, $created->created_by_user_id);
         $this->assertSame('ICT Unit', $created->equipment_location);
         $this->assertNotSame('INJECTED-QR', $created->qr_code);
@@ -592,8 +413,8 @@ class EquipmentBundleTest extends TestCase
 
     public function test_store_numbers_a_cpu_bundle_past_numbers_already_taken(): void
     {
-        $this->equipment('Mouse', ['property_no' => self::PN.'-001']);
-        $this->equipment('Mouse', ['property_no' => self::PN.'-003'])->delete();
+        $this->equipment('Mouse', ['property_no' => self::CPU_PN.'-001']);
+        $this->equipment('Mouse', ['property_no' => self::CPU_PN.'-003'])->delete();
 
         $this->actingAs($this->editor)->postJson('/api/equipment', $this->desktopPayload([
             'item_type_id' => $this->itemType('CPU'),
@@ -601,8 +422,9 @@ class EquipmentBundleTest extends TestCase
         ]))
             ->assertCreated()
             ->assertJsonPath('data.item', 'CPU')
-            ->assertJsonPath('data.children.0.property_no', self::PN.'-002')
-            ->assertJsonPath('data.children.1.property_no', self::PN.'-004');
+            ->assertJsonPath('data.property_no', self::CPU_PN)
+            ->assertJsonPath('data.children.0.property_no', self::CPU_PN.'-002')
+            ->assertJsonPath('data.children.1.property_no', self::CPU_PN.'-004');
     }
 
     public function test_peripheral_row_shape_and_count_limits(): void
@@ -632,7 +454,7 @@ class EquipmentBundleTest extends TestCase
         $this->assertSame(0, $desktop->children()->count());
     }
 
-    public function test_a_scoped_editor_cannot_batch_add_or_renumber_outside_their_scope(): void
+    public function test_a_scoped_editor_cannot_batch_add_or_edit_outside_their_scope(): void
     {
         $office = Office::factory()->create();
         $scoped = $this->userWithPermissions([
@@ -644,101 +466,46 @@ class EquipmentBundleTest extends TestCase
 
         $this->actingAs($scoped)->postJson("/api/equipment/{$desktop->id}/peripherals/batch", ['peripherals' => [$this->row()]])
             ->assertNotFound();
-        $this->actingAs($scoped)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
-            'property_no' => self::NEW_PN,
-            'renumber_peripherals' => true,
-        ]))->assertNotFound();
+        $this->actingAs($scoped)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop))->assertNotFound();
 
         $this->assertSame(1, Equipment::where('parent_equipment_id', $desktop->id)->count());
         $this->assertSame(self::PN, $desktop->fresh()?->property_no);
         $this->assertSame(self::PN.'-001', $linked->fresh()?->property_no);
     }
 
-    public function test_renumber_matches_the_old_number_literally(): void
-    {
-        $desktop = $this->desktop(['property_no' => 'PN_1']);
-        $match = $this->equipment('Monitor', ['property_no' => 'PN_1-001', 'parent_equipment_id' => $desktop->id]);
-        $wildcard = $this->equipment('Keyboard', ['property_no' => 'PNX1-002']);
-        $otherCase = $this->equipment('Mouse', ['property_no' => 'pn_1-003']);
-
-        $this->actingAs($this->editor)->getJson("/api/equipment/{$desktop->id}")->assertJsonPath('data.renumberable_peripherals_count', 1);
-
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
-            'property_no' => 'PN%2',
-            'renumber_peripherals' => true,
-        ]))->assertOk();
-
-        $this->assertSame('PN%2-001', $match->fresh()?->property_no);
-        $this->assertSame('PNX1-002', $wildcard->fresh()?->property_no);
-        $this->assertSame('pn_1-003', $otherCase->fresh()?->property_no);
-    }
-
-    public function test_renumber_rejects_a_new_number_too_long_for_the_suffixes(): void
+    public function test_original_bundle_links_only_peripherals_to_bundle_parents(): void
     {
         $desktop = $this->desktop();
-        $linked = $this->equipment('Monitor', ['property_no' => self::PN.'-001', 'parent_equipment_id' => $desktop->id]);
-        $longNumber = str_repeat('A', 252);
+        $monitor = $this->equipment('Monitor', ['property_no' => self::PN.'-001']);
+        $laptopRow = $this->equipment('Laptop', ['property_no' => self::PN.'-002']);
+        $this->equipment('Laptop', ['property_no' => 'LT-9']);
+        $underLaptop = $this->equipment('Monitor', ['property_no' => 'LT-9-001']);
 
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
-            'property_no' => $longNumber,
-            'renumber_peripherals' => true,
-        ]))->assertJsonValidationErrors(['renumber_peripherals' => 'too long']);
-
-        $this->assertSame(self::PN, $desktop->fresh()?->property_no);
-        $this->assertSame(self::PN.'-001', $linked->fresh()?->property_no);
-
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
-            'property_no' => $longNumber,
-            'renumber_peripherals' => false,
-        ]))->assertOk();
-        $this->assertSame(self::PN.'-001', $linked->fresh()?->property_no);
+        $this->actingAs($this->editor)->getJson("/api/equipment/{$monitor->id}")
+            ->assertJsonPath('data.original_bundle', ['id' => $desktop->id, 'property_no' => self::PN])
+            ->assertJsonMissingPath('data.renumberable_peripherals_count');
+        $this->actingAs($this->editor)->getJson("/api/equipment/{$laptopRow->id}")->assertJsonPath('data.original_bundle', null);
+        $this->actingAs($this->editor)->getJson("/api/equipment/{$underLaptop->id}")->assertJsonPath('data.original_bundle', null);
     }
 
-    public function test_renumber_flag_with_an_unchanged_or_cleared_number_changes_nothing(): void
-    {
-        $desktop = $this->desktop();
-        $linked = $this->equipment('Monitor', ['property_no' => self::PN.'-001', 'parent_equipment_id' => $desktop->id]);
-
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
-            'remarks' => 'Same number',
-            'renumber_peripherals' => true,
-        ]))->assertOk()->assertJsonPath('data.renumberable_peripherals_count', 1);
-
-        $this->actingAs($this->editor)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
-            'property_no' => null,
-            'renumber_peripherals' => true,
-        ]))->assertOk()->assertJsonPath('data.renumberable_peripherals_count', 0);
-
-        $this->assertSame(self::PN.'-001', $linked->fresh()?->property_no);
-        $this->assertNull($linked->fresh()?->old_property_no);
-        $this->assertSame(0, Activity::query()->where('event', 'equipment.peripheral.renumbered')->count());
-    }
-
-    public function test_numbering_links_only_peripherals_to_bundle_parents(): void
+    public function test_editing_a_desktop_never_renumbers_its_peripherals(): void
     {
         $desktop = $this->desktop();
         $monitor = $this->equipment('Monitor', ['property_no' => self::PN.'-001', 'parent_equipment_id' => $desktop->id]);
-        $laptopRow = $this->equipment('Laptop', ['property_no' => self::PN.'-002']);
-
-        $this->actingAs($this->editor)->getJson("/api/equipment/{$desktop->id}")->assertJsonPath('data.renumberable_peripherals_count', 1);
-        $this->actingAs($this->editor)->getJson("/api/equipment/{$laptopRow->id}")->assertJsonPath('data.original_bundle', null);
 
         $this->actingAs($this->editor)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
             'property_no' => self::NEW_PN,
             'renumber_peripherals' => true,
-        ]))->assertOk()->assertJsonPath('data.renumberable_peripherals_count', 1);
+        ]))->assertJsonValidationErrors('property_no');
 
-        $this->assertSame(self::NEW_PN.'-001', $monitor->fresh()?->property_no);
-        $this->assertSame(self::PN.'-002', $laptopRow->fresh()?->property_no);
-        $this->assertNull($laptopRow->fresh()?->old_property_no);
-        $this->assertSame(0, Activity::query()->where('event', 'equipment.peripheral.renumbered')->where('subject_id', $laptopRow->id)->count());
+        $this->actingAs($this->editor)->putJson("/api/equipment/{$desktop->id}", $this->updatePayload($desktop, [
+            'remarks' => 'Checked.',
+            'renumber_peripherals' => true,
+        ]))->assertOk()
+            ->assertJsonPath('data.property_no', self::PN)
+            ->assertJsonMissingPath('data.renumberable_peripherals_count');
 
-        $laptop = $this->equipment('Laptop', ['property_no' => 'LT-9']);
-        $underLaptop = $this->equipment('Monitor', ['property_no' => 'LT-9-001']);
-
-        $this->actingAs($this->editor)->getJson("/api/equipment/{$laptop->id}")->assertJsonPath('data.renumberable_peripherals_count', 0);
-        $this->actingAs($this->editor)->getJson("/api/equipment/{$underLaptop->id}")->assertJsonPath('data.original_bundle', null);
-        $this->actingAs($this->editor)->getJson("/api/equipment/{$monitor->id}")
-            ->assertJsonPath('data.original_bundle', ['id' => $desktop->id, 'property_no' => self::NEW_PN]);
+        $this->assertSame(self::PN.'-001', $monitor->fresh()?->property_no);
+        $this->assertSame(0, Activity::query()->where('event', 'equipment.peripheral.renumbered')->count());
     }
 }

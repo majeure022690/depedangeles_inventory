@@ -132,7 +132,7 @@ class ReferenceDataControllerTest extends TestCase
         $response = $this->actingAs($this->admin())->getJson('/api/reference-data/equipment-libraries')
             ->assertOk()
             ->assertJsonPath('meta.table.tier', 2)
-            ->assertJsonCount(9, 'meta.table.types')
+            ->assertJsonCount(10, 'meta.table.types')
             ->assertJsonPath('meta.total', 3)
             ->assertJsonStructure(['data' => [['id', 'type', 'value', 'description', 'sort_order', 'is_active']]]);
 
@@ -157,7 +157,7 @@ class ReferenceDataControllerTest extends TestCase
             'sort_order' => 5,
             'is_active' => false,
         ])->assertOk()
-            ->assertJsonPath('data', ['id' => $itemType->id, 'name' => 'Laptop', 'dashboard_group' => null, 'description' => 'Corrected.', 'sort_order' => 5, 'is_active' => false]);
+            ->assertJsonPath('data', ['id' => $itemType->id, 'name' => 'Laptop', 'abbreviation' => null, 'dashboard_group' => null, 'description' => 'Corrected.', 'sort_order' => 5, 'is_active' => false]);
 
         $activity = $this->activityFor('reference_data.updated', $itemType->id);
         $this->assertSame($admin->id, $activity->causer_id);
@@ -217,9 +217,11 @@ class ReferenceDataControllerTest extends TestCase
     {
         $response = $this->actingAs($this->admin())->postJson('/api/reference-data/item-types', [
             'name' => 'Tablet',
+            'abbreviation' => 'TBL',
             'description' => 'Handheld touchscreen device.',
         ])->assertCreated()
             ->assertJsonPath('data.name', 'Tablet')
+            ->assertJsonPath('data.abbreviation', 'TBL')
             ->assertJsonPath('data.sort_order', 0)
             ->assertJsonPath('data.is_active', true);
 
@@ -227,16 +229,53 @@ class ReferenceDataControllerTest extends TestCase
         $this->assertSame('created', $activity->event);
         $this->assertSame('item-types', $activity->properties['table']);
         $this->assertSame('Tablet', $activity->attribute_changes['attributes']['name']);
+        $this->assertSame('TBL', $activity->attribute_changes['attributes']['abbreviation']);
+    }
+
+    public function test_item_type_abbreviation_is_required_validated_unique_and_audited(): void
+    {
+        $admin = $this->admin();
+        $url = '/api/reference-data/item-types';
+        ItemType::create(['name' => 'Laptop', 'abbreviation' => 'LPT', 'sort_order' => 0, 'is_active' => true]);
+
+        $this->actingAs($admin)->postJson($url, ['name' => 'Tablet'])->assertJsonValidationErrors('abbreviation');
+        foreach (['tbl', 'TB', 'TBLT', 'T-L', 'LPT'] as $invalid) {
+            $this->actingAs($admin)->postJson($url, ['name' => 'Tablet', 'abbreviation' => $invalid])
+                ->assertJsonValidationErrors('abbreviation');
+        }
+        $this->assertTrue(Validator::make(['abbreviation' => "TBL\n"], ['abbreviation' => StoreReferenceDataRequest::abbreviationRules()])->fails());
+        $this->assertFalse(ItemType::where('name', 'Tablet')->exists());
+
+        $id = $this->actingAs($admin)->postJson($url, ['name' => 'Tablet', 'abbreviation' => '2T1'])
+            ->assertCreated()
+            ->assertJsonPath('data.abbreviation', '2T1')
+            ->json('data.id');
+
+        $this->actingAs($admin)->patchJson("{$url}/{$id}", ['name' => 'Tablet', 'abbreviation' => 'LPT', 'sort_order' => 0, 'is_active' => true])
+            ->assertJsonValidationErrors('abbreviation');
+        $this->actingAs($admin)->patchJson("{$url}/{$id}", ['name' => 'Tablet', 'abbreviation' => null, 'sort_order' => 0, 'is_active' => true])
+            ->assertJsonValidationErrors('abbreviation');
+        $this->actingAs($admin)->patchJson("{$url}/{$id}", ['name' => 'Tablet', 'abbreviation' => '2T1', 'sort_order' => 0, 'is_active' => true])
+            ->assertOk();
+        $this->actingAs($admin)->patchJson("{$url}/{$id}", ['name' => 'Tablet', 'abbreviation' => 'TBL', 'sort_order' => 0, 'is_active' => true])
+            ->assertOk()
+            ->assertJsonPath('data.abbreviation', 'TBL');
+
+        $activity = $this->activityFor('reference_data.updated', $id);
+        $this->assertSame('2T1', $activity->attribute_changes['old']['abbreviation']);
+        $this->assertSame('TBL', $activity->attribute_changes['attributes']['abbreviation']);
+
+        $this->actingAs($this->userWithPermissions([]))->postJson($url, ['name' => 'Phone', 'abbreviation' => 'PHN'])->assertForbidden();
     }
 
     public function test_item_types_read_and_write_a_validated_dashboard_group_and_it_is_audited(): void
     {
         $admin = $this->admin();
 
-        $this->actingAs($admin)->postJson('/api/reference-data/item-types', ['name' => 'Phablet', 'dashboard_group' => 'not_a_group'])
+        $this->actingAs($admin)->postJson('/api/reference-data/item-types', ['name' => 'Phablet', 'abbreviation' => 'PHB', 'dashboard_group' => 'not_a_group'])
             ->assertJsonValidationErrors('dashboard_group');
 
-        $id = $this->actingAs($admin)->postJson('/api/reference-data/item-types', ['name' => 'Phablet', 'dashboard_group' => 'tablet'])
+        $id = $this->actingAs($admin)->postJson('/api/reference-data/item-types', ['name' => 'Phablet', 'abbreviation' => 'PHB', 'dashboard_group' => 'tablet'])
             ->assertCreated()
             ->assertJsonPath('data.dashboard_group', 'tablet')
             ->json('data.id');
@@ -267,7 +306,7 @@ class ReferenceDataControllerTest extends TestCase
             'default_uacs' => '1060503000',
             'default_useful_life' => 5,
         ])->assertCreated()
-            ->assertJsonPath('data.default_gl_sl_code', '10605030')
+            ->assertJsonMissingPath('data.default_gl_sl_code')
             ->assertJsonPath('data.default_uacs', '1060503000')
             ->assertJsonPath('data.default_useful_life', 5)
             ->json('data.id');
@@ -275,7 +314,7 @@ class ReferenceDataControllerTest extends TestCase
         $this->actingAs($admin)->patchJson("{$url}/{$id}", [
             'name' => 'Furniture', 'default_useful_life' => 10, 'default_uacs' => null, 'sort_order' => 0, 'is_active' => true,
         ])->assertOk()
-            ->assertJsonPath('data.default_gl_sl_code', '10605030')
+            ->assertJsonMissingPath('data.default_gl_sl_code')
             ->assertJsonPath('data.default_uacs', null)
             ->assertJsonPath('data.default_useful_life', 10);
 
@@ -284,6 +323,7 @@ class ReferenceDataControllerTest extends TestCase
         $this->assertSame(10, $activity->attribute_changes['attributes']['default_useful_life']);
         $this->assertNull($activity->attribute_changes['attributes']['default_uacs']);
         $this->assertSame('1060503000', $this->activityFor('reference_data.created', $id, EquipmentClassification::class)->attribute_changes['attributes']['default_uacs']);
+        $this->assertNull(EquipmentClassification::findOrFail($id)->default_gl_sl_code);
 
         $this->actingAs($admin)->getJson($url)
             ->assertJsonPath('meta.table.classification_defaults', true)
@@ -381,6 +421,18 @@ class ReferenceDataControllerTest extends TestCase
         $this->actingAs($this->admin())->deleteJson("/api/reference-data/equipment-libraries/{$library->id}")->assertConflict();
 
         $this->assertDatabaseHas('equipment_libraries', ['id' => $library->id]);
+    }
+
+    public function test_used_by_delete_is_a_409_while_equipment_uses_it_and_allowed_once_free(): void
+    {
+        $used = EquipmentLibrary::create(['type' => EquipmentLibraryType::UsedBy->value, 'value' => 'Learner', 'sort_order' => 0, 'is_active' => true]);
+        $free = EquipmentLibrary::create(['type' => EquipmentLibraryType::UsedBy->value, 'value' => 'Visitor', 'sort_order' => 1, 'is_active' => true]);
+        Equipment::factory()->create(['used_by' => 'Learner']);
+
+        $this->actingAs($this->admin())->deleteJson("/api/reference-data/equipment-libraries/{$used->id}")->assertConflict();
+        $this->actingAs($this->admin())->deleteJson("/api/reference-data/equipment-libraries/{$free->id}")->assertNoContent();
+
+        $this->assertDatabaseHas('equipment_libraries', ['id' => $used->id]);
     }
 
     public function test_tier2_delete_is_a_409_when_referenced_via_a_json_array_column(): void

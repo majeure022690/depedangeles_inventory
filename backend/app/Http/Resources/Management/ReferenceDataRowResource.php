@@ -34,9 +34,11 @@ class ReferenceDataRowResource extends JsonResource
             ] : [
                 'name' => $row->getAttribute('name'),
             ]),
-            ...($row instanceof ItemType ? ['dashboard_group' => $row->dashboard_group?->value] : []),
+            ...($row instanceof ItemType ? [
+                'abbreviation' => $row->abbreviation,
+                'dashboard_group' => $row->dashboard_group?->value,
+            ] : []),
             ...($row instanceof EquipmentClassification ? [
-                'default_gl_sl_code' => $row->default_gl_sl_code,
                 'default_uacs' => $row->default_uacs,
                 'default_useful_life' => $row->default_useful_life,
             ] : []),

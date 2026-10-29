@@ -77,6 +77,7 @@ class UpdateReferenceDataRequest extends FormRequest
 
         if ($entry['model'] === ItemType::class) {
             $rules['dashboard_group'] = ['nullable', Rule::enum(DashboardEquipmentGroup::class)];
+            $rules['abbreviation'] = ['sometimes', 'required', ...StoreReferenceDataRequest::abbreviationRules((int) $this->route('id'))];
         }
 
         if ($entry['model'] === EquipmentClassification::class) {
@@ -92,5 +93,13 @@ class UpdateReferenceDataRequest extends FormRequest
     public function attributes(): array
     {
         return (new StoreReferenceDataRequest)->attributes();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return (new StoreReferenceDataRequest)->messages();
     }
 }

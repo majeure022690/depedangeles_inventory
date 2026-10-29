@@ -9,7 +9,6 @@ use Closure;
 use Database\Factories\EquipmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -94,7 +93,7 @@ use Spatie\Activitylog\Support\LogOptions;
     'allotment_class', 'pm_plan', 'equipment_location', 'non_functional',
     'disposition_status', 'remarks',
     'under_warranty', 'end_warranty_date', 'supplier',
-    'current_accountable_officer_id', 'current_end_user_id',
+    'current_accountable_officer_id', 'current_end_user_id', 'used_by',
     'item_type_id', 'brand_id', 'equipment_category_id',
     'equipment_classification_id', 'equipment_condition_id',
 ])]
@@ -107,6 +106,18 @@ class Equipment extends Model
      * Acquisition cost at and above which an item is Property, Plant & Equipment rather than semi-expendable.
      */
     public const int PPE_THRESHOLD = 50000;
+
+    /**
+     * Sources of acquisition that name a donor.
+     */
+    public const array DONOR_SOURCES = [
+        'Local Government Unit (LGU)',
+        'Private Corporation',
+        'Non-Governmental Organization (NGO)',
+        'DICT',
+        'Other National Government Agency',
+        "Parent Teacher's Association",
+    ];
 
     protected function casts(): array
     {
@@ -182,52 +193,6 @@ class Equipment extends Model
     public function isPeripheral(): bool
     {
         return $this->itemType?->isPeripheral() === true;
-    }
-
-    /**
-     * Peripherals within the user's scope numbered "<$propertyNo>-<digits>",
-     * soft-deleted ones included, wherever they are linked now.
-     *
-     * @return Collection<int, Equipment>
-     */
-    public static function numberedAfter(string $propertyNo, User $user, bool $lockForUpdate = false): Collection
-    {
-        return self::numberedAfterQuery($propertyNo, $user)
-            ->when($lockForUpdate, fn (Builder $query) => $query->lockForUpdate())
-            ->orderBy('property_no')
-            ->get()
-            ->filter(fn (Equipment $equipment) => self::isNumberedAfter($equipment->property_no, $propertyNo))
-            ->values();
-    }
-
-    public static function countNumberedAfter(string $propertyNo, User $user): int
-    {
-        return self::numberedAfterQuery($propertyNo, $user)
-            ->pluck('property_no')
-            ->filter(fn (?string $number) => self::isNumberedAfter($number, $propertyNo))
-            ->count();
-    }
-
-    /**
-     * The LIKE prefilter is case-insensitive on MySQL; isNumberedAfter() makes the match exact.
-     *
-     * @return Builder<Equipment>
-     */
-    private static function numberedAfterQuery(string $propertyNo, User $user): Builder
-    {
-        $pattern = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $propertyNo.'-').'%';
-
-        return self::withTrashed()
-            ->whereRaw("property_no LIKE ? ESCAPE '!'", [$pattern])
-            ->whereHas('itemType', fn (Builder $query) => $query->whereIn('name', ItemType::PERIPHERAL_NAMES))
-            ->visibleTo($user);
-    }
-
-    private static function isNumberedAfter(?string $number, string $propertyNo): bool
-    {
-        $prefix = $propertyNo.'-';
-
-        return $number !== null && str_starts_with($number, $prefix) && ctype_digit(substr($number, strlen($prefix)));
     }
 
     /**
@@ -499,7 +464,7 @@ class Equipment extends Model
                 'under_warranty', 'end_warranty_date', 'supplier',
                 'item_type_id', 'brand_id', 'equipment_category_id',
                 'equipment_classification_id', 'equipment_condition_id',
-                'created_by_user_id', 'parent_equipment_id',
+                'created_by_user_id', 'parent_equipment_id', 'used_by',
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()

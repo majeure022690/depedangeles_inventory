@@ -42,7 +42,7 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     Route::put('/personnel/{personnel}', [PersonnelController::class, 'update'])->middleware($can(P::PersonnelEdit))->whereNumber('personnel');
     Route::delete('/personnel/{personnel}', [PersonnelController::class, 'destroy'])->middleware($can(P::PersonnelDelete))->whereNumber('personnel');
 
-    // Permission-protected: equipment.*. Transactions are append-only (store only).
+    // Permission-protected: equipment.* (creating includes the initial accountability). Transactions are append-only (store only).
     Route::get('/equipment/options', [EquipmentController::class, 'options'])->middleware($can(P::EquipmentView));
     Route::get('/equipment', [EquipmentController::class, 'index'])->middleware($can(P::EquipmentView));
     Route::get('/equipment/{equipment}', [EquipmentController::class, 'show'])->middleware($can(P::EquipmentView))->whereNumber('equipment');

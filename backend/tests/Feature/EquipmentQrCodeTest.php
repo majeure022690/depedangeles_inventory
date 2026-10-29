@@ -14,6 +14,7 @@ use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Concerns\BuildsEquipmentPayloads;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
@@ -30,25 +31,7 @@ use Tests\TestCase;
  */
 class EquipmentQrCodeTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
-
-    private function makeEquipmentPayload(array $overrides = []): array
-    {
-        return array_merge([
-            'property_no' => 'AC-2026-IT-LT-000123',
-            'item_type_id' => ItemType::where('name', 'Laptop')->value('id'),
-            'uom' => 'Piece',
-            'brand_id' => Brand::where('name', 'Dell')->value('id'),
-            'equipment_classification_id' => EquipmentClassification::query()->active()->value('id'),
-            'acquisition_cost' => 55000,
-            'mode_acquisition' => 'DepEd Purchase',
-            'source_acquisition' => 'Central Office',
-            'source_fund' => 'Maintenance and Other Operating Expenses (MOOE)',
-            'allotment_class' => 'Maintenance and Other Operating Expenses (MOOE)',
-            'equipment_condition_id' => EquipmentCondition::where('name', 'Serviceable')->value('id'),
-            'disposition_status' => 'Normal',
-        ], $overrides);
-    }
+    use BuildsEquipmentPayloads, CreatesUsersWithRoles, RefreshDatabase;
 
     public function test_qr_code_is_auto_generated_on_create_and_encodes_the_edit_url(): void
     {
@@ -56,9 +39,9 @@ class EquipmentQrCodeTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $user = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit]);
 
-        $this->actingAs($user)->postJson('/api/equipment', $this->makeEquipmentPayload())->assertCreated();
+        $id = $this->actingAs($user)->postJson('/api/equipment', $this->newEquipmentPayload())->assertCreated()->json('data.id');
 
-        $equipment = Equipment::where('property_no', 'AC-2026-IT-LT-000123')->firstOrFail();
+        $equipment = Equipment::findOrFail($id);
 
         $this->assertNotNull($equipment->qr_code);
         $this->assertSame($equipment->qrCodeUrl(), $equipment->qr_code);
@@ -70,11 +53,11 @@ class EquipmentQrCodeTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $user = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentCreate, Permission::EquipmentEdit]);
 
-        $this->actingAs($user)->postJson('/api/equipment', $this->makeEquipmentPayload([
+        $id = $this->actingAs($user)->postJson('/api/equipment', $this->newEquipmentPayload([
             'qr_code' => 'http://attacker.example/not-a-real-record',
-        ]))->assertCreated();
+        ]))->assertCreated()->json('data.id');
 
-        $equipment = Equipment::where('property_no', 'AC-2026-IT-LT-000123')->firstOrFail();
+        $equipment = Equipment::findOrFail($id);
 
         $this->assertSame($equipment->qrCodeUrl(), $equipment->qr_code);
     }
@@ -121,7 +104,7 @@ class EquipmentQrCodeTest extends TestCase
 
         $this->actingAs($user)->putJson(
             "/api/equipment/{$equipment->id}",
-            $this->makeEquipmentPayload(['property_no' => 'AC-2020-IT-LT-000001']),
+            $this->equipmentFields(),
         )->assertOk();
 
         $this->assertSame($equipment->qrCodeUrl(), $equipment->fresh()->qr_code);

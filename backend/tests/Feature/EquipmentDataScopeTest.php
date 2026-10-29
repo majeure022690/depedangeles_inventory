@@ -4,12 +4,8 @@ namespace Tests\Feature;
 
 use App\Enums\DataScope;
 use App\Enums\Permission;
-use App\Models\Brand;
 use App\Models\Equipment;
-use App\Models\EquipmentClassification;
-use App\Models\EquipmentCondition;
 use App\Models\EquipmentTransaction;
-use App\Models\ItemType;
 use App\Models\Office;
 use App\Models\Personnel;
 use App\Models\Role;
@@ -17,11 +13,12 @@ use App\Models\User;
 use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\BuildsEquipmentPayloads;
 use Tests\TestCase;
 
 class EquipmentDataScopeTest extends TestCase
 {
-    use RefreshDatabase;
+    use BuildsEquipmentPayloads, RefreshDatabase;
 
     private Office $school;
 
@@ -177,22 +174,32 @@ class EquipmentDataScopeTest extends TestCase
     {
         $user = $this->userWithScope(DataScope::Own, [Permission::EquipmentCreate]);
 
-        $id = $this->actingAs($user)->postJson('/api/equipment', [
-            'item_type_id' => ItemType::where('name', 'Laptop')->value('id'),
-            'uom' => 'Piece',
-            'brand_id' => Brand::where('name', 'Dell')->value('id'),
-            'equipment_condition_id' => EquipmentCondition::where('name', 'Serviceable')->value('id'),
-            'disposition_status' => 'Normal',
-            'equipment_classification_id' => EquipmentClassification::query()->active()->value('id'),
-            'mode_acquisition' => 'DepEd Purchase',
-            'source_acquisition' => 'Central Office',
-            'source_fund' => 'Maintenance and Other Operating Expenses (MOOE)',
-            'allotment_class' => 'Maintenance and Other Operating Expenses (MOOE)',
+        $id = $this->actingAs($user)->postJson('/api/equipment', $this->newEquipmentPayload([
             'created_by_user_id' => 999999,
-        ])->assertCreated()->json('data.id');
+        ], $this->me))->assertCreated()->json('data.id');
 
         $this->assertSame($user->id, Equipment::findOrFail($id)->created_by_user_id);
         $this->actingAs($user->fresh())->getJson("/api/equipment/{$id}")->assertOk();
+    }
+
+    public function test_store_accepts_only_accountability_personnel_within_the_users_scope(): void
+    {
+        $user = $this->userWithScope(DataScope::School, [Permission::EquipmentCreate]);
+
+        $listed = array_column($this->actingAs($user)->getJson('/api/equipment/options')->assertOk()->json('data.personnel'), 'value');
+        $this->assertContains($this->colleague->id, $listed);
+        $this->assertNotContains($this->outsider->id, $listed);
+
+        $this->actingAs($user)->postJson('/api/equipment', $this->newEquipmentPayload([
+            'accountability' => $this->accountabilityFields($this->colleague, ['received_by_id' => $this->outsider->id]),
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['accountability.received_by_id' => 'Choose someone within your access.'])
+            ->assertJsonMissingValidationErrors(['accountability.accountable_officer_id', 'accountability.end_user_id']);
+
+        $this->actingAs($user)->postJson('/api/equipment', $this->newEquipmentPayload([], $this->colleague))
+            ->assertCreated()
+            ->assertJsonPath('data.current_accountable_officer.id', $this->colleague->id);
     }
 
     public function test_unissued_items_are_visible_to_their_creator_under_own_scope(): void

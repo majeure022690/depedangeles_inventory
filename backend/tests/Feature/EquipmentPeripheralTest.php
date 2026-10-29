@@ -16,12 +16,13 @@ use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Activitylog\Models\Activity;
+use Tests\Concerns\BuildsEquipmentPayloads;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class EquipmentPeripheralTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
+    use BuildsEquipmentPayloads, CreatesUsersWithRoles, RefreshDatabase;
 
     private const PN = 'AC-2016-IT-DST-000001';
 
@@ -443,16 +444,10 @@ class EquipmentPeripheralTest extends TestCase
         $this->addPeripheral($desktop);
         $peripheral = Equipment::where('property_no', self::PN.'-001')->sole();
 
-        $update = fn (Equipment $equipment, string $itemType) => $this->actingAs($this->editor)->putJson("/api/equipment/{$equipment->id}", [
-            ...$equipment->only(['property_no', 'brand_id', 'equipment_classification_id', 'equipment_condition_id']),
+        $update = fn (Equipment $equipment, string $itemType) => $this->actingAs($this->editor)->putJson("/api/equipment/{$equipment->id}", $this->equipmentFields([
+            ...$equipment->only(['brand_id', 'equipment_classification_id', 'equipment_condition_id']),
             'item_type_id' => $this->itemType($itemType),
-            'uom' => 'Piece',
-            'mode_acquisition' => 'DepEd Purchase',
-            'source_acquisition' => 'Central Office',
-            'source_fund' => 'Maintenance and Other Operating Expenses (MOOE)',
-            'allotment_class' => 'Maintenance and Other Operating Expenses (MOOE)',
-            'disposition_status' => 'Normal',
-        ]);
+        ]));
 
         $update($desktop, 'Laptop')->assertJsonValidationErrors('item_type_id');
         $update($peripheral, 'Laptop')->assertJsonValidationErrors('item_type_id');
