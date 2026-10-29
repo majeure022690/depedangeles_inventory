@@ -18,10 +18,10 @@ type TabId = 'provider' | 'billing' | 'coverage' | 'acquisition'
 
 const TABS_ID = 'isp-account-create'
 const ISP_TABS: { value: TabId; label: string }[] = [
-  { value: 'provider', label: 'Provider & Billing' },
-  { value: 'billing', label: 'Subscription & Contract' },
-  { value: 'coverage', label: 'Coverage & Speed' },
-  { value: 'acquisition', label: 'Quality & Acquisition' },
+  { value: 'provider', label: 'ISP Provider' },
+  { value: 'billing', label: 'Billing and Contract' },
+  { value: 'coverage', label: 'Coverage and Speed' },
+  { value: 'acquisition', label: 'Package Details' },
 ]
 
 function isIspTab(value: string | null): value is TabId {

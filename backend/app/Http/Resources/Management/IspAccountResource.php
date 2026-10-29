@@ -35,6 +35,8 @@ class IspAccountResource extends JsonResource
             'school_area_coverage' => $this->school_area_coverage,
             'min_speed' => $this->min_speed !== null ? (float) $this->min_speed : null,
             'max_speed' => $this->max_speed !== null ? (float) $this->max_speed : null,
+            'subscriber_speed_upload' => $this->subscriber_speed_upload !== null ? (float) $this->subscriber_speed_upload : null,
+            'subscriber_speed_download' => $this->subscriber_speed_download !== null ? (float) $this->subscriber_speed_download : null,
             'subscription_type' => $this->subscription_type,
             'isp_connection_type' => $this->isp_connection_type,
             'contract_start_date' => $this->contract_start_date?->toDateString(),

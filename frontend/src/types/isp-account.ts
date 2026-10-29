@@ -44,6 +44,8 @@ export interface IspAccount {
   school_area_coverage: string
   min_speed: number | null
   max_speed: number | null
+  subscriber_speed_upload: number | null
+  subscriber_speed_download: number | null
   subscription_type: string
   isp_connection_type: string
   contract_start_date: string | null
@@ -103,6 +105,8 @@ export interface IspAccountFormData {
   school_area_coverage: string
   min_speed: string
   max_speed: string
+  subscriber_speed_upload: string
+  subscriber_speed_download: string
   subscription_type: string
   isp_connection_type: string
   contract_start_date: string

@@ -53,11 +53,12 @@ use Spatie\Activitylog\Support\LogOptions;
  */
 #[Fillable([
     'cost_per_month', 'isp_billing_account_no', 'package_purchased_inclusion',
-    'school_area_coverage', 'min_speed', 'max_speed', 'subscription_type',
-    'isp_connection_type', 'contract_start_date', 'contract_end_date',
-    'inactive_contract', 'purpose_of_subscription', 'mode_of_acquisition',
-    'source_of_acquisition', 'donor', 'fund_source', 'number_access_points_linked',
-    'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas',
+    'school_area_coverage', 'min_speed', 'max_speed', 'subscriber_speed_upload',
+    'subscriber_speed_download', 'subscription_type', 'isp_connection_type',
+    'contract_start_date', 'contract_end_date', 'inactive_contract',
+    'purpose_of_subscription', 'mode_of_acquisition', 'source_of_acquisition',
+    'donor', 'fund_source', 'number_access_points_linked', 'locations_access_points',
+    'number_admin_area_covered', 'rate_connectivity_admin_areas',
     'number_classrooms_covered', 'rate_connectivity_classroom', 'overall_signal_quality',
     'rate_isp_service', 'isp_provider_id', 'office_id',
 ])]
@@ -72,6 +73,8 @@ class IspAccount extends Model
             'cost_per_month' => 'decimal:2',
             'min_speed' => 'decimal:2',
             'max_speed' => 'decimal:2',
+            'subscriber_speed_upload' => 'decimal:2',
+            'subscriber_speed_download' => 'decimal:2',
             'contract_start_date' => 'date',
             'contract_end_date' => 'date',
             'inactive_contract' => 'boolean',
@@ -201,11 +204,12 @@ class IspAccount extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'cost_per_month', 'isp_billing_account_no', 'package_purchased_inclusion',
-                'school_area_coverage', 'min_speed', 'max_speed', 'subscription_type',
-                'isp_connection_type', 'contract_start_date', 'contract_end_date',
-                'inactive_contract', 'purpose_of_subscription', 'mode_of_acquisition',
-                'source_of_acquisition', 'donor', 'fund_source', 'number_access_points_linked',
-                'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas',
+                'school_area_coverage', 'min_speed', 'max_speed', 'subscriber_speed_upload',
+                'subscriber_speed_download', 'subscription_type', 'isp_connection_type',
+                'contract_start_date', 'contract_end_date', 'inactive_contract',
+                'purpose_of_subscription', 'mode_of_acquisition', 'source_of_acquisition',
+                'donor', 'fund_source', 'number_access_points_linked', 'locations_access_points',
+                'number_admin_area_covered', 'rate_connectivity_admin_areas',
                 'number_classrooms_covered', 'rate_connectivity_classroom', 'overall_signal_quality',
                 'rate_isp_service', 'isp_provider_id', 'office_id',
             ])

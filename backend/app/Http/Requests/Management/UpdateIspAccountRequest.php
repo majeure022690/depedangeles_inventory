@@ -56,6 +56,8 @@ class UpdateIspAccountRequest extends FormRequest
             'school_area_coverage' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SchoolLevelCoverage))],
             'min_speed' => ['required', 'numeric', 'min:0'],
             'max_speed' => ['required', 'numeric', 'min:0', 'gte:min_speed'],
+            'subscriber_speed_upload' => ['required', 'numeric', 'min:0'],
+            'subscriber_speed_download' => ['required', 'numeric', 'min:0'],
 
             'subscription_type' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SubscriptionType))],
             'isp_connection_type' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::IspConnectionType))],

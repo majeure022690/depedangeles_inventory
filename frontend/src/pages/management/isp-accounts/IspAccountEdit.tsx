@@ -22,10 +22,10 @@ type Feedback = { type: 'success' | 'error'; message: string } | null
 type Tab = 'provider' | 'billing' | 'coverage' | 'acquisition' | 'speed-tests' | 'subscription-costs'
 
 const ISP_FIELD_TABS: { value: Tab; label: string }[] = [
-  { value: 'provider', label: 'Provider & Billing' },
-  { value: 'billing', label: 'Subscription & Contract' },
-  { value: 'coverage', label: 'Coverage & Speed' },
-  { value: 'acquisition', label: 'Quality & Acquisition' },
+  { value: 'provider', label: 'ISP Provider' },
+  { value: 'billing', label: 'Billing and Contract' },
+  { value: 'coverage', label: 'Coverage and Speed' },
+  { value: 'acquisition', label: 'Package Details' },
 ]
 
 function isFieldTab(value: string | null): value is 'provider' | 'billing' | 'coverage' | 'acquisition' {
