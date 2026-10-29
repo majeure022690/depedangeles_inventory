@@ -75,14 +75,15 @@ interface PeripheralRowsEditorProps {
   options: EquipmentFormOptions | null
   /** Keyed by row `key` (see `peripheralRowErrors`). */
   errors: RowErrors
-  desktopPropertyNo: string | null
+  desktopPropertyNo?: string | null
   /**
-   * `sequence`: a new desktop, so rows are previewed as <no>-001, -002, …
+   * `sequence`: a desktop with no peripherals yet, so rows are previewed as <no>-001, -002, …
    * `continue`: an existing desktop, where the next free suffix isn't known client-side.
+   * `generated`: a new desktop whose property number is generated when it is saved.
    */
-  numbering: 'sequence' | 'continue'
+  numbering: 'sequence' | 'continue' | 'generated'
   /** Shown instead of number previews when the desktop has no property number. */
-  missingPropertyNoNote: ReactNode
+  missingPropertyNoNote?: ReactNode
   /** Accessible name of the rows group. */
   label?: string
 }
@@ -99,7 +100,7 @@ export function PeripheralRowsEditor({
   label = 'Peripherals',
 }: PeripheralRowsEditorProps) {
   const itemTypes = peripheralItemTypes(options)
-  const propertyNo = desktopPropertyNo?.trim() || null
+  const propertyNo = numbering === 'generated' ? null : desktopPropertyNo?.trim() || null
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const [focusTarget, setFocusTarget] = useState<number | 'add' | null>(null)
 
@@ -130,7 +131,11 @@ export function PeripheralRowsEditor({
 
   return (
     <div role="group" aria-label={label} aria-describedby={errors.general ? generalErrorId : undefined} className="@container space-y-3">
-      {!propertyNo ? (
+      {numbering === 'generated' ? (
+        <p className="text-sm text-gray-600">
+          Each peripheral is numbered after the desktop&apos;s property number once it is generated on save: its number followed by -001, -002, and so on.
+        </p>
+      ) : !propertyNo ? (
         rows.length > 0 ? (
           <Alert type="warning">{missingPropertyNoNote}</Alert>
         ) : (
@@ -173,7 +178,13 @@ export function PeripheralRowsEditor({
             itemTypes={itemTypes}
             options={options}
             errors={errors.rows[row.key] ?? {}}
-            preview={propertyNo && numbering === 'sequence' ? `${propertyNo}-${formatPropertySuffix(index + 1)}` : null}
+            preview={
+              numbering === 'generated'
+                ? `[desktop no.]-${formatPropertySuffix(index + 1)}`
+                : propertyNo && numbering === 'sequence'
+                  ? `${propertyNo}-${formatPropertySuffix(index + 1)}`
+                  : null
+            }
             onChange={(patch) => update(row.key, patch)}
             onRemove={() => remove(row.key)}
           />

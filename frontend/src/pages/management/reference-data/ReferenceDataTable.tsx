@@ -28,8 +28,8 @@ interface RowForm {
   name: string
   type: string
   value: string
+  abbreviation: string
   dashboard_group: string
-  default_gl_sl_code: string
   default_uacs: string
   default_useful_life: string
   description: string
@@ -43,8 +43,8 @@ const EMPTY_FORM: RowForm = {
   name: '',
   type: '',
   value: '',
+  abbreviation: '',
   dashboard_group: '',
-  default_gl_sl_code: '',
   default_uacs: '',
   default_useful_life: '',
   description: '',
@@ -79,6 +79,7 @@ function ReferenceDataTableView({ table }: { table: string }) {
   const dashboardGroups = tableMeta?.dashboard_groups ?? null
   const dashboardGroupLabels = useMemo(() => new Map((dashboardGroups ?? []).map((group) => [group.value, group.label])), [dashboardGroups])
   const hasClassificationDefaults = tableMeta?.classification_defaults ?? false
+  const hasAbbreviation = table === 'item-types'
 
   const [typeFilter, setTypeFilter] = useState('')
   const { items, meta, loading, error, page, setPage, perPage, setPerPage, setSearch, reload } = useServerTable(
@@ -122,8 +123,8 @@ function ReferenceDataTableView({ table }: { table: string }) {
       name: isTier2Row(row) ? '' : row.name,
       type: isTier2Row(row) ? row.type : '',
       value: isTier2Row(row) ? row.value : '',
+      abbreviation: isTier2Row(row) ? '' : (row.abbreviation ?? ''),
       dashboard_group: isTier2Row(row) ? '' : (row.dashboard_group ?? ''),
-      default_gl_sl_code: isTier2Row(row) ? '' : (row.default_gl_sl_code ?? ''),
       default_uacs: isTier2Row(row) ? '' : (row.default_uacs ?? ''),
       default_useful_life: isTier2Row(row) || row.default_useful_life == null ? '' : String(row.default_useful_life),
       description: row.description ?? '',
@@ -149,10 +150,10 @@ function ReferenceDataTableView({ table }: { table: string }) {
       description: form.description.trim() === '' ? null : form.description.trim(),
       sort_order: form.sort_order.trim() === '' ? 0 : Number(form.sort_order),
       is_active: form.is_active,
+      ...(hasAbbreviation ? { abbreviation: form.abbreviation.trim().toUpperCase() } : {}),
       ...(dashboardGroups ? { dashboard_group: form.dashboard_group === '' ? null : form.dashboard_group } : {}),
       ...(hasClassificationDefaults
         ? {
-            default_gl_sl_code: blankToNull(form.default_gl_sl_code),
             default_uacs: blankToNull(form.default_uacs),
             default_useful_life: form.default_useful_life.trim() === '' ? null : Number(form.default_useful_life),
           }
@@ -230,6 +231,20 @@ function ReferenceDataTableView({ table }: { table: string }) {
           }),
         ]
 
+    const abbreviationColumn: GridColumn<ReferenceDataRow>[] = hasAbbreviation
+      ? [
+          column.display({
+            id: 'abbreviation',
+            header: 'Abbreviation',
+            meta: { className: 'whitespace-nowrap' },
+            cell: ({ row }) => {
+              const abbreviation = isTier2Row(row.original) ? null : row.original.abbreviation
+              return abbreviation ? <span className="font-mono text-xs font-medium text-gray-900">{abbreviation}</span> : <span className="text-gray-400">—</span>
+            },
+          }),
+        ]
+      : []
+
     const dashboardGroupColumn: GridColumn<ReferenceDataRow>[] = dashboardGroups
       ? [
           column.display({
@@ -245,11 +260,6 @@ function ReferenceDataTableView({ table }: { table: string }) {
 
     const classificationDefaultColumns: GridColumn<ReferenceDataRow>[] = hasClassificationDefaults
       ? [
-          column.display({
-            id: 'default_gl_sl_code',
-            header: 'Default GL/SL code',
-            cell: ({ row }) => (isTier2Row(row.original) ? null : row.original.default_gl_sl_code) || <span className="text-gray-400">—</span>,
-          }),
           column.display({
             id: 'default_uacs',
             header: 'Default UACS',
@@ -269,6 +279,7 @@ function ReferenceDataTableView({ table }: { table: string }) {
 
     return [
       ...identity,
+      ...abbreviationColumn,
       ...dashboardGroupColumn,
       ...classificationDefaultColumns,
       column.accessor('description', {
@@ -306,7 +317,7 @@ function ReferenceDataTableView({ table }: { table: string }) {
     ]
     // openEdit only closes over state setters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTier1, typeLabels, dashboardGroups, dashboardGroupLabels, hasClassificationDefaults])
+  }, [isTier1, typeLabels, hasAbbreviation, dashboardGroups, dashboardGroupLabels, hasClassificationDefaults])
 
   const noun = isTier1 ? 'entry' : 'library value'
 
@@ -451,6 +462,22 @@ function ReferenceDataTableView({ table }: { table: string }) {
               </>
             )}
 
+            {hasAbbreviation && (
+              <Input
+                id="reference-abbreviation"
+                label="Abbreviation"
+                required
+                maxLength={3}
+                autoCapitalize="characters"
+                spellCheck={false}
+                hint="Three letters or digits, unique per item type (e.g. LPT). Used in generated property numbers (AC-YYYY-IT-LPT-000001); a change only affects numbers generated afterward."
+                className="font-mono uppercase"
+                value={form.abbreviation}
+                onChange={(e) => patchForm({ abbreviation: e.target.value.toUpperCase() })}
+                error={formErrors.abbreviation}
+              />
+            )}
+
             {dashboardGroups && (
               <Select
                 id="reference-dashboard-group"
@@ -472,14 +499,6 @@ function ReferenceDataTableView({ table }: { table: string }) {
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Input
-                    id="reference-default-gl-sl-code"
-                    label="GL/SL code (optional)"
-                    maxLength={255}
-                    value={form.default_gl_sl_code}
-                    onChange={(e) => patchForm({ default_gl_sl_code: e.target.value })}
-                    error={formErrors.default_gl_sl_code}
-                  />
-                  <Input
                     id="reference-default-uacs"
                     label="UACS (optional)"
                     maxLength={255}
@@ -487,19 +506,19 @@ function ReferenceDataTableView({ table }: { table: string }) {
                     onChange={(e) => patchForm({ default_uacs: e.target.value })}
                     error={formErrors.default_uacs}
                   />
+                  <Input
+                    id="reference-default-useful-life"
+                    label="Useful life in years (optional)"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={form.default_useful_life}
+                    onChange={(e) => patchForm({ default_useful_life: e.target.value })}
+                    error={formErrors.default_useful_life}
+                  />
                 </div>
-                <Input
-                  id="reference-default-useful-life"
-                  label="Useful life in years (optional)"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={form.default_useful_life}
-                  onChange={(e) => patchForm({ default_useful_life: e.target.value })}
-                  error={formErrors.default_useful_life}
-                />
               </fieldset>
             )}
 

@@ -29,6 +29,8 @@ interface SelectPickerProps {
   'aria-label'?: string
   'aria-describedby'?: string
   'aria-invalid'?: AriaAttributes['aria-invalid']
+  /** A button can't carry aria-required, so required-ness is exposed as part of the description. */
+  'aria-required'?: AriaAttributes['aria-required']
 }
 
 const LIST_MAX_HEIGHT = 288
@@ -62,12 +64,15 @@ export function SelectPicker({
   'aria-label': ariaLabel,
   'aria-describedby': describedBy,
   'aria-invalid': ariaInvalid,
+  'aria-required': ariaRequired,
 }: SelectPickerProps) {
   const generatedId = useId()
   const triggerId = id ?? generatedId
   const labelId = `${triggerId}-label`
   const valueId = `${triggerId}-value`
   const errorId = `${triggerId}-error`
+  const requiredId = `${triggerId}-required`
+  const required = ariaRequired === true || ariaRequired === 'true'
   const listboxId = `${triggerId}-listbox`
   const clearId = `${triggerId}-clear`
   const optionId = (index: number) => `${listboxId}-option-${index}`
@@ -238,7 +243,7 @@ export function SelectPicker({
           type="button"
           aria-label={ariaLabel}
           aria-labelledby={nameSource ? idList(nameSource, valueId) : undefined}
-          aria-describedby={idList(describedBy, error && errorId)}
+          aria-describedby={idList(required && requiredId, describedBy, error && errorId)}
           aria-invalid={invalid || undefined}
           className={cn(
             'flex h-10 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 text-left text-sm',
@@ -343,6 +348,11 @@ export function SelectPicker({
           </div>
         )}
       </div>
+      {required && (
+        <span id={requiredId} hidden>
+          Required
+        </span>
+      )}
       {error && (
         <p id={errorId} className="mt-1 text-xs text-error-600">
           {error}

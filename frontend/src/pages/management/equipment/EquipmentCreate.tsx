@@ -5,6 +5,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   EQUIPMENT_FIELD_SECTIONS,
   EquipmentFields,
+  EQUIPMENT_NESTED_ERROR_FIELDS,
+  emptyAccountability,
   emptyEquipmentForm,
   firstSectionWithError,
   isEquipmentFieldSection,
@@ -25,8 +27,8 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { scopedTitle } from '@/lib/dataScope'
 import { BUNDLE_PARENT_ITEMS } from '@/lib/equipmentBundles'
 import { extractError, extractFieldErrors, NO_ROW_ERRORS, rowErrorCount, type FieldErrors, type RowErrors } from '@/lib/errors'
-import { equipmentService, toEquipmentPayload } from '@/services/equipmentService'
-import type { EquipmentFormData, EquipmentOptions } from '@/types/equipment'
+import { equipmentService, toEquipmentCreatePayload } from '@/services/equipmentService'
+import type { EquipmentFormData, EquipmentOptions, EquipmentTransactionFormData } from '@/types/equipment'
 
 const TABS_ID = 'equipment-create'
 const PERIPHERALS_TAB = 'peripherals'
@@ -40,10 +42,14 @@ export function EquipmentCreate() {
 
   const [options, setOptions] = useState<EquipmentOptions | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
+  const [accountability, setAccountability] = useState<EquipmentTransactionFormData>(emptyAccountability)
   useEffect(() => {
     equipmentService
       .options()
-      .then(setOptions)
+      .then((loaded) => {
+        setOptions(loaded)
+        setAccountability((current) => (current.transaction_type === '' ? { ...current, transaction_type: emptyAccountability(loaded).transaction_type } : current))
+      })
       .catch((e: unknown) => setOptionsError(extractError(e, 'Unable to load the form options. Please reload the page.')))
   }, [])
 
@@ -83,12 +89,12 @@ export function EquipmentCreate() {
     setFormError(null)
     try {
       const response = await equipmentService.create({
-        ...toEquipmentPayload(form),
+        ...toEquipmentCreatePayload(form, accountability),
         ...(isBundleParent && peripherals.length > 0 ? { peripherals: toPeripheralPayloads(peripherals) } : {}),
       })
       navigate(`/equipment/${response.data.id}/edit`, { state: { flash: response.message } })
     } catch (e) {
-      const fieldErrors = extractFieldErrors(e)
+      const fieldErrors = extractFieldErrors(e, EQUIPMENT_NESTED_ERROR_FIELDS)
       const rowErrors = peripheralRowErrors(e, peripherals)
       setErrors(fieldErrors)
       setPeripheralErrors(rowErrors)
@@ -119,7 +125,10 @@ export function EquipmentCreate() {
         </Button>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Add Equipment</h1>
-          <p className="text-sm text-gray-600">Register a new equipment item. Accountability is assigned afterward by logging a transaction.</p>
+          <p className="text-sm text-gray-600">
+            Register a new equipment item with its initial accountability. Fields marked <span aria-hidden="true" className="text-error-600">*</span>
+            <span className="sr-only">with an asterisk</span> are required.
+          </p>
         </div>
       </div>
 
@@ -135,11 +144,13 @@ export function EquipmentCreate() {
             <TabPanel key={section.value} tabsId={TABS_ID} value={section.value} active={tab === section.value}>
               <EquipmentFields
                 section={section.value}
+                mode="create"
                 value={form}
                 onChange={setForm}
-                options={options?.form ?? null}
-                classificationDefaults={options?.classification_defaults}
+                options={options}
                 errors={errors}
+                accountability={accountability}
+                onAccountabilityChange={setAccountability}
               />
             </TabPanel>
           ))}
@@ -150,7 +161,7 @@ export function EquipmentCreate() {
                   <h2 className="text-base font-semibold text-gray-900">Bundled peripherals</h2>
                   <p className="mt-1 text-sm text-gray-600">
                     Optionally add the monitors, keyboards and mice delivered with this desktop; they are saved together with it. Each gets
-                    its own property number based on the desktop&apos;s, and shares the desktop&apos;s accountability once it is issued. A blank brand
+                    its own property number based on the desktop&apos;s, and shares the desktop&apos;s initial accountability. A blank brand
                     or condition takes the desktop&apos;s. You can also add or link peripherals later.
                   </p>
                 </CardHeader>
@@ -161,17 +172,7 @@ export function EquipmentCreate() {
                     onChange={setPeripherals}
                     options={options?.form ?? null}
                     errors={peripheralErrors}
-                    desktopPropertyNo={form.property_no}
-                    numbering="sequence"
-                    missingPropertyNoNote={
-                      <>
-                        Peripheral numbers are based on the desktop&apos;s property number. Enter it on the{' '}
-                        <button type="button" onClick={() => selectTab('item')} className="font-medium underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
-                          Item tab
-                        </button>
-                        , or add peripherals later once the number is issued.
-                      </>
-                    }
+                    numbering="generated"
                   />
                 </CardContent>
               </Card>

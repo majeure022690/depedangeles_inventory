@@ -9,6 +9,15 @@ import { cn, idList } from '@/lib/utils'
 export interface FieldAria {
   'aria-describedby'?: string
   'aria-invalid'?: true
+  'aria-required'?: true
+}
+
+function RequiredMark() {
+  return (
+    <span aria-hidden="true" className="ml-0.5 text-error-600">
+      *
+    </span>
+  )
 }
 
 const plainLabel = (label: string) => label.replace(/\s*\(optional\)$/i, '')
@@ -29,6 +38,7 @@ export function FormField({
   hint,
   note,
   error,
+  required = false,
   className,
   children,
 }: {
@@ -38,6 +48,8 @@ export function FormField({
   /** Always-visible text under the control (e.g. why it's read-only), linked through aria-describedby. */
   note?: string
   error?: string
+  /** Shows a required marker and hands the control `aria-required`. */
+  required?: boolean
   className?: string
   children: (aria: FieldAria) => ReactNode
 }) {
@@ -46,10 +58,15 @@ export function FormField({
       <div className="mb-1 flex items-center gap-1.5">
         <label id={`${id}-label`} htmlFor={id} className="text-sm font-medium text-gray-700">
           <FieldLabelText label={label} />
+          {required && <RequiredMark />}
         </label>
         {hint && <FieldHint htmlFor={id} label={plainLabel(label)} text={hint} />}
       </div>
-      {children({ 'aria-describedby': idList(hint && `${id}-hint`, note && `${id}-note`, error && `${id}-error`), 'aria-invalid': error ? true : undefined })}
+      {children({
+        'aria-describedby': idList(hint && `${id}-hint`, note && `${id}-note`, error && `${id}-error`),
+        'aria-invalid': error ? true : undefined,
+        'aria-required': required ? true : undefined,
+      })}
       {note && (
         <p id={`${id}-note`} className="mt-1 text-xs text-gray-500">
           {note}

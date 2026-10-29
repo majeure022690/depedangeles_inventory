@@ -26,6 +26,10 @@ export function toEquipmentPayload(form: EquipmentFormData): EquipmentPayload {
   return blankToNull(form)
 }
 
+export function toEquipmentCreatePayload(form: EquipmentFormData, accountability: EquipmentTransactionFormData): EquipmentCreatePayload {
+  return { ...blankToNull(form), accountability: blankToNull(accountability) }
+}
+
 export function toTransactionPayload(form: EquipmentTransactionFormData): EquipmentTransactionPayload {
   return blankToNull(form)
 }

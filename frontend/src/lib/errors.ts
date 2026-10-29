@@ -40,13 +40,15 @@ export function isValidationError(error: unknown): error is AxiosError<ApiValida
 /**
  * First 422 message per field, keyed by request field name. Array-element keys
  * (`fund_source.0`, `role_ids.2`) fold into their parent field (`fund_source`),
- * keeping the first message seen. Empty for anything that isn't a 422.
+ * keeping the first message seen. Keys under a `nested` object field keep their
+ * column (`accountability.end_user_id`). Empty for anything that isn't a 422.
  */
-export function extractFieldErrors(error: unknown): Record<string, string> {
+export function extractFieldErrors(error: unknown, nested: readonly string[] = []): Record<string, string> {
   const fieldErrors: Record<string, string> = {}
   if (!isValidationError(error)) return fieldErrors
   for (const [key, messages] of Object.entries(error.response?.data?.errors ?? {})) {
-    const field = key.split('.')[0]
+    const [root, column] = key.split('.')
+    const field = column !== undefined && nested.includes(root) ? `${root}.${column}` : root
     if (!(field in fieldErrors) && messages[0]) fieldErrors[field] = messages[0]
   }
   return fieldErrors

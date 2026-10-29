@@ -26,8 +26,8 @@ interface ReferenceDataRowBase {
 /** Tier 1 (dedicated table) row: `name` is editable. */
 export interface ReferenceDataTier1Row extends ReferenceDataRowBase {
   name: string
+  abbreviation?: string | null
   dashboard_group?: string | null
-  default_gl_sl_code?: string | null
   default_uacs?: string | null
   default_useful_life?: number | null
 }
@@ -55,7 +55,6 @@ export interface ReferenceDataTableMeta {
 
 /** Equipment-classification defaults applied to equipment saved with these fields blank. */
 export interface ClassificationDefaultsPayload {
-  default_gl_sl_code: string | null
   default_uacs: string | null
   default_useful_life: number | null
 }
@@ -69,6 +68,7 @@ export interface ReferenceDataCreatePayload extends Partial<ClassificationDefaul
   name?: string
   type?: string
   value?: string
+  abbreviation?: string
   dashboard_group?: string | null
   description: string | null
   sort_order: number
@@ -78,6 +78,7 @@ export interface ReferenceDataCreatePayload extends Partial<ClassificationDefaul
 /** PATCH body. `name` is only accepted for Tier 1; Tier 2 type/value are never editable. */
 export interface ReferenceDataUpdatePayload extends Partial<ClassificationDefaultsPayload> {
   name?: string
+  abbreviation?: string
   dashboard_group?: string | null
   description: string | null
   sort_order: number

@@ -19,7 +19,6 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DetailSection } from '@/components/ui/DetailSection'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/Dialog'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { TabPanel, Tabs, type TabItem } from '@/components/ui/Tabs'
 import { useAuth } from '@/context/AuthContext'
@@ -109,40 +108,15 @@ export function EquipmentEdit() {
       .catch((e: unknown) => setOptionsError(extractError(e, 'Unable to load the form options. Please reload the page.')))
   }, [])
 
-  const [renumberPrompt, setRenumberPrompt] = useState<{ from: string; to: string; count: number } | null>(null)
-
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault()
-    if (!equipment || !form) return
-    const from = equipment.property_no?.trim() ?? ''
-    const to = form.property_no.trim()
-    const count = equipment.renumberable_peripherals_count ?? 0
-    const itemTypeName =
-      options?.form.item_type.find((option) => option.value === form.item_type_id)?.label ?? (form.item_type_id === equipment.item_type_id ? equipment.item : null)
-    const bundleParent = itemTypeName !== null && BUNDLE_PARENT_ITEMS.includes(itemTypeName)
-    if (bundleParent && from !== '' && to !== '' && from !== to && count > 0) {
-      setRenumberPrompt({ from, to, count })
-      return
-    }
-    void save()
-  }
-
-  function answerRenumber(renumber: boolean) {
-    setRenumberPrompt(null)
-    void save(renumber)
-  }
-
-  async function save(renumberPeripherals?: boolean) {
     if (!equipment || !form) return
     setSaving(true)
     setErrors({})
     setFormError(null)
     setSuccess(null)
     try {
-      const response = await equipmentService.update(equipment.id, {
-        ...toEquipmentPayload(form),
-        ...(renumberPeripherals === undefined ? {} : { renumber_peripherals: renumberPeripherals }),
-      })
+      const response = await equipmentService.update(equipment.id, toEquipmentPayload(form))
       const updated = {
         ...response.data,
         parent: response.data.parent ?? equipment.parent,
@@ -280,10 +254,10 @@ export function EquipmentEdit() {
                   {!canEdit && <Alert type="info">You can view this record but not edit it.</Alert>}
                   <EquipmentFields
                     section={section.value}
+                    mode="edit"
                     value={form}
                     onChange={setForm}
-                    options={options?.form ?? null}
-                    classificationDefaults={options?.classification_defaults}
+                    options={options}
                     errors={errors}
                     disabled={!canEdit}
                     current={equipment}
@@ -328,29 +302,6 @@ export function EquipmentEdit() {
           />
         </TabPanel>
       </div>
-
-      <Dialog open={renumberPrompt !== null} onOpenChange={(open) => !open && setRenumberPrompt(null)}>
-        <DialogContent size="md">
-          <DialogTitle>Also renumber peripherals?</DialogTitle>
-          {renumberPrompt && (
-            <DialogDescription>
-              Also renumber {renumberPrompt.count === 1 ? '1 peripheral' : `${renumberPrompt.count} peripherals`} numbered{' '}
-              <span className="font-mono text-xs font-medium text-gray-900">{renumberPrompt.from}-NNN</span> to{' '}
-              <span className="font-mono text-xs font-medium text-gray-900">{renumberPrompt.to}-NNN</span>? This includes any since moved to another desktop and deleted records. Each
-              keeps its number suffix; choosing to keep their numbers leaves them unchanged.
-            </DialogDescription>
-          )}
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setRenumberPrompt(null)}>
-              Cancel
-            </Button>
-            <Button variant="outline" onClick={() => answerRenumber(false)}>
-              Keep their numbers
-            </Button>
-            <Button onClick={() => answerRenumber(true)}>Renumber</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <ConfirmDialog
         open={deleteOpen}
@@ -448,6 +399,7 @@ function Overview({ equipment, displayPropertyNo, showBundle }: { equipment: Equ
             <SummaryItem label="Acquisition cost" value={equipment.acquisition_cost !== null ? currency.format(equipment.acquisition_cost) : null} />
             <SummaryItem label="Category" value={equipment.category} />
             <SummaryItem label="Location" value={equipment.equipment_location} />
+            <SummaryItem label="Used by" value={equipment.used_by} />
             <SummaryItem label="Warranty" value={<WarrantyBadge equipment={equipment} />} />
           </dl>
         </DetailSection>

@@ -382,7 +382,7 @@ function AddPeripheralsDialog({
             errors={errors}
             desktopPropertyNo={equipment.property_no}
             numbering={hasChildren ? "continue" : "sequence"}
-            missingPropertyNoNote="Give this desktop a property number before adding new peripherals; their numbers are based on it."
+            missingPropertyNoNote="This desktop has no property number, so new peripherals can't be numbered from it."
           />
         </form>
 

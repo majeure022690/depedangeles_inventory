@@ -57,8 +57,7 @@ export type EquipmentPeripheralPayload = { [K in keyof EquipmentPeripheralFormDa
  * (`item_type_id`) and the resolved display name under the historical key
  * (`item`); never derive the name from the id client-side.
  * `parent` (the current bundle) and `children` are present on the create, detail and update endpoints;
- * `transactions` on detail only; `original_bundle` (the desktop whose number this one extends)
- * and `renumberable_peripherals_count` on detail and update.
+ * `transactions` on detail only; `original_bundle` (the desktop whose number this one extends) on detail and update.
  */
 export interface Equipment {
   id: number
@@ -101,6 +100,7 @@ export interface Equipment {
   warranty_active: boolean | null
   end_warranty_date: string | null
   supplier: string | null
+  used_by: string | null
   current_accountable_officer: PersonnelSummary | null
   current_end_user: PersonnelSummary | null
   dashboard_group: string | null
@@ -108,7 +108,6 @@ export interface Equipment {
   parent?: EquipmentParentSummary | null
   children?: EquipmentPeripheral[]
   original_bundle?: EquipmentParentSummary | null
-  renumberable_peripherals_count?: number
   transactions?: EquipmentTransaction[]
   created_at: string | null
   updated_at: string | null
@@ -127,6 +126,7 @@ export interface EquipmentFormOptions {
   source_of_funds: Option<string>[]
   allotment_class: Option<string>[]
   disposition_status: Option<string>[]
+  used_by: Option<string>[]
 }
 
 export interface EquipmentFilterOptions {
@@ -141,9 +141,20 @@ export interface EquipmentTransactionOptions {
 }
 
 export interface ClassificationDefaults {
-  default_gl_sl_code: string | null
   default_uacs: string | null
   default_useful_life: number | null
+}
+
+export interface EquipmentCategoryRule {
+  category: string
+  gl_sl_code: string
+}
+
+/** An acquisition cost below `threshold` is `low`, at or above it `high`. */
+export interface EquipmentCategoryRules {
+  threshold: number
+  low: EquipmentCategoryRule
+  high: EquipmentCategoryRule
 }
 
 /** `GET /api/equipment/options`. `personnel` is only sent to `equipment.transactions.create` holders. */
@@ -152,18 +163,20 @@ export interface EquipmentOptions {
   filters: EquipmentFilterOptions
   transaction: EquipmentTransactionOptions
   classification_defaults: Record<string, ClassificationDefaults>
+  donor_sources: string[]
+  category_rules: EquipmentCategoryRules
   personnel?: Option<number>[]
 }
 
 /**
  * Form state for create/edit, a subset of Store/UpdateEquipmentRequest.
  * Tier 1 ids use `null` for "not chosen yet"; numeric text inputs stay
- * strings while editing and are converted by `toEquipmentPayload`. A blank
- * category is derived server-side from the acquisition cost; current_*
+ * strings while editing and are converted by `toEquipmentPayload`. Category
+ * and GL/SL code are derived server-side from the acquisition cost, the
+ * property number is generated server-side and read-only; current_*
  * pointers and qr_code only change through a recorded transaction.
  */
 export interface EquipmentFormData {
-  property_no: string
   old_property_no: string
   serial_number: string
   item_type_id: number | null
@@ -175,8 +188,6 @@ export interface EquipmentFormData {
   dcp_package: string
   dcp_year: string
   equipment_classification_id: number | null
-  equipment_category_id: number | null
-  gl_sl_code: string
   uacs: string
   acquisition_cost: string
   received_date: string
@@ -195,6 +206,7 @@ export interface EquipmentFormData {
   under_warranty: boolean
   end_warranty_date: string
   supplier: string
+  used_by: string
 }
 
 /** Mirrors StoreEquipmentTransactionRequest; personnel ids are `null` when not chosen. */
@@ -214,8 +226,11 @@ export interface EquipmentTransactionFormData {
 
 export type EquipmentPayload = { [K in keyof EquipmentFormData]: EquipmentFormData[K] | null }
 
-export type EquipmentCreatePayload = EquipmentPayload & { peripherals?: EquipmentPeripheralPayload[] }
-
-export type EquipmentUpdatePayload = EquipmentPayload & { renumber_peripherals?: boolean }
-
 export type EquipmentTransactionPayload = { [K in keyof EquipmentTransactionFormData]: EquipmentTransactionFormData[K] | null }
+
+export type EquipmentCreatePayload = EquipmentPayload & {
+  accountability: EquipmentTransactionPayload
+  peripherals?: EquipmentPeripheralPayload[]
+}
+
+export type EquipmentUpdatePayload = EquipmentPayload
