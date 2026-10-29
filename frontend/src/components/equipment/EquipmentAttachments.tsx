@@ -198,11 +198,11 @@ export function EquipmentAttachments({ equipmentId, attachments, documentTypes, 
           <div className="sm:col-span-2">
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="outline" onClick={() => fileInput.current?.click()}>
-                <Upload className="h-4 w-4" aria-hidden="true" />
+                <Upload className="h-4 w-4 mr-2" aria-hidden="true" />
                 Choose file
               </Button>
               <Button type="button" variant="outline" onClick={() => cameraInput.current?.click()}>
-                <Camera className="h-4 w-4" aria-hidden="true" />
+                <Camera className="h-4 w-4 mr-2" aria-hidden="true" />
                 Take photo
               </Button>
               <span className="min-w-0 truncate text-sm text-gray-600" aria-live="polite">
