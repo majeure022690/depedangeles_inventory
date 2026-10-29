@@ -38,6 +38,12 @@ class StoreIspAccountRequest extends FormRequest
      * against — a deliberate cross-domain read per the ADR, not a
      * duplicate table.
      *
+     * REQUIRED FIELDS: Aligned with spreadsheet validation requirements.
+     * Now required: min_speed, max_speed, contract_start_date,
+     * contract_end_date, number_access_points_linked,
+     * number_admin_area_covered, number_classrooms_covered,
+     * rate_connectivity_classroom, rate_isp_service.
+     *
      * @return array<string, mixed>
      */
     public function rules(): array
@@ -50,14 +56,14 @@ class StoreIspAccountRequest extends FormRequest
             'package_purchased_inclusion' => ['required', 'string'],
 
             'school_area_coverage' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SchoolLevelCoverage))],
-            'min_speed' => ['nullable', 'numeric', 'min:0'],
-            'max_speed' => ['nullable', 'numeric', 'min:0', 'gte:min_speed'],
+            'min_speed' => ['required', 'numeric', 'min:0'],
+            'max_speed' => ['required', 'numeric', 'min:0', 'gte:min_speed'],
 
             'subscription_type' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SubscriptionType))],
             'isp_connection_type' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::IspConnectionType))],
 
-            'contract_start_date' => ['nullable', 'date'],
-            'contract_end_date' => ['nullable', 'date'],
+            'contract_start_date' => ['required', 'date'],
+            'contract_end_date' => ['required', 'date', 'after_or_equal:contract_start_date'],
             'inactive_contract' => ['boolean'],
 
             'purpose_of_subscription' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::PurposeOfSubscription))],
@@ -67,16 +73,16 @@ class StoreIspAccountRequest extends FormRequest
             'donor' => ['nullable', 'string', 'max:255'],
             'fund_source' => ['required', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::SourceOfFunds))],
 
-            'number_access_points_linked' => ['nullable', 'integer', 'min:0'],
+            'number_access_points_linked' => ['required', 'integer', 'min:0'],
             'locations_access_points' => ['nullable', 'string'],
 
-            'number_admin_area_covered' => ['nullable', 'integer', 'min:0'],
+            'number_admin_area_covered' => ['required', 'integer', 'min:0'],
             'rate_connectivity_admin_areas' => ['nullable', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SignalQuality))],
-            'number_classrooms_covered' => ['nullable', 'integer', 'min:0'],
-            'rate_connectivity_classroom' => ['nullable', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SignalQuality))],
+            'number_classrooms_covered' => ['required', 'integer', 'min:0'],
+            'rate_connectivity_classroom' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SignalQuality))],
 
             'overall_signal_quality' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SignalQuality))],
-            'rate_isp_service' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'rate_isp_service' => ['required', 'integer', 'min:1', 'max:5'],
         ];
     }
 
