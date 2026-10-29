@@ -31,6 +31,13 @@ fi
 "$PHP" composer.phar install --no-dev --optimize-autoloader --no-interaction
 "$PHP" artisan migrate --force
 [ -e public/storage ] || "$PHP" artisan storage:link
+
+# Clear all caches before optimize
+"$PHP" artisan cache:clear
+"$PHP" artisan config:clear
+"$PHP" artisan route:clear
+"$PHP" artisan view:clear
+
 "$PHP" artisan optimize
 
 cd "$ROOT/frontend"
