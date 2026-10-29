@@ -405,7 +405,6 @@ export function EquipmentFields({
   if (section === 'equipment') {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-gray-600">Fields marked <span aria-hidden="true" className="text-error-600">*</span> are required.</p>
         <Card>
           <FormSection title="Identification">
             {isCreate
@@ -451,7 +450,6 @@ export function EquipmentFields({
   if (section === 'acquisition') {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-gray-600">Fields marked <span aria-hidden="true" className="text-error-600">*</span> are required.</p>
         <Card>
           <FormSection title="Acquisition & funds">
             {text(
@@ -556,7 +554,6 @@ export function EquipmentFields({
     if (!isCreate) {
       return (
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">Fields marked <span aria-hidden="true" className="text-error-600">*</span> are required.</p>
           <Card>
             <FormSection title="Usage">{usedBy}</FormSection>
           </Card>
@@ -587,7 +584,6 @@ export function EquipmentFields({
 
     return (
       <div className="space-y-4">
-        <p className="text-sm text-gray-600">Fields marked <span aria-hidden="true" className="text-error-600">*</span> are required.</p>
         {errors.accountability && <Alert type="error">{errors.accountability}</Alert>}
         {options && !options.personnel && (
           <Alert type="warning">Your account can&apos;t assign accountability, so this record can&apos;t be saved. Ask an administrator for access to record equipment transactions.</Alert>
@@ -639,7 +635,6 @@ export function EquipmentFields({
   if (section === 'documents') {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-gray-600">Fields marked <span aria-hidden="true" className="text-error-600">*</span> are required.</p>
         <Card>
           <FormSection title="Documents">
             {text('pm_plan', 'PM plan (optional)', 'Input the preventive maintenance plan or schedule for the equipment.', { className: 'sm:col-span-2' })}
@@ -668,7 +663,6 @@ export function EquipmentFields({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600">Fields marked <span aria-hidden="true" className="text-error-600">*</span> are required.</p>
       <Card>
         <FormSection title="Status & location">
           {longText(
