@@ -199,7 +199,9 @@ export function IspAccountEdit() {
           <Tabs id="isp-account" label="ISP account sections" tabs={tabs} value={tab} onChange={selectTab} />
           {ISP_FIELD_TABS.map((t) => (
             <TabPanel key={t.value} tabsId="isp-account" value={t.value} active={tab === t.value}>
-              <IspAccountFields section={t.value as 'provider' | 'billing' | 'coverage' | 'acquisition'} form={form!} onChange={setField} options={options?.form ?? null} errors={errors} disabled={!canEdit || saving} current={account} />
+              <Card>
+                <IspAccountFields section={t.value as 'provider' | 'billing' | 'coverage' | 'acquisition'} form={form!} onChange={setField} options={options?.form ?? null} errors={errors} disabled={!canEdit || saving} current={account} />
+              </Card>
             </TabPanel>
           ))}
           <TabPanel tabsId="isp-account" value="speed-tests" active={tab === 'speed-tests'}>
