@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 
 import { CheckboxField, FormField } from '@/components/forms/FormField'
 import { FormSection } from '@/components/forms/FormSection'
@@ -13,12 +13,11 @@ import { withCurrentOption } from '@/lib/options'
 import { formatDate } from '@/lib/utils'
 import type {
   Equipment,
-  EquipmentCategoryRule,
-  EquipmentCategoryRules,
   EquipmentFormData,
   EquipmentOptions,
   EquipmentTransactionFormData,
 } from '@/types/equipment'
+import { equipmentService } from '@/services/equipmentService'
 
 const DEFAULT_ALLOTMENT_CLASS = 'Not Applicable'
 const DEFAULT_TRANSACTION_TYPE = 'Beginning Inventory'
@@ -49,7 +48,6 @@ export const EQUIPMENT_FIELD_SECTIONS: { value: EquipmentFieldSection; label: st
       'dcp_package',
       'dcp_year',
       'uacs',
-      'allotment_class',
     ],
   },
   {
@@ -75,6 +73,7 @@ export const EQUIPMENT_FIELD_SECTIONS: { value: EquipmentFieldSection; label: st
       'equipment_location',
       'non_functional',
       'equipment_condition_id',
+      'allotment_class',
       'disposition_status',
       'remarks',
       'supplier',
@@ -194,22 +193,6 @@ export function equipmentToForm(equipment: Equipment): EquipmentFormData {
   }
 }
 
-function parseCost(cost: string): number | null {
-  if (cost.trim() === '') return null
-  const amount = Number(cost)
-  return Number.isFinite(amount) ? amount : null
-}
-
-/** The stored category/GL-SL while the cost is unchanged on edit, otherwise the preview from the options' rules. */
-function accountingPreview(cost: string, rules: EquipmentCategoryRules | undefined, current: Equipment | null | undefined): EquipmentCategoryRule | null {
-  const amount = parseCost(cost)
-  if (current && amount === current.acquisition_cost) {
-    return { category: current.category ?? '', gl_sl_code: current.gl_sl_code ?? '' }
-  }
-  if (amount === null || !rules) return null
-  return amount >= rules.threshold ? rules.high : rules.low
-}
-
 function defaultPlaceholder(value: string | number | null | undefined, classificationChosen: boolean): string {
   if (!classificationChosen) return 'Default from the classification'
   return value === null || value === undefined || value === '' ? 'No default' : `Default: ${value}`
@@ -266,7 +249,40 @@ export function EquipmentFields({
   const defaults = classificationChosen ? options?.classification_defaults[String(value.equipment_classification_id)] : undefined
   const savedWarranty = current?.end_warranty_date && current.end_warranty_date === value.end_warranty_date ? current : null
   const needsDonor = options?.donor_sources.includes(value.source_acquisition) ?? false
-  const accounting = accountingPreview(value.acquisition_cost, options?.category_rules, current)
+  
+  // Calculate category and classification in real-time based on acquisition cost
+  const parsedCost = value.acquisition_cost.trim() === '' ? null : Number(value.acquisition_cost)
+  const amount = parsedCost !== null && Number.isFinite(parsedCost) ? parsedCost : null
+  const threshold = options?.category_rules?.threshold ?? 50000
+  const isHighValue = amount !== null && amount >= threshold
+  const calculatedCategory = amount === null ? '' : (isHighValue ? options?.category_rules?.high.category ?? 'High-Value' : options?.category_rules?.low.category ?? 'Low-Value')
+  const calculatedClassification = amount === null ? '' : (isHighValue ? '10605030' : '10405030')
+
+  // Preview property number in real-time for CREATE mode
+  const [previewPropertyNo, setPreviewPropertyNo] = useState<string>('')
+  
+  useEffect(() => {
+    if (!isCreate || !value.item_type_id || !value.received_date) {
+      setPreviewPropertyNo('')
+      return
+    }
+
+    let cancelled = false
+    equipmentService
+      .previewPropertyNumber(value.item_type_id, value.received_date)
+      .then((propertyNo) => {
+        if (!cancelled && propertyNo) {
+          setPreviewPropertyNo(propertyNo)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPreviewPropertyNo('')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isCreate, value.item_type_id, value.received_date])
 
   function set<K extends keyof EquipmentFormData>(key: K, next: EquipmentFormData[K]) {
     onChange({ ...value, [key]: next })
@@ -405,22 +421,22 @@ export function EquipmentFields({
   if (section === 'equipment') {
     return (
       <div className="space-y-4">
-        <Card>
+        <Card className="overflow-visible">
           <FormSection title="Identification">
             {isCreate
               ? readOnly(
                   'property_no',
                   'Property number',
-                  '',
-                  'Assigned automatically when the record is saved, as AC-YYYY-IT-ABV-NNNNNN from the acquisition year and the item type.',
-                  'Generated when saved',
+                  previewPropertyNo,
+                  'Generated automatically from the acquisition date and item type. The next available number in the sequence will be assigned.',
+                  previewPropertyNo ? '' : 'Will be generated',
                 )
               : readOnly('property_no', 'Property number', current?.property_no ?? '', 'Generated by the system and can\'t be changed.', 'Not assigned')}
             {text('old_property_no', 'Old property number (optional)', 'Input the equipment\'s previous property number, if it had one before re-numbering.')}
           </FormSection>
         </Card>
 
-        <Card>
+        <Card className="overflow-visible">
           <FormSection title="Item details">
             {idSelect(
               'item_type_id',
@@ -450,7 +466,7 @@ export function EquipmentFields({
   if (section === 'acquisition') {
     return (
       <div className="space-y-4">
-        <Card>
+        <Card className="overflow-visible">
           <FormSection title="Acquisition & funds">
             {text(
               'acquisition_cost',
@@ -481,28 +497,19 @@ export function EquipmentFields({
                 required: true,
               })}
             {stringSelect('source_fund', 'Source of funds', 'Select the corresponding source of funds from the dropdown.', formOptions?.source_of_funds, 'Select a fund source', true)}
-          </FormSection>
-        </Card>
-
-        <Card>
-          <FormSection title="Classification & accounting">
             {readOnly(
               'category',
               'Category',
-              accounting?.category ?? '',
-              options?.category_rules
-                ? `Set from the acquisition cost: ₱${options.category_rules.threshold.toLocaleString('en-PH')} and above is ${options.category_rules.high.category}, below is ${options.category_rules.low.category}.`
-                : 'Set from the acquisition cost.',
-              'Set from the acquisition cost',
+              calculatedCategory,
+              `If the acquisition cost is less than ₱${threshold.toLocaleString('en-PH')} automatic Low-Value, ₱${threshold.toLocaleString('en-PH')} above High-Value.`,
+              '',
             )}
-            {idSelect(
-              'equipment_classification_id',
+            {readOnly(
+              'classification',
               'Classification',
-              'Select the appropriate Classification from the dropdown. For now, the focus is limited to Machinery and Equipment for Information and Communication Technology (ICT).',
-              formOptions?.classification,
-              'Select a classification',
-              current?.classification,
-              true,
+              calculatedClassification,
+              'Automatically set from the category based on acquisition cost. 10405030 for Low-Value, 10605030 for High-Value.',
+              '',
             )}
             {checkbox('non_dcp', 'Non-DCP', 'Leave unticked if the item was delivered under the DepEd Computerization Program (DCP).')}
             {!value.non_dcp && (
@@ -517,23 +524,16 @@ export function EquipmentFields({
             )}
             {readOnly(
               'gl_sl_code',
-              'GL-SL code (NGAS)',
-              accounting?.gl_sl_code ?? '',
-              'Set from the category. Refer to https://uacs.gov.ph/resources/uacs/object-code/chart-of-accounts',
-              'Set from the acquisition cost',
+              'GL-SL Code (NGAS Code)',
+              current?.gl_sl_code ?? '',
+              'Automatically set from the category. Refer to https://uacs.gov.ph/resources/uacs/object-code/chart-of-accounts',
+              '',
             )}
             {text(
               'uacs',
               'UACS (optional)',
               'UACS object code. Leave blank to use the classification\'s default. Refer to https://uacs.gov.ph/resources/uacs/object-code/sub-object',
               { placeholder: defaultPlaceholder(defaults?.default_uacs, classificationChosen) },
-            )}
-            {stringSelect(
-              'allotment_class',
-              'Allotment class (optional)',
-              'Select the corresponding Allotment Class from the dropdown.',
-              formOptions?.allotment_class,
-              `Default: ${DEFAULT_ALLOTMENT_CLASS}`,
             )}
           </FormSection>
         </Card>
@@ -542,57 +542,17 @@ export function EquipmentFields({
   }
 
   if (section === 'accountability') {
-    const usedBy = stringSelect(
-      'used_by',
-      'Used by',
-      'Select who primarily uses the equipment: Learner, Teacher, Teaching-Related or Non-Teaching personnel.',
-      formOptions?.used_by,
-      'Select who uses it',
-      true,
-    )
-
-    if (!isCreate) {
-      return (
-        <div className="space-y-4">
-          <Card>
-            <FormSection title="Usage">{usedBy}</FormSection>
-          </Card>
-          <Card>
-            <FormSection title="Current accountability">
-              <dl className="grid gap-x-6 gap-y-3 text-sm sm:col-span-2 sm:grid-cols-2">
-                <div className="min-w-0">
-                  <dt className="text-xs text-gray-500">Accountable officer</dt>
-                  <dd className="font-medium text-gray-900">{current?.current_accountable_officer?.full_name ?? '—'}</dd>
-                </div>
-                <div className="min-w-0">
-                  <dt className="text-xs text-gray-500">Custodian / end user</dt>
-                  <dd className="font-medium text-gray-900">{current?.current_end_user?.full_name ?? '—'}</dd>
-                </div>
-              </dl>
-              <p className="text-sm text-gray-600 sm:col-span-2">
-                Accountability changes are recorded as transactions. Log one in the{' '}
-                <Link to={{ search: '?tab=history' }} replace className="font-medium text-primary-700 underline hover:no-underline">
-                  History tab
-                </Link>
-                .
-              </p>
-            </FormSection>
-          </Card>
-        </div>
-      )
-    }
-
     return (
       <div className="space-y-4">
-        {errors.accountability && <Alert type="error">{errors.accountability}</Alert>}
-        {options && !options.personnel && (
+        {isCreate && errors.accountability && <Alert type="error">{errors.accountability}</Alert>}
+        {isCreate && options && !options.personnel && (
           <Alert type="warning">Your account can&apos;t assign accountability, so this record can&apos;t be saved. Ask an administrator for access to record equipment transactions.</Alert>
         )}
-        {options?.personnel?.length === 0 && (
+        {isCreate && options?.personnel?.length === 0 && (
           <Alert type="warning">No personnel are within your access, so accountability can&apos;t be assigned and this record can&apos;t be saved. Ask an administrator.</Alert>
         )}
         <Card>
-          <FormSection title="Initial accountability">
+          <FormSection title="Accountability">
             {personField('accountable_officer_id', 'Accountable officer', 'Choose the employee accountable for the equipment from the dropdown.')}
             {accountabilityText(
               'date_assigned_accountable_officer',
@@ -625,7 +585,14 @@ export function EquipmentFields({
               'Select a document type',
             )}
             {accountabilityText('par_ics_rrsp_rs_wmr_no', 'PAR/ICS/RRSP/RS/WMR no. (optional)', 'Input the document number to track and properly identify the transaction.')}
-            {usedBy}
+            {stringSelect(
+              'used_by',
+              'Used by',
+              'Select who primarily uses the equipment: Learner, Teacher, Teaching-Related or Non-Teaching personnel.',
+              formOptions?.used_by,
+              'Select who uses it',
+              true,
+            )}
           </FormSection>
         </Card>
       </div>
@@ -682,6 +649,13 @@ export function EquipmentFields({
             true,
           )}
           {stringSelect(
+            'allotment_class',
+            'Allotment class (optional)',
+            'Select the corresponding Allotment Class from the dropdown.',
+            formOptions?.allotment_class,
+            `Default: ${DEFAULT_ALLOTMENT_CLASS}`,
+          )}
+          {stringSelect(
             'disposition_status',
             'Disposition status',
             'Select the equipment\'s Accountability or Disposition Status from the dropdown: Normal, Transferred, Stolen, Lost, Damaged due to calamity, or For Disposal. Additional details may be provided in the Remarks column.',
@@ -694,6 +668,17 @@ export function EquipmentFields({
             'Remarks (optional)',
             'This column may include the technical assessment report, evaluation findings, recommendations, justifications, or other relevant information/documents related to the equipment. Include additional notes such as missing accessories, broken parts, non-functional features, repair needs, repair history, or if the item is unusable or unserviceable. For damaged equipment, indicate if the cause is due to natural disasters (e.g., floods, earthquakes, typhoons). The information provided here will serve as justification for any unknown or unidentified details, including document reference numbers, the accountable officer or custodian, or other information that cannot be determined by the user.',
           )}
+          {text('supplier', 'Supplier (optional)', 'Input the name of the Supplier / Provider or Distributor of the equipment')}
+          {savedWarranty && (
+            <div className="sm:col-span-2">
+              <p className="text-xs text-gray-500">
+                Warranty status last calculated on {formatDate(savedWarranty.updated_at)}, based on: end date {formatDate(savedWarranty.end_warranty_date)}, received{' '}
+                {formatDate(savedWarranty.received_date)}.
+              </p>
+            </div>
+          )}
+          {checkbox('under_warranty', 'Under warranty', 'Tick if the equipment is still covered by the supplier\'s or manufacturer\'s warranty.')}
+          {text('end_warranty_date', 'Warranty end date (optional)', 'Input the End of Warranty in the \'MM/DD/YYYY\' date format', { type: 'date' })}
           {text('estimated_useful_life', 'Estimated useful life (years) (optional)', 'Whole number of years. Leave blank to use the classification\'s default.', {
             type: 'number',
             min: '0',
@@ -710,22 +695,6 @@ export function EquipmentFields({
               'Select a transaction type',
               true,
             )}
-        </FormSection>
-      </Card>
-
-      <Card>
-        <FormSection title="Supplier & warranty">
-          {text('supplier', 'Supplier (optional)', 'Input the name of the Supplier / Provider or Distributor of the equipment')}
-          {savedWarranty && (
-            <div className="sm:col-span-2">
-              <p className="text-xs text-gray-500">
-                Warranty status last calculated on {formatDate(savedWarranty.updated_at)}, based on: end date {formatDate(savedWarranty.end_warranty_date)}, received{' '}
-                {formatDate(savedWarranty.received_date)}.
-              </p>
-            </div>
-          )}
-          {checkbox('under_warranty', 'Under warranty', 'Tick if the equipment is still covered by the supplier\'s or manufacturer\'s warranty.')}
-          {text('end_warranty_date', 'Warranty end date (optional)', 'Input the End of Warranty in the \'MM/DD/YYYY\' date format', { type: 'date' })}
         </FormSection>
       </Card>
     </div>

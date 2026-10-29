@@ -193,6 +193,16 @@ class Equipment extends Model
         return $this->hasMany(Equipment::class, 'parent_equipment_id');
     }
 
+    /**
+     * Activity log entries for this equipment.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\MorphMany<\Spatie\Activitylog\Models\Activity, $this>
+     */
+    public function activities(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(\Spatie\Activitylog\Models\Activity::class, 'subject');
+    }
+
     public function canHavePeripherals(): bool
     {
         return $this->parent_equipment_id === null && $this->itemType?->isBundleParent() === true;

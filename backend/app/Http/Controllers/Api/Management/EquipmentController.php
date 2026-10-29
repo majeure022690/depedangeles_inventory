@@ -171,6 +171,46 @@ class EquipmentController extends Controller
     }
 
     /**
+     * Preview the next property number for given item type and acquisition date.
+     * Used for real-time property number generation in the form.
+     */
+    public function previewPropertyNumber(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'item_type_id' => 'required|integer|exists:item_types,id',
+            'received_date' => 'required|date',
+        ]);
+
+        $itemType = ItemType::query()->findOrFail($validated['item_type_id']);
+        $abbreviation = $itemType->abbreviation;
+
+        if (blank($abbreviation) || preg_match('/^[A-Z0-9]{3}\z/', $abbreviation) !== 1) {
+            return response()->json([
+                'data' => ['property_no' => null],
+                'message' => 'This item type has no abbreviation yet.',
+            ]);
+        }
+
+        $year = (int) date('Y', strtotime($validated['received_date']));
+        
+        // Get the last sequence number for this abbreviation
+        $pattern = '/^AC-\d{4}-IT-'.preg_quote($abbreviation, '/').'-(\d{6})\z/';
+        $lastSequence = Equipment::withTrashed()
+            ->where('property_no', 'like', "AC-____-IT-{$abbreviation}-______")
+            ->pluck('property_no')
+            ->map(fn (?string $number) => $number !== null && preg_match($pattern, $number, $matches) === 1 ? (int) $matches[1] : 0)
+            ->max() ?? 0;
+
+        $nextSequence = $lastSequence + 1;
+        $propertyNo = sprintf('AC-%04d-IT-%s-%06d', $year, $abbreviation, $nextSequence);
+
+        return response()->json([
+            'data' => ['property_no' => $propertyNo],
+            'message' => 'Success',
+        ]);
+    }
+
+    /**
      * Form, list-filter and transaction-form options in one payload.
      * `personnel` (active personnel within the user's scope, for the
      * create form's accountability and the transaction form) is only sent
@@ -252,6 +292,7 @@ class EquipmentController extends Controller
                 ->latest('created_at')
                 ->latest('id'),
             'attachments' => fn ($query) => $query->with('uploadedBy:id,name')->latest('id'),
+            'activities' => fn ($query) => $query->with('causer:id,name')->latest('created_at')->latest('id'),
         ]);
 
         return new EquipmentResource($equipment)

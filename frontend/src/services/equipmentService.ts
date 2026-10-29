@@ -68,4 +68,11 @@ export const equipmentService = {
   attachmentFile: (id: number, attachmentId: number) =>
     api.get<Blob>(`/equipment/${id}/attachments/${attachmentId}`, { responseType: 'blob' }).then((r) => r.data),
   removeAttachment: (id: number, attachmentId: number) => api.delete(`/equipment/${id}/attachments/${attachmentId}`),
+  previewPropertyNumber: (itemTypeId: number, receivedDate: string) =>
+    api
+      .post<ApiResponse<{ property_no: string | null }>>('/equipment/preview-property-number', {
+        item_type_id: itemTypeId,
+        received_date: receivedDate,
+      })
+      .then((r) => r.data.data.property_no),
 }

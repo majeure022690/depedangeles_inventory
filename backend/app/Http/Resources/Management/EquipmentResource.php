@@ -94,6 +94,13 @@ class EquipmentResource extends JsonResource
                 ->all()),
             'original_bundle' => $this->when($this->withOriginalBundle, fn () => self::originalBundle($this->resource, $request)),
             'transactions' => EquipmentTransactionResource::collection($this->whenLoaded('transactions')),
+            'activities' => $this->whenLoaded('activities', fn () => $this->activities->map(fn ($activity) => [
+                'id' => $activity->id,
+                'description' => $activity->description,
+                'properties' => $activity->properties,
+                'causer' => $activity->causer ? ['id' => $activity->causer->id, 'name' => $activity->causer->name] : null,
+                'created_at' => $activity->created_at?->toISOString(),
+            ])->all()),
             'attachments' => EquipmentAttachmentResource::collection($this->whenLoaded('attachments')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

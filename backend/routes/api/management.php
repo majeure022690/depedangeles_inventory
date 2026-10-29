@@ -45,6 +45,7 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
 
     // Permission-protected: equipment.* (creating includes the initial accountability). Transactions are append-only (store only).
     Route::get('/equipment/options', [EquipmentController::class, 'options'])->middleware($can(P::EquipmentView));
+    Route::post('/equipment/preview-property-number', [EquipmentController::class, 'previewPropertyNumber'])->middleware($can(P::EquipmentCreate));
     Route::get('/equipment', [EquipmentController::class, 'index'])->middleware($can(P::EquipmentView));
     Route::get('/equipment/{equipment}', [EquipmentController::class, 'show'])->middleware($can(P::EquipmentView))->whereNumber('equipment');
     Route::get('/equipment/{equipment}/qr-code', [EquipmentController::class, 'qrCode'])->middleware($can(P::EquipmentView))->whereNumber('equipment');

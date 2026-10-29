@@ -109,9 +109,21 @@ export interface Equipment {
   children?: EquipmentPeripheral[]
   original_bundle?: EquipmentParentSummary | null
   transactions?: EquipmentTransaction[]
+  activities?: EquipmentActivity[]
   attachments?: EquipmentAttachment[]
   created_at: string | null
   updated_at: string | null
+}
+
+export interface EquipmentActivity {
+  id: number
+  description: string
+  properties: {
+    attributes?: Record<string, unknown>
+    old?: Record<string, unknown>
+  }
+  causer: { id: number; name: string } | null
+  created_at: string
 }
 
 /** A scanned document or photo kept on an equipment record; downloaded through the API only. */

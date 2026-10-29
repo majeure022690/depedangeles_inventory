@@ -10,7 +10,7 @@ import { Select } from '@/components/ui/Select'
 import { SelectPicker } from '@/components/ui/SelectPicker'
 import { extractError, extractFieldErrors, type FieldErrors } from '@/lib/errors'
 import { equipmentService, toTransactionPayload } from '@/services/equipmentService'
-import type { EquipmentTransaction, EquipmentTransactionFormData, EquipmentTransactionOptions } from '@/types/equipment'
+import type { EquipmentTransaction, EquipmentTransactionFormData, EquipmentTransactionOptions, EquipmentActivity } from '@/types/equipment'
 import type { Option } from '@/types/lookup'
 
 function emptyTransaction(): EquipmentTransactionFormData {
@@ -45,6 +45,7 @@ type TextKey = Exclude<keyof EquipmentTransactionFormData, PersonKey>
 interface TransactionLogProps {
   equipmentId: number
   transactions: EquipmentTransaction[]
+  activities: EquipmentActivity[]
   options: EquipmentTransactionOptions | null
   personnelOptions: Option<number>[]
   /** Whether to show the record form (`equipment.transactions.create`). */
@@ -57,7 +58,7 @@ interface TransactionLogProps {
  * Port of the old `equipment/Partials/TransactionLog.vue`: the append-only
  * accountability history, plus the form that records a new transaction.
  */
-export function TransactionLog({ equipmentId, transactions, options, personnelOptions, canRecord, onRecorded }: TransactionLogProps) {
+export function TransactionLog({ equipmentId, transactions, activities, options, personnelOptions, canRecord, onRecorded }: TransactionLogProps) {
   const [form, setForm] = useState<EquipmentTransactionFormData>(emptyTransaction)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
@@ -270,6 +271,25 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
           </div>
         )}
       </Card>
+
+      {activities.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+              <History className="h-4 w-4 text-gray-400" aria-hidden="true" />
+              Activity log <span className="font-normal text-gray-500">({activities.length})</span>
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Changes to equipment details including peripheral linking/unlinking
+            </p>
+          </CardHeader>
+          <div className="divide-y divide-gray-100">
+            {activities.map((activity) => (
+              <ActivityItem key={activity.id} activity={activity} />
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   )
 }
@@ -286,4 +306,88 @@ function PersonCell({ name, date }: { name: string | null | undefined; date: str
 function DocumentLine({ type, number }: { type: string | null; number: string | null }) {
   if (!type && !number) return null
   return <div>{[type, number].filter(Boolean).join(' · ')}</div>
+}
+
+function ActivityItem({ activity }: { activity: EquipmentActivity }) {
+  const eventType = activity.description.split('.').pop() || 'updated'
+  const changes = activity.properties.attributes || {}
+  const oldValues = activity.properties.old || {}
+
+  // Field labels mapping
+  const fieldLabels: Record<string, string> = {
+    parent_equipment_id: 'Parent Equipment',
+    serial_number: 'Serial Number',
+    model: 'Model',
+    brand_id: 'Brand',
+    equipment_condition_id: 'Condition',
+    equipment_location: 'Location',
+    non_functional: 'Non-functional',
+    disposition_status: 'Disposition Status',
+    remarks: 'Remarks',
+    used_by: 'Used By',
+  }
+
+  const changedFields = Object.keys(changes).filter(key => key !== 'updated_at')
+
+  return (
+    <div className="px-5 py-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-gray-900">
+            {eventType === 'created' && 'Equipment created'}
+            {eventType === 'updated' && 'Equipment updated'}
+            {eventType === 'deleted' && 'Equipment deleted'}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            {activity.causer?.name || 'System'} · {formatTimestamp(activity.created_at)}
+          </p>
+          {changedFields.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {changedFields.map((field) => {
+                const label = fieldLabels[field] || field
+                const newValue = changes[field]
+                const oldValue = oldValues[field]
+                
+                // Special handling for parent_equipment_id (peripheral linking)
+                if (field === 'parent_equipment_id') {
+                  if (newValue && !oldValue) {
+                    return (
+                      <div key={field} className="text-sm text-gray-700">
+                        <span className="font-medium">Linked to bundle:</span> Equipment ID {String(newValue)}
+                      </div>
+                    )
+                  }
+                  if (!newValue && oldValue) {
+                    return (
+                      <div key={field} className="text-sm text-gray-700">
+                        <span className="font-medium">Unlinked from bundle:</span> Equipment ID {String(oldValue)}
+                      </div>
+                    )
+                  }
+                  if (newValue && oldValue) {
+                    return (
+                      <div key={field} className="text-sm text-gray-700">
+                        <span className="font-medium">Transferred to different bundle:</span> from ID {String(oldValue)} to ID {String(newValue)}
+                      </div>
+                    )
+                  }
+                }
+
+                return (
+                  <div key={field} className="text-sm text-gray-700">
+                    <span className="font-medium">{label}:</span>{' '}
+                    {oldValue !== undefined && (
+                      <span className="text-gray-500 line-through">{String(oldValue)}</span>
+                    )}
+                    {oldValue !== undefined && ' → '}
+                    <span>{String(newValue)}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }

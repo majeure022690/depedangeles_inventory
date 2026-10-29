@@ -8,6 +8,7 @@ import { EquipmentAttachments } from '@/components/equipment/EquipmentAttachment
 import {
   EQUIPMENT_FIELD_SECTIONS,
   EquipmentFields,
+  emptyAccountability,
   equipmentToForm,
   firstSectionWithError,
   isEquipmentFieldSection,
@@ -29,7 +30,7 @@ import { BUNDLE_PARENT_ITEMS, PERIPHERAL_ITEMS } from '@/lib/equipmentBundles'
 import { extractError, extractFieldErrors, extractLoadError, isNotFound, OUT_OF_REACH_MESSAGE, type FieldErrors } from '@/lib/errors'
 import { formatDate } from '@/lib/utils'
 import { equipmentService, toEquipmentPayload } from '@/services/equipmentService'
-import type { Equipment, EquipmentFormData, EquipmentOptions, EquipmentParentSummary, EquipmentPeripheral } from '@/types/equipment'
+import type { Equipment, EquipmentFormData, EquipmentOptions, EquipmentParentSummary, EquipmentPeripheral, EquipmentTransactionFormData } from '@/types/equipment'
 
 const TABS_ID = 'equipment-record'
 const PERIPHERALS_TAB = 'peripherals'
@@ -54,6 +55,7 @@ export function EquipmentEdit() {
   const [optionsError, setOptionsError] = useState<string | null>(null)
 
   const [form, setForm] = useState<EquipmentFormData | null>(null)
+  const [accountability, setAccountability] = useState<EquipmentTransactionFormData>(emptyAccountability())
   const [errors, setErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -87,6 +89,25 @@ export function EquipmentEdit() {
       const record = await equipmentService.show(id!)
       setEquipment(record)
       setForm((current) => (keepEdits && current ? current : equipmentToForm(record)))
+      
+      // Populate accountability from the most recent transaction
+      const latestTransaction = record.transactions?.[0]
+      if (latestTransaction && !keepEdits) {
+        setAccountability({
+          transaction_type: latestTransaction.transaction_type,
+          accountable_officer_id: latestTransaction.accountable_officer?.id ?? null,
+          end_user_id: latestTransaction.end_user?.id ?? null,
+          received_by_id: latestTransaction.received_by?.id ?? null,
+          date_assigned_accountable_officer: latestTransaction.date_assigned_accountable_officer ?? '',
+          date_assigned_end_user: latestTransaction.date_assigned_end_user ?? '',
+          date_received_new_accountable: latestTransaction.date_received_new_accountable ?? '',
+          supporting_documents1: latestTransaction.supporting_documents1 ?? '',
+          or_si_dr_iar_no: latestTransaction.or_si_dr_iar_no ?? '',
+          supporting_documents2: latestTransaction.supporting_documents2 ?? '',
+          par_ics_rrsp_rs_wmr_no: latestTransaction.par_ics_rrsp_rs_wmr_no ?? '',
+        })
+      }
+      
       setLoadError(null)
     } catch (e) {
       if (isNotFound(e)) {
@@ -262,6 +283,8 @@ export function EquipmentEdit() {
                     errors={errors}
                     disabled={!canEdit}
                     current={equipment}
+                    accountability={accountability}
+                    onAccountabilityChange={setAccountability}
                   />
                   {section.value === 'documents' && (
                     <EquipmentAttachments
@@ -305,6 +328,7 @@ export function EquipmentEdit() {
           <TransactionLog
             equipmentId={equipment.id}
             transactions={equipment.transactions ?? []}
+            activities={equipment.activities ?? []}
             options={options?.transaction ?? null}
             personnelOptions={options?.personnel ?? []}
             canRecord={canRecord && !isPeripheral}
