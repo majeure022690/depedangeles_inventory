@@ -358,5 +358,29 @@
         "value": "Stock Position",
         "description": null,
         "sort_order": 6
+    },
+    {
+        "type": "used_by",
+        "value": "Learner",
+        "description": null,
+        "sort_order": 0
+    },
+    {
+        "type": "used_by",
+        "value": "Teacher",
+        "description": null,
+        "sort_order": 1
+    },
+    {
+        "type": "used_by",
+        "value": "Teaching-Related",
+        "description": null,
+        "sort_order": 2
+    },
+    {
+        "type": "used_by",
+        "value": "Non-Teaching",
+        "description": null,
+        "sort_order": 3
     }
 ]

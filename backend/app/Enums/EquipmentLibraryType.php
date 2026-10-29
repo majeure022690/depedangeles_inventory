@@ -27,6 +27,7 @@ enum EquipmentLibraryType: string
     case AllotmentClass = 'allotment_class';
     case SupportingDocumentType = 'supporting_document_type';
     case TransactionType = 'transaction_type';
+    case UsedBy = 'used_by';
 
     /**
      * Human-readable label for admin UI. Falls back to a title-cased

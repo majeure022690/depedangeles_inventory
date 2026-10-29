@@ -1,390 +1,455 @@
 [
     {
         "name": "Server (System Unit)",
+        "abbreviation": "SVU",
         "description": "Server alone (just the System Unit, motherboard, CPU, and RAM in a Server Chassis)",
         "dashboard_group": "server",
         "sort_order": 0
     },
     {
         "name": "Thin Client Server (Set)",
+        "abbreviation": "TCS",
         "description": "Server with connected lightweight, client devices",
         "dashboard_group": null,
         "sort_order": 1
     },
     {
         "name": "Server (Bundle)",
+        "abbreviation": "SVB",
         "description": "This includes a full Server - keyboard, monitor, etc.",
         "dashboard_group": "server",
         "sort_order": 2
     },
     {
         "name": "Desktop (package)",
+        "abbreviation": "DST",
         "description": "This includes a full set - keyboard, monitor, etc.; it also includes all-in-one units",
         "dashboard_group": "desktop_computer",
         "sort_order": 3
     },
     {
         "name": "Laptop",
+        "abbreviation": "LPT",
         "description": "Laptop",
         "dashboard_group": "laptop",
         "sort_order": 4
     },
     {
         "name": "2-in-1 Tablet",
+        "abbreviation": "21T",
         "description": "A tablet that combines the features of a tablet and a laptop into a single device, runs on Windows, Linux or Mac OS. A hybrid device that functions as both a laptop and a tablet, offering the power of a laptop with the portability and touchscreen of a tablet. They are versatile and can be used in \"laptop mode\" with a keyboard for productivity, or in \"tablet mode\" by detaching or flipping the keyboard back for tasks like drawing, note-taking, or casual browsing.",
         "dashboard_group": "tablet",
         "sort_order": 5
     },
     {
         "name": "Tablet",
+        "abbreviation": "TBL",
         "description": "A standard tablet (runs on a mobile operating system, e.g. Android / iOS)",
         "dashboard_group": "tablet",
         "sort_order": 6
     },
     {
         "name": "Smartphone",
+        "abbreviation": "SMP",
         "description": null,
         "dashboard_group": "smartphone",
         "sort_order": 7
     },
     {
         "name": "External Hard Drive",
+        "abbreviation": "EHD",
         "description": null,
         "dashboard_group": null,
         "sort_order": 8
     },
     {
         "name": "USB Flash Drive",
+        "abbreviation": "UFD",
         "description": null,
         "dashboard_group": null,
         "sort_order": 9
     },
     {
         "name": "Smart TV",
+        "abbreviation": "SMT",
         "description": null,
         "dashboard_group": "tv",
         "sort_order": 10
     },
     {
         "name": "Standard TV",
+        "abbreviation": "STD",
         "description": "Non-smart TV (Includes LED TV)",
         "dashboard_group": "tv",
         "sort_order": 11
     },
     {
         "name": "Monitor",
+        "abbreviation": "MON",
         "description": "If issued separately",
         "dashboard_group": "desktop_computer",
         "sort_order": 12
     },
     {
         "name": "CPU",
+        "abbreviation": "CPU",
         "description": "If issued separately",
         "dashboard_group": "desktop_computer",
         "sort_order": 13
     },
     {
         "name": "Keyboard",
+        "abbreviation": "KYB",
         "description": "If issued separately",
         "dashboard_group": "desktop_computer",
         "sort_order": 14
     },
     {
         "name": "Mouse",
+        "abbreviation": "MOS",
         "description": "If issued separately",
         "dashboard_group": "desktop_computer",
         "sort_order": 15
     },
     {
         "name": "Trackpad",
+        "abbreviation": "TKP",
         "description": "If issued separately",
         "dashboard_group": null,
         "sort_order": 16
     },
     {
         "name": "Stylus",
+        "abbreviation": "STL",
         "description": "If issued separately",
         "dashboard_group": null,
         "sort_order": 17
     },
     {
         "name": "Signature pad",
+        "abbreviation": "SGP",
         "description": "If issued separately",
         "dashboard_group": null,
         "sort_order": 18
     },
     {
         "name": "Memory Card (RAM)",
+        "abbreviation": "MMC",
         "description": "If issued separately",
         "dashboard_group": null,
         "sort_order": 19
     },
     {
         "name": "Power Generator",
+        "abbreviation": "PWG",
         "description": null,
         "dashboard_group": null,
         "sort_order": 20
     },
     {
         "name": "UPS",
+        "abbreviation": "UPS",
         "description": "Uninterrupted Power Supply, If issued separately",
         "dashboard_group": null,
         "sort_order": 21
     },
     {
         "name": "AVR",
+        "abbreviation": "AVR",
         "description": "Automatic Voltage Regulator, If issued separately",
         "dashboard_group": null,
         "sort_order": 22
     },
     {
         "name": "Charging Cart",
+        "abbreviation": "CHC",
         "description": "If issued separately (Productivity Tools, Anti-virus, Operating System)",
         "dashboard_group": null,
         "sort_order": 23
     },
     {
         "name": "Software Licenses",
+        "abbreviation": "SFL",
         "description": null,
         "dashboard_group": null,
         "sort_order": 24
     },
     {
         "name": "Rack Cabinet",
+        "abbreviation": "RKC",
         "description": "Server / Network Rack",
         "dashboard_group": null,
         "sort_order": 25
     },
     {
         "name": "Pocket Wifi",
+        "abbreviation": "PWF",
         "description": "Network/Connectivity",
         "dashboard_group": null,
         "sort_order": 26
     },
     {
         "name": "Mobile Broadband USB Stick",
+        "abbreviation": "MUS",
         "description": "Network/Connectivity",
         "dashboard_group": null,
         "sort_order": 27
     },
     {
         "name": "Modem / Router",
+        "abbreviation": "MRT",
         "description": "Network/Connectivity",
         "dashboard_group": null,
         "sort_order": 28
     },
     {
         "name": "Access Point",
+        "abbreviation": "ACP",
         "description": "Network/Connectivity",
         "dashboard_group": null,
         "sort_order": 29
     },
     {
         "name": "Dish (Satellite Internet Communication System)",
+        "abbreviation": "SIC",
         "description": "Like Starlink",
         "dashboard_group": null,
         "sort_order": 30
     },
     {
         "name": "Network Switch",
+        "abbreviation": "NWS",
         "description": "Network/Connectivity",
         "dashboard_group": "network_switch",
         "sort_order": 31
     },
     {
         "name": "Firewall Appliance",
+        "abbreviation": "FWA",
         "description": "Network/Connectivity/Security",
         "dashboard_group": null,
         "sort_order": 32
     },
     {
         "name": "Bluetooth / Wi-fi Adapter",
+        "abbreviation": "WFA",
         "description": "Network/Connectivity",
         "dashboard_group": null,
         "sort_order": 33
     },
     {
         "name": "Docking Station / USB Hub",
+        "abbreviation": "DSH",
         "description": "Network/Connectivity",
         "dashboard_group": null,
         "sort_order": 34
     },
     {
         "name": "PABX",
+        "abbreviation": "PBX",
         "description": "Network/Connectivity/Communication",
         "dashboard_group": null,
         "sort_order": 35
     },
     {
         "name": "Fax Machine",
+        "abbreviation": "FXM",
         "description": "Network/Connectivity/Communication",
         "dashboard_group": null,
         "sort_order": 36
     },
     {
         "name": "Computer Table",
+        "abbreviation": "CPT",
         "description": null,
         "dashboard_group": null,
         "sort_order": 37
     },
     {
         "name": "Printer",
+        "abbreviation": "PRT",
         "description": "Inkjet / Laser / Dot Matrix",
         "dashboard_group": "printer",
         "sort_order": 38
     },
     {
         "name": "Scanner",
+        "abbreviation": "SCN",
         "description": "Scanner Alone",
         "dashboard_group": null,
         "sort_order": 39
     },
     {
         "name": "Copier / Xerox Machine",
+        "abbreviation": "COP",
         "description": "Copier / Xerox",
         "dashboard_group": "copier",
         "sort_order": 40
     },
     {
         "name": "Multifunction Printer",
+        "abbreviation": "MFP",
         "description": "Print / Scan / Copy / Fax (All-in-one) / 3-in-1 Multifunction Printer",
         "dashboard_group": "printer",
         "sort_order": 41
     },
     {
         "name": "Biometric Readers",
+        "abbreviation": "BMR",
         "description": "Fingerprint / Facial scanners / Door access locks",
         "dashboard_group": null,
         "sort_order": 42
     },
     {
         "name": "Barcode or QR Scanner",
+        "abbreviation": "BQR",
         "description": null,
         "dashboard_group": null,
         "sort_order": 43
     },
     {
         "name": "Microphone",
+        "abbreviation": "MIC",
         "description": null,
         "dashboard_group": null,
         "sort_order": 44
     },
     {
         "name": "Lapel",
+        "abbreviation": "LPL",
         "description": null,
         "dashboard_group": null,
         "sort_order": 45
     },
     {
         "name": "Speakers",
+        "abbreviation": "SPK",
         "description": null,
         "dashboard_group": null,
         "sort_order": 46
     },
     {
         "name": "Headset with Microphone",
+        "abbreviation": "HDM",
         "description": null,
         "dashboard_group": null,
         "sort_order": 47
     },
     {
         "name": "Webcam",
+        "abbreviation": "WBC",
         "description": null,
         "dashboard_group": null,
         "sort_order": 48
     },
     {
         "name": "Digital Camera",
+        "abbreviation": "DGC",
         "description": null,
         "dashboard_group": null,
         "sort_order": 49
     },
     {
         "name": "Voice Recorder",
+        "abbreviation": "VRC",
         "description": null,
         "dashboard_group": null,
         "sort_order": 50
     },
     {
         "name": "Document cameras / Visualizers",
+        "abbreviation": "VIS",
         "description": null,
         "dashboard_group": null,
         "sort_order": 51
     },
     {
         "name": "Interactive Whiteboards / Smartboards",
+        "abbreviation": "IWB",
         "description": null,
         "dashboard_group": "projector_smartboard",
         "sort_order": 52
     },
     {
         "name": "DVD Player",
+        "abbreviation": "DVP",
         "description": null,
         "dashboard_group": null,
         "sort_order": 53
     },
     {
         "name": "Projector",
+        "abbreviation": "PRJ",
         "description": null,
         "dashboard_group": "projector_smartboard",
         "sort_order": 54
     },
     {
         "name": "Projector Screen",
+        "abbreviation": "PRS",
         "description": null,
         "dashboard_group": null,
         "sort_order": 55
     },
     {
         "name": "Laser pointer",
+        "abbreviation": "LSP",
         "description": null,
         "dashboard_group": null,
         "sort_order": 56
     },
     {
         "name": "Network Cable Tester",
+        "abbreviation": "NCT",
         "description": null,
         "dashboard_group": null,
         "sort_order": 57
     },
     {
         "name": "Crimper Tools",
+        "abbreviation": "CRT",
         "description": "Network/Connectivity Tools",
         "dashboard_group": null,
         "sort_order": 58
     },
     {
         "name": "Cables Adaptor",
+        "abbreviation": "CBA",
         "description": "Network/Connectivity Tools",
         "dashboard_group": null,
         "sort_order": 59
     },
     {
         "name": "Power Cords",
+        "abbreviation": "PWC",
         "description": "USB Printer connection cable, USB Charger cables",
         "dashboard_group": null,
         "sort_order": 60
     },
     {
         "name": "Extension Cords",
+        "abbreviation": "EXC",
         "description": "Power cable for PC/monitor/printer/UPS etc.",
         "dashboard_group": null,
         "sort_order": 61
     },
     {
         "name": "USB Charger",
+        "abbreviation": "USC",
         "description": "Multi-outlet cord with sockets, extension power strip",
         "dashboard_group": null,
         "sort_order": 62
     },
     {
         "name": "Power bank",
+        "abbreviation": "PWB",
         "description": "Portable Power bank",
         "dashboard_group": null,
         "sort_order": 63
     },
     {
         "name": "Others",
+        "abbreviation": "OTH",
         "description": "Other devices / peripherals",
         "dashboard_group": null,
         "sort_order": 64

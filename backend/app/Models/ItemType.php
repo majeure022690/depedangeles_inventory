@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property DashboardEquipmentGroup|null $dashboard_group
  */
-#[Fillable(['name', 'description', 'dashboard_group', 'sort_order', 'is_active'])]
+#[Fillable(['name', 'abbreviation', 'description', 'dashboard_group', 'sort_order', 'is_active'])]
 class ItemType extends Model
 {
     use HasActiveReferenceOptions, LogsReferenceDataActivity;

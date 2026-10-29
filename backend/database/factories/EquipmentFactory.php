@@ -48,7 +48,7 @@ class EquipmentFactory extends Factory
             ),
             'old_property_no' => fake()->optional(0.2)->numerify('OLD-######'),
             'serial_number' => fake()->optional(0.9)->bothify('SN-????-########'),
-            'item_type_id' => self::resolveTier1Id(ItemType::class, 'Laptop'),
+            'item_type_id' => self::resolveTier1Id(ItemType::class, 'Laptop', ['abbreviation' => 'LPT']),
             'uom' => fake()->randomElement(['Unit', 'Piece', 'Set']),
             'brand_id' => self::resolveTier1Id(Brand::class, 'Dell'),
             'model' => fake()->optional(0.9)->bothify('Model-###??'),
@@ -83,6 +83,7 @@ class EquipmentFactory extends Factory
             'supplier' => fake()->optional(0.7)->company(),
             'current_accountable_officer_id' => Personnel::factory(),
             'current_end_user_id' => Personnel::factory(),
+            'used_by' => fake()->randomElement(['Learner', 'Teacher', 'Teaching-Related', 'Non-Teaching']),
         ];
     }
 
@@ -133,11 +134,12 @@ class EquipmentFactory extends Factory
      * via the random-order query instead of attempting another insert.
      *
      * @param  class-string  $modelClass
+     * @param  array<string, mixed>  $fallbackAttributes
      */
-    private static function resolveTier1Id(string $modelClass, string $fallbackName): int
+    private static function resolveTier1Id(string $modelClass, string $fallbackName, array $fallbackAttributes = []): int
     {
         return $modelClass::query()->inRandomOrder()->value('id')
-            ?? $modelClass::query()->create(['name' => $fallbackName, 'is_active' => true])->id;
+            ?? $modelClass::query()->create(['name' => $fallbackName, 'is_active' => true, ...$fallbackAttributes])->id;
     }
 
     /**

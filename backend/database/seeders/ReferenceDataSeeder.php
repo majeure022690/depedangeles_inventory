@@ -51,7 +51,7 @@ class ReferenceDataSeeder extends Seeder
     public function run(): void
     {
         // Tier 1 — dedicated entity tables, unique on `name`.
-        $this->seedTier1('item_types', ItemType::class, ['dashboard_group']);
+        $this->seedTier1('item_types', ItemType::class, ['abbreviation', 'dashboard_group']);
         $this->seedTier1('brands', Brand::class);
         $this->seedTier1('equipment_categories', EquipmentCategory::class);
         $this->seedTier1('equipment_classifications', EquipmentClassification::class, ['default_gl_sl_code', 'default_uacs', 'default_useful_life']);

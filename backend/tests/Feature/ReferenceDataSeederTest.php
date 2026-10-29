@@ -55,14 +55,14 @@ class ReferenceDataSeederTest extends TestCase
     private static function expectedTier2Counts(): array
     {
         return [
-            EquipmentLibrary::class => 60,
+            EquipmentLibrary::class => 64,
             PersonnelLibrary::class => 27,
             StakeholderLibrary::class => 49,
             ConnectivityLibrary::class => 42,
         ];
     }
 
-    public function test_fresh_run_inserts_every_row_across_all_13_tables_summing_to_677(): void
+    public function test_fresh_run_inserts_every_row_across_all_13_tables_summing_to_681(): void
     {
         $this->seed(ReferenceDataSeeder::class);
 
@@ -73,7 +73,7 @@ class ReferenceDataSeederTest extends TestCase
             $total += $expected;
         }
 
-        $this->assertSame(677, $total);
+        $this->assertSame(681, $total);
     }
 
     public function test_school_level_coverage_lands_in_connectivity_libraries_not_stakeholder_libraries(): void
