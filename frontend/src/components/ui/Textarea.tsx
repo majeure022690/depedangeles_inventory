@@ -12,7 +12,7 @@ interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ label, error, hint, id, className, rows = 3, 'aria-describedby': describedBy, 'aria-invalid': ariaInvalid, ...props }, ref) => {
+  ({ label, error, hint, id, className, rows = 3, required, 'aria-describedby': describedBy, 'aria-invalid': ariaInvalid, ...props }, ref) => {
     const generatedId = useId()
     const textareaId = id ?? props.name ?? generatedId
     const invalid = isInvalid(error, ariaInvalid)
@@ -22,6 +22,11 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {label && (
           <label htmlFor={textareaId} className="mb-1 block text-sm font-medium text-gray-700">
             <FieldLabelText label={label} />
+            {required && (
+              <span aria-hidden="true" className="ml-0.5 text-error-600">
+                *
+              </span>
+            )}
           </label>
         )}
         <textarea
@@ -30,6 +35,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           rows={rows}
           aria-describedby={idList(describedBy, hint && !error && `${textareaId}-description`, error && `${textareaId}-error`)}
           aria-invalid={invalid || undefined}
+          required={required}
           className={cn(
             'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900',
             'focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500',

@@ -1,11 +1,12 @@
 import { ArrowLeft, Wifi } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { IspAccountFields } from '@/components/isp-accounts/IspAccountFields'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
-import { Card, CardContent } from '@/components/ui/Card'
+import { Card } from '@/components/ui/Card'
+import { TabPanel, Tabs, type TabItem } from '@/components/ui/Tabs'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { hasAllScope } from '@/lib/dataScope'
@@ -13,9 +14,34 @@ import { extractError, extractFieldErrors, isValidationError, type FieldErrors }
 import { emptyIspAccountForm, ispAccountService } from '@/services/ispAccountService'
 import type { IspAccountFormData, IspAccountOptions } from '@/types/isp-account'
 
+type TabId = 'provider' | 'billing' | 'coverage' | 'acquisition'
+
+const TABS_ID = 'isp-account-create'
+const ISP_TABS: { value: TabId; label: string }[] = [
+  { value: 'provider', label: 'Provider & Billing' },
+  { value: 'billing', label: 'Subscription & Contract' },
+  { value: 'coverage', label: 'Coverage & Speed' },
+  { value: 'acquisition', label: 'Quality & Acquisition' },
+]
+
+function isIspTab(value: string | null): value is TabId {
+  return value === 'provider' || value === 'billing' || value === 'coverage' || value === 'acquisition'
+}
+
+function errorCount(tabId: TabId, errors: FieldErrors): number {
+  const fieldsByTab: Record<TabId, (keyof IspAccountFormData)[]> = {
+    provider: ['isp_provider_id', 'office_id', 'isp_billing_account_no', 'cost_per_month', 'package_purchased_inclusion', 'fund_source'],
+    billing: ['subscription_type', 'isp_connection_type', 'contract_start_date', 'contract_end_date', 'inactive_contract', 'donor', 'purpose_of_subscription'],
+    coverage: ['school_area_coverage', 'min_speed', 'max_speed', 'number_access_points_linked', 'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas', 'number_classrooms_covered', 'rate_connectivity_classroom'],
+    acquisition: ['mode_of_acquisition', 'source_of_acquisition', 'overall_signal_quality', 'rate_isp_service'],
+  }
+  return fieldsByTab[tabId].filter((field) => !!errors[field]).length
+}
+
 export function IspAccountCreate() {
   usePageTitle('Add ISP account')
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuth()
 
   const [options, setOptions] = useState<IspAccountOptions | null>(null)
@@ -27,6 +53,24 @@ export function IspAccountCreate() {
   const [errors, setErrors] = useState<FieldErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const requestedTab = searchParams.get('tab')
+  const tab = isIspTab(requestedTab) ? requestedTab : ISP_TABS[0].value
+
+  const selectTab = useCallback(
+    (next: string) => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev)
+          if (next === ISP_TABS[0].value) params.delete('tab')
+          else params.set('tab', next)
+          return params
+        },
+        { replace: true },
+      )
+    },
+    [setSearchParams],
+  )
 
   useEffect(() => {
     ispAccountService
@@ -57,37 +101,42 @@ export function IspAccountCreate() {
     }
   }
 
+  const tabs: TabItem[] = ISP_TABS.map((t) => ({ value: t.value, label: t.label, errorCount: errorCount(t.value, errors) }))
+
   return (
-    <div>
-      <div className="mb-4 flex min-w-0 items-start gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/isp-accounts')} aria-label="Back to ISP accounts" className="mt-1.5">
+    <div className="min-w-0">
+      <div className="mb-4 flex items-start gap-3">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/isp-accounts')} aria-label="Back to ISP accounts" className="mt-0.5">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700" aria-hidden="true">
           <Wifi className="h-6 w-6" />
         </span>
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900">Add ISP account</h1>
-          <p className="text-sm text-gray-600">Register a new internet service subscription.</p>
+          <h1 className="text-xl font-bold text-gray-900">Add ISP account</h1>
+          <p className="text-sm text-gray-600">
+            Register a new internet service subscription. Fields marked <span aria-hidden="true" className="text-error-600">*</span>
+            <span className="sr-only">with an asterisk</span> are required.
+          </p>
         </div>
       </div>
 
-      {optionsError && (
-        <Alert type="error" className="mb-4">
-          <span role="alert">{optionsError}</span>
-        </Alert>
-      )}
-      {errorMessage && (
-        <Alert type="error" className="mb-4">
-          <span role="alert">{errorMessage}</span>
-        </Alert>
-      )}
+      <form onSubmit={handleSubmit} noValidate aria-label="Add ISP account" className="space-y-4">
+        <div role="alert" className="space-y-2 empty:hidden">
+          {optionsError && <Alert type="error">{optionsError}</Alert>}
+          {errorMessage && <Alert type="error">{errorMessage}</Alert>}
+        </div>
 
-      <form noValidate onSubmit={handleSubmit} aria-label="Add ISP account">
+        <div>
+          <Tabs id={TABS_ID} label="ISP account sections" tabs={tabs} value={tab} onChange={selectTab} />
+          {ISP_TABS.map((t) => (
+            <TabPanel key={t.value} tabsId={TABS_ID} value={t.value} active={tab === t.value}>
+              <IspAccountFields section={t.value} form={form} onChange={setField} options={options?.form ?? null} errors={errors} disabled={saving} />
+            </TabPanel>
+          ))}
+        </div>
+
         <Card>
-          <CardContent className="p-0">
-            <IspAccountFields form={form} onChange={setField} options={options?.form ?? null} errors={errors} disabled={saving} />
-          </CardContent>
           <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-3">
             <Button variant="outline" onClick={() => navigate('/isp-accounts')} disabled={saving}>
               Cancel

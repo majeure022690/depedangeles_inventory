@@ -20,7 +20,7 @@ interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'chi
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, error, hint, options, placeholder, id, className, 'aria-describedby': describedBy, 'aria-invalid': ariaInvalid, ...props }, ref) => {
+  ({ label, error, hint, options, placeholder, id, className, required, 'aria-describedby': describedBy, 'aria-invalid': ariaInvalid, ...props }, ref) => {
     const generatedId = useId()
     const selectId = id ?? props.name ?? generatedId
     const invalid = isInvalid(error, ariaInvalid)
@@ -30,6 +30,11 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         {label && (
           <label htmlFor={selectId} className="mb-1 block text-sm font-medium text-gray-700">
             <FieldLabelText label={label} />
+            {required && (
+              <span aria-hidden="true" className="ml-0.5 text-error-600">
+                *
+              </span>
+            )}
           </label>
         )}
         <div className="relative">
@@ -38,6 +43,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             id={selectId}
             aria-describedby={idList(describedBy, hint && !error && `${selectId}-description`, error && `${selectId}-error`)}
             aria-invalid={invalid || undefined}
+            required={required}
             className={cn(
               'w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2 pr-9 text-sm text-gray-900',
               'focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500',
