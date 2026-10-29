@@ -5,7 +5,7 @@ import { DetailSection } from '@/components/ui/DetailSection'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Switch } from '@/components/ui/Switch'
-import { TabButton, TabGroup } from '@/components/ui/TabGroup'
+import { TabPanel, Tabs, type TabItem } from '@/components/ui/Tabs'
 import { Textarea } from '@/components/ui/Textarea'
 import { useAuth } from '@/context/AuthContext'
 import { hasAllScope, SCOPE_LOCK_HINT } from '@/lib/dataScope'
@@ -25,6 +25,8 @@ interface IspAccountFieldsProps {
 
 type TabId = 'provider' | 'billing' | 'coverage' | 'acquisition'
 
+const TABS_ID = 'isp-account-form'
+
 /** The ISP account form body (shared by create and edit), organized into tabs. */
 export function IspAccountFields({ form, onChange, options, errors, disabled = false, current }: IspAccountFieldsProps) {
   const [activeTab, setActiveTab] = useState<TabId>('provider')
@@ -43,35 +45,28 @@ export function IspAccountFields({ form, onChange, options, errors, disabled = f
     onChange: (e: { target: { value: string } }) => onChange(field, e.target.value as never),
   })
 
-  const hasErrors = (tabId: TabId): boolean => {
+  const errorCount = (tabId: TabId): number => {
     const fieldsByTab: Record<TabId, (keyof IspAccountFormData)[]> = {
       provider: ['isp_provider_id', 'office_id', 'isp_billing_account_no', 'cost_per_month', 'package_purchased_inclusion', 'fund_source'],
       billing: ['subscription_type', 'isp_connection_type', 'contract_start_date', 'contract_end_date', 'inactive_contract', 'donor', 'purpose_of_subscription'],
       coverage: ['school_area_coverage', 'min_speed', 'max_speed', 'number_access_points_linked', 'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas', 'number_classrooms_covered', 'rate_connectivity_classroom'],
       acquisition: ['mode_of_acquisition', 'source_of_acquisition', 'overall_signal_quality', 'rate_isp_service'],
     }
-    return fieldsByTab[tabId].some((field) => !!errors[field])
+    return fieldsByTab[tabId].filter((field) => !!errors[field]).length
   }
+
+  const tabs: TabItem[] = [
+    { value: 'provider', label: 'Provider & Billing', errorCount: errorCount('provider') },
+    { value: 'billing', label: 'Subscription & Contract', errorCount: errorCount('billing') },
+    { value: 'coverage', label: 'Coverage & Speed', errorCount: errorCount('coverage') },
+    { value: 'acquisition', label: 'Quality & Acquisition', errorCount: errorCount('acquisition') },
+  ]
 
   return (
     <>
-      <TabGroup className="border-b border-gray-200 px-5">
-        <TabButton active={activeTab === 'provider'} onClick={() => setActiveTab('provider')} hasError={hasErrors('provider')}>
-          Provider & Billing
-        </TabButton>
-        <TabButton active={activeTab === 'billing'} onClick={() => setActiveTab('billing')} hasError={hasErrors('billing')}>
-          Subscription & Contract
-        </TabButton>
-        <TabButton active={activeTab === 'coverage'} onClick={() => setActiveTab('coverage')} hasError={hasErrors('coverage')}>
-          Coverage & Speed
-        </TabButton>
-        <TabButton active={activeTab === 'acquisition'} onClick={() => setActiveTab('acquisition')} hasError={hasErrors('acquisition')}>
-          Quality & Acquisition
-        </TabButton>
-      </TabGroup>
+      <Tabs id={TABS_ID} tabs={tabs} value={activeTab} onChange={(value) => setActiveTab(value as TabId)} className="px-5" />
 
-      {activeTab === 'provider' && (
-        <>
+      <TabPanel tabsId={TABS_ID} value="provider" active={activeTab === 'provider'}>
           <DetailSection icon={<Receipt className="h-4 w-4" />} title="Provider information">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Select {...text('isp_provider_id')} label="ISP provider" placeholder="Select an ISP" options={options?.isp_provider ?? []} required />
@@ -101,11 +96,9 @@ export function IspAccountFields({ form, onChange, options, errors, disabled = f
               <Select {...text('fund_source')} label="Source of funds" placeholder="Select a fund source" options={options?.source_of_funds ?? []} required />
             </div>
           </DetailSection>
-        </>
-      )}
+        </TabPanel>
 
-      {activeTab === 'billing' && (
-        <>
+      <TabPanel tabsId={TABS_ID} value="billing" active={activeTab === 'billing'}>
           <DetailSection icon={<FileText className="h-4 w-4" />} title="Subscription & contract">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Select {...text('subscription_type')} label="Subscription type" placeholder="Select a type" options={options?.subscription_type ?? []} required />
@@ -133,11 +126,9 @@ export function IspAccountFields({ form, onChange, options, errors, disabled = f
               <Input {...text('donor')} label="Donor (optional)" />
             </div>
           </DetailSection>
-        </>
-      )}
+        </TabPanel>
 
-      {activeTab === 'coverage' && (
-        <>
+      <TabPanel tabsId={TABS_ID} value="coverage" active={activeTab === 'coverage'}>
           <DetailSection icon={<Gauge className="h-4 w-4" />} title="Coverage & speed">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
@@ -158,11 +149,9 @@ export function IspAccountFields({ form, onChange, options, errors, disabled = f
               <Select {...text('rate_connectivity_classroom')} label="Classroom connectivity rating" placeholder="Select a rating" options={options?.signal_quality ?? []} required />
             </div>
           </DetailSection>
-        </>
-      )}
+        </TabPanel>
 
-      {activeTab === 'acquisition' && (
-        <>
+      <TabPanel tabsId={TABS_ID} value="acquisition" active={activeTab === 'acquisition'}>
           <DetailSection icon={<HandCoins className="h-4 w-4" />} title="Acquisition">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Select {...text('mode_of_acquisition')} label="Mode of acquisition" placeholder="Select a mode" options={options?.mode_of_acquisition ?? []} required />
@@ -176,8 +165,8 @@ export function IspAccountFields({ form, onChange, options, errors, disabled = f
               <Input {...text('rate_isp_service')} label="ISP service rating (1–5)" type="number" min="1" max="5" inputMode="numeric" required />
             </div>
           </DetailSection>
-        </>
-      )}
+        </TabPanel>
+      </>
     </>
   )
 }
