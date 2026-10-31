@@ -353,8 +353,6 @@ export function UserList() {
         },
       }),
     ],
-    // openEdit/confirmReset2fa only read state setters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   )
 

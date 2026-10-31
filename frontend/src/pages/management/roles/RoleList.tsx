@@ -270,8 +270,6 @@ export function RoleList() {
         ),
       }),
     ],
-    // openEdit only reads state setters and services.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [permissions.length, canEdit, canDelete],
   )
 

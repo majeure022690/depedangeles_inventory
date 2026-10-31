@@ -315,8 +315,6 @@ function ReferenceDataTableView({ table }: { table: string }) {
         ),
       }),
     ]
-    // openEdit only closes over state setters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTier1, typeLabels, hasAbbreviation, dashboardGroups, dashboardGroupLabels, hasClassificationDefaults])
 
   const noun = isTier1 ? 'entry' : 'library value'

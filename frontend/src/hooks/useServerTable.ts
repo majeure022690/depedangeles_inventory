@@ -73,7 +73,6 @@ export function useServerTable<T>(
       return
     }
     setPage(1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersKey])
 
   useEffect(() => {

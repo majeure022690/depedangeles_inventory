@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils'
 import type { PaginationMeta } from '@/types/api'
 
 declare module '@tanstack/table-core' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- augmentation must repeat the original type parameters
   interface ColumnMeta<in out TFeatures extends TableFeatures, in out TData extends RowData, TValue extends CellData = CellData> {
     align?: 'left' | 'center' | 'right'
     className?: string
@@ -39,6 +40,7 @@ declare module '@tanstack/table-core' {
 
 export const gridFeatures = tableFeatures({ columnVisibilityFeature, rowSortingFeature })
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- columns of mixed value types share one array
 export type GridColumn<T extends RowData> = ColumnDef<typeof gridFeatures, T, any>
 
 export function gridColumnHelper<T extends RowData>() {
