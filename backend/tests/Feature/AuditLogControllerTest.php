@@ -90,6 +90,7 @@ class AuditLogControllerTest extends TestCase
         $user = $this->userWithPermissions($permissions);
 
         $this->actingAs($user)->getJson('/api/audit-log')->assertForbidden();
+        $this->actingAs($user)->getJson('/api/audit-log?subject_type='.urlencode(User::class).'&subject_id='.$user->id)->assertForbidden();
         $this->actingAs($user)->getJson('/api/audit-log/options')->assertForbidden();
     }
 
@@ -204,6 +205,40 @@ class AuditLogControllerTest extends TestCase
         $this->assertNotContains($officeLog->id, $this->idsFor('?subject_type=Office'));
 
         $this->assertSame([$exact->id], $this->idsFor("?causer_id={$alice->id}"));
+    }
+
+    public function test_subject_type_and_subject_id_filter_to_one_records_history(): void
+    {
+        $target = Office::create(['office_name' => 'Target School']);
+        $other = Office::create(['office_name' => 'Other School']);
+        $user = User::factory()->create();
+        $targetLog = $this->record('office.probe', $target);
+        $otherLog = $this->record('office.probe', $other);
+        $sameIdOtherType = $this->record('user.probe', $user);
+        Activity::query()->whereKey($sameIdOtherType->id)->update(['subject_id' => $target->id]);
+
+        $ids = $this->idsFor('?subject_type='.urlencode(Office::class)."&subject_id={$target->id}");
+
+        $this->assertContains($targetLog->id, $ids);
+        $this->assertNotContains($otherLog->id, $ids);
+        $this->assertNotContains($sameIdOtherType->id, $ids);
+        $this->assertSame(
+            Activity::query()->where('subject_type', Office::class)->where('subject_id', $target->id)->orderByDesc('id')->pluck('id')->all(),
+            $ids,
+        );
+    }
+
+    public function test_subject_id_without_subject_type_is_ignored(): void
+    {
+        $target = Office::create(['office_name' => 'Target School']);
+        $other = Office::create(['office_name' => 'Other School']);
+        $targetLog = $this->record('office.probe', $target);
+        $otherLog = $this->record('office.probe', $other);
+
+        $ids = $this->idsFor("?subject_id={$target->id}");
+
+        $this->assertContains($targetLog->id, $ids);
+        $this->assertContains($otherLog->id, $ids);
     }
 
     public function test_date_range_is_inclusive_on_both_boundaries(): void

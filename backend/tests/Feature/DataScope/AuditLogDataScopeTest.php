@@ -261,6 +261,16 @@ class AuditLogDataScopeTest extends TestCase
         $this->assertEqualsCanonicalizing([$rows['in']['my personnel'], $rows['in']['personnel']], $ids);
     }
 
+    public function test_subject_id_filter_cannot_reach_a_record_outside_scope(): void
+    {
+        $actor = $this->auditor(DataScope::School, $this->office->id);
+        $rows = $this->recordSubjectRows();
+        [$inside, $outside] = $this->subjects['equipment'];
+
+        $this->assertSame([], $this->visibleIds($actor, '&subject_type='.urlencode(Equipment::class).'&subject_id='.$outside->getKey()));
+        $this->assertSame([$rows['in']['equipment']], $this->visibleIds($actor, '&subject_type='.urlencode(Equipment::class).'&subject_id='.$inside->getKey()));
+    }
+
     public function test_options_are_drawn_from_rows_within_reach(): void
     {
         $actor = $this->auditor(DataScope::School, $this->office->id);

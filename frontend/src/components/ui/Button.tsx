@@ -29,6 +29,17 @@ const sizes = {
   lg: 'text-base px-6 py-3 h-12',
 }
 
+export function buttonClasses(variant: NonNullable<ButtonProps['variant']> = 'primary', size: NonNullable<ButtonProps['size']> = 'md', className?: string): string {
+  return cn(
+    'inline-flex items-center justify-center rounded-md font-medium transition-colors',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+    variants[variant],
+    sizes[size],
+    variant !== 'link' && 'shadow-xs',
+    className,
+  )
+}
+
 export function Button({
   children,
   className,
@@ -47,16 +58,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={cn(
-        'inline-flex items-center justify-center rounded-md font-medium transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-        variants[variant],
-        sizes[size],
-        fullWidth && 'w-full',
-        isDisabled && 'opacity-60 cursor-not-allowed',
-        variant !== 'link' && 'shadow-xs',
-        className,
-      )}
+      className={buttonClasses(variant, size, cn(fullWidth && 'w-full', isDisabled && 'opacity-60 cursor-not-allowed', className))}
       disabled={isDisabled}
       {...props}
     >

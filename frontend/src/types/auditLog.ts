@@ -25,3 +25,14 @@ export interface AuditLogOptions {
   subject_types: { value: string; label: string }[]
   actors: { value: number; label: string }[]
 }
+
+/** `GET /api/audit-log` filters. `subject_id` is only honoured together with `subject_type`. */
+export type AuditLogFilters = {
+  search: string
+  event: string
+  subject_type: string
+  subject_id: string
+  causer_id: string
+  date_from: string
+  date_to: string
+}

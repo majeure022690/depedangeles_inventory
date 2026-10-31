@@ -4,18 +4,17 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Management;
 
-use App\Models\Equipment;
 use App\Models\EquipmentAttachment;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 class StoreEquipmentAttachmentRequest extends FormRequest
 {
-    public function authorize(): bool
+    public function authorize(): Response
     {
-        $equipment = $this->route('equipment');
-
-        return $equipment instanceof Equipment && $this->user()->can('update', $equipment);
+        return Gate::forUser($this->user())->inspect('update', $this->route('equipment'));
     }
 
     /**

@@ -140,7 +140,7 @@ Scanned documents and photos (PMP, PAR, ICS, delivery receipts, …) attached to
 - `file`: required, at most 5 MB (`EquipmentAttachment::MAX_KILOBYTES` = 5120), extension `pdf`, `jpg`, `jpeg`, `png` or `webp`.
 - `document_type`: required, one of `EquipmentAttachment::documentTypes()`: "Procurement Management Plan (PMP)" plus the active Tier 2 supporting-document types (the same list `/options` sends as `attachment_document_types`).
 - `document_no`: optional, max 255.
-- Authorized by the `update` policy on the record, so it needs `equipment.edit` and the record in the user's data scope. The `attachment-upload` limiter allows 30 uploads a minute per user.
+- Authorized by the `update` policy on the record, so it needs `equipment.edit` and the record in the user's data scope. An out-of-scope record is a **404**, the same as download, delete and the rest of the module: `StoreEquipmentAttachmentRequest::authorize()` returns the policy's `Response` (`Gate::inspect('update', …)`) rather than a bool, so the policy's `denyAsNotFound` survives. (Until 2026-10-31 it returned `can('update')` as a bool, which collapsed that into a 403 and confirmed the record existed.) The `attachment-upload` limiter allows 30 uploads a minute per user.
 
 **Storage** (`FileUploadService::storeDocument()`): files go on the private `local` disk (`storage/app/private`, never web-served) under `equipment-attachments/<equipment id>/<uuid>.<ext>`; the client filename is kept only as `original_filename` (truncated to 255) for display and the download name.
 
@@ -156,14 +156,21 @@ Scanned documents and photos (PMP, PAR, ICS, delivery receipts, …) attached to
 
 Soft-deleting the equipment leaves its attachments and files in place (the FK cascade only fires on a hard delete, which the API never does).
 
+Tests: `backend/tests/Feature/EquipmentAttachmentTest.php`.
+
+## Audit history
+
+A record's change history (create/update/delete, transactions, bundle and attachment events) is read through the [Audit Log](audit-log.md), not the equipment API: `GET /api/audit-log?subject_type=App\Models\Equipment&subject_id=<id>`. The edit page shows a "View audit history" link to `/audit-log?subject_type=…&subject_id=<id>` (built by `auditLogHref()` in `lib/auditLog.ts`) only when the user holds `audit_log.view`; the audit log's own data scoping still applies.
+
+History is **deliberately not embedded** in `GET /api/equipment/{id}`. Activity rows carry actor emails, `authorization.denied` attempts and raw before/after attribute diffs, which `equipment.view` holders (encoders, office staff) shouldn't see; `audit_log.view` is the permission that gates that exposure. The edit page's History tab is the accountability transaction log, a different thing.
+
 ## Frontend
 
 | Route | Page |
 |---|---|
 | `/equipment` | `pages/management/equipment/EquipmentList.tsx` |
 | `/equipment/new` | `pages/management/equipment/EquipmentCreate.tsx` (`equipment.create`) |
-| `/equipment/:id/edit` | `pages/management/equipment/EquipmentEdit.tsx` — record, QR image with print/download, transaction history and form |
-| `/equipment/:id/edit` | alias redirecting to the portal edit page (QR scans) |
+| `/equipment/:id/edit` | `pages/management/equipment/EquipmentEdit.tsx` — record, QR image with print/download, transaction history and form; also the URL printed on QR labels. Header actions: "View audit history" (`audit_log.view`, see [Audit history](#audit-history)) and Delete |
 
 Form body: `components/equipment/EquipmentFields.tsx`, split into the field spreadsheet's sections (`EQUIPMENT_FIELD_SECTIONS`, `c8e7073`): Equipment, Acquisition, Accountability, Status / Location, Documents. The create page shows those tabs (plus Peripherals for a bundle parent); the edit page adds Overview before them and Peripherals and History after. Required fields carry a red asterisk and `aria-required` (`FormField`'s `required` prop); a 422 opens the first tab with an error, and nested `accountability.*` errors keep their column (`extractFieldErrors(e, EQUIPMENT_NESTED_ERROR_FIELDS)`). On create the Accountability tab collects the initial transaction; on edit it shows the current holders read-only (moves go through History). On create its read-only Property number field shows a live preview: once item type and acquisition date are both set, `EquipmentCreate.tsx` calls the preview endpoint (debounced 300 ms, superseded requests aborted), and the field reads "Will be generated" until then or when the preview is `null`. History and transaction form: `components/equipment/TransactionLog.tsx`; API: `services/equipmentService.ts`; types: `types/equipment.ts`.
 
@@ -200,7 +207,7 @@ Attachments UI (`components/equipment/EquipmentAttachments.tsx`), rendered below
 - **Accountability sync guard.** `Equipment`'s `updating` hook throws `AccountabilitySyncRequiredException` if `current_accountable_officer_id`/`current_end_user_id` is dirty outside `Equipment::withAccountabilitySync()` — the closure `EquipmentAccountabilityService::recordTransaction()` runs inside. A controller (now or later) cannot drift the pointers out of sync with the log. The guard fires only on `UPDATE`, not `CREATE`: initial creation (factories, seeders, a future import) has no prior holder to reconcile.
 - **"Last transaction wins," always.** `current_*` is overwritten to match the new transaction, including `null` when the transaction names no one. No per-transaction-type branching, so the invariant stays trivial.
 - **`equipment.transactions.create` is its own permission**, separate from `equipment.edit`: reassigning accountability for a physical asset is more sensitive than editing its description. `encoder` holds both, but a role can hold one without the other.
-- **QR labels must outlive the URL scheme.** Labels encode `APP_URL/equipment/{id}/edit`. That path stayed valid through the SPA conversion via the backend redirect and the SPA alias. Don't change the observer's URL without a plan for already-printed labels.
+- **QR labels must outlive the URL scheme.** Labels encode `APP_URL/equipment/{id}/edit`. That path stayed valid through the SPA conversion via the backend route and the SPA's own `equipment/:id/edit` route. Don't change the observer's URL without a plan for already-printed labels.
 - **QR URLs come from `APP_URL`, never the request host.** The observer and the `/qr-code` fallback both use `Equipment::qrCodeUrl()`. Until 2026-10-23 the observer used `route('equipment.edit')`, which takes its host from the incoming request, so a spoofed `Host`/`X-Forwarded-Host` on a create request could store a foreign URL that then got printed on a physical label. That is a phishing vector which outlives any server-side fix. (For the same reason, trusted proxies now honour only `X-Forwarded-For` by default: see [`architecture.md`](../architecture.md#trusted-proxy-headers).)
 - **Existing rows: `php artisan equipment:regenerate-qr-codes`.** Run it once after deploying that change (see the README's Plesk steps), and again if `APP_URL` ever changes.
   - Without flags it's a dry run. It lists every row whose `qr_code` isn't `qrCodeUrl()`, soft-deleted rows included, as `#id property_no: old -> new`, and changes nothing.
@@ -214,5 +221,3 @@ Attachments UI (`components/equipment/EquipmentAttachments.tsx`), rendered below
 None blocking.
 
 - `EquipmentTransaction` has no factory; add one if transaction-focused test coverage grows.
-- Attachments have no dedicated feature test yet; only `Security/UnrelatedPermissionBoundaryTest` touches their routes.
-- Uploading to an out-of-scope record returns 403, not the module's usual 404, because `StoreEquipmentAttachmentRequest::authorize()` returns `can('update')` as a bool, which drops the policy's `denyAsNotFound`. Download and delete authorize in the controller and do return 404.

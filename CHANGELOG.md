@@ -2,6 +2,18 @@
 
 All notable changes to this project, in terms of user/developer impact. Entries up to 2026-07-15 were reconstructed from migration filename timestamps and source file modification times, before the project had git history; they are accurate to the day where backed by a migration timestamp, and entries reconstructed from file mtimes alone are noted as such. Later entries cite their commits.
 
+## 2026-10-31 — Per-record audit history, attachment upload 404
+
+On `iris-staging`, after `3688436`. No migrations. Covered by `backend/tests/Feature/{AuditLogControllerTest,DataScope/AuditLogDataScopeTest,EquipmentAttachmentTest}.php`.
+
+### Added
+- **Audit log filter by record.** `GET /api/audit-log` accepts `subject_id` (integer), applied only together with `subject_type` (the FQCN from `/api/audit-log/options` → `subject_types`) and ignored on its own. Still needs `audit_log.view` and stays inside the actor's data scope, so an out-of-scope record returns an empty page. See [`docs/features/audit-log.md`](docs/features/audit-log.md).
+- **Shareable audit log views.** The Audit Log page keeps every applied filter in the URL query string and shows a "Record: <Type> #<id>" chip for a record filter.
+- **"View audit history" on the equipment edit page**, shown only with `audit_log.view`, linking to `/audit-log?subject_type=App\Models\Equipment&subject_id=<id>`. History is deliberately not embedded in the equipment endpoint, which would expose actor emails and denied attempts to `equipment.view` holders. See [`docs/features/equipment.md`](docs/features/equipment.md#audit-history).
+
+### Fixed
+- **Uploading an attachment to an out-of-scope equipment record returns 404**, not 403, matching download, delete and the rest of the module. `StoreEquipmentAttachmentRequest::authorize()` now returns the policy `Response`, so `denyAsNotFound` is no longer collapsed into a 403 that confirmed the record existed. See [`docs/features/equipment.md`](docs/features/equipment.md#attachments).
+
 ## 2026-10-31 — ISP subscriber speeds, property-number preview, deploy cache steps
 
 On `iris-staging`; fixes forward commits `8688657`..`add45bb`. Migration `2026_10_31_000001` (on top of `2026_10_29_100015`). Covered by `backend/tests/Feature/{IspAccountControllerTest,EquipmentPropertyNumberTest}.php`.
@@ -43,6 +55,17 @@ Commits `b77afdf` (backend) and `c8e7073` (form tabs) on `iris-staging`; builds 
 
 ### Removed
 - **Peripheral renumbering.** `renumber_peripherals` on `PUT /api/equipment/{id}`, `renumberable_peripherals_count` on `EquipmentResource` (now `withOriginalBundle()`), the save-time renumber dialog and the `equipment.peripheral.renumbered` event, all added on 2026-10-28. A desktop's number can no longer change, so its peripherals' suffixes never need renaming. Creating a desktop with `peripherals[]` no longer needs a typed `property_no`.
+
+## 2026-10-29 — Item type abbreviations, equipment `used_by`, category/GL-SL correction
+
+Commit `d1e9998` on `iris-staging`, the groundwork for generated property numbers (next entry up). Migrations `2026_10_29_000001`-`000004`. Covered by `backend/tests/Feature/{CorrectEquipmentCategoryAndGlSlCodeMigrationTest,ReferenceDataSeederTest}.php`. See [`docs/features/reference-data.md`](docs/features/reference-data.md#item-type-abbreviations-and-classification-defaults).
+
+### Added
+- **`item_types.abbreviation`** (`2026_10_29_000001`): a nullable, unique 3-character code, filled by exact name for the workbook's 67 item types and audited once as `system.item_type_abbreviations_filled`. Also in `seeders/data/item_types.json`. (The API rule that requires a unique `[A-Z0-9]{3}` value came with `b77afdf`.)
+- **`equipment.used_by`** (`2026_10_29_000002`, nullable string) and its Tier 2 vocabulary, `EquipmentLibraryType::UsedBy` with Learner / Teacher / Teaching-Related / Non-Teaching (`2026_10_29_000003`, idempotent insert, audited as `system.reference_data_seeded`).
+
+### Fixed
+- **Equipment category and GL-SL code corrected from acquisition cost** (`2026_10_29_000004`): records costing 50,000 or more are set to High-value / `10605030`, below that to Low-value / `10405030`; records with no cost are left alone. Each changed row gets a `system.equipment_category_gl_corrected` activity row on the equipment with the old and new values. It does nothing if either category is missing, and `down()` is a no-op (the old values survive only in those audit rows).
 
 ## 2026-10-29 — Scheduled PRIME sync
 

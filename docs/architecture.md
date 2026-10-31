@@ -36,7 +36,7 @@ Adopted from rwatch as-is:
 
 `frontend/src/` mirrors `rwatch/frontend/src`:
 
-- `App.tsx` — the whole route table, every page lazy-loaded. `/` redirects to `/dashboard`; `/equipment/:id/edit` is the QR alias. `GoogleReCaptchaProvider` wraps only the `/login` route, so Google's reCAPTCHA script loads on the login page and nowhere else.
+- `App.tsx` — the whole route table, every page lazy-loaded. `/` redirects to `/dashboard`; `/equipment/:id/edit` is the equipment edit page and also the URL printed on QR labels (see [Equipment QR codes stay stable](#equipment-qr-codes-stay-stable)), so that path must never move. `GoogleReCaptchaProvider` wraps only the `/login` route, so Google's reCAPTCHA script loads on the login page and nowhere else.
 - `layouts/ManagementLayout.tsx` — sidebar (`NAV_GROUPS`), each item gated by a permission. The scoped items take their title and link from the user's `data_scope` (`lib/dataScope.ts`, which page titles use too):
 
   | Item | `own` | `school` | `all` |
@@ -198,7 +198,7 @@ Admin UI: [`features/audit-log.md`](features/audit-log.md).
 
 ## Equipment QR codes stay stable
 
-Printed QR labels encode `equipment.qr_code` (`APP_URL/equipment/{id}/edit`, set by `EquipmentObserver` via `Equipment::qrCodeUrl()`, which always uses `APP_URL` and never the request host) and are long-lived physical objects, so that URL must keep working forever. The web route `GET /equipment/{id}/edit` (`equipment.edit`, `backend/routes/web.php`, `SpaController::equipmentLabel`) serves the SPA document when a build is present at `config('app.spa_index')` (Plesk, single-origin), and the SPA route `equipment/:id/edit` handles it. Without a build (local dev), it 302-redirects to `FRONTEND_URL/equipment/{id}/edit`. That target is only ever the configured frontend origin, so it is not an open redirect. The SPA has an alias route for deployments where the frontend host receives the scan. That is also why `deploy/plesk.sh` fails if `index.html` is missing: same-origin, the redirect would point back at itself and loop. Stored `qr_code` values are only rewritten by the audited `equipment:regenerate-qr-codes` command, run by hand after review ([`features/equipment.md`](features/equipment.md#non-obvious-design-decisions)).
+Printed QR labels encode `equipment.qr_code` (`APP_URL/equipment/{id}/edit`, set by `EquipmentObserver` via `Equipment::qrCodeUrl()`, which always uses `APP_URL` and never the request host) and are long-lived physical objects, so that URL must keep working forever. The web route `GET /equipment/{id}/edit` (`equipment.edit`, `backend/routes/web.php`, `SpaController::equipmentLabel`) serves the SPA document when a build is present at `config('app.spa_index')` (Plesk, single-origin), and the SPA route `equipment/:id/edit` handles it. Without a build (local dev), it 302-redirects to `FRONTEND_URL/equipment/{id}/edit`. That target is only ever the configured frontend origin, so it is not an open redirect. If the frontend host receives the scan directly, the same SPA route handles it; there is no separate alias route. That is also why `deploy/plesk.sh` fails if `index.html` is missing: same-origin, the redirect would point back at itself and loop. Stored `qr_code` values are only rewritten by the audited `equipment:regenerate-qr-codes` command, run by hand after review ([`features/equipment.md`](features/equipment.md#non-obvious-design-decisions)).
 
 ## Three data-access patterns
 

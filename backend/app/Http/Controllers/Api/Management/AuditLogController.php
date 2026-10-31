@@ -27,7 +27,8 @@ use Spatie\Activitylog\Models\Activity;
  * Read-only browse of the append-only activity log. Nothing here ever
  * writes, edits or deletes a row, and no route for that exists.
  *
- * Filters are exact-match on whitelisted columns; `search` matches the
+ * Filters are exact-match on whitelisted columns (`subject_id` only applies
+ * together with `subject_type`); `search` matches the
  * description (the dotted action name, e.g. `equipment.updated`) or the
  * actor's name/email, live or as snapshotted when the row was written.
  *
@@ -61,6 +62,7 @@ class AuditLogController extends Controller
             ))
             ->when($request->filled('event'), fn ($query) => $query->where('event', $request->string('event')->toString()))
             ->when($request->filled('subject_type'), fn ($query) => $query->where('subject_type', $request->string('subject_type')->toString()))
+            ->when($request->filled(['subject_type', 'subject_id']), fn ($query) => $query->where('subject_id', $request->integer('subject_id')))
             ->when($request->filled('causer_id'), fn ($query) => $query->where('causer_id', $request->integer('causer_id')))
             ->when($request->date('date_from'), fn ($query, $from) => $query->whereDate('created_at', '>=', $from))
             ->when($request->date('date_to'), fn ($query, $to) => $query->whereDate('created_at', '<=', $to))

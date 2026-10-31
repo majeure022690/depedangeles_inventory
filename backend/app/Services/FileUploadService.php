@@ -38,7 +38,7 @@ class FileUploadService
             $this->reject($errorField, 'Only JPG, PNG, and WEBP images are accepted.');
         }
 
-        $realMimeType = (new \finfo(FILEINFO_MIME_TYPE))->file($file->getRealPath());
+        $realMimeType = @(new \finfo(FILEINFO_MIME_TYPE))->file($this->readablePath($file, $errorField));
 
         if (! in_array($realMimeType, self::ALLOWED_MIME_TYPES, true)) {
             $this->reject($errorField, 'The uploaded file is not a genuine JPG, PNG, or WEBP image.');
@@ -126,8 +126,9 @@ class FileUploadService
             return $this->storeImage($file, $disk, $directory, $errorField);
         }
 
-        $realMimeType = (new \finfo(FILEINFO_MIME_TYPE))->file($file->getRealPath());
-        $header = (string) file_get_contents($file->getRealPath(), false, null, 0, 5);
+        $path = $this->readablePath($file, $errorField);
+        $realMimeType = @(new \finfo(FILEINFO_MIME_TYPE))->file($path);
+        $header = (string) @file_get_contents($path, false, null, 0, 5);
 
         if ($realMimeType !== 'application/pdf' || $header !== '%PDF-') {
             $this->reject($errorField, 'The uploaded file is not a genuine PDF.');
@@ -150,6 +151,17 @@ class FileUploadService
             'path' => $path,
             'uploaded_at' => now(),
         ];
+    }
+
+    private function readablePath(UploadedFile $file, string $errorField): string
+    {
+        $path = $file->getRealPath();
+
+        if ($path === false || $path === '') {
+            $this->reject($errorField, 'The uploaded file could not be read.');
+        }
+
+        return $path;
     }
 
     private function reject(string $field, string $message): never

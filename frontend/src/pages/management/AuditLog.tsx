@@ -1,5 +1,6 @@
 import { Filter, RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -12,7 +13,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useServerTable } from '@/hooks/useServerTable'
 import { extractError } from '@/lib/errors'
 import { auditLogService } from '@/services/auditLogService'
-import type { AuditLogEntry, AuditLogOptions } from '@/types/auditLog'
+import type { AuditLogEntry, AuditLogFilters, AuditLogOptions } from '@/types/auditLog'
 
 const eventColors: Record<string, 'success' | 'primary' | 'error' | 'warning' | 'gray'> = {
   created: 'success',
@@ -100,21 +101,72 @@ function ChangeSummary({ entry }: { entry: AuditLogEntry }) {
   )
 }
 
-const emptyFilters = { search: '', event: '', subject_type: '', causer_id: '', date_from: '', date_to: '' }
+const emptyFilters: AuditLogFilters = { search: '', event: '', subject_type: '', subject_id: '', causer_id: '', date_from: '', date_to: '' }
 
-type FilterKey = keyof typeof emptyFilters
+type FilterKey = keyof AuditLogFilters
+
+const filterKeys = Object.keys(emptyFilters) as FilterKey[]
+
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const ID_PATTERN = /^\d+$/
+
+function filtersFromParams(params: URLSearchParams): AuditLogFilters {
+  const read = (key: FilterKey) => params.get(key)?.trim() ?? ''
+  const subjectType = read('subject_type')
+  const subjectId = read('subject_id')
+  const causerId = read('causer_id')
+  const dateFrom = read('date_from')
+  const dateTo = read('date_to')
+  return {
+    search: read('search'),
+    event: read('event'),
+    subject_type: subjectType,
+    subject_id: subjectType && ID_PATTERN.test(subjectId) ? subjectId : '',
+    causer_id: ID_PATTERN.test(causerId) ? causerId : '',
+    date_from: DATE_PATTERN.test(dateFrom) ? dateFrom : '',
+    date_to: DATE_PATTERN.test(dateTo) ? dateTo : '',
+  }
+}
+
+function basename(fqcn: string): string {
+  return fqcn.split('\\').pop() || fqcn
+}
 
 export function AuditLog() {
   usePageTitle('Audit Log')
 
-  const [search, setSearch] = useState('')
-  const [event, setEvent] = useState('')
-  const [subjectType, setSubjectType] = useState('')
-  const [causerId, setCauserId] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
-  // Fallback name for the "By" chip/picker when the shortcut's actor isn't in `options.actors`.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const appliedFilters = useMemo(() => filtersFromParams(searchParams), [searchParams])
+
+  const [search, setSearch] = useState(appliedFilters.search)
+  const [event, setEvent] = useState(appliedFilters.event)
+  const [subjectType, setSubjectType] = useState(appliedFilters.subject_type)
+  const [causerId, setCauserId] = useState(appliedFilters.causer_id)
+  const [dateFrom, setDateFrom] = useState(appliedFilters.date_from)
+  const [dateTo, setDateTo] = useState(appliedFilters.date_to)
+
+  useEffect(() => {
+    setSearch(appliedFilters.search)
+    setEvent(appliedFilters.event)
+    setSubjectType(appliedFilters.subject_type)
+    setCauserId(appliedFilters.causer_id)
+    setDateFrom(appliedFilters.date_from)
+    setDateTo(appliedFilters.date_to)
+  }, [appliedFilters])
+
+  function setAppliedFilters(next: AuditLogFilters) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev)
+        for (const key of filterKeys) {
+          if (next[key]) params.set(key, next[key])
+          else params.delete(key)
+        }
+        return params
+      },
+      { replace: true },
+    )
+  }
 
   const { items: entries, meta, loading, error, page, setPage, perPage, setPerPage } = useServerTable(
     (params) => auditLogService.list(params),
@@ -131,10 +183,18 @@ export function AuditLog() {
       .catch((loadError: unknown) => setOptionsError(extractError(loadError, 'Unable to load the filter options.')))
   }, [])
 
-  const draftFilters = { search, event, subject_type: subjectType, causer_id: causerId, date_from: dateFrom, date_to: dateTo }
+  const draftFilters: AuditLogFilters = {
+    search,
+    event,
+    subject_type: subjectType,
+    subject_id: subjectType === appliedFilters.subject_type ? appliedFilters.subject_id : '',
+    causer_id: causerId,
+    date_from: dateFrom,
+    date_to: dateTo,
+  }
   const dirty = JSON.stringify(draftFilters) !== JSON.stringify(appliedFilters)
 
-  function syncDraft(next: typeof emptyFilters) {
+  function syncDraft(next: AuditLogFilters) {
     setSearch(next.search)
     setEvent(next.event)
     setSubjectType(next.subject_type)
@@ -153,15 +213,14 @@ export function AuditLog() {
   }
 
   function removeFilter(key: FilterKey) {
-    const next = { ...appliedFilters, [key]: '' }
+    const next = { ...appliedFilters, [key]: '', ...(key === 'subject_type' ? { subject_id: '' } : {}) }
     setAppliedFilters(next)
     syncDraft(next)
   }
 
   const [selected, setSelected] = useState<AuditLogEntry | null>(null)
 
-
-  const subjectLabel = (fqcn: string) => options.subject_types.find((s) => s.value === fqcn)?.label ?? fqcn
+  const subjectLabel = (fqcn: string) => options.subject_types.find((s) => s.value === fqcn)?.label ?? basename(fqcn)
 
   const actorPickerOptions = useMemo(
     () => options.actors.map((a) => ({ label: a.label, value: String(a.value) })),
@@ -174,10 +233,11 @@ export function AuditLog() {
     { key: 'search' as const, label: `Search: ${appliedFilters.search}`, removable: true },
     { key: 'event' as const, label: humanize(appliedFilters.event), removable: true },
     { key: 'subject_type' as const, label: subjectLabel(appliedFilters.subject_type), removable: true },
+    { key: 'subject_id' as const, label: `Record: ${subjectLabel(appliedFilters.subject_type)} #${appliedFilters.subject_id}`, removable: true },
     { key: 'causer_id' as const, label: `By ${actorLabel(appliedFilters.causer_id)}`, removable: true },
     { key: 'date_from' as const, label: `From ${appliedFilters.date_from}`, removable: true },
     { key: 'date_to' as const, label: `Until ${appliedFilters.date_to}`, removable: true },
-  ].filter((chip) => appliedFilters[chip.key] !== '')
+  ].filter((chip) => appliedFilters[chip.key] !== '' && !(chip.key === 'subject_type' && appliedFilters.subject_id !== ''))
 
   const columns = useMemo<GridColumn<AuditLogEntry>[]>(
     () => [

@@ -2,14 +2,14 @@
 
 ## Purpose
 
-Every dropdown/reference list in the app — item types, brands, equipment categories/classifications/conditions, positions, RO/SDO offices, ISP providers, and 26 smaller closed vocabularies (units of measure, disposition statuses, name suffixes, signal-quality ratings, ...) — originally sourced from the "Referential Data" sheets of the Excel workbook this system replaces.
+Every dropdown/reference list in the app — item types, brands, equipment categories/classifications/conditions, positions, RO/SDO offices, ISP providers, and 27 smaller closed vocabularies (units of measure, disposition statuses, name suffixes, signal-quality ratings, ...) — originally sourced from the "Referential Data" sheets of the Excel workbook this system replaces.
 
 This superseded the original single generic `lookups` table (35 types discriminated by `App\Enums\LookupType`), which is gone from the codebase and the database. The full reasoning is in the [lookup-normalization ADR](../architecture-decisions/lookup-normalization.md); this doc covers the system as it exists now. The SPA conversion changed only the transport (JSON endpoints instead of Inertia props), not the tiers or rules.
 
 ## Architecture
 
-- **Tier 1 — 9 dedicated tables with real FKs** for concepts that are large, reused, or filtered/reported on: `item_types`, `brands`, `equipment_categories`, `equipment_classifications`, `equipment_conditions`, `positions`, `ro_offices`, `sdo_offices`, `isp_providers`. Shape: `id`, `name` (unique), `description`, `sort_order`, `is_active`, timestamps. Consumers hold `_id` FKs (`restrictOnDelete`) and read the name through `belongsTo`.
-- **Tier 2 — 4 domain-grouped library tables** for the 26 small vocabularies: `equipment_libraries`, `personnel_libraries`, `stakeholder_libraries`, `connectivity_libraries`, each discriminated by `type` (enums `EquipmentLibraryType`, `PersonnelLibraryType`, `StakeholderLibraryType`, `ConnectivityLibraryType`). Consumers store the `value` string, validated with `Rule::in()`.
+- **Tier 1 — 9 dedicated tables with real FKs** for concepts that are large, reused, or filtered/reported on: `item_types`, `brands`, `equipment_categories`, `equipment_classifications`, `equipment_conditions`, `positions`, `ro_offices`, `sdo_offices`, `isp_providers`. Shape: `id`, `name` (unique), `description`, `sort_order`, `is_active`, timestamps. Consumers hold `_id` FKs (`restrictOnDelete`) and read the name through `belongsTo`. Extra columns: `item_types.abbreviation` and `dashboard_group`; `equipment_classifications.default_uacs`, `default_useful_life` (and the retired `default_gl_sl_code`, see [Item type abbreviations and classification defaults](#item-type-abbreviations-and-classification-defaults)).
+- **Tier 2 — 4 domain-grouped library tables** for the 27 small vocabularies: `equipment_libraries`, `personnel_libraries`, `stakeholder_libraries`, `connectivity_libraries`, each discriminated by `type` (enums `EquipmentLibraryType`, `PersonnelLibraryType`, `StakeholderLibraryType`, `ConnectivityLibraryType`). Consumers store the `value` string, validated with `Rule::in()`.
 - **JSON-array multi-select columns** (e.g. `StakeholderProfile.nearby_institutions`, `InternetConnectivitySurvey.available_isps`, `Personnel.fund_source`) store referenced row **ids**, validated per element; no pivot tables.
 - **`config/reference-data.php`** is the single registry: one entry per table, keyed by the URL segment (`item-types`, `equipment-libraries`, ...), with `label`, `model`, `tier`, and `type_enum` for Tier 2. `ReferenceDataController`, its Form Requests and `App\Services\ReferenceDataResolver` read it instead of hard-coding 13 routes.
 - **`App\Policies\ReferenceDataPolicy`** — one shared Policy bound to all 13 models in `AppServiceProvider::registerReferenceDataPolicies()` (auto-discovery only finds `{Model}Policy`). Every ability is the same `reference-data.manage` check.
@@ -23,6 +23,12 @@ Each resource's `GET /api/<resource>/options` builds its own dropdowns via `Api\
 - Tier 2: `{value: string, label: string}` (`libraryOptions()`).
 - Tier 2 backing a JSON-array column: `{value: id, label: value}` (`libraryOptionsById()`).
 
+### Item type abbreviations and classification defaults
+
+- **`item_types.abbreviation`** — exactly three uppercase letters or digits (`[A-Z0-9]{3}`), unique, used as the `<ABV>` segment of generated equipment property numbers (`AC-<YYYY>-IT-<ABV>-<NNNNNN>`, see [`equipment.md`](equipment.md#property-numbers)). Migration `2026_10_29_000001` (`d1e9998`) added the column as nullable-unique and filled the workbook's 67 known item types by exact name (e.g. Laptop `LPT`, Desktop (package) `DST`), writing one `system.item_type_abbreviations_filled` audit row. It stays nullable in the schema so a row the migration couldn't match doesn't block the deploy, but an item type with no abbreviation can't be used to create equipment, and the API now requires one: on create (`required`), and on update it may be omitted but never blanked (`sometimes|required`). The rule lives in `StoreReferenceDataRequest::abbreviationRules()`, shared with the update request. Changing an abbreviation later doesn't rewrite existing property numbers; new records continue whatever series already exists under the new abbreviation (the series is keyed by abbreviation, not by item type).
+- **`UsedBy` (`used_by`) equipment library type** — values Learner, Teacher, Teaching-Related, Non-Teaching, seeded by migration `2026_10_29_000003` (`d1e9998`, idempotent `insertOrIgnore`, audited as `system.reference_data_seeded`) and in `seeders/data/equipment_libraries.json`. It backs the required `equipment.used_by` string column (`2026_10_29_000002`), and `ReferenceDataResolver::guardDeletable()` refuses to delete a value still on any equipment.
+- **`equipment_classifications.default_gl_sl_code` is retired.** Equipment's GL-SL code is now derived from acquisition cost alongside the High-/Low-value category (see [`equipment.md`](equipment.md#derived-fields)), so the classification default is no longer accepted by the Form Requests, returned by `ReferenceDataRowResource` or shown in the SPA (since `b77afdf`). The column and the model's fillable entry remain, so existing values are still in the database and in old audit rows; `default_uacs` and `default_useful_life` are still editable and still pre-fill equipment.
+
 ## Permission: `reference-data.manage`
 
 One umbrella permission for all 13 tables, admin-only by seed. They are one low-stakes kind of admin capability; splitting it into 13 permissions would add nothing. Successor to the old `lookups.manage`.
@@ -35,18 +41,18 @@ Controller: `Api\Management\ReferenceDataController`; every route carries `permi
 |---|---|---|
 | `GET /api/reference-data` | permission string | `{data: {tables: [{key, label, tier, row_count}], office_count}}` — `office_count` only feeds the "Institutional data → Offices" card (Office is not one of the 13) |
 | `GET /api/reference-data/{table}?search&type&per_page` | `viewAny` | paginated `ReferenceDataRowResource` plus `meta.table = {key, label, tier, types: {value, label}[] | null}`. `search` matches name/value or description; `type` filters Tier 2. |
-| `POST /api/reference-data/{table}` | `create` (Form Request) | `StoreReferenceDataRequest` → row, 201. Tier 1: `name` (required, unique), Tier 2: `type` (enum) + `value` (unique within type); both: `description`, `sort_order` (default 0), `is_active` (default true). |
-| `PATCH /api/reference-data/{table}/{id}` | `update` | `UpdateReferenceDataRequest`: `description`, `sort_order` and `is_active` required; Tier 1 also `name`. Tier 2 `type`/`value` are never accepted. |
+| `POST /api/reference-data/{table}` | `create` (Form Request) | `StoreReferenceDataRequest` → row, 201. Tier 1: `name` (required, unique), Tier 2: `type` (enum) + `value` (unique within type); both: `description`, `sort_order` (default 0), `is_active` (default true). Item types also take `abbreviation` (required) and `dashboard_group` (nullable enum); classifications `default_uacs` and `default_useful_life` (both nullable). |
+| `PATCH /api/reference-data/{table}/{id}` | `update` | `UpdateReferenceDataRequest`: `description`, `sort_order` and `is_active` required; Tier 1 also `name`; item types `abbreviation` (optional, but can't be blanked) and `dashboard_group`; classifications the two defaults. Tier 2 `type`/`value` are never accepted. |
 | `DELETE /api/reference-data/{table}/{id}` | `delete` | 204, or **409** `"This value is still in use and cannot be deleted — deactivate it instead."` |
 
-**`ReferenceDataRowResource`:** Tier 1 `{id, name, description, sort_order, is_active}`; Tier 2 `{id, type, value, description, sort_order, is_active}`.
+**`ReferenceDataRowResource`:** Tier 1 `{id, name, description, sort_order, is_active}`, plus `abbreviation` and `dashboard_group` on item types and `default_uacs` and `default_useful_life` on classifications; Tier 2 `{id, type, value, description, sort_order, is_active}`.
 
 ## Frontend
 
 | Route | Page |
 |---|---|
 | `/reference-data` | `pages/management/reference-data/ReferenceDataIndex.tsx` — Tier 1 / Tier 2 grid plus the "Institutional data → Offices" card (`office.view`) |
-| `/reference-data/:table` | `pages/management/reference-data/ReferenceDataTable.tsx` — list with create/edit dialog, Tier 2 `type` filter, 409 message on in-use delete |
+| `/reference-data/:table` | `pages/management/reference-data/ReferenceDataTable.tsx` — list with create/edit dialog, Tier 2 `type` filter, 409 message on in-use delete; item types add an Abbreviation column and field (uppercased as typed), classifications their UACS/useful-life defaults |
 
 API: `services/referenceDataService.ts`; types: `types/reference-data.ts`.
 

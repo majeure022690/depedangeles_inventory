@@ -1,4 +1,4 @@
-import { ArrowLeft, Download, Info, Printer, Tag, Trash2, Unplug, UserRound } from 'lucide-react'
+import { ArrowLeft, Download, History, Info, Printer, Tag, Trash2, Unplug, UserRound } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
@@ -16,7 +16,7 @@ import {
 import { TransactionLog } from '@/components/equipment/TransactionLog'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
+import { Button, buttonClasses } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DetailSection } from '@/components/ui/DetailSection'
@@ -24,6 +24,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { TabPanel, Tabs, type TabItem } from '@/components/ui/Tabs'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { auditLogHref, EQUIPMENT_SUBJECT_TYPE } from '@/lib/auditLog'
 import { scopedTitle } from '@/lib/dataScope'
 import { BUNDLE_PARENT_ITEMS, PERIPHERAL_ITEMS } from '@/lib/equipmentBundles'
 import { extractError, extractFieldErrors, extractLoadError, isNotFound, OUT_OF_REACH_MESSAGE, type FieldErrors } from '@/lib/errors'
@@ -46,6 +47,7 @@ export function EquipmentEdit() {
   const canDelete = can('equipment.delete')
   const canRecord = can('equipment.transactions.create')
   const canCreate = can('equipment.create')
+  const canViewAudit = can('audit_log.view')
 
   const [equipment, setEquipment] = useState<Equipment | null>(null)
   const [loading, setLoading] = useState(true)
@@ -217,11 +219,22 @@ export function EquipmentEdit() {
             </p>
           </div>
         </div>
-        {canDelete && (
+        {(canViewAudit || canDelete) && (
           <div className="page-actions">
-            <Button variant="outline" size="sm" leftIcon={<Trash2 className="h-4 w-4 text-error-600" />} onClick={() => setDeleteOpen(true)}>
-              Delete
-            </Button>
+            {canViewAudit && (
+              <Link
+                to={auditLogHref(EQUIPMENT_SUBJECT_TYPE, equipment.id)}
+                className={buttonClasses('outline', 'sm')}
+              >
+                <History className="mr-2 h-4 w-4" aria-hidden="true" />
+                View audit history
+              </Link>
+            )}
+            {canDelete && (
+              <Button variant="outline" size="sm" leftIcon={<Trash2 className="h-4 w-4 text-error-600" />} onClick={() => setDeleteOpen(true)}>
+                Delete
+              </Button>
+            )}
           </div>
         )}
       </div>
