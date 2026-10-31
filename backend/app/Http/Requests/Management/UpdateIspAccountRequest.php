@@ -4,23 +4,19 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Management;
 
-use App\Enums\ConnectivityLibraryType;
-use App\Enums\EquipmentLibraryType;
 use App\Http\Requests\Management\Concerns\RestrictsScopedAssignments;
-use App\Models\ConnectivityLibrary;
-use App\Models\EquipmentLibrary;
+use App\Http\Requests\Management\Concerns\ValidatesIspAccountFields;
 use App\Models\IspAccount;
 use Closure;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class UpdateIspAccountRequest extends FormRequest
 {
-    use RestrictsScopedAssignments;
+    use RestrictsScopedAssignments, ValidatesIspAccountFields;
 
     public function authorize(): Response
     {
@@ -28,61 +24,13 @@ class UpdateIspAccountRequest extends FormRequest
     }
 
     /**
-     * Identical rule set to StoreIspAccountRequest — unlike Equipment's
-     * property_no, isp_billing_account_no is deliberately not unique (see
-     * the create_isp_accounts_table migration's SCHEMA DECISION comment),
-     * so there's no ignore() rule to add on update.
-     *
-     * See StoreIspAccountRequest's doc-comment for the Tier 1/Tier 2 split
-     * rationale (lookup-normalization ADR, Step 2+3 — IspAccount only).
-     *
-     * REQUIRED FIELDS: Aligned with spreadsheet validation requirements.
-     * Now required: min_speed, max_speed, contract_start_date,
-     * contract_end_date, number_access_points_linked,
-     * number_admin_area_covered, number_classrooms_covered,
-     * rate_connectivity_classroom, rate_isp_service.
-     *
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         return [
-            'isp_provider_id' => ['required', 'integer', Rule::exists('isp_providers', 'id')->where('is_active', true)],
+            ...$this->ispAccountRules(),
             'office_id' => ['nullable', 'integer', $this->activeOfficeRule($this->ispAccount()->office_id)],
-            'cost_per_month' => ['required', 'numeric', 'min:0'],
-            'isp_billing_account_no' => ['required', 'string', 'max:255'],
-            'package_purchased_inclusion' => ['required', 'string'],
-
-            'school_area_coverage' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SchoolLevelCoverage))],
-            'min_speed' => ['required', 'numeric', 'min:0'],
-            'max_speed' => ['required', 'numeric', 'min:0', 'gte:min_speed'],
-            'subscriber_speed_upload' => ['required', 'numeric', 'min:0'],
-            'subscriber_speed_download' => ['required', 'numeric', 'min:0'],
-
-            'subscription_type' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SubscriptionType))],
-            'isp_connection_type' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::IspConnectionType))],
-
-            'contract_start_date' => ['required', 'date'],
-            'contract_end_date' => ['required', 'date', 'after_or_equal:contract_start_date'],
-            'inactive_contract' => ['boolean'],
-
-            'purpose_of_subscription' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::PurposeOfSubscription))],
-
-            'mode_of_acquisition' => ['required', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::ModeOfAcquisition))],
-            'source_of_acquisition' => ['required', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::SourceOfAcquisition))],
-            'donor' => ['nullable', 'string', 'max:255'],
-            'fund_source' => ['required', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::SourceOfFunds))],
-
-            'number_access_points_linked' => ['required', 'integer', 'min:0'],
-            'locations_access_points' => ['nullable', 'string'],
-
-            'number_admin_area_covered' => ['required', 'integer', 'min:0'],
-            'rate_connectivity_admin_areas' => ['nullable', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SignalQuality))],
-            'number_classrooms_covered' => ['required', 'integer', 'min:0'],
-            'rate_connectivity_classroom' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SignalQuality))],
-
-            'overall_signal_quality' => ['required', 'string', Rule::in(ConnectivityLibrary::activeValues(ConnectivityLibraryType::SignalQuality))],
-            'rate_isp_service' => ['required', 'integer', 'min:1', 'max:5'],
         ];
     }
 
@@ -108,6 +56,6 @@ class UpdateIspAccountRequest extends FormRequest
      */
     public function attributes(): array
     {
-        return (new StoreIspAccountRequest)->attributes();
+        return $this->ispAccountAttributes();
     }
 }

@@ -10,6 +10,7 @@ use App\Enums\Permission;
 use App\Http\Controllers\Api\Management\Concerns\HasLookupOptions;
 use App\Http\Controllers\Api\Management\Concerns\ResolvesListParameters;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Management\PreviewEquipmentPropertyNumberRequest;
 use App\Http\Requests\Management\StoreEquipmentRequest;
 use App\Http\Requests\Management\UpdateEquipmentRequest;
 use App\Http\Resources\Management\EquipmentResource;
@@ -238,6 +239,16 @@ class EquipmentController extends Controller
             ->additional(['message' => 'Equipment record created.'])
             ->response()
             ->setStatusCode(201);
+    }
+
+    public function previewPropertyNumber(PreviewEquipmentPropertyNumberRequest $request): JsonResponse
+    {
+        $itemType = ItemType::query()->findOrFail($request->integer('item_type_id'));
+
+        return response()->json([
+            'data' => ['property_no' => $this->propertyNumbers->preview($itemType, $request->date('received_date')->year)],
+            'message' => 'Success',
+        ]);
     }
 
     public function show(Equipment $equipment): JsonResponse

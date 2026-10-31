@@ -32,7 +32,7 @@ final class EquipmentPropertyNumberService
         DB::transaction(function () use ($equipment) {
             $abbreviation = ItemType::query()->lockForUpdate()->whereKey($equipment->item_type_id)->value('abbreviation');
 
-            if (! is_string($abbreviation) || preg_match('/^[A-Z0-9]{3}\z/', $abbreviation) !== 1) {
+            if (! $this->isValidAbbreviation($abbreviation)) {
                 throw ValidationException::withMessages(['item_type_id' => __('This item type has no abbreviation yet, so no property number can be generated.')]);
             }
 
@@ -48,7 +48,7 @@ final class EquipmentPropertyNumberService
                     ]);
                 }
 
-                $equipment->property_no = sprintf('AC-%04d-IT-%s-%06d', $year, $abbreviation, $sequence);
+                $equipment->property_no = $this->format($year, $abbreviation, $sequence);
 
                 try {
                     DB::transaction(fn () => $equipment->save());
@@ -67,13 +67,43 @@ final class EquipmentPropertyNumberService
         });
     }
 
-    private function lastSequence(string $abbreviation): int
+    /**
+     * The number the next create of this item type would receive, without
+     * reserving it; null when none can be generated.
+     */
+    public function preview(ItemType $itemType, int $year): ?string
+    {
+        $abbreviation = $itemType->abbreviation;
+
+        if (! $this->isValidAbbreviation($abbreviation)) {
+            return null;
+        }
+
+        $sequence = $this->lastSequence($abbreviation, lock: false) + 1;
+
+        return $sequence > self::MAX_SEQUENCE ? null : $this->format($year, $abbreviation, $sequence);
+    }
+
+    /**
+     * @phpstan-assert-if-true string $abbreviation
+     */
+    private function isValidAbbreviation(mixed $abbreviation): bool
+    {
+        return is_string($abbreviation) && preg_match('/^[A-Z0-9]{3}\z/', $abbreviation) === 1;
+    }
+
+    private function format(int $year, string $abbreviation, int $sequence): string
+    {
+        return sprintf('AC-%04d-IT-%s-%06d', $year, $abbreviation, $sequence);
+    }
+
+    private function lastSequence(string $abbreviation, bool $lock = true): int
     {
         $pattern = '/^AC-\d{4}-IT-'.preg_quote($abbreviation, '/').'-(\d{6})\z/';
 
         return Equipment::withTrashed()
             ->where('property_no', 'like', "AC-____-IT-{$abbreviation}-______")
-            ->lockForUpdate()
+            ->when($lock, fn ($query) => $query->lockForUpdate())
             ->pluck('property_no')
             ->map(fn (?string $number) => $number !== null && preg_match($pattern, $number, $matches) === 1 ? (int) $matches[1] : 0)
             ->max() ?? 0;

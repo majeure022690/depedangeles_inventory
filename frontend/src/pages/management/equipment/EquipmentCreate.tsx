@@ -60,6 +60,30 @@ export function EquipmentCreate() {
   const [peripherals, setPeripherals] = useState<PeripheralRow[]>([])
   const [peripheralErrors, setPeripheralErrors] = useState<RowErrors>(NO_ROW_ERRORS)
 
+  const itemTypeId = form.item_type_id
+  const receivedDate = form.received_date
+  const previewKey = itemTypeId !== null && receivedDate !== '' ? `${itemTypeId}|${receivedDate}` : null
+  const [preview, setPreview] = useState<{ key: string; propertyNo: string } | null>(null)
+  const propertyNoPreview = preview !== null && preview.key === previewKey ? preview.propertyNo : ''
+
+  useEffect(() => {
+    if (itemTypeId === null || receivedDate === '') return
+    const key = `${itemTypeId}|${receivedDate}`
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      equipmentService
+        .previewPropertyNumber(itemTypeId, receivedDate, controller.signal)
+        .then((result) => setPreview({ key, propertyNo: result.property_no ?? '' }))
+        .catch(() => {
+          if (!controller.signal.aborted) setPreview({ key, propertyNo: '' })
+        })
+    }, 300)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [itemTypeId, receivedDate])
+
   const itemTypeName = options?.form.item_type.find((option) => option.value === form.item_type_id)?.label ?? null
   const isBundleParent = itemTypeName !== null && BUNDLE_PARENT_ITEMS.includes(itemTypeName)
 
@@ -151,6 +175,7 @@ export function EquipmentCreate() {
                 errors={errors}
                 accountability={accountability}
                 onAccountabilityChange={setAccountability}
+                propertyNoPreview={propertyNoPreview}
               />
             </TabPanel>
           ))}

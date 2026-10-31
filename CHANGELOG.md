@@ -2,6 +2,48 @@
 
 All notable changes to this project, in terms of user/developer impact. Entries up to 2026-07-15 were reconstructed from migration filename timestamps and source file modification times, before the project had git history; they are accurate to the day where backed by a migration timestamp, and entries reconstructed from file mtimes alone are noted as such. Later entries cite their commits.
 
+## 2026-10-31 — ISP subscriber speeds, property-number preview, deploy cache steps
+
+On `iris-staging`; fixes forward commits `8688657`..`add45bb`. Migration `2026_10_31_000001` (on top of `2026_10_29_100015`). Covered by `backend/tests/Feature/{IspAccountControllerTest,EquipmentPropertyNumberTest}.php`.
+
+### Added
+- **ISP subscriber upload/download speeds.** Optional `subscriber_speed_upload` and `subscriber_speed_download` (Mbps) on ISP accounts, in `IspAccountResource` and audited. `2026_10_29_100015` added the columns; `2026_10_31_000001` aligns them to `decimal(8,2)`, the same as `min_speed`/`max_speed`. See [`docs/features/isp-accounts.md`](docs/features/isp-accounts.md).
+- **Equipment property-number preview.** `GET /api/equipment/preview-property-number?item_type_id&received_date` returns `{data: {property_no: string | null}}`, the number the next create would get. It needs `equipment.create` (route middleware and Form Request policy check), reserves nothing, and returns `null` when the item type has no valid abbreviation or the series is exhausted. The create form shows it live in the Property number field. See [`docs/features/equipment.md`](docs/features/equipment.md#property-numbers).
+
+### Changed
+- **ISP account form in three tabs** (ISP Provider, Billing and Contract, Coverage and Quality), following the source spreadsheet, on both create and edit. The tab is kept in `?tab=`, and a 422 opens the first tab with an error.
+- **ISP account validation** moved into a shared `ValidatesIspAccountFields` concern. All four speeds are capped at 999999.99 (previously an oversized value reached the database), and `contract_end_date` must be on or after `contract_start_date`.
+
+### Changed (deploy)
+- `deploy/plesk.sh` runs `optimize:clear --except=cache` before `migrate`, then `permission:cache-reset` and `optimize`. The application cache is never cleared: it holds rate limiters, pending 2FA tokens and the PRIME circuit-breaker state. See [`docs/architecture.md`](docs/architecture.md#request-flow).
+
+## 2026-10-29 — Equipment attachments
+
+Commit `5b96ef9` on `iris-staging`. Migration `2026_10_29_000005`. See [`docs/features/equipment.md`](docs/features/equipment.md#attachments).
+
+### Added
+- **PDF and photo attachments on equipment records.** `POST /api/equipment/{id}/attachments` (multipart: `file`, `document_type`, optional `document_no`; needs `equipment.edit` and the `update` policy, limiter `attachment-upload` at 30/min per user), `GET …/attachments/{attachment}` (download, `equipment.view`) and `DELETE …/attachments/{attachment}` (`equipment.edit`). Files are PDF, JPG, PNG or WEBP up to 5 MB; `document_type` is "Procurement Management Plan (PMP)" or an active supporting-document type, offered by `/options` as `attachment_document_types`. Audited as `equipment.attachment.uploaded` / `equipment.attachment.deleted` with the file's SHA-256.
+- `EquipmentResource` (detail only) adds `attachments[]`. The edit page's Documents tab lists, opens, downloads, uploads (including "Take photo" on phones) and deletes them.
+
+### Security
+- Files go on the private `local` disk under `equipment-attachments/<equipment id>/` with UUID filenames and are only served through the authorized download endpoint (`nosniff`). PDFs must sniff as `application/pdf` and start with `%PDF-`; images are re-encoded through GD (`FileUploadService::storeDocument()`), stripping EXIF and embedded payloads. The client's MIME type and filename are never trusted.
+
+## 2026-10-29 — Generated property numbers, initial accountability, spreadsheet field rules
+
+Commits `b77afdf` (backend) and `c8e7073` (form tabs) on `iris-staging`; builds on `d1e9998` (item type abbreviations, `used_by`, migrations `2026_10_29_000001`-`000004`). No migrations of its own. Covered by `backend/tests/Feature/{EquipmentPropertyNumberTest,EquipmentCreateEdgeCasesTest,EquipmentDerivedFieldsTest,EquipmentControllerTest,EquipmentBundleTest}.php`. See [`docs/features/equipment.md`](docs/features/equipment.md#property-numbers).
+
+### Added
+- **Generated property numbers.** `POST /api/equipment` numbers each record `AC-<YYYY>-IT-<ABV>-<NNNNNN>` (`EquipmentPropertyNumberService`): the acquisition year, the item type's 3-character abbreviation, and a 6-digit series per abbreviation that never resets. `property_no` is now `prohibited` on create and update. An item type without an abbreviation can't be used to create equipment (422 on `item_type_id`), and Reference Data now requires a unique `[A-Z0-9]{3}` abbreviation on item types.
+- **Initial accountability on create.** `POST /api/equipment` requires an `accountability` object (transaction type, accountable officer, end user, received by and both assignment dates), recorded as the first transaction in the same DB transaction. `/options` therefore sends `personnel` to `equipment.create` holders too, along with `donor_sources` and `category_rules`.
+
+### Changed
+- **Equipment validation follows the field spreadsheet** (`Concerns\ValidatesEquipmentFields`, shared by create and update). Newly required: `serial_number`, `model`, `specifications`, `uom`, `non_dcp`, `non_functional`, `acquisition_cost` (at most 2 decimals), `received_date`, `equipment_location`, `used_by`; `dcp_package`/`dcp_year` unless non-DCP; `donor` for donor sources. Legacy records must have these filled before they can be saved again.
+- **Category and GL-SL code are derived, not entered.** High-value (cost at or above 50,000, GL-SL `10605030`) or Low-value (`10405030`), set on create and recomputed when the cost changes; `equipment_category_id` and `gl_sl_code` are no longer accepted. The classification's `default_gl_sl_code` is no longer used or shown.
+- **Equipment form tabs match the spreadsheet** (`c8e7073`): Equipment, Acquisition, Accountability, Status / Location, Documents, replacing Item / Acquisition & accounting / Condition & warranty. Required fields show an asterisk and set `aria-required`; the Property number field is read-only.
+
+### Removed
+- **Peripheral renumbering.** `renumber_peripherals` on `PUT /api/equipment/{id}`, `renumberable_peripherals_count` on `EquipmentResource` (now `withOriginalBundle()`), the save-time renumber dialog and the `equipment.peripheral.renumbered` event, all added on 2026-10-28. A desktop's number can no longer change, so its peripherals' suffixes never need renaming. Creating a desktop with `peripherals[]` no longer needs a typed `property_no`.
+
 ## 2026-10-29 — Scheduled PRIME sync
 
 ### Changed

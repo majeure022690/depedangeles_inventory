@@ -248,3 +248,7 @@ export type EquipmentCreatePayload = EquipmentPayload & {
 }
 
 export type EquipmentUpdatePayload = EquipmentPayload
+
+export interface PropertyNumberPreview {
+  property_no: string | null
+}

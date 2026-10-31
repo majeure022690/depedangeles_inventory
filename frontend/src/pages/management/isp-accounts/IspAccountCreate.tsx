@@ -2,10 +2,15 @@ import { ArrowLeft, Wifi } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
-import { IspAccountFields } from '@/components/isp-accounts/IspAccountFields'
+import {
+  firstSectionWithError,
+  ISP_ACCOUNT_FIELD_SECTIONS,
+  IspAccountFields,
+  isIspAccountFieldSection,
+  sectionErrorCount,
+} from '@/components/isp-accounts/IspAccountFields'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
 import { TabPanel, Tabs, type TabItem } from '@/components/ui/Tabs'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -14,27 +19,7 @@ import { extractError, extractFieldErrors, isValidationError, type FieldErrors }
 import { emptyIspAccountForm, ispAccountService } from '@/services/ispAccountService'
 import type { IspAccountFormData, IspAccountOptions } from '@/types/isp-account'
 
-type TabId = 'provider' | 'billing' | 'coverage'
-
 const TABS_ID = 'isp-account-create'
-const ISP_TABS: { value: TabId; label: string }[] = [
-  { value: 'provider', label: 'ISP Provider' },
-  { value: 'billing', label: 'Billing and Contract' },
-  { value: 'coverage', label: 'Coverage and Speed' },
-]
-
-function isIspTab(value: string | null): value is TabId {
-  return value === 'provider' || value === 'billing' || value === 'coverage'
-}
-
-function errorCount(tabId: TabId, errors: FieldErrors): number {
-  const fieldsByTab: Record<TabId, (keyof IspAccountFormData)[]> = {
-    provider: ['isp_provider_id', 'office_id', 'cost_per_month', 'fund_source', 'subscription_type', 'isp_connection_type', 'min_speed', 'max_speed'],
-    billing: ['isp_billing_account_no', 'contract_start_date', 'contract_end_date', 'subscriber_speed_upload', 'subscriber_speed_download', 'mode_of_acquisition', 'source_of_acquisition', 'donor', 'inactive_contract', 'package_purchased_inclusion'],
-    coverage: ['purpose_of_subscription', 'school_area_coverage', 'number_access_points_linked', 'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas', 'number_classrooms_covered', 'rate_connectivity_classroom', 'overall_signal_quality', 'rate_isp_service'],
-  }
-  return fieldsByTab[tabId].filter((field) => !!errors[field]).length
-}
 
 export function IspAccountCreate() {
   usePageTitle('Add ISP account')
@@ -53,14 +38,14 @@ export function IspAccountCreate() {
   const [saving, setSaving] = useState(false)
 
   const requestedTab = searchParams.get('tab')
-  const tab = isIspTab(requestedTab) ? requestedTab : ISP_TABS[0].value
+  const tab = isIspAccountFieldSection(requestedTab) ? requestedTab : ISP_ACCOUNT_FIELD_SECTIONS[0].value
 
   const selectTab = useCallback(
     (next: string) => {
       setSearchParams(
         (prev) => {
           const params = new URLSearchParams(prev)
-          if (next === ISP_TABS[0].value) params.delete('tab')
+          if (next === ISP_ACCOUNT_FIELD_SECTIONS[0].value) params.delete('tab')
           else params.set('tab', next)
           return params
         },
@@ -91,7 +76,11 @@ export function IspAccountCreate() {
       navigate(`/isp-accounts/${response.data.id}/edit`, { state: { flash: response.message } })
     } catch (error) {
       const fieldErrors = isValidationError(error) ? extractFieldErrors(error) : null
-      if (fieldErrors) setErrors(fieldErrors)
+      if (fieldErrors) {
+        setErrors(fieldErrors)
+        const errorTab = firstSectionWithError(fieldErrors)
+        if (errorTab) selectTab(errorTab)
+      }
       setErrorMessage(fieldErrors ? 'Unable to save the ISP account. Please review the highlighted fields and try again.' : extractError(error))
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } finally {
@@ -99,7 +88,11 @@ export function IspAccountCreate() {
     }
   }
 
-  const tabs: TabItem[] = ISP_TABS.map((t) => ({ value: t.value, label: t.label, errorCount: errorCount(t.value, errors) }))
+  const tabs: TabItem[] = ISP_ACCOUNT_FIELD_SECTIONS.map((section) => ({
+    value: section.value,
+    label: section.label,
+    errorCount: sectionErrorCount(section.value, errors),
+  }))
 
   return (
     <div className="min-w-0">
@@ -127,23 +120,21 @@ export function IspAccountCreate() {
 
         <div>
           <Tabs id={TABS_ID} label="ISP account sections" tabs={tabs} value={tab} onChange={selectTab} />
-          {ISP_TABS.map((t) => (
-            <TabPanel key={t.value} tabsId={TABS_ID} value={t.value} active={tab === t.value}>
-              <IspAccountFields section={t.value} form={form} onChange={setField} options={options?.form ?? null} errors={errors} disabled={saving} />
+          {ISP_ACCOUNT_FIELD_SECTIONS.map((section) => (
+            <TabPanel key={section.value} tabsId={TABS_ID} value={section.value} active={tab === section.value}>
+              <IspAccountFields section={section.value} form={form} onChange={setField} options={options?.form ?? null} errors={errors} disabled={saving} />
             </TabPanel>
           ))}
         </div>
 
-        <Card>
-          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-3">
-            <Button variant="outline" onClick={() => navigate('/isp-accounts')} disabled={saving}>
-              Cancel
-            </Button>
-            <Button type="submit" isLoading={saving} disabled={!options}>
-              Save ISP account
-            </Button>
-          </div>
-        </Card>
+        <div className="sticky bottom-0 z-10 flex flex-col-reverse gap-2 rounded-t-lg border-t border-gray-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_-8px_rgb(0_0_0/0.15)] backdrop-blur sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={() => navigate('/isp-accounts')} disabled={saving}>
+            Cancel
+          </Button>
+          <Button type="submit" isLoading={saving} disabled={!options}>
+            Save ISP account
+          </Button>
+        </div>
       </form>
     </div>
   )

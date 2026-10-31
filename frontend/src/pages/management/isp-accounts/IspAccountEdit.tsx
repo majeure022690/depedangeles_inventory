@@ -3,13 +3,19 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { DetailPageSkeleton } from '@/components/DetailPageSkeleton'
-import { IspAccountFields } from '@/components/isp-accounts/IspAccountFields'
+import {
+  firstSectionWithError,
+  ISP_ACCOUNT_FIELD_SECTIONS,
+  IspAccountFields,
+  isIspAccountFieldSection,
+  sectionErrorCount,
+  sectionIsDirty,
+} from '@/components/isp-accounts/IspAccountFields'
 import { SpeedTestLog } from '@/components/isp-accounts/SpeedTestLog'
 import { SubscriptionCostLog } from '@/components/isp-accounts/SubscriptionCostLog'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
 import { TabPanel, Tabs, type TabItem } from '@/components/ui/Tabs'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -19,27 +25,10 @@ import { ispAccountFormFrom, ispAccountService } from '@/services/ispAccountServ
 import type { IspAccount, IspAccountFormData, IspAccountOptions } from '@/types/isp-account'
 
 type Feedback = { type: 'success' | 'error'; message: string } | null
-type Tab = 'provider' | 'billing' | 'coverage' | 'speed-tests' | 'subscription-costs'
-type FieldTab = 'provider' | 'billing' | 'coverage'
 
-const ISP_FIELD_TABS: { value: FieldTab; label: string }[] = [
-  { value: 'provider', label: 'ISP Provider' },
-  { value: 'billing', label: 'Billing and Contract' },
-  { value: 'coverage', label: 'Coverage and Speed' },
-]
-
-function isFieldTab(value: string | null): value is FieldTab {
-  return value === 'provider' || value === 'billing' || value === 'coverage'
-}
-
-function errorCount(tabId: FieldTab, errors: FieldErrors): number {
-  const fieldsByTab: Record<FieldTab, (keyof IspAccountFormData)[]> = {
-    provider: ['isp_provider_id', 'office_id', 'cost_per_month', 'fund_source', 'subscription_type', 'isp_connection_type', 'min_speed', 'max_speed'],
-    billing: ['isp_billing_account_no', 'contract_start_date', 'contract_end_date', 'subscriber_speed_upload', 'subscriber_speed_download', 'mode_of_acquisition', 'source_of_acquisition', 'donor', 'inactive_contract', 'package_purchased_inclusion'],
-    coverage: ['purpose_of_subscription', 'school_area_coverage', 'number_access_points_linked', 'locations_access_points', 'number_admin_area_covered', 'rate_connectivity_admin_areas', 'number_classrooms_covered', 'rate_connectivity_classroom', 'overall_signal_quality', 'rate_isp_service'],
-  }
-  return fieldsByTab[tabId].filter((field) => !!errors[field]).length
-}
+const TABS_ID = 'isp-account'
+const SPEED_TESTS_TAB = 'speed-tests'
+const SUBSCRIPTION_COSTS_TAB = 'subscription-costs'
 
 export function IspAccountEdit() {
   const { id } = useParams<{ id: string }>()
@@ -65,14 +54,18 @@ export function IspAccountEdit() {
   })
 
   const requestedTab = searchParams.get('tab')
-  const tab: Tab = requestedTab === 'speed-tests' || requestedTab === 'subscription-costs' || isFieldTab(requestedTab) ? requestedTab : ISP_FIELD_TABS[0].value
+  const tab =
+    requestedTab === SPEED_TESTS_TAB || requestedTab === SUBSCRIPTION_COSTS_TAB || isIspAccountFieldSection(requestedTab)
+      ? requestedTab
+      : ISP_ACCOUNT_FIELD_SECTIONS[0].value
+  const fieldTab = isIspAccountFieldSection(tab) ? tab : null
 
   const selectTab = useCallback(
     (next: string) => {
       setSearchParams(
         (prev) => {
           const params = new URLSearchParams(prev)
-          if (next === ISP_FIELD_TABS[0].value) params.delete('tab')
+          if (next === ISP_ACCOUNT_FIELD_SECTIONS[0].value) params.delete('tab')
           else params.set('tab', next)
           return params
         },
@@ -114,7 +107,7 @@ export function IspAccountEdit() {
   }, [accountId])
 
   if (loading) return <DetailPageSkeleton />
-  if (loadError || !account || !form) {
+  if (loadError || !account || !form || !savedForm) {
     return (
       <div>
         <Button variant="ghost" size="sm" onClick={() => navigate('/isp-accounts')} aria-label="Back to ISP accounts">
@@ -151,7 +144,11 @@ export function IspAccountEdit() {
       setFeedback({ type: 'success', message: response.message })
     } catch (error) {
       const fieldErrors = isValidationError(error) ? extractFieldErrors(error) : null
-      if (fieldErrors) setErrors(fieldErrors)
+      if (fieldErrors) {
+        setErrors(fieldErrors)
+        const errorTab = firstSectionWithError(fieldErrors)
+        if (errorTab) selectTab(errorTab)
+      }
       setFeedback({
         type: 'error',
         message: fieldErrors ? 'Unable to save changes. Please review the highlighted fields and try again.' : extractError(error),
@@ -163,14 +160,18 @@ export function IspAccountEdit() {
   }
 
   const tabs: TabItem[] = [
-    ...ISP_FIELD_TABS.map((t) => ({ value: t.value, label: t.label, errorCount: isFieldTab(t.value) ? errorCount(t.value, errors) : 0 })),
-    { value: 'speed-tests', label: 'Speed tests', count: speedTests.length },
-    { value: 'subscription-costs', label: 'Subscription costs', count: subscriptionCosts.length },
+    ...ISP_ACCOUNT_FIELD_SECTIONS.map((section) => ({
+      value: section.value,
+      label: sectionIsDirty(section.value, form, savedForm) ? `${section.label} •` : section.label,
+      errorCount: sectionErrorCount(section.value, errors),
+    })),
+    { value: SPEED_TESTS_TAB, label: 'Speed tests', count: speedTests.length },
+    { value: SUBSCRIPTION_COSTS_TAB, label: 'Subscription costs', count: subscriptionCosts.length },
   ]
 
   return (
-    <div className="min-w-0">
-      <div className="mb-4 flex items-start gap-3">
+    <div className="min-w-0 space-y-4">
+      <div className="flex items-start gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate('/isp-accounts')} aria-label="Back to ISP accounts" className="mt-0.5">
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -189,70 +190,80 @@ export function IspAccountEdit() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} noValidate aria-label="ISP account details" className="space-y-4">
-        <div role="alert" className="space-y-2 empty:hidden">
-          {feedback && <Alert type={feedback.type}>{feedback.message}</Alert>}
-        </div>
+      <div role="status" className="empty:hidden">
+        {feedback?.type === 'success' && <Alert type="success">{feedback.message}</Alert>}
+      </div>
+      <div role="alert" className="empty:hidden">
+        {feedback?.type === 'error' && <Alert type="error">{feedback.message}</Alert>}
+      </div>
 
-        <div>
-          <Tabs id="isp-account" label="ISP account sections" tabs={tabs} value={tab} onChange={selectTab} />
-          {ISP_FIELD_TABS.map((t) => (
-            <TabPanel key={t.value} tabsId="isp-account" value={t.value} active={tab === t.value}>
-              <Card>
-                <IspAccountFields section={t.value} form={form!} onChange={setField} options={options?.form ?? null} errors={errors} disabled={!canEdit || saving} current={account} />
-              </Card>
-            </TabPanel>
-          ))}
-          <TabPanel tabsId="isp-account" value="speed-tests" active={tab === 'speed-tests'}>
-            <SpeedTestLog
-              ispAccountId={account.id}
-              speedTests={speedTests}
-              signalQualityOptions={options?.speed_test.signal_quality ?? []}
-              canRecord={canEdit}
-              onRecorded={(test) => setAccount((prev) => (prev ? { ...prev, speed_tests: [test, ...(prev.speed_tests ?? [])] } : prev))}
-            />
-          </TabPanel>
-          <TabPanel tabsId="isp-account" value="subscription-costs" active={tab === 'subscription-costs'}>
-            <SubscriptionCostLog
-              ispAccountId={account.id}
-              subscriptionCosts={subscriptionCosts}
-              canRecord={canEdit}
-              onRecorded={(cost) => setAccount((prev) => (prev ? { ...prev, subscription_costs: [cost, ...(prev.subscription_costs ?? [])] } : prev))}
-            />
-          </TabPanel>
-        </div>
+      <div>
+        <Tabs id={TABS_ID} label="ISP account sections" tabs={tabs} value={tab} onChange={selectTab} />
 
-        {canEdit && (
-          <Card>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-3">
-              <div>
-                {dirty && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setForm(savedForm)
-                      setErrors({})
-                    }}
-                  >
-                    Discard changes
+        {fieldTab && (
+          <form onSubmit={handleSubmit} noValidate aria-label="ISP account details">
+            {ISP_ACCOUNT_FIELD_SECTIONS.map((section) => (
+              <TabPanel key={section.value} tabsId={TABS_ID} value={section.value} active={fieldTab === section.value}>
+                <IspAccountFields
+                  section={section.value}
+                  form={form}
+                  onChange={setField}
+                  options={options?.form ?? null}
+                  errors={errors}
+                  disabled={!canEdit || saving}
+                  current={account}
+                />
+              </TabPanel>
+            ))}
+            {canEdit && (
+              <div className="sticky bottom-0 z-10 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-t-lg border-t border-gray-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_-8px_rgb(0_0_0/0.15)] backdrop-blur">
+                <div>
+                  {dirty && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setForm(savedForm)
+                        setErrors({})
+                      }}
+                    >
+                      Discard changes
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  {dirty ? (
+                    <span className="text-xs font-medium text-amber-700">Unsaved changes</span>
+                  ) : (
+                    <span className="text-xs text-gray-500">All changes saved</span>
+                  )}
+                  <Button type="submit" isLoading={saving} disabled={!dirty}>
+                    Save changes
                   </Button>
-                )}
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                {dirty ? (
-                  <span className="text-xs font-medium text-amber-700">Unsaved changes</span>
-                ) : (
-                  <span className="text-xs text-gray-400">All changes saved</span>
-                )}
-                <Button type="submit" isLoading={saving} disabled={!dirty}>
-                  Save changes
-                </Button>
-              </div>
-            </div>
-          </Card>
+            )}
+          </form>
         )}
-      </form>
+
+        <TabPanel tabsId={TABS_ID} value={SPEED_TESTS_TAB} active={tab === SPEED_TESTS_TAB}>
+          <SpeedTestLog
+            ispAccountId={account.id}
+            speedTests={speedTests}
+            signalQualityOptions={options?.speed_test.signal_quality ?? []}
+            canRecord={canEdit}
+            onRecorded={(test) => setAccount((prev) => (prev ? { ...prev, speed_tests: [test, ...(prev.speed_tests ?? [])] } : prev))}
+          />
+        </TabPanel>
+        <TabPanel tabsId={TABS_ID} value={SUBSCRIPTION_COSTS_TAB} active={tab === SUBSCRIPTION_COSTS_TAB}>
+          <SubscriptionCostLog
+            ispAccountId={account.id}
+            subscriptionCosts={subscriptionCosts}
+            canRecord={canEdit}
+            onRecorded={(cost) => setAccount((prev) => (prev ? { ...prev, subscription_costs: [cost, ...(prev.subscription_costs ?? [])] } : prev))}
+          />
+        </TabPanel>
+      </div>
     </div>
   )
 }

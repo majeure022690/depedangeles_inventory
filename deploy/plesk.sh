@@ -29,15 +29,11 @@ if [ ! -f composer.phar ]; then
     rm -f composer-setup.php
 fi
 "$PHP" composer.phar install --no-dev --optimize-autoloader --no-interaction
+# Never clear the app cache: it holds rate limiters and pending 2FA tokens.
+"$PHP" artisan optimize:clear --except=cache
 "$PHP" artisan migrate --force
 [ -e public/storage ] || "$PHP" artisan storage:link
-
-# Clear all caches before optimize
-"$PHP" artisan cache:clear
-"$PHP" artisan config:clear
-"$PHP" artisan route:clear
-"$PHP" artisan view:clear
-
+"$PHP" artisan permission:cache-reset
 "$PHP" artisan optimize
 
 cd "$ROOT/frontend"

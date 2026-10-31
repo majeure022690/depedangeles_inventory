@@ -15,7 +15,7 @@ New migrations: `2026_10_28_000001` … `000005` — run `php artisan migrate`.
 
 ## Desktop bundles follow-up (`45c5e88`, `a8a7f25`)
 
-Desktop bundles follow-up (no migrations): peripherals on create, `POST /api/equipment/{id}/peripherals/batch`, opt-in `renumber_peripherals` on update, `original_bundle` / `renumberable_peripherals_count` on the resource; reCAPTCHA provider moved to the `/login` route. Contract in [`features/equipment.md`](features/equipment.md#desktop-bundles), summary in `CHANGELOG.md` (2026-10-28). Tests: `backend/tests/Feature/EquipmentBundleTest.php`. QA, security and reviewer signed off; not yet checked in a browser.
+Desktop bundles follow-up (no migrations): peripherals on create, `POST /api/equipment/{id}/peripherals/batch`, opt-in `renumber_peripherals` on update, `original_bundle` / `renumberable_peripherals_count` on the resource; reCAPTCHA provider moved to the `/login` route. Contract in [`features/equipment.md`](features/equipment.md#desktop-bundles), summary in `CHANGELOG.md` (2026-10-28). Tests: `backend/tests/Feature/EquipmentBundleTest.php`. QA, security and reviewer signed off; not yet checked in a browser. Renumbering and `renumberable_peripherals_count` were later removed in `b77afdf` (property numbers became generated and immutable).
 
 ## Scheduled PRIME sync — finish at the office (2026-10-30)
 

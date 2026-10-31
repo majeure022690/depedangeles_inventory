@@ -31,7 +31,9 @@ Controllers: `Api\Management\IspAccountController`, `IspSpeedTestController`, `I
 
 No update/delete endpoints exist for either log.
 
-**Account fields:** required `isp_provider_id`, `cost_per_month`, `isp_billing_account_no`, `package_purchased_inclusion`, `school_area_coverage`, `subscription_type`, `isp_connection_type`, `purpose_of_subscription`, `mode_of_acquisition`, `source_of_acquisition`, `fund_source`, `overall_signal_quality`; optional `min_speed`, `max_speed` (≥ min), `contract_start_date`, `contract_end_date`, `inactive_contract`, `donor`, `number_access_points_linked`, `locations_access_points`, `number_admin_area_covered`, `rate_connectivity_admin_areas`, `number_classrooms_covered`, `rate_connectivity_classroom`, `rate_isp_service` (1-5), `office_id` (an active office; on update the account's current office is also accepted).
+**Account fields:** required `isp_provider_id`, `cost_per_month`, `isp_billing_account_no`, `package_purchased_inclusion`, `school_area_coverage`, `subscription_type`, `isp_connection_type`, `purpose_of_subscription`, `mode_of_acquisition`, `source_of_acquisition`, `fund_source`, `overall_signal_quality`; optional `min_speed`, `max_speed` (≥ min), `subscriber_speed_upload`, `subscriber_speed_download`, `contract_start_date`, `contract_end_date` (on or after `contract_start_date`), `inactive_contract`, `donor`, `number_access_points_linked`, `locations_access_points`, `number_admin_area_covered`, `rate_connectivity_admin_areas`, `number_classrooms_covered`, `rate_connectivity_classroom`, `rate_isp_service` (1-5), `office_id` (an active office; on update the account's current office is also accepted). Store and Update share these rules through `Concerns/ValidatesIspAccountFields.php`.
+
+All four speeds are in Mbps, stored as `decimal(8,2)` and validated `0`–`999999.99`, so an out-of-range value is a 422 rather than a database error. `subscriber_speed_upload`/`subscriber_speed_download` (migration `2026_10_29_100015`, precision aligned to `decimal(8,2)` by `2026_10_31_000001`) are in `IspAccountResource` as floats (or `null`) and, like every account field, audited by `LogsActivity`.
 
 Only `all`-scope users may set or change `office_id`. A scoped user's new account is forced into their own office (422 on `office_id` if their account has no office, or if they send a different office); on update they must send the current value.
 
@@ -47,6 +49,8 @@ Only `all`-scope users may set or change `office_id`. A scoped user's new accoun
 | `/isp-accounts` | `pages/management/isp-accounts/IspAccountList.tsx` |
 | `/isp-accounts/new` | `pages/management/isp-accounts/IspAccountCreate.tsx` (`isp_accounts.create`) |
 | `/isp-accounts/:id/edit` | `pages/management/isp-accounts/IspAccountEdit.tsx` |
+
+The create and edit forms split the account fields into three tabs (`ISP_ACCOUNT_FIELD_SECTIONS` in `IspAccountFields.tsx`), following the source spreadsheet: **ISP Provider** (provider, source of funds, monthly cost, subscription and connection type, min/max speed, office), **Billing and Contract** (billing account, package, contract dates, subscriber upload/download speed, acquisition, donor, inactive flag) and **Coverage and Quality** (purpose, coverage, access points, admin-area/classroom coverage and ratings, overall signal quality, service rating). The active tab is kept in the `?tab=` query string, and a 422 switches to the first tab holding an error.
 
 Components: `components/isp-accounts/IspAccountFields.tsx`, `SpeedTestLog.tsx`, `SubscriptionCostLog.tsx`; API: `services/ispAccountService.ts`; types: `types/isp-account.ts`.
 

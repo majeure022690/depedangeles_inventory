@@ -14,6 +14,7 @@ import type {
   EquipmentTransactionFormData,
   EquipmentTransactionPayload,
   EquipmentUpdatePayload,
+  PropertyNumberPreview,
 } from '@/types/equipment'
 
 /** Blank text inputs are sent as `null` so nullable columns stay null rather than ''. */
@@ -48,6 +49,13 @@ export const equipmentService = {
   update: (id: number, payload: EquipmentUpdatePayload) =>
     api.put<ApiResponse<Equipment>>(`/equipment/${id}`, payload).then((r) => r.data),
   remove: (id: number) => api.delete(`/equipment/${id}`),
+  previewPropertyNumber: (itemTypeId: number, receivedDate: string, signal?: AbortSignal) =>
+    api
+      .get<ApiResponse<PropertyNumberPreview>>('/equipment/preview-property-number', {
+        params: { item_type_id: itemTypeId, received_date: receivedDate },
+        signal,
+      })
+      .then((r) => r.data.data),
   /** The QR label PNG; the caller owns (and must revoke) an object URL made from it. */
   qrCode: (id: number) => api.get<Blob>(`/equipment/${id}/qr-code`, { responseType: 'blob' }).then((r) => r.data),
   recordTransaction: (id: number, payload: EquipmentTransactionPayload) =>

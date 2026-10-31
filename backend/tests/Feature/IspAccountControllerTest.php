@@ -200,6 +200,105 @@ class IspAccountControllerTest extends TestCase
             ->assertJsonValidationErrors(['max_speed']);
     }
 
+    public function test_optional_fields_may_be_omitted(): void
+    {
+        $this->actingAs($this->editor())
+            ->postJson('/api/isp-accounts', $this->validPayload(['min_speed' => null, 'max_speed' => null]))
+            ->assertCreated()
+            ->assertJsonPath('data.min_speed', null)
+            ->assertJsonPath('data.subscriber_speed_upload', null)
+            ->assertJsonPath('data.subscriber_speed_download', null)
+            ->assertJsonPath('data.contract_start_date', null)
+            ->assertJsonPath('data.rate_isp_service', null);
+    }
+
+    public function test_exactly_the_documented_fields_are_required(): void
+    {
+        $required = [
+            'isp_provider_id', 'cost_per_month', 'isp_billing_account_no', 'package_purchased_inclusion', 'school_area_coverage',
+            'subscription_type', 'isp_connection_type', 'purpose_of_subscription', 'mode_of_acquisition', 'source_of_acquisition',
+            'fund_source', 'overall_signal_quality',
+        ];
+
+        $errors = $this->actingAs($this->editor())->postJson('/api/isp-accounts', [])
+            ->assertUnprocessable()
+            ->json('errors');
+
+        $this->assertEqualsCanonicalizing($required, array_keys($errors));
+    }
+
+    public function test_a_lone_contract_end_date_is_accepted(): void
+    {
+        $this->actingAs($this->editor())
+            ->postJson('/api/isp-accounts', $this->validPayload(['contract_start_date' => null, 'contract_end_date' => '2026-12-31']))
+            ->assertCreated();
+    }
+
+    public function test_a_lone_max_speed_is_accepted(): void
+    {
+        $this->actingAs($this->editor())
+            ->postJson('/api/isp-accounts', $this->validPayload(['min_speed' => null, 'max_speed' => 50]))
+            ->assertCreated();
+    }
+
+    public function test_max_speed_cannot_be_below_the_min_speed(): void
+    {
+        $this->actingAs($this->editor())
+            ->postJson('/api/isp-accounts', $this->validPayload(['min_speed' => 50, 'max_speed' => 20]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['max_speed']);
+    }
+
+    public function test_contract_end_date_cannot_precede_the_start_date(): void
+    {
+        $this->actingAs($this->editor())
+            ->postJson('/api/isp-accounts', $this->validPayload(['contract_start_date' => '2026-06-01', 'contract_end_date' => '2026-05-31']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['contract_end_date']);
+    }
+
+    public function test_subscriber_speeds_are_persisted_and_audited(): void
+    {
+        $user = $this->editor();
+
+        $response = $this->actingAs($user)
+            ->postJson('/api/isp-accounts', $this->validPayload(['subscriber_speed_upload' => 12.5, 'subscriber_speed_download' => 100.25]))
+            ->assertCreated();
+
+        $this->assertEquals(12.5, $response->json('data.subscriber_speed_upload'));
+        $this->assertEquals(100.25, $response->json('data.subscriber_speed_download'));
+
+        $ispAccount = IspAccount::findOrFail($response->json('data.id'));
+        $this->assertEquals(12.5, $ispAccount->subscriber_speed_upload);
+        $this->assertEquals(100.25, $ispAccount->subscriber_speed_download);
+
+        $this->actingAs($user)->putJson("/api/isp-accounts/{$ispAccount->id}", $this->validPayload(['subscriber_speed_download' => 200]))
+            ->assertOk();
+
+        $this->assertEquals(200, $ispAccount->fresh()->subscriber_speed_download);
+        $activity = Activity::query()->where('subject_id', $ispAccount->id)->where('event', 'updated')->sole();
+        $this->assertArrayHasKey('subscriber_speed_download', $activity->attribute_changes['attributes']);
+    }
+
+    public function test_speeds_are_bounded_by_their_column_precision(): void
+    {
+        $tooFast = ['min_speed' => 0, 'max_speed' => 1000000, 'subscriber_speed_upload' => 1000000, 'subscriber_speed_download' => -1];
+
+        $this->actingAs($this->editor())
+            ->postJson('/api/isp-accounts', $this->validPayload($tooFast))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['max_speed', 'subscriber_speed_upload', 'subscriber_speed_download']);
+
+        $this->actingAs($this->editor())
+            ->postJson('/api/isp-accounts', $this->validPayload(['min_speed' => 1000000, 'max_speed' => 1000000]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['min_speed']);
+
+        $this->actingAs($this->editor())
+            ->postJson('/api/isp-accounts', $this->validPayload(['max_speed' => 999999.99, 'subscriber_speed_upload' => 999999.99, 'subscriber_speed_download' => 999999.99]))
+            ->assertCreated();
+    }
+
     public function test_update_persists_changes_and_is_audited(): void
     {
         $ispAccount = $this->makeIspAccount(['cost_per_month' => 5000]);

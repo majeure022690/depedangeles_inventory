@@ -43,6 +43,7 @@ class IspAccountFactory extends Factory
     public function definition(): array
     {
         $minSpeed = fake()->randomFloat(2, 5, 50);
+        $subscriberDownload = fake()->boolean(70) ? fake()->randomFloat(2, 10, 500) : null;
         $modeOfAcquisition = fake()->randomElement(['DepEd Purchase', 'Donation', 'Grant']);
 
         return [
@@ -55,6 +56,10 @@ class IspAccountFactory extends Factory
             'school_area_coverage' => fake()->randomElement(['ES', 'JHS', 'SHS', 'All (Areawide)']),
             'min_speed' => $minSpeed,
             'max_speed' => $minSpeed + fake()->randomFloat(2, 5, 100),
+            'subscriber_speed_download' => $subscriberDownload,
+            'subscriber_speed_upload' => $subscriberDownload === null
+                ? null
+                : round($subscriberDownload * fake()->randomFloat(2, 0.1, 1), 2),
 
             'subscription_type' => fake()->randomElement(['Prepaid', 'Postpaid']),
             'isp_connection_type' => fake()->randomElement(['Fiber', 'DSL', 'Cable', 'Satellite']),

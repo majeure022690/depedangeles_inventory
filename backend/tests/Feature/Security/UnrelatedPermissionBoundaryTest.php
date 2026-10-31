@@ -4,6 +4,7 @@ namespace Tests\Feature\Security;
 
 use App\Enums\Permission;
 use App\Models\Equipment;
+use App\Models\EquipmentAttachment;
 use App\Models\IspAccount;
 use App\Models\ItemType;
 use App\Models\Office;
@@ -33,9 +34,20 @@ class UnrelatedPermissionBoundaryTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
 
         $target = User::factory()->create();
+        $equipment = Equipment::factory()->create();
+        $attachment = $equipment->attachments()->create([
+            'document_type' => EquipmentAttachment::PMP_DOCUMENT_TYPE,
+            'original_filename' => 'boundary.pdf',
+            'disk' => 'local',
+            'path' => 'equipment-attachments/boundary.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 1,
+            'file_hash' => str_repeat('0', 64),
+        ]);
         $parameters = [
             'personnel' => Personnel::factory()->create()->id,
-            'equipment' => Equipment::factory()->create()->id,
+            'equipment' => $equipment->id,
+            'attachment' => $attachment->id,
             'peripheral' => Equipment::factory()->create()->id,
             'ispAccount' => IspAccount::factory()->create()->id,
             'office' => Office::create(['office_name' => 'Boundary ES'])->id,

@@ -128,6 +128,65 @@ class EquipmentPropertyNumberTest extends TestCase
         $this->assertSame(0, Equipment::count());
     }
 
+    public function test_preview_returns_the_next_number_without_reserving_it(): void
+    {
+        $this->existing('AC-2020-IT-LPT-000041');
+        $this->existing('AC-2021-IT-LPT-000500')->delete();
+        $query = ['item_type_id' => $this->itemType('Laptop'), 'received_date' => '2024-03-15'];
+
+        foreach ([1, 2] as $_) {
+            $this->actingAs($this->editor)->getJson('/api/equipment/preview-property-number?'.http_build_query($query))
+                ->assertOk()
+                ->assertExactJson(['data' => ['property_no' => 'AC-2024-IT-LPT-000501'], 'message' => 'Success']);
+        }
+
+        $this->actingAs($this->editor)->getJson('/api/equipment/preview-property-number?'.http_build_query(['item_type_id' => $this->itemType('Printer'), 'received_date' => '2025-01-02']))
+            ->assertOk()
+            ->assertJsonPath('data.property_no', 'AC-2025-IT-PRT-000001');
+
+        $this->assertSame('AC-2024-IT-LPT-000501', $this->storedNumber(['received_date' => '2024-03-15']));
+    }
+
+    public function test_preview_is_null_without_an_abbreviation_or_once_the_series_is_full(): void
+    {
+        $itemType = ItemType::create(['name' => 'Hologram Projector', 'is_active' => true]);
+
+        $this->actingAs($this->editor)->getJson("/api/equipment/preview-property-number?item_type_id={$itemType->id}&received_date=2026-01-01")
+            ->assertOk()
+            ->assertExactJson(['data' => ['property_no' => null], 'message' => 'Success']);
+
+        $this->existing('AC-2020-IT-LPT-999999');
+
+        $this->actingAs($this->editor)->getJson('/api/equipment/preview-property-number?item_type_id='.$this->itemType('Laptop').'&received_date=2026-01-01')
+            ->assertOk()
+            ->assertJsonPath('data.property_no', null);
+    }
+
+    public function test_preview_validates_its_parameters(): void
+    {
+        $inactive = ItemType::create(['name' => 'Retired Gadget', 'abbreviation' => 'RTG', 'is_active' => false]);
+
+        $this->actingAs($this->editor)->getJson('/api/equipment/preview-property-number')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['item_type_id', 'received_date']);
+
+        $this->actingAs($this->editor)->getJson('/api/equipment/preview-property-number?item_type_id=999999&received_date=not-a-date')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['item_type_id', 'received_date']);
+
+        $this->actingAs($this->editor)->getJson("/api/equipment/preview-property-number?item_type_id={$inactive->id}&received_date=2026-01-01")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['item_type_id']);
+    }
+
+    public function test_preview_requires_equipment_create(): void
+    {
+        $viewer = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentEdit]);
+
+        $this->actingAs($viewer)->getJson('/api/equipment/preview-property-number?item_type_id='.$this->itemType('Laptop').'&received_date=2026-01-01')
+            ->assertForbidden();
+    }
+
     public function test_a_unique_collision_on_save_is_retried_and_then_reported(): void
     {
         $attempts = [];

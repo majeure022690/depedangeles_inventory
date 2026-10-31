@@ -61,7 +61,11 @@ Browser (localhost:5173/...)
      -> Model (LogsActivity writes the audit row) -> JsonResource { data, message }
 ```
 
-In development the SPA calls `http://localhost:8000` directly (cross-origin; CORS is restricted to `FRONTEND_URL` with `supports_credentials`). In production (Plesk: nginx in front of Apache) `deploy/plesk.sh` copies `dist/` into `backend/public` and moves `index.html` to `backend/storage/app/spa/index.html` (`config('app.spa_index')`). Apache serves real files (`/assets/*`, images) directly and sends everything else to Laravel. There, `SpaController` answers every non-`api`/`sanctum`/`up` GET with that `index.html`, so the browser sees one origin (README, "Production runs on Plesk"). **Browse `localhost`, never `127.0.0.1`**: the session/XSRF cookies are scoped to `SESSION_DOMAIN=localhost` and are silently not sent otherwise, which looks like "every request is 401".
+In development the SPA calls `http://localhost:8000` directly (cross-origin; CORS is restricted to `FRONTEND_URL` with `supports_credentials`). In production (Plesk: nginx in front of Apache) `deploy/plesk.sh` copies `dist/` into `backend/public` and moves `index.html` to `backend/storage/app/spa/index.html` (`config('app.spa_index')`). Apache serves real files (`/assets/*`, images) directly and sends everything else to Laravel. There, `SpaController` answers every non-`api`/`sanctum`/`up` GET with that `index.html`, so the browser sees one origin (README, "Production runs on Plesk").
+
+**Deploy cache steps.** After `composer install`, `deploy/plesk.sh` runs `artisan optimize:clear --except=cache`, then `migrate --force`, then `permission:cache-reset` and `optimize`. Clearing the compiled config/route/view/event caches first means `migrate` reads the new `.env`, not the previous deploy's cached config. The **application cache is deliberately never cleared** (no `cache:clear`, hence `--except=cache`): with `CACHE_STORE=database` it holds the named rate limiters' counters, pending 2FA setup/verify tokens and the PRIME circuit breaker (`prime.unreachable`). Wiping it on every deploy would reset brute-force throttles and send anyone mid-2FA back to the login step. Spatie's permission cache lives in the same store, which is why it gets its own targeted `permission:cache-reset` instead.
+
+**Browse `localhost`, never `127.0.0.1`**: the session/XSRF cookies are scoped to `SESSION_DOMAIN=localhost` and are silently not sent otherwise, which looks like "every request is 401".
 
 ## Authentication flow
 
