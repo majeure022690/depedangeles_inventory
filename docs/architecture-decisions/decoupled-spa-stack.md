@@ -79,7 +79,7 @@ What this drops, and why:
 
 Printed QR labels are long-lived physical artifacts. They encode `equipment.qr_code`, today `APP_URL/equipment/{id}/edit`. Two things keep those labels working:
 - the backend keeps exactly one web route, `GET /equipment/{equipment}/edit`, which redirects (302) to `FRONTEND_URL/equipment/{id}/edit`;
-- the SPA has an alias route `/equipment/:id/edit` → `/equipment/:id/edit`, for deployments where the frontend host is the one that receives the scan.
+- the SPA has an alias route `/equipment/:id/edit` → `/equipment/:id/edit`, for deployments where the frontend host is the one that receives the scan. Superseded 2026-10-31, see the amendment at the end.
 
 Stored `qr_code` values are not rewritten.
 
@@ -102,3 +102,11 @@ The first-party SPA is now the API's only consumer. `integration`'s rule still a
 
 - A real third-party consumer appears. That is `integration`'s call, needing a token-based surface and a separate ADR.
 - rwatch changes a shared security primitive (2FA, trusted devices, rate limiters). Port the change deliberately; don't let the two drift silently.
+
+## Amendment (2026-10-31): the QR alias route collapsed into the edit route
+
+The alias in §8 was written when the staff app still lived under `/portal`, so it originally sent `/equipment/:id/edit` to the prefixed edit page. The owner dropped the `/portal` prefix on 2026-10-20 (see `CLAUDE.md`, Stack). After that the alias pointed at itself, so no separate alias route exists.
+
+- `/equipment/:id/edit` is the only SPA route for that path. It is the equipment edit page, guarded by `equipment.view` like the other equipment pages, and it is also the stable URL printed on QR labels.
+- The backend redirect described in §8 is unchanged.
+- Moving or renaming that SPA route would break printed labels. See [Equipment QR codes stay stable](../architecture.md#equipment-qr-codes-stay-stable) in `docs/architecture.md`.

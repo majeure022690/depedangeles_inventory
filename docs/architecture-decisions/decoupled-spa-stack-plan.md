@@ -429,7 +429,7 @@ From rwatch's `package.json`, **keep only these dependencies**: `react`, `react-
 
 ```
 /                                   → <Navigate to="/dashboard">
-/equipment/:id/edit                 → <Navigate to="/equipment/:id/edit">     (QR alias, ADR §8)
+/equipment/:id/edit                 → <Navigate to="/equipment/:id/edit">     (QR alias, ADR §8; superseded 2026-10-31, see amendment at end)
 /login | forgot-password | reset-password | 2fa/setup | 2fa/verify   (GuestOnly)
   (RequireAuth → ManagementLayout)
   dashboard
@@ -623,3 +623,7 @@ Only after 4A-4D are merged and QA has signed off:
    - Turn the `docs/features/*.md` "Inertia prop contract" sections into endpoint contracts from §3a.
    - Retire `docs/features/two-factor-trusted-devices.md` into an updated version describing the rwatch model.
    - Add a `CHANGELOG.md` entry.
+
+## Amendment (2026-10-31): no QR alias route
+
+The `/equipment/:id/edit → <Navigate to="/equipment/:id/edit">` line in the Phase 4 route table is left over from the `/portal` prefix. Once the owner dropped that prefix (2026-10-20, see `CLAUDE.md`, Stack), the alias redirected to itself, so it was never built as a separate route. `App.tsx` has one `equipment/:id/edit` route: the edit page under `RequirePermission equipment.view`. That route is also the stable URL printed on QR labels, so it must not move. See the matching amendment in [`decoupled-spa-stack.md`](decoupled-spa-stack.md) and [Equipment QR codes stay stable](../architecture.md#equipment-qr-codes-stay-stable) in `docs/architecture.md`.
