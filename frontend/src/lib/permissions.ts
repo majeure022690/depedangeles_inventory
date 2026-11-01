@@ -40,6 +40,10 @@ export const PERMISSIONS = [
   'property_items.create',
   'property_items.edit',
   'property_items.delete',
+  'gsp_profiles.view',
+  'gsp_profiles.create',
+  'gsp_profiles.edit',
+  'gsp_profiles.delete',
   'reports.gsp_ict',
   'reports.rpcppe',
   'audit_log.view',
@@ -64,7 +68,7 @@ export interface PermissionGroup {
 }
 
 /** Display order for the server-provided groups (`Permission::group()`); unknown groups sort after these. */
-const GROUP_ORDER = ['Personnel', 'Equipment', 'ISP Accounts', 'Offices', 'Stakeholder Profile', 'Internet Connectivity', 'School Property', 'Reports', 'Administration']
+const GROUP_ORDER = ['Personnel', 'Equipment', 'ISP Accounts', 'Offices', 'Stakeholder Profile', 'Internet Connectivity', 'School Property', 'GSP ICT Profile', 'Reports', 'Administration']
 
 /**
  * Help text shown under each permission in the role editor. UI copy only:
@@ -106,6 +110,10 @@ const PERMISSION_DESCRIPTIONS: Record<PermissionName, string> = {
   'property_items.create': 'Add school property items.',
   'property_items.edit': 'Edit school property items.',
   'property_items.delete': 'Delete school property items.',
+  'gsp_profiles.view': 'See GSP ICT profiles within the role’s data scope.',
+  'gsp_profiles.create': 'Start a GSP ICT profile for a school year.',
+  'gsp_profiles.edit': 'Edit GSP ICT profiles (radio instruction, DICT Free WiFi, reliability, signatories).',
+  'gsp_profiles.delete': 'Delete GSP ICT profiles.',
   'reports.gsp_ict': 'Download the Government School Profile Part VI (ICT in Schools) workbook from a GSP ICT profile.',
   'reports.rpcppe': 'Download the Report on the Physical Count of Property, Plant and Equipment (equipment and school property) within the role’s data scope.',
   'audit_log.view': 'See who changed what across the system.',

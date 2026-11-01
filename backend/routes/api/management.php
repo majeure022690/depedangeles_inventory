@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Management\EquipmentAttachmentController;
 use App\Http\Controllers\Api\Management\EquipmentController;
 use App\Http\Controllers\Api\Management\EquipmentPeripheralController;
 use App\Http\Controllers\Api\Management\EquipmentTransactionController;
+use App\Http\Controllers\Api\Management\GspIctProfileController;
 use App\Http\Controllers\Api\Management\InternetConnectivitySurveyController;
 use App\Http\Controllers\Api\Management\IspAccountController;
 use App\Http\Controllers\Api\Management\IspSpeedTestController;
@@ -104,6 +105,16 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     Route::post('/property-items', [PropertyItemController::class, 'store'])->middleware($can(P::PropertyItemsCreate));
     Route::put('/property-items/{propertyItem}', [PropertyItemController::class, 'update'])->middleware($can(P::PropertyItemsEdit))->whereNumber('propertyItem');
     Route::delete('/property-items/{propertyItem}', [PropertyItemController::class, 'destroy'])->middleware($can(P::PropertyItemsDelete))->whereNumber('propertyItem');
+
+    // Permission-protected, data-scoped: gsp_profiles.* (GSP Part VI answers per office and school year); downloading the workbook needs reports.gsp_ict.
+    Route::get('/gsp-profiles/options', [GspIctProfileController::class, 'options'])->middleware($can(P::GspProfilesView, P::GspProfilesCreate, P::GspProfilesEdit));
+    Route::get('/gsp-profiles/preview', [GspIctProfileController::class, 'preview'])->middleware($can(P::GspProfilesView, P::GspProfilesCreate, P::GspProfilesEdit));
+    Route::get('/gsp-profiles', [GspIctProfileController::class, 'index'])->middleware($can(P::GspProfilesView));
+    Route::get('/gsp-profiles/{gspIctProfile}', [GspIctProfileController::class, 'show'])->middleware($can(P::GspProfilesView))->whereNumber('gspIctProfile');
+    Route::get('/gsp-profiles/{gspIctProfile}/download', [GspIctProfileController::class, 'download'])->middleware([$can(P::ReportsGspIct), 'throttle:20,1'])->whereNumber('gspIctProfile');
+    Route::post('/gsp-profiles', [GspIctProfileController::class, 'store'])->middleware($can(P::GspProfilesCreate));
+    Route::put('/gsp-profiles/{gspIctProfile}', [GspIctProfileController::class, 'update'])->middleware($can(P::GspProfilesEdit))->whereNumber('gspIctProfile');
+    Route::delete('/gsp-profiles/{gspIctProfile}', [GspIctProfileController::class, 'destroy'])->middleware($can(P::GspProfilesDelete))->whereNumber('gspIctProfile');
 
     // Permission-protected, data-scoped: the RPCPPE for one {office}, downloaded from School Property; the Form Request re-checks permission and office reach.
     Route::get('/reports/options', [ReportController::class, 'options'])->middleware($can(P::ReportsRpcppe));

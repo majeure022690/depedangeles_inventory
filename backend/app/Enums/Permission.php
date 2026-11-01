@@ -101,6 +101,12 @@ enum Permission: string
     case PropertyItemsEdit = 'property_items.edit';
     case PropertyItemsDelete = 'property_items.delete';
 
+    // Government School Profile Part VI answers IRIS can't derive, one per office per school year.
+    case GspProfilesView = 'gsp_profiles.view';
+    case GspProfilesCreate = 'gsp_profiles.create';
+    case GspProfilesEdit = 'gsp_profiles.edit';
+    case GspProfilesDelete = 'gsp_profiles.delete';
+
     // Excel exports of the office's equipment and connectivity data, limited to the role's data scope.
     case ReportsGspIct = 'reports.gsp_ict';
     case ReportsRpcppe = 'reports.rpcppe';
@@ -147,6 +153,7 @@ enum Permission: string
             self::StakeholderProfileView, self::StakeholderProfileEdit => 'Stakeholder Profile',
             self::InternetConnectivityView, self::InternetConnectivityEdit => 'Internet Connectivity',
             self::PropertyItemsView, self::PropertyItemsCreate, self::PropertyItemsEdit, self::PropertyItemsDelete => 'School Property',
+            self::GspProfilesView, self::GspProfilesCreate, self::GspProfilesEdit, self::GspProfilesDelete => 'GSP ICT Profile',
             self::ReportsGspIct, self::ReportsRpcppe => 'Reports',
             self::ReferenceDataManage, self::UsersView, self::UsersEdit,
             self::UsersResetTwoFactor, self::RolesView, self::RolesCreate,

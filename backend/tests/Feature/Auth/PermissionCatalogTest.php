@@ -91,7 +91,7 @@ class PermissionCatalogTest extends TestCase
 
     public function test_every_permission_has_one_of_the_picker_groups(): void
     {
-        $groups = ['Dashboard', 'Personnel', 'Equipment', 'ISP Accounts', 'Offices', 'Stakeholder Profile', 'Internet Connectivity', 'School Property', 'Reports', 'Administration'];
+        $groups = ['Dashboard', 'Personnel', 'Equipment', 'ISP Accounts', 'Offices', 'Stakeholder Profile', 'Internet Connectivity', 'School Property', 'GSP ICT Profile', 'Reports', 'Administration'];
 
         foreach (Permission::cases() as $permission) {
             $this->assertContains($permission->group(), $groups, $permission->value);

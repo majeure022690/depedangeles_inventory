@@ -5,6 +5,7 @@ namespace Tests\Feature\Security;
 use App\Enums\Permission;
 use App\Models\Equipment;
 use App\Models\EquipmentAttachment;
+use App\Models\GspIctProfile;
 use App\Models\IspAccount;
 use App\Models\ItemType;
 use App\Models\Office;
@@ -55,6 +56,7 @@ class UnrelatedPermissionBoundaryTest extends TestCase
             'user' => $target->id,
             'role' => Role::create(['name' => 'boundary-role', 'label' => 'Boundary Role'])->id,
             'propertyItem' => PropertyItem::factory()->create()->id,
+            'gspIctProfile' => GspIctProfile::factory()->create()->id,
             'table' => 'item-types',
             'id' => ItemType::create(['name' => 'Boundary', 'sort_order' => 0, 'is_active' => true])->id,
         ];

@@ -1,0 +1,130 @@
+<?php
+
+/*
+ * Wording of the Government School Profile, Part VI (ICT in Schools).
+ * ":period" becomes "SY 2025–2026, as of March 31, 2026" (or the requested period).
+ * A list entry [text, n] is indented n levels.
+ */
+
+return [
+    'contents' => [
+        ['Table 1', 'NUMBER OF FUNCTIONAL COMPUTERS IN THE SCHOOL BY FUNDING SOURCE & LEVEL, :period'],
+        ['Table 2', 'NUMBER OF FUNCTIONAL ICT EQUIPMENT IN THE SCHOOL BY FUNDING SOURCE, :period'],
+        ['Table 3', 'NUMBER OF FUNCTIONAL E-CART COMPONENTS IN THE SCHOOL UNDER DEPED COMPUTERIZATION PROGRAM (DCP), :period'],
+        ['Table 4', 'NUMBER OF TEACHERS USING RADIO FOR INSTRUCTIONAL USE, :period'],
+        ['Box 1', 'INTERNET CONNECTIVITY, :period'],
+    ],
+
+    'table_1_note' => [
+        'Note: In integrated schools where a computer is shared across multiple grade levels (e.g., Elementary and Junior High School), the computer should be counted under the level that uses it for the longest duration or the highest frequency. If usage is equal, allocation may be determined based on scheduled priority or instructional significance.',
+    ],
+
+    'table_1_definitions' => [
+        '1. Functional computers should be determined according to the following funding sources:',
+        ['a. DepEd DCP - These are computers procured through the DepEd Computerization Program.', 1],
+        ['b. DepEd non-DCP - These are computers procured through other DepEd downloaded funds.', 1],
+        ['c. LGU/SEF - These are computers procured from the Special Education Fund (SEF) and the budgets of Local Government Units (LGU): provincial, municipal or barangay units.', 1],
+        ['d. PTA/Private Donations - PTA computers are those funded by the Parents-Teachers Association (PTA), while private donations refer to computers donated or procured through private individuals, corporations, alumni associations, non-government organizations, philanthropic organizations, or through foreign-assisted funds.', 1],
+        ['e. Other Government Agencies - These are computers funded from other government agencies such as DTI, DOST, CICT, etc.', 1],
+        ['f. Others - These are computers procured from other sources not listed above.', 1],
+        '2. Computer - It refers to electronic devices for storing and processing data such as:',
+        ['a. Desktop/All-in-one - A desktop computer is designed to be used on a table and typically consists of separate components such as a monitor, CPU, keyboard, and mouse, whereas an all-in-one computer integrates these components—including the monitor, central processing unit (CPU), speakers, and often a webcam and microphone—into a single unit.', 1],
+        ['b. Laptop - It refers to a compact and portable personal computer featuring a hinged display and an integrated keyboard, designed for mobile use with the convenience of battery-powered operation. Notebooks also fall into this category.', 1],
+        ['c. Tablet - It refers to a portable computer that has a touchscreen feature as the primary means of input.', 1],
+        ['d. Tablet PC - It features a touchscreen display that can be used with a stylus or finger, and can be converted into a laptop-like configuration by attaching a keyboard or a keyboard dock.', 1],
+        '3. Number of Functional Computers Used by Learners - It refers to the total number of functional computer units for academic use that are operational, serviceable, and available for learners for instructional purposes, and are utilized in classrooms and/or computer laboratories as an aid to instruction, including lesson delivery, skills development, research, assessments, and other curriculum-related learning tasks.',
+        '4. Number of Functional Computers Used by Teachers - It refers to the total count of computers that meet the minimum technical and operational requirements to perform teaching duties and are assigned to or dedicated for instructional staff. This includes teachers in the following categories: Teacher I to VII, Master Teacher I to V, SPED Teacher I to V, Special Science Teacher I to II, and Instructor I to III.',
+        '5. Number of Functional Computers Used by Teaching-Related and Non-Teaching Personnel - It refers to the total number of computer units that are operational, serviceable, and meet the minimum technical requirements for daily work use, and are officially assigned for the exclusive use of teaching-related and non-teaching personnel for administrative, instructional support, and other work-related functions. This includes computers used by personnel such as School Principal I–IV, Head Teacher I–VI, Guidance Coordinator I–III, Guidance Counselor I–III, School Librarian I–III, Accountant I, Cashier I, Supply Officer I, Administrative Officer, Administrative Aide VI, Project Development Officer I, Senior Bookkeeper, Disbursing Officer I, Heavy Equipment Operator I, and other teaching-related and non-teaching personnel who utilize computers primarily for administrative purposes.',
+    ],
+
+    'table_2_definitions' => [
+        'ICT Equipment - It refers to electronic devices such as hardware and software that are intended to perform information processing and communication functions.',
+        ['1. LED TV - It refers to a type of television that uses Light Emitting Diodes (LEDs) to illuminate the display.', 1],
+        ['2. SMART TV - It refers to a television set that has integrated internet connectivity and built-in software or applications, enabling it to access online content and interactive services.', 1],
+        ['3. Printer - It refers to a machine for printing text or illustrations on paper.', 1],
+        ['4. Projector - It refers to a machine that projects images onto a screen or a wall.', 1],
+        ['5. External Hard Drive - It refers to a portable storage device that is connected to a computer or other digital devices via an external interface, typically USB, Thunderbolt, eSATA, or other connection methods.', 1],
+        ['6. Lapel - It refers to an electronic device used to amplify voice.', 1],
+        ['7. Charging Cart - It refers to a mobile storage unit equipped with multiple charging ports designed to securely store and recharge electronic devices.', 1],
+    ],
+
+    'table_3_definitions' => [
+        'E-Cart Package - It refers to a set of mobile educational resources. These packages might include a combination of electronic devices (such as laptops or tablets), charging cart, Smart TV and other possible educational technology tools. These packages are designed to enhance digital learning, facilitate technology-enabled teaching, or support various educational initiatives.',
+        ['1. Laptop - It refers to a personal computer designed for mobile use, typically featuring a hinged display screen attached to a keyboard.', 1],
+        ['2. SMART TV - It refers to a television set integrated with internet connectivity and interactive features.', 1],
+        ['3. Charging Cart - It refers to a mobile storage unit equipped with multiple charging ports designed to securely store and recharge electronic devices.', 1],
+        ['4. External HDD - It refers to a portable storage device connected to a computer through a USB or other external interface.', 1],
+    ],
+
+    'table_4_definitions' => [
+        'Radio-Based Instruction (RBI) - It refers to a mode of teaching and learning wherein teachers use radio broadcasts or pre-recorded radio programs as a primary or supplementary instructional medium to deliver lessons to learners, particularly in contexts with limited or no access to internet, digital devices, or face-to-face instruction. A teacher shall be considered as having used RBI if he/she:',
+        ['- Delivered lessons through live radio broadcasts (e.g., AM/FM community, school-based, or local government radio stations); and/or', 1],
+        ['- Integrated radio lessons as part of the official teaching-learning process, with corresponding learner engagement activities, such as worksheets, learning guides, follow-up discussions, or assessments.', 1],
+        'Exclusions:',
+        ['- Casual or informal use of radio not aligned with lesson delivery;', 1],
+        ['- Radio use solely for announcements or school information dissemination; or', 1],
+        ['- Teachers who only recommended radio programs without structured instructional integration.', 1],
+        'Reminders:',
+        ['- Teachers using Radio-Based Instruction (RBI) shall be counted once and recorded under the grade level where RBI was used.', 1],
+        ['- If the teacher uses Radio-Based Instruction (RBI) in more than one grade level, the teacher shall be recorded once only under the main grade level, based on the teacher’s approved class program or teaching load, as determined by the school head.', 1],
+    ],
+
+    'box_1_instructions' => [
+        ['Type of Internet Connection:', 'Fiber Optic, DSL, Cable, Satellite, FWA, Mobile Data, P2P'],
+        ['Level of Education:', 'Elementary, Junior High School, Senior High School, Shared'],
+        ['Purpose:', 'Administrative, Classroom Instruction, Both'],
+        ['Funding Source:', 'DepEd DICP, MOOE, School Funds, LGU/SEF, PTA, Private Donations, Other Government Agencies, Others'],
+        ['Service Quality:', 'Excellent, Good, Fair, Poor'],
+        ['Service Reliability:', 'Highly Reliable, Reliable, Unstable, Poor'],
+    ],
+
+    'box_1_definitions' => [
+        '1. Internet Service Provider (ISP) - It refers to the organization or company that provides the school with access to the internet and related network services.',
+        '2. Types of Internet Connection:',
+        ['a. Fiber Optic - It refers to a high-speed connection that transmits data as pulses of light through thin strands of glass or plastic. It offers the highest bandwidth and reliability.', 1],
+        ['b. DSL (Digital Subscriber Line) - It refers to a connection that uses existing copper telephone lines to transmit data.', 1],
+        ['c. Cable (Coaxial) - It refers to a connection that utilizes the same copper coaxial infrastructure used for cable television.', 1],
+        ['d. Satellite - It refers to a connection that uses orbiting satellites (GEO or LEO) to transmit data to a dish installed at the school.', 1],
+        ['e. Fixed Wireless Access (FWA) (formerly "Wireless Broadband") - It refers to internet access delivered via radio signals to a permanently installed outdoor antenna or receiver at the school.', 1],
+        ['f. Mobile Data / Cellular - It refers to internet access provided through cellular networks (4G, 5G, or LTE) using a SIM card. This includes mobile phones, Pocket WiFi, or Prepaid Home WiFi router.', 1],
+        ['g. Point-to-Point (P2P) - It refers to a dedicated, private link between two specific locations (e.g., from a Division Office to a School).', 1],
+        '3. Level of Education - It refers to the highest level(s) of education offered by the school (Elementary, Junior High School, and Senior High School).',
+        'Reminder:',
+        ['a. Integrated schools must specify the Internet Service Provider(s) (ISP) for each level of education.', 1],
+        ['b. If a school offers more than one level and each level has its own ISP, the school must indicate the specific ISP used for each level.', 1],
+        ['c. If a school offers multiple levels (Integrated School) but uses a single ISP shared across those levels, the level may be recorded as Shared.', 1],
+        '4. Purpose - It refers to the purpose of internet connection if it is for:',
+        ['a. Administrative use', 1],
+        ['b. Classroom instruction use', 1],
+        ['c. Both administrative and classroom instruction use', 1],
+        '5. Average Monthly Expense - It refers to the recurring monthly cost incurred by the school for the internet subscription, expressed in Philippine Peso (PHP).',
+        '6. Funding Source - It refers to the specific budget allocation or financial account charged for the internet subscription expenses (e.g., School MOOE, SEF, LGU Funds, etc.).',
+        '7. Subscribed Speed - It refers to the download/upload speed allocated to the school as stipulated in the service contract or subscription agreement (e.g., 50 Mbps, 100 Mbps).',
+        '8. Speed Test Metrics:',
+        ['a. Ping (Latency) - It refers to the reaction time of the connection, measured in milliseconds (ms). It represents the time it takes for data to travel to the server and return.', 1],
+        ['b. Download - It refers to the rate at which data is received from the internet, measured in Megabits per second (Mbps). This metric determines how quickly web pages, videos, and files load.', 1],
+        ['c. Upload - It refers to the rate at which data is sent to the internet, measured in Megabits per second (Mbps). This metric determines how quickly files, emails, and video streams are transmitted.', 1],
+        '9. Service Quality (Performance) - It measures the speed and responsiveness of the internet connection. It is computed by comparing the Actual Download Speed against the Subscribed Download Speed to determine a percentage of compliance.',
+        ['a. Excellent - It refers to a connection that provides a perfect user experience, ideal for seamless video conferencing with zero lag. The connection must deliver at least 90% of the subscribed download speed AND maintain a ping of ≤ 20 ms.', 1],
+        ['b. Good - It refers to a reliable connection where browsing is smooth and video calls work well, despite minor fluctuations. The connection must deliver 60% to 89% of the subscribed download speed AND maintain a ping of 21–50 ms.', 1],
+        ['c. Fair - It refers to a sluggish connection where web pages open, but video calls may sound robotic or blur due to delays. This classification applies if the speed falls from 30% to 59% OR the ping is 51–100 ms.', 1],
+        ['d. Poor - It refers to an unusable connection marked by constant buffering, freezing, or an inability to connect. This classification applies if the speed is below 30% OR the ping is higher than 100 ms.', 1],
+        'Note: The classification is determined by the lowest performing figure. For example, if a connection has Excellent speed but Fair latency, the overall status must be recorded as FAIR.',
+        '10. Service Reliability (Availability) - It measures the stability and consistency of the internet connection. It is computed by counting the number of service interruptions or drops that occur during operational school hours.',
+        ['a. Highly Reliable - It refers to a consistently available connection with zero service disruptions. To qualify, there must be zero (0) unscheduled interruptions or disconnects recorded during the 5-day school week.', 1],
+        ['b. Reliable - It refers to a dependable connection where interruptions are infrequent and rapidly resolved. To qualify, there must be no more than one (1) interruption lasting less than 15 minutes during the school week.', 1],
+        ['c. Unstable - It refers to a connection that remains functional but exhibits inconsistency, where occasional disconnects require teachers to pause lessons or re-establish connectivity, reducing productive teaching time. To qualify, the school must record between 2 to 3 interruptions during the school week.', 1],
+        ['d. Poor - It refers to a severely compromised connection that is unsuitable for continuous operations. To qualify, the school must record 4 or more interruptions during the school week OR any single outage lasting longer than 4 hours.', 1],
+        'Note: Reliability is assessed exclusively during Operational Hours (e.g., 6:00 AM to 6:00 PM). Service interruptions occurring outside this window do not negatively impact the classification, provided service is restored before the start of the next school day.',
+        '11. Coverage Area:',
+        ['a. School-wide - It refers to the entirety of a school\'s physical space, encompassing all its buildings, facilities, and outdoor grounds.', 1],
+        ['b. Faculty area - It refers to a specific section within a school where teaching staff, including teachers and educators, gather for academic and professional purposes.', 1],
+        ['c. Principal\'s office - It refers to the official workspace of the school\'s principal or head administrator.', 1],
+        ['d. Elementary School Area - It refers to the designated section of the school where students in elementary grades congregate for classes, activities, and social interaction.', 1],
+        ['e. Junior High School (JHS) Area - It refers to the designated section of the school where students in Junior High School (JHS) congregate for classes, activities, and social interaction.', 1],
+        ['f. Senior High School (SHS) Area - It refers to the designated section of the school where students in Senior High School (SHS) congregate for classes, activities, and social interaction.', 1],
+        ['g. ICT Room/Laboratory - It refers to the space that serves as an environment for learning and teaching related to information technology and digital skills.', 1],
+        ['h. Library - It refers to the place where a collection of organized information resources, including books, digital media, periodicals, and more, is made available for research, learning, reference, and leisure reading.', 1],
+        'Reminder: If School-wide is selected, no other options should be selected.',
+    ],
+];

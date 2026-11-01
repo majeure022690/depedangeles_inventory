@@ -1,6 +1,7 @@
 import {
   Armchair,
   Building2,
+  FileSpreadsheet,
   History,
   LayoutDashboard,
   Library,
@@ -82,6 +83,7 @@ const navGroups: NavGroup[] = [
       },
       { title: 'ISP Accounts', to: '/isp-accounts', icon: Wifi, color: 'text-emerald-600', permission: 'isp_accounts.view' },
       { title: 'School Property', to: '/school-property', icon: Armchair, color: 'text-amber-500', permission: 'property_items.view' },
+      { title: 'GSP ICT Profiles', to: '/gsp-profiles', icon: FileSpreadsheet, color: 'text-green-600', permission: 'gsp_profiles.view' },
     ],
   },
   {

@@ -42,6 +42,9 @@ class RolePermissionSeeder extends Seeder
         PermissionEnum::PropertyItemsView,
         PermissionEnum::PropertyItemsCreate,
         PermissionEnum::PropertyItemsEdit,
+        PermissionEnum::GspProfilesView,
+        PermissionEnum::GspProfilesCreate,
+        PermissionEnum::GspProfilesEdit,
         PermissionEnum::ReportsGspIct,
         PermissionEnum::ReportsRpcppe,
     ];
@@ -94,6 +97,7 @@ class RolePermissionSeeder extends Seeder
                     PermissionEnum::PersonnelView->value,
                     PermissionEnum::EquipmentView->value,
                     PermissionEnum::PropertyItemsView->value,
+                    PermissionEnum::GspProfilesView->value,
                     PermissionEnum::StakeholderProfileView->value,
                     PermissionEnum::InternetConnectivityView->value,
                 ],
