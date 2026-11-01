@@ -11,3 +11,7 @@ Artisan::command('inspire', function () {
 Schedule::command('users:sync-external')
     ->everyFifteenMinutes()
     ->withoutOverlapping(30);
+
+Schedule::command('personnel:sync-prime --force')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(30);

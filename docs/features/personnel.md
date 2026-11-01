@@ -64,7 +64,7 @@ None blocking.
 
 ## PRIME sync
 
-Personnel is a copy of PRIME's `employees` table, kept current by `php artisan personnel:sync-prime` (`App\Services\PrimePersonnelSync`).
+Personnel is a copy of PRIME's `employees` table, kept current by `php artisan personnel:sync-prime` (`App\Services\PrimePersonnelSync`), scheduled every 15 minutes with `--force` next to `users:sync-external` (`routes/console.php`; needs the Plesk Scheduled Task running `schedule:run` every minute). Only records whose PRIME values changed are written; `--remove-legacy` is never scheduled.
 
 - **Matching:** by `prime_employee_id` once linked, otherwise by DepEd employee number (`employees.deped_id_no` ↔ `personnel.employee_id`). A matched record keeps its id, so equipment, transactions and property stay attached.
 - **PRIME-owned fields** (`Personnel::PRIME_FIELDS`), overwritten on every run: employee ID, last/first/middle name, suffix (`name_extension`), DepEd email, school/office (`department_school_id` → the office linked by `prime_department_id`), position (`personnelposition.position_title`, matched to Positions by name and added if missing), date hired (`date_original_appointment`), appointment status, plantilla item no./level (`curr_psipop_item_number`, `psipop_item_level`), workstation (`actual_workstation`), date of last promotion, and status. `employee_status` `Active` is active; any `Inactive - <reason>` is inactive with `<reason>` as the cause, and the separation date comes from the latest `service_records.separation_date`.
