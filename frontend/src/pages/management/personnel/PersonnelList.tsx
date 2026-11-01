@@ -125,7 +125,7 @@ export function PersonnelList() {
         id: 'office',
         header: 'Office',
         enableSorting: false,
-        cell: ({ row }) => row.original.division_unit ?? row.original.ro_division ?? <span className="text-gray-400">—</span>,
+        cell: ({ row }) => row.original.office ?? row.original.division_unit ?? row.original.ro_division ?? <span className="text-gray-400">—</span>,
       }),
       column.accessor('mobile_1', {
         header: 'Mobile',

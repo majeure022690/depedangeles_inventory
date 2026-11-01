@@ -10,8 +10,6 @@ import { withCurrentOption } from '@/lib/options'
 import { formatDate } from '@/lib/utils'
 import type { Personnel, PersonnelFormData, PersonnelOptions } from '@/types/personnel'
 
-const PRIME_LOCK_HINT = 'Synced from PRIME; change it there.'
-
 function ReadOnly({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
@@ -95,7 +93,8 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
   const { user } = useAuth()
   const scopeLocked = !hasAllScope(user)
   const prime = current?.managed_by_prime === true
-  const lockNote = (locked: boolean | 'prime') => (disabled || !locked ? undefined : locked === 'prime' ? PRIME_LOCK_HINT : SCOPE_LOCK_HINT)
+  const labelFor = (label: string, locked: boolean | 'prime') => (locked === 'prime' ? label.replace(/s*(optional)$/i, '') : label)
+  const lockNote = (locked: boolean | 'prime') => (disabled || locked !== true ? undefined : SCOPE_LOCK_HINT)
 
   const officeList =
     scopeLocked && value.office_id !== null && value.office_id === user?.office_id && current?.office_id !== value.office_id
@@ -113,7 +112,7 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
   ) {
     const { className, locked = false, ...inputProps } = props
     return (
-      <FormField id={key} label={label} error={errors[key]} className={className} note={lockNote(locked)}>
+      <FormField id={key} label={labelFor(label, locked)} error={errors[key]} className={className} note={lockNote(locked)}>
         {(aria) => (
           <Input
             id={key}
@@ -131,7 +130,7 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
 
   function stringSelect(key: TextKey, label: string, list: SelectOption[] | undefined, locked: boolean | 'prime' = false) {
     return (
-      <FormField id={key} label={label} error={errors[key]} note={lockNote(locked)}>
+      <FormField id={key} label={labelFor(label, locked)} error={errors[key]} note={lockNote(locked)}>
         {(aria) => (
           <Select
             id={key}
@@ -157,7 +156,7 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
   ) {
     const selected = value[key]
     return (
-      <FormField id={key} label={label} error={errors[key]} note={lockNote(locked)}>
+      <FormField id={key} label={labelFor(label, locked)} error={errors[key]} note={lockNote(locked)}>
         {(aria) => (
           <Select
             id={key}
@@ -186,8 +185,8 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
 
       <FormSection title="Assignment">
         {idSelect('position_id', 'Position (optional)', options?.position, current?.position, prime && 'prime')}
-        {idSelect('ro_office_id', 'RO division (optional)', options?.ro_office, current?.ro_division)}
-        {idSelect('sdo_office_id', 'Division/unit (optional)', options?.sdo_office, current?.division_unit)}
+        {!prime && idSelect('ro_office_id', 'RO division (optional)', options?.ro_office, current?.ro_division)}
+        {!prime && idSelect('sdo_office_id', 'Division/unit (optional)', options?.sdo_office, current?.division_unit)}
         {idSelect('office_id', 'School/office (optional)', officeList, current?.office, prime ? 'prime' : scopeLocked)}
         <CheckboxField id="oic" label="Officer-in-charge (OIC)" checked={value.oic} disabled={disabled} error={errors.oic} onChange={(checked) => set('oic', checked)} />
         {value.oic && text('oic_office', 'OIC office (optional)', { className: 'sm:col-span-2' })}
@@ -225,7 +224,7 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
       </FormSection>
 
       {prime && current && (
-        <FormSection title="From PRIME (read-only)">
+        <FormSection title="Employment details">
           <ReadOnly label="Appointment status" value={current.appointment_status} />
           <ReadOnly label="Plantilla item no." value={current.plantilla_item_no} />
           <ReadOnly label="Item level" value={current.plantilla_item_level} />

@@ -151,12 +151,13 @@ class Personnel extends Model
     }
 
     /**
-     * Fields `personnel:sync-prime` owns on records linked to a PRIME employee; locked in IRIS.
+     * Fields locked on records linked to a PRIME employee: those `personnel:sync-prime` owns, plus the
+     * RO division and division/unit that PRIME's school/office replaces.
      */
     public const PRIME_FIELDS = [
         'employee_id', 'last_name', 'first_name', 'middle_name', 'suffix', 'deped_email', 'office_id', 'position_id',
         'date_hired', 'inactive', 'separation_date', 'separation_cause', 'appointment_status', 'plantilla_item_no',
-        'plantilla_item_level', 'workstation', 'date_last_promotion',
+        'plantilla_item_level', 'workstation', 'date_last_promotion', 'ro_office_id', 'sdo_office_id',
     ];
 
     public function isManagedByPrime(): bool

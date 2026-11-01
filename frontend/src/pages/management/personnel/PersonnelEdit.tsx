@@ -164,7 +164,7 @@ export function PersonnelEdit() {
         </div>
         {!canEdit && <Alert type="info">You can view this record but not edit it.</Alert>}
         {personnel?.managed_by_prime && (
-          <Alert type="info">Synced from PRIME. Name, employee ID, DepEd email, school/office, position, hire date and status come from PRIME and are updated there; the other fields can be edited here.</Alert>
+          <Alert type="info">Synced from PRIME. Name, employee ID, DepEd email, school/office, position, hire date, status and the employment details are updated in PRIME; the other fields can be edited here.</Alert>
         )}
 
         <PersonnelFields value={form} onChange={setForm} options={options} errors={errors} disabled={!canEdit} current={personnel} />
