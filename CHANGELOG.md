@@ -2,6 +2,17 @@
 
 All notable changes to this project, in terms of user/developer impact. Entries up to 2026-07-15 were reconstructed from migration filename timestamps and source file modification times, before the project had git history; they are accurate to the day where backed by a migration timestamp, and entries reconstructed from file mtimes alone are noted as such. Later entries cite their commits.
 
+## 2026-11-01 — School Property and GSP ICT Profile modules, GSP and RPCPPE workbooks
+
+On `iris-staging`. Migrations `2026_11_01_000001`..`000006`. New dependency `phpoffice/phpspreadsheet`. Covered by `backend/tests/Feature/{ReportControllerTest,PropertyItemControllerTest,GspIctProfileControllerTest,PrimePersonnelSyncTest}.php`.
+
+### Added
+- **School Property** (`/school-property`, sidebar *Records*): list, create, edit, delete and Excel export of non-ICT property (furniture, buildings, other structures, TLE, science and math, sports and music, books) and IT/office items not in the Equipment inventory. New table `property_items`, permissions `property_items.view/create/edit/delete` (group *School Property*), office-scoped like ISP accounts, audited. Furniture can name a teacher (Personnel) and grade level. See [`docs/features/school-property.md`](docs/features/school-property.md).
+- **School Property** opens on one tab per RPCPPE sheet; **Download RPCPPE** (`GET /api/reports/rpcppe/{office}`, permission `reports.rpcppe`) builds every category sheet from IRIS equipment plus School Property, PPE vs semi-expendable sheets, books, and furniture per teacher.
+- **GSP ICT Profiles** (`/gsp-profiles`, sidebar *Records*): one record per school per school year with what IRIS can't derive (radio-based instruction per grade, DICT Free WiFi, ISP service reliability, signatories). New table `gsp_ict_profiles`, permissions `gsp_profiles.view/create/edit/delete` (group *GSP ICT Profile*). Each profile downloads its **GSP Part VI** workbook (`GET /api/gsp-profiles/{id}/download`, permission `reports.gsp_ict`). See [`docs/features/gsp-ict-profiles.md`](docs/features/gsp-ict-profiles.md).
+- **Personnel synced from PRIME.** `php artisan personnel:sync-prime [--dry-run] [--remove-legacy]` creates and updates Personnel from PRIME `employees` (names, employee ID, DepEd email, office, position, hire date, appointment status, plantilla item, workstation, last promotion, status/separation), matched by employee number so existing records keep their equipment. New columns `prime_employee_id`, `appointment_status`, `plantilla_item_no`, `plantilla_item_level`, `workstation`, `date_last_promotion`, `prime_synced_at`. PRIME-owned fields are read-only and synced records can't be deleted in IRIS. See [`docs/features/personnel.md`](docs/features/personnel.md#prime-sync).
+- Both workbooks are generated in code (no template file); downloads are audited as `report.generated`. See [`docs/features/reports.md`](docs/features/reports.md).
+
 ## 2026-10-31 — Per-record audit history, attachment upload 404
 
 On `iris-staging`, after `3688436`. No migrations. Covered by `backend/tests/Feature/{AuditLogControllerTest,DataScope/AuditLogDataScopeTest,EquipmentAttachmentTest}.php`.
