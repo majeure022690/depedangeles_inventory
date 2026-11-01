@@ -195,6 +195,7 @@ class ImportPsfInventoryTest extends TestCase
     public function test_a_school_named_with_different_spacing_and_words_still_matches(): void
     {
         $sapangbato = Office::factory()->create(['office_name' => 'Sapangbato NHS', 'school_id' => '301043', 'prime_department_id' => $this->primeDepartment('Sapangbato NHS')]);
+        Personnel::factory()->create(['office_id' => $sapangbato->id, 'inactive' => false, 'position_id' => Position::query()->firstOrCreate(['name' => 'Secondary School Principal'])->id]);
         $this->workbook('301043 - Sapangbato High School/Sapangbato High School - 301043.xlsx', []);
         $this->workbook('301043 - Sapangbato High School/301043-Sapang Bato National High School_ict-equipment-inventory-school-template.xlsx', [['E' => 'Laptop', 'G' => 'Dell']]);
 
@@ -219,6 +220,39 @@ class ImportPsfInventoryTest extends TestCase
 
         $this->assertSame($airForce->id, $plans['161001']['office']?->id);
         $this->assertNotSame($airForce->id, $plans['107034']['office']?->id);
+    }
+
+    public function test_the_fallback_prefers_the_principal_over_an_assistant_and_explains_misses(): void
+    {
+        $assistant = Personnel::factory()->create([
+            'office_id' => $this->school->id, 'last_name' => 'Aaron', 'inactive' => false,
+            'position_id' => Position::query()->firstOrCreate(['name' => 'Assistant Secondary School Principal'])->id,
+        ]);
+        $this->workbook('107025 - Cutud ES/107025 Cutud ES.xlsx', [
+            ['E' => 'Laptop', 'G' => 'Dell', 'AC' => 'Someone Else - 4400003'],
+            ['E' => 'Laptop', 'G' => 'Dell', 'AC' => 'Nobody Known - 9999999'],
+            ['E' => 'Laptop', 'G' => 'Dell', 'AC' => "{$this->teacher->first_name} Q. {$this->teacher->last_name}"],
+        ]);
+
+        $rows = app(PsfInventoryImport::class)->plan($this->folder)[0]['rows'];
+
+        $this->assertSame($this->head->id, $rows[0]['transaction']['accountable_officer_id']);
+        $this->assertNotSame($assistant->id, $rows[0]['transaction']['accountable_officer_id']);
+        $this->assertStringContainsString('belongs to personnel at Air Force City ES', $rows[0]['notes'][0]);
+        $this->assertStringContainsString('not in IRIS personnel', $rows[1]['notes'][0]);
+        $this->assertSame($this->teacher->id, $rows[2]['transaction']['accountable_officer_id']);
+    }
+
+    public function test_a_school_without_any_head_is_held_back_when_rows_would_be_unassigned(): void
+    {
+        $this->head->forceFill(['inactive' => true])->save();
+        $this->workbook('107025 - Cutud ES/107025 Cutud ES.xlsx', [['E' => 'Laptop', 'G' => 'Dell']]);
+
+        $this->artisan('equipment:import-psf', ['folder' => $this->folder, '--user' => $this->importer()->email, '--force' => true])
+            ->expectsOutputToContain('no officer and the school has no Principal')
+            ->assertSuccessful();
+
+        $this->assertSame(0, Equipment::query()->count());
     }
 
     public function test_a_real_import_needs_an_existing_importer(): void

@@ -240,7 +240,10 @@ final class PsfInventoryImport
             }
 
             if ($rows !== []) {
-                return [...$plan, 'file' => $path, 'rows' => $rows, 'problem' => null,
+                $unassigned = count(array_filter($rows, fn (array $row) => $row['transaction']['accountable_officer_id'] === null));
+
+                return [...$plan, 'file' => $path, 'rows' => $rows,
+                    'problem' => $unassigned === 0 ? null : "{$unassigned} row(s) have no officer and the school has no Principal, Head Teacher or OIC in IRIS",
                     'name_match' => $this->nameMatch(pathinfo($path, PATHINFO_FILENAME), (string) $office->office_name)];
             }
         }
