@@ -36,7 +36,8 @@ $can = fn (P ...$permissions): string => 'permission:'.implode('|', array_map(fn
 
 Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout::class, 'throttle:authenticated-api'])->group(function () use ($can) {
     // Authenticated: each section is included only for holders of its dashboard.* permission.
-    Route::get('/dashboard/summary', DashboardController::class);
+    Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
+    Route::get('/dashboard/filters', [DashboardController::class, 'filters']);
 
     // Permission-protected: personnel.*.
     Route::get('/personnel/options', [PersonnelController::class, 'options'])->middleware($can(P::PersonnelView, P::PersonnelCreate, P::PersonnelEdit));

@@ -492,9 +492,18 @@ class Equipment extends Model
      */
     public function scopeAtOffice(Builder $query, int $officeId): void
     {
+        $query->atOffices([$officeId]);
+    }
+
+    /**
+     * @param  Builder<Equipment>  $query
+     * @param  list<int>  $officeIds
+     */
+    public function scopeAtOffices(Builder $query, array $officeIds): void
+    {
         $officer = $query->qualifyColumn('current_accountable_officer_id');
         $endUser = $query->qualifyColumn('current_end_user_id');
-        $personnel = Personnel::query()->select('id')->where('office_id', $officeId);
+        $personnel = Personnel::query()->select('id')->whereIn('office_id', $officeIds);
 
         $query->where(fn (Builder $query) => $query
             ->whereIn($officer, $personnel)
@@ -502,7 +511,7 @@ class Equipment extends Model
             ->orWhere(fn (Builder $query) => $query
                 ->whereNull($officer)
                 ->whereNull($endUser)
-                ->whereIn($query->qualifyColumn('created_by_user_id'), User::query()->select('id')->where('office_id', $officeId))));
+                ->whereIn($query->qualifyColumn('created_by_user_id'), User::query()->select('id')->whereIn('office_id', $officeIds))));
     }
 
     /**

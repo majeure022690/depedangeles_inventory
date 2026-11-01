@@ -3,11 +3,15 @@
 namespace Tests\Feature;
 
 use App\Enums\DashboardEquipmentGroup;
+use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Models\Equipment;
 use App\Models\IspAccount;
 use App\Models\IspProvider;
 use App\Models\ItemType;
+use App\Models\Office;
+use App\Models\Personnel;
+use App\Models\StakeholderProfile;
 use App\Models\User;
 use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
@@ -208,5 +212,49 @@ class DashboardTest extends TestCase
                 ['value' => 'DSL', 'count' => 1, 'percentage' => 25],
             ],
         ]);
+    }
+
+    public function test_office_type_and_district_filters_narrow_every_section(): void
+    {
+        $school = Office::factory()->create(['office_type' => 'Elementary School']);
+        $other = Office::factory()->create(['office_type' => 'High School']);
+        StakeholderProfile::query()->create(['office_id' => $school->id, 'school_district' => 'North District']);
+        $provider = IspProvider::query()->where('name', 'GLOBE')->valueOrFail('id');
+
+        foreach ([[$school, 2], [$other, 3]] as [$office, $count]) {
+            Equipment::factory()->count($count)->create([
+                'item_type_id' => ItemType::where('name', 'Laptop')->valueOrFail('id'),
+                'acquisition_cost' => 1000,
+                'current_accountable_officer_id' => Personnel::factory()->create(['office_id' => $office->id])->id,
+                'current_end_user_id' => null,
+            ]);
+            IspAccount::factory()->create(['office_id' => $office->id, 'isp_provider_id' => $provider]);
+        }
+
+        $filtered = fn (array $query) => $this->actingAs($this->viewer())->getJson('/api/dashboard/summary?'.http_build_query($query))->assertOk();
+
+        $filtered([])->assertJsonPath('data.semi_expendable.item_count', 5)->assertJsonPath('data.internet_connectivity.total_accounts', 2);
+        $filtered(['office_id' => $school->id])->assertJsonPath('data.semi_expendable.item_count', 2)->assertJsonPath('data.internet_connectivity.total_accounts', 1);
+        $filtered(['office_type' => 'High School'])->assertJsonPath('data.semi_expendable.item_count', 3)->assertJsonPath('data.equipment_distribution.total', 3);
+        $filtered(['district' => 'North District'])->assertJsonPath('data.semi_expendable.item_count', 2);
+        $filtered(['district' => 'Nowhere'])->assertJsonPath('data.semi_expendable.item_count', 0)->assertJsonPath('data.internet_connectivity.total_accounts', 0);
+    }
+
+    public function test_filters_never_widen_a_school_scoped_dashboard_and_offer_no_choices(): void
+    {
+        $mine = Office::factory()->create();
+        $theirs = Office::factory()->create();
+        Equipment::factory()->create([
+            'acquisition_cost' => 1000,
+            'current_accountable_officer_id' => Personnel::factory()->create(['office_id' => $theirs->id])->id,
+            'current_end_user_id' => null,
+        ]);
+        $scoped = $this->userWithPermissions(array_values(self::SECTIONS), ['office_id' => $mine->id], DataScope::School);
+
+        $this->actingAs($scoped)->getJson('/api/dashboard/summary?office_id='.$theirs->id)->assertOk()->assertJsonPath('data.semi_expendable.item_count', 0);
+        $this->actingAs($scoped)->getJson('/api/dashboard/filters')->assertOk()->assertExactJson(['data' => ['offices' => [], 'office_types' => [], 'districts' => []], 'message' => 'Success']);
+
+        $this->actingAs($this->viewer())->getJson('/api/dashboard/filters')->assertOk()
+            ->assertJsonFragment(['value' => $theirs->id, 'label' => $theirs->office_name]);
     }
 }
