@@ -561,11 +561,9 @@ final class PsfSchoolDataImport
         $province = ($place['province'] ?? null) === null ? null
             : PsgcProvince::query()->whereRaw('upper(name) = ?', [mb_strtoupper($place['province'])])->first();
         $municipality = $province === null || ($place['municipality'] ?? null) === null ? null
-            : PsgcMunicipality::query()->where('province_id', $province->id)->get()
-                ->first(fn (PsgcMunicipality $m) => self::placeKey($m->name) === self::placeKey($place['municipality']));
+            : self::closestPlace(PsgcMunicipality::query()->where('province_id', $province->id)->get()->all(), $place['municipality']);
         $barangay = $municipality === null || ($place['barangay'] ?? null) === null ? null
-            : PsgcBarangay::query()->where('municipality_id', $municipality->id)->get()
-                ->first(fn (PsgcBarangay $b) => self::placeKey($b->name) === self::placeKey($place['barangay']));
+            : self::closestPlace(PsgcBarangay::query()->where('municipality_id', $municipality->id)->get()->all(), $place['barangay']);
 
         foreach (['province' => $province, 'municipality' => $municipality, 'barangay' => $barangay] as $level => $found) {
             if ($found === null && ($place[$level] ?? null) !== null) {
@@ -661,10 +659,44 @@ final class PsfSchoolDataImport
         return (string) preg_replace('/[^a-z0-9]+/', '', $value);
     }
 
+    /**
+     * The same name, then without a trailing number ("Capaya II"), then the one name contained in it
+     * ("San Ignacio Subd. Pandan"), then a near spelling ("Loudes Sur East"); a tie matches nothing.
+     *
+     * @template T of PsgcMunicipality|PsgcBarangay
+     *
+     * @param  list<T>  $places
+     * @return T|null
+     */
+    private static function closestPlace(array $places, string $given): mixed
+    {
+        $key = self::placeKey($given);
+        $numberless = self::placeKey((string) preg_replace('/\s+(\d+|[ivx]+)\.?$/i', '', trim($given)));
+        $keyed = array_map(fn ($place) => [$place, self::placeKey($place->name)], $places);
+
+        foreach ([fn (string $k) => $k === $key, fn (string $k) => $k === $numberless, fn (string $k) => strlen($k) >= 4 && str_contains($key, $k)] as $test) {
+            $found = array_values(array_filter($keyed, fn (array $pair) => $test($pair[1])));
+            if (count($found) === 1) {
+                return $found[0][0];
+            }
+        }
+
+        $scores = array_map(function (array $pair) use ($key) {
+            similar_text($key, $pair[1], $percent);
+
+            return $percent;
+        }, $keyed);
+        arsort($scores);
+        $best = array_key_first($scores);
+        $runnerUp = array_values($scores)[1] ?? 0;
+
+        return $best !== null && $scores[$best] >= 88 && $scores[$best] > $runnerUp ? $keyed[$best][0] : null;
+    }
+
     private static function placeKey(string $name): string
     {
-        $name = mb_strtolower($name);
-        $name = (string) preg_replace('/^city of\s+|\s+city$|\(.*?\)/', '', $name);
+        $name = mb_strtolower(str_replace(['ñ', 'Ñ'], 'n', $name));
+        $name = (string) preg_replace(['/^city of\s+|\s+city$|\(.*?\)/', '/^(barangay|brgy\.?)\s+/', '/\bsanta\b/', '/\bsanto\b/'], ['', '', 'sta', 'sto'], trim($name));
 
         return (string) preg_replace('/[^a-z0-9]+/', '', $name);
     }
@@ -753,7 +785,10 @@ final class PsfSchoolDataImport
                 $date = CarbonImmutable::instance(ExcelDate::excelToDateTimeObject((float) $value));
             } elseif (is_string($value) && ($text = $this->text($value)) !== null) {
                 $date = null;
-                foreach (['m/d/Y h:iA', 'm/d/Y h:i A', 'm/d/Y H:i', 'm/d/Y'] as $format) {
+                if (preg_match('/\b(1[3-9]|2[0-3]):\d{2}/', $text) === 1) {
+                    $text = trim((string) preg_replace('/\s*[AP]M$/i', '', $text));
+                }
+                foreach (['!m/d/Y h:iA', '!m/d/Y h:i A', '!m/d/Y h:i:s A', '!m/d/Y H:i:s', '!m/d/Y H:i', '!m/d/Y'] as $format) {
                     try {
                         $date = CarbonImmutable::createFromFormat($format, $text) ?: null;
                     } catch (Throwable) {
