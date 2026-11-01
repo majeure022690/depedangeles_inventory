@@ -297,6 +297,66 @@ class EquipmentControllerTest extends TestCase
         $this->assertNull($equipment->fresh()->brand_other);
     }
 
+    public function test_costs_far_above_the_item_types_typical_cost_are_flagged_and_filterable(): void
+    {
+        $laptop = ItemType::where('name', 'Laptop')->valueOrFail('id');
+        foreach ([30000, 31000, 32000, 33000, 34000] as $cost) {
+            $this->makeEquipment(['item_type_id' => $laptop, 'acquisition_cost' => $cost]);
+        }
+        $package = $this->makeEquipment(['item_type_id' => $laptop, 'acquisition_cost' => 702250]);
+
+        $this->actingAs($this->editor())->getJson('/api/equipment?high_cost=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $package->id)
+            ->assertJsonPath('data.0.cost_looks_high', true);
+
+        $this->assertCount(5, collect($this->actingAs($this->editor())->getJson('/api/equipment')->json('data'))->where('cost_looks_high', false));
+    }
+
+    public function test_a_number_issued_without_a_year_takes_the_acquisition_year_once_it_is_entered(): void
+    {
+        $equipment = $this->makeEquipment(['property_no' => 'AC-0000-IT-LPT-000777', 'received_date' => null]);
+        $dated = $this->makeEquipment(['property_no' => 'AC-2019-IT-LPT-000778']);
+
+        $this->actingAs($this->editor())->putJson("/api/equipment/{$equipment->id}", $this->payload(['received_date' => '2021-06-01']))
+            ->assertOk()
+            ->assertJsonPath('data.property_no', fn (string $number) => str_starts_with($number, 'AC-2021-IT-'));
+
+        $this->actingAs($this->editor())->putJson("/api/equipment/{$dated->id}", $this->payload(['received_date' => '2023-01-01']))
+            ->assertOk()
+            ->assertJsonPath('data.property_no', 'AC-2019-IT-LPT-000778');
+    }
+
+    public function test_the_backfill_takes_the_dcp_year_when_there_is_no_acquisition_date(): void
+    {
+        $dcp = $this->makeEquipment(['property_no' => 'AC-0000-IT-LPT-000801', 'received_date' => null, 'non_dcp' => false, 'dcp_year' => 2019]);
+        $unknown = $this->makeEquipment(['property_no' => 'AC-0000-IT-LPT-000802', 'received_date' => null, 'non_dcp' => true]);
+
+        $this->artisan('equipment:fix-unknown-year', ['--dry-run' => true])->assertSuccessful();
+        $this->assertSame('AC-0000-IT-LPT-000801', $dcp->fresh()->property_no);
+
+        $this->artisan('equipment:fix-unknown-year', ['--force' => true])->assertSuccessful();
+        $this->assertStringStartsWith('AC-2019-IT-', (string) $dcp->fresh()->property_no);
+        $this->assertSame('AC-0000-IT-LPT-000802', $unknown->fresh()->property_no);
+    }
+
+    public function test_search_finds_equipment_by_its_accountable_officer_or_end_user(): void
+    {
+        $officer = Personnel::factory()->create(['last_name' => 'Zamora', 'first_name' => 'Teodora', 'employee_id' => '7654321']);
+        $endUser = Personnel::factory()->create(['last_name' => 'Yulo', 'first_name' => 'Crisanto']);
+        $mine = $this->makeEquipment();
+        $theirs = $this->makeEquipment();
+        Equipment::withAccountabilitySync(function () use ($mine, $theirs, $officer, $endUser) {
+            $mine->update(['current_accountable_officer_id' => $officer->id]);
+            $theirs->update(['current_end_user_id' => $endUser->id]);
+        });
+
+        $this->actingAs($this->editor())->getJson('/api/equipment?search=Zamora')->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $mine->id);
+        $this->actingAs($this->editor())->getJson('/api/equipment?search=7654321')->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $mine->id);
+        $this->actingAs($this->editor())->getJson('/api/equipment?search=Yulo')->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $theirs->id);
+    }
+
     public function test_show_returns_the_record_with_its_transaction_history_newest_first(): void
     {
         $equipment = $this->makeEquipment();

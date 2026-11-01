@@ -67,6 +67,10 @@ class EquipmentResource extends JsonResource
             'uacs' => $this->uacs,
             // Null stays null: "cost not on file yet" is not a zero cost.
             'acquisition_cost' => $this->acquisition_cost !== null ? (float) $this->acquisition_cost : null,
+            'cost_looks_high' => $this->when(
+                array_key_exists('cost_looks_high', $this->resource->getAttributes()),
+                fn () => (bool) $this->resource->getAttribute('cost_looks_high'),
+            ),
             'received_date' => $this->received_date?->toDateString(),
             'estimated_useful_life' => $this->estimated_useful_life,
             'mode_acquisition' => $this->mode_acquisition,

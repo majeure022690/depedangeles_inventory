@@ -25,6 +25,7 @@ use App\Models\ItemType;
 use App\Models\Personnel;
 use App\Models\User;
 use App\Services\EquipmentAccountabilityService;
+use App\Services\EquipmentCostOutliers;
 use App\Services\EquipmentPeripheralService;
 use App\Services\EquipmentPropertyNumberService;
 use Endroid\QrCode\Builder\Builder;
@@ -128,6 +129,7 @@ class EquipmentController extends Controller
         private readonly EquipmentPeripheralService $peripherals,
         private readonly EquipmentAccountabilityService $accountability,
         private readonly EquipmentPropertyNumberService $propertyNumbers,
+        private readonly EquipmentCostOutliers $costOutliers,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -143,6 +145,7 @@ class EquipmentController extends Controller
             ->dashboardGroup($this->dashboardGroupFilter($request))
             ->itemTypes($this->itemTypeFilter($request))
             ->withDuplicateOldPropertyNo($request->user(), $request->boolean('duplicates'))
+            ->when($request->boolean('high_cost'), fn ($query) => $query->whereRaw(...$this->costOutliers->condition()))
             ->with(self::LIST_RELATIONS);
 
         if (! $this->applySort($query, $request, self::SORTABLE)) {
@@ -150,7 +153,10 @@ class EquipmentController extends Controller
             $query->orderByRaw('property_no IS NULL')->orderBy('property_no');
         }
 
-        return EquipmentResource::collection($query->paginate($this->perPage($request))->withQueryString())
+        $page = $query->paginate($this->perPage($request))->withQueryString();
+        $page->getCollection()->each(fn (Equipment $equipment) => $equipment->setAttribute('cost_looks_high', $this->costOutliers->isOutlier($equipment)));
+
+        return EquipmentResource::collection($page)
             ->additional(['message' => 'Success'])
             ->response();
     }
@@ -277,7 +283,10 @@ class EquipmentController extends Controller
     {
         $this->authorize('update', $equipment);
 
-        $equipment->update($request->safe()->except('property_no'));
+        DB::transaction(function () use ($request, $equipment) {
+            $equipment->update($request->safe()->except('property_no'));
+            $this->propertyNumbers->renumberUnknownYear($equipment);
+        });
 
         return new EquipmentResource($equipment->fresh([...self::LIST_RELATIONS, ...self::BUNDLE_RELATIONS]))
             ->withOriginalBundle()

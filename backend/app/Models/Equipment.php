@@ -363,10 +363,20 @@ class Equipment extends Model
             return;
         }
 
-        $query->where(function (Builder $query) use ($term) {
-            $query->where('property_no', 'like', "%{$term}%")
-                ->orWhere('serial_number', 'like', "%{$term}%")
-                ->orWhere('model', 'like', "%{$term}%");
+        $like = "%{$term}%";
+        $person = fn (Builder $people) => $people->where('full_name', 'like', $like)->orWhere('employee_id', 'like', $like);
+
+        $query->where(function (Builder $query) use ($like, $person) {
+            $query->where('property_no', 'like', $like)
+                ->orWhere('old_property_no', 'like', $like)
+                ->orWhere('serial_number', 'like', $like)
+                ->orWhere('model', 'like', $like)
+                ->orWhere('item_type_other', 'like', $like)
+                ->orWhere('brand_other', 'like', $like)
+                ->orWhereHas('itemType', fn (Builder $type) => $type->where('name', 'like', $like))
+                ->orWhereHas('brand', fn (Builder $brand) => $brand->where('name', 'like', $like))
+                ->orWhereHas('currentAccountableOfficer', $person)
+                ->orWhereHas('currentEndUser', $person);
         });
     }
 

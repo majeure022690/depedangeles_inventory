@@ -21,22 +21,42 @@ final class EquipmentPropertyNumberService
 
     private const int MAX_SEQUENCE = 999999;
 
+    public const string UNKNOWN_YEAR_PREFIX = 'AC-0000-';
+
     /**
      * Saves a new record under the next free number. The item type row is
      * locked so concurrent creates of the same type queue up, the series is
      * read with a locking read, and a collision on the unique index moves
      * on to the following number.
      */
-    public function saveNumbered(Equipment $equipment): void
+    /**
+     * Gives a number issued without a year (AC-0000-…) its real year, once known. Numbers that
+     * already carry a year, and bundled desktops and peripherals, keep theirs.
+     */
+    public function renumberUnknownYear(Equipment $equipment, ?int $year = null): bool
     {
-        DB::transaction(function () use ($equipment) {
+        $year ??= $equipment->received_date === null ? null : (int) $equipment->received_date->format('Y');
+
+        if ($year === null || $year < 1 || ! str_starts_with((string) $equipment->property_no, self::UNKNOWN_YEAR_PREFIX)
+            || $equipment->parent_equipment_id !== null || $equipment->children()->exists()) {
+            return false;
+        }
+
+        $this->saveNumbered($equipment, $year);
+
+        return true;
+    }
+
+    public function saveNumbered(Equipment $equipment, ?int $year = null): void
+    {
+        DB::transaction(function () use ($equipment, $year) {
             $abbreviation = ItemType::query()->lockForUpdate()->whereKey($equipment->item_type_id)->value('abbreviation');
 
             if (! $this->isValidAbbreviation($abbreviation)) {
                 throw ValidationException::withMessages(['item_type_id' => __('This item type has no abbreviation yet, so no property number can be generated.')]);
             }
 
-            $year = (int) $equipment->received_date?->format('Y');
+            $year ??= (int) $equipment->received_date?->format('Y');
             $attempted = 0;
 
             for ($attempt = 1; ; $attempt++) {
