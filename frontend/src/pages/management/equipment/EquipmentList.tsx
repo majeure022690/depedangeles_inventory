@@ -23,7 +23,7 @@ const column = gridColumnHelper<Equipment>()
 
 const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
 
-const EMPTY_FILTERS = { search: '', condition: '', category: '', disposition_status: '', duplicates: '' }
+const EMPTY_FILTERS = { search: '', condition: '', category: '', disposition_status: '', duplicates: '', high_cost: '' }
 
 type FilterKey = keyof typeof EMPTY_FILTERS
 
@@ -126,6 +126,7 @@ export function EquipmentList() {
       { key: 'category', label: `Category: ${optionLabel(filterOptions?.category, Number(applied.category))}` },
       { key: 'disposition_status', label: `Disposition: ${optionLabel(filterOptions?.disposition_status, applied.disposition_status)}` },
       { key: 'duplicates', label: 'Duplicate old property no. only' },
+      { key: 'high_cost', label: 'Cost looks too high' },
     ] as const
   )
     .filter((chip) => applied[chip.key] !== '')
@@ -235,7 +236,17 @@ export function EquipmentList() {
         meta: { align: 'right', className: 'whitespace-nowrap' },
         cell: (info) => {
           const value = info.getValue()
-          return value !== null ? currency.format(value) : <span className="text-gray-400">—</span>
+          if (value === null) return <span className="text-gray-400">—</span>
+          return (
+            <span className="inline-flex items-center gap-2">
+              {info.row.original.cost_looks_high && (
+                <span title="Far above what this item type usually costs. It may be a package total entered on each item.">
+                  <Badge color="warning">Check cost</Badge>
+                </span>
+              )}
+              {currency.format(value)}
+            </span>
+          )
         },
       }),
       column.accessor('received_date', {
@@ -307,7 +318,7 @@ export function EquipmentList() {
       <div className="mb-4 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-12">
           <FilterSearch
-            label="Property no., item, brand, or serial no."
+            label="Property no., item, brand, serial no., or officer"
             value={draft.search}
             onChange={(search) => setDraft((d) => ({ ...d, search }))}
             onSubmit={applyFilters}
@@ -350,6 +361,10 @@ export function EquipmentList() {
           >
             <option value="">All records</option>
             <option value="1">Duplicates only</option>
+          </FilterSelect>
+          <FilterSelect label="Cost" value={draft.high_cost} onChange={(high_cost) => setDraft((d) => ({ ...d, high_cost }))} className="lg:col-span-3">
+            <option value="">All costs</option>
+            <option value="1">Cost looks too high</option>
           </FilterSelect>
         </div>
 

@@ -66,6 +66,7 @@ export interface Equipment {
   property_no: string | null
   old_property_no: string | null
   old_property_no_duplicated?: boolean
+  cost_looks_high?: boolean
   serial_number: string | null
   item_type_id: number
   item: string | null
