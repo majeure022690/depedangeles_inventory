@@ -14,7 +14,9 @@ use App\Http\Controllers\Api\Management\IspSubscriptionCostController;
 use App\Http\Controllers\Api\Management\OfficeController;
 use App\Http\Controllers\Api\Management\PermissionController;
 use App\Http\Controllers\Api\Management\PersonnelController;
+use App\Http\Controllers\Api\Management\PropertyItemController;
 use App\Http\Controllers\Api\Management\ReferenceDataController;
+use App\Http\Controllers\Api\Management\ReportController;
 use App\Http\Controllers\Api\Management\RoleController;
 use App\Http\Controllers\Api\Management\SecuritySettingController;
 use App\Http\Controllers\Api\Management\StakeholderProfileController;
@@ -93,6 +95,19 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     Route::get('/internet-connectivity-surveys', [InternetConnectivitySurveyController::class, 'index'])->middleware($can(P::InternetConnectivityView));
     Route::get('/internet-connectivity-surveys/{office}', [InternetConnectivitySurveyController::class, 'show'])->middleware($can(P::InternetConnectivityView))->whereNumber('office');
     Route::put('/internet-connectivity-surveys/{office}', [InternetConnectivitySurveyController::class, 'update'])->middleware($can(P::InternetConnectivityEdit))->whereNumber('office');
+
+    // Permission-protected, data-scoped: property_items.* (non-ICT school property for the RPCPPE).
+    Route::get('/property-items/options', [PropertyItemController::class, 'options'])->middleware($can(P::PropertyItemsView, P::PropertyItemsCreate, P::PropertyItemsEdit));
+    Route::get('/property-items/export', [PropertyItemController::class, 'export'])->middleware([$can(P::PropertyItemsView), 'throttle:20,1']);
+    Route::get('/property-items', [PropertyItemController::class, 'index'])->middleware($can(P::PropertyItemsView));
+    Route::get('/property-items/{propertyItem}', [PropertyItemController::class, 'show'])->middleware($can(P::PropertyItemsView))->whereNumber('propertyItem');
+    Route::post('/property-items', [PropertyItemController::class, 'store'])->middleware($can(P::PropertyItemsCreate));
+    Route::put('/property-items/{propertyItem}', [PropertyItemController::class, 'update'])->middleware($can(P::PropertyItemsEdit))->whereNumber('propertyItem');
+    Route::delete('/property-items/{propertyItem}', [PropertyItemController::class, 'destroy'])->middleware($can(P::PropertyItemsDelete))->whereNumber('propertyItem');
+
+    // Permission-protected, data-scoped: the RPCPPE for one {office}, downloaded from School Property; the Form Request re-checks permission and office reach.
+    Route::get('/reports/options', [ReportController::class, 'options'])->middleware($can(P::ReportsRpcppe));
+    Route::get('/reports/rpcppe/{office}', [ReportController::class, 'rpcppe'])->middleware([$can(P::ReportsRpcppe), 'throttle:20,1'])->whereNumber('office');
 
     // Permission-protected: reference-data.manage ({table} is a registry key).
     Route::middleware($can(P::ReferenceDataManage))->group(function () {

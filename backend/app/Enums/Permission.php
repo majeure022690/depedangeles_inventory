@@ -95,6 +95,16 @@ enum Permission: string
     case OfficeEdit = 'office.edit';
     case OfficeDelete = 'office.delete';
 
+    // Non-ICT school property (furniture, buildings, books, ...) counted for the RPCPPE. Reach follows the role's data scope.
+    case PropertyItemsView = 'property_items.view';
+    case PropertyItemsCreate = 'property_items.create';
+    case PropertyItemsEdit = 'property_items.edit';
+    case PropertyItemsDelete = 'property_items.delete';
+
+    // Excel exports of the office's equipment and connectivity data, limited to the role's data scope.
+    case ReportsGspIct = 'reports.gsp_ict';
+    case ReportsRpcppe = 'reports.rpcppe';
+
     // Exposes every resource's PII through audit diffs regardless of per-resource .view permissions.
     case AuditLogView = 'audit_log.view';
 
@@ -113,6 +123,8 @@ enum Permission: string
             self::DashboardEquipmentOverview => 'View ICT equipment overview',
             self::DashboardEquipmentDistribution => 'View ICT equipment distribution chart',
             self::DashboardInternetConnectivity => 'View internet connectivity summary',
+            self::ReportsGspIct => 'Generate GSP ICT report (Part VI)',
+            self::ReportsRpcppe => 'Generate RPCPPE report',
             default => Str::of($this->value)->replace('.', ' ')->replace('_', ' ')->title()->toString(),
         };
     }
@@ -134,6 +146,8 @@ enum Permission: string
             self::OfficeView, self::OfficeCreate, self::OfficeEdit, self::OfficeDelete => 'Offices',
             self::StakeholderProfileView, self::StakeholderProfileEdit => 'Stakeholder Profile',
             self::InternetConnectivityView, self::InternetConnectivityEdit => 'Internet Connectivity',
+            self::PropertyItemsView, self::PropertyItemsCreate, self::PropertyItemsEdit, self::PropertyItemsDelete => 'School Property',
+            self::ReportsGspIct, self::ReportsRpcppe => 'Reports',
             self::ReferenceDataManage, self::UsersView, self::UsersEdit,
             self::UsersResetTwoFactor, self::RolesView, self::RolesCreate,
             self::RolesEdit, self::RolesDelete, self::AuditLogView,

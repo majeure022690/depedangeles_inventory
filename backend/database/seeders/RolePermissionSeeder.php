@@ -39,6 +39,11 @@ class RolePermissionSeeder extends Seeder
         PermissionEnum::StakeholderProfileEdit,
         PermissionEnum::InternetConnectivityView,
         PermissionEnum::InternetConnectivityEdit,
+        PermissionEnum::PropertyItemsView,
+        PermissionEnum::PropertyItemsCreate,
+        PermissionEnum::PropertyItemsEdit,
+        PermissionEnum::ReportsGspIct,
+        PermissionEnum::ReportsRpcppe,
     ];
 
     /**
@@ -88,6 +93,7 @@ class RolePermissionSeeder extends Seeder
                     ...array_map(fn (PermissionEnum $permission) => $permission->value, self::EQUIPMENT_DASHBOARD_PERMISSIONS),
                     PermissionEnum::PersonnelView->value,
                     PermissionEnum::EquipmentView->value,
+                    PermissionEnum::PropertyItemsView->value,
                     PermissionEnum::StakeholderProfileView->value,
                     PermissionEnum::InternetConnectivityView->value,
                 ],

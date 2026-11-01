@@ -1,4 +1,5 @@
 import {
+  Armchair,
   Building2,
   History,
   LayoutDashboard,
@@ -80,6 +81,7 @@ const navGroups: NavGroup[] = [
         permission: 'equipment.view',
       },
       { title: 'ISP Accounts', to: '/isp-accounts', icon: Wifi, color: 'text-emerald-600', permission: 'isp_accounts.view' },
+      { title: 'School Property', to: '/school-property', icon: Armchair, color: 'text-amber-500', permission: 'property_items.view' },
     ],
   },
   {

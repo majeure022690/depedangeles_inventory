@@ -424,6 +424,39 @@ class Equipment extends Model
                     )))));
     }
 
+    /**
+     * Items whose accountable officer belongs to the office, else whose end
+     * user does, else (unissued) whose creator does.
+     *
+     * @param  Builder<Equipment>  $query
+     */
+    public function scopeAtOffice(Builder $query, int $officeId): void
+    {
+        $officer = $query->qualifyColumn('current_accountable_officer_id');
+        $endUser = $query->qualifyColumn('current_end_user_id');
+        $personnel = Personnel::query()->select('id')->where('office_id', $officeId);
+
+        $query->where(fn (Builder $query) => $query
+            ->whereIn($officer, $personnel)
+            ->orWhere(fn (Builder $query) => $query->whereNull($officer)->whereIn($endUser, $personnel))
+            ->orWhere(fn (Builder $query) => $query
+                ->whereNull($officer)
+                ->whereNull($endUser)
+                ->whereIn($query->qualifyColumn('created_by_user_id'), User::query()->select('id')->where('office_id', $officeId))));
+    }
+
+    /**
+     * Serviceable, not flagged non-functional, and still in normal use.
+     *
+     * @param  Builder<Equipment>  $query
+     */
+    public function scopeFunctional(Builder $query): void
+    {
+        $query->where($query->qualifyColumn('non_functional'), false)
+            ->where(fn (Builder $query) => $query->whereNull('disposition_status')->orWhere('disposition_status', 'Normal'))
+            ->whereHas('equipmentCondition', fn (Builder $query) => $query->where('name', 'Serviceable'));
+    }
+
     public function isVisibleTo(User $user): bool
     {
         $personnelIds = $user->scopedPersonnelIds();

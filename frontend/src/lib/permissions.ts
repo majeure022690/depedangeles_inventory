@@ -36,6 +36,12 @@ export const PERMISSIONS = [
   'office.create',
   'office.edit',
   'office.delete',
+  'property_items.view',
+  'property_items.create',
+  'property_items.edit',
+  'property_items.delete',
+  'reports.gsp_ict',
+  'reports.rpcppe',
   'audit_log.view',
   'security_settings.manage',
 ] as const
@@ -58,7 +64,7 @@ export interface PermissionGroup {
 }
 
 /** Display order for the server-provided groups (`Permission::group()`); unknown groups sort after these. */
-const GROUP_ORDER = ['Personnel', 'Equipment', 'ISP Accounts', 'Offices', 'Stakeholder Profile', 'Internet Connectivity', 'Administration']
+const GROUP_ORDER = ['Personnel', 'Equipment', 'ISP Accounts', 'Offices', 'Stakeholder Profile', 'Internet Connectivity', 'School Property', 'Reports', 'Administration']
 
 /**
  * Help text shown under each permission in the role editor. UI copy only:
@@ -96,6 +102,12 @@ const PERMISSION_DESCRIPTIONS: Record<PermissionName, string> = {
   'office.create': 'Add new offices.',
   'office.edit': 'Edit office details.',
   'office.delete': 'Delete offices that nothing else refers to.',
+  'property_items.view': 'See school property (furniture, buildings, books, …) within the role’s data scope and export it to Excel.',
+  'property_items.create': 'Add school property items.',
+  'property_items.edit': 'Edit school property items.',
+  'property_items.delete': 'Delete school property items.',
+  'reports.gsp_ict': 'Download the Government School Profile Part VI (ICT in Schools) workbook from a GSP ICT profile.',
+  'reports.rpcppe': 'Download the Report on the Physical Count of Property, Plant and Equipment (equipment and school property) within the role’s data scope.',
   'audit_log.view': 'See who changed what across the system.',
   'security_settings.manage': 'Change sign-in, rate-limit and session security settings, and view or clear the error and slow query logs.',}
 
