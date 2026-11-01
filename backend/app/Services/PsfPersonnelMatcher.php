@@ -27,8 +27,8 @@ final class PsfPersonnelMatcher
 
     private ?Personnel $head;
 
-    /** @var array<string, string> */
-    private array $elsewhere = [];
+    /** @var Collection<string, Personnel>|null */
+    private ?Collection $everyone = null;
 
     public function __construct(Office $office)
     {
@@ -123,27 +123,35 @@ final class PsfPersonnelMatcher
             return 'no employee no., and the name matched no one';
         }
 
-        return $this->elsewhere[$number] ??= (function () use ($number): string {
-            $person = Personnel::query()->with('office:id,office_name')
-                ->whereIn('employee_id', array_unique([$number, str_pad($number, 7, '0', STR_PAD_LEFT)]))
-                ->first(['id', 'office_id']);
+        $this->everyone ??= Personnel::query()->whereNotNull('employee_id')->with('office:id,office_name')
+            ->get(['id', 'employee_id', 'office_id'])
+            ->keyBy(fn (Personnel $person) => self::numberKey((string) $person->employee_id));
+        $person = $this->everyone->get($number);
 
-            return match (true) {
-                $person === null => 'employee no. not in IRIS personnel',
-                $person->office_id === null => 'employee no. belongs to personnel with no office',
-                default => 'employee no. belongs to personnel at '.$person->office?->office_name,
-            };
-        })();
+        return match (true) {
+            $person === null => 'employee no. not in IRIS personnel',
+            $person->office_id === null => 'employee no. belongs to personnel with no office',
+            default => 'employee no. belongs to personnel at '.$person->office?->office_name,
+        };
     }
 
+    /**
+     * The employee no. after the name separator, read whole even when written as "123-4567".
+     */
     private static function numberIn(string $given): ?string
     {
-        return preg_match('/[-–]\s*([A-Za-z0-9]*\d[A-Za-z0-9]*)\s*$/u', $given, $m) === 1 ? self::numberKey($m[1]) : null;
+        if (preg_match('/\s[-–]\s+([A-Za-z0-9][A-Za-z0-9.\-–\s]*)$/u', $given, $m) !== 1
+            && preg_match('/[-–]\s*([A-Za-z0-9]*\d[A-Za-z0-9]*)\s*$/u', $given, $m) !== 1) {
+            return null;
+        }
+        $number = self::numberKey($m[1]);
+
+        return preg_match('/\d/', $number) === 1 ? $number : null;
     }
 
     private static function numberKey(string $number): string
     {
-        return ltrim(mb_strtolower(trim($number)), '0');
+        return ltrim((string) preg_replace('/[^a-z0-9]/', '', mb_strtolower($number)), '0');
     }
 
     /**

@@ -232,6 +232,7 @@ class ImportPsfInventoryTest extends TestCase
             ['E' => 'Laptop', 'G' => 'Dell', 'AC' => 'Someone Else - 4400003'],
             ['E' => 'Laptop', 'G' => 'Dell', 'AC' => 'Nobody Known - 9999999'],
             ['E' => 'Laptop', 'G' => 'Dell', 'AC' => "{$this->teacher->first_name} Q. {$this->teacher->last_name}"],
+            ['E' => 'Laptop', 'G' => 'Dell', 'AC' => 'Hyphenated Number - 440-0002'],
         ]);
 
         $rows = app(PsfInventoryImport::class)->plan($this->folder)[0]['rows'];
@@ -241,6 +242,7 @@ class ImportPsfInventoryTest extends TestCase
         $this->assertStringContainsString('belongs to personnel at Air Force City ES', $rows[0]['notes'][0]);
         $this->assertStringContainsString('not in IRIS personnel', $rows[1]['notes'][0]);
         $this->assertSame($this->teacher->id, $rows[2]['transaction']['accountable_officer_id']);
+        $this->assertSame($this->teacher->id, $rows[3]['transaction']['accountable_officer_id']);
     }
 
     public function test_a_school_without_any_head_is_held_back_when_rows_would_be_unassigned(): void
