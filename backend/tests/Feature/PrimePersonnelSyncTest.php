@@ -7,6 +7,7 @@ use App\Models\Equipment;
 use App\Models\Office;
 use App\Models\Personnel;
 use App\Models\Position;
+use App\Services\PrimePersonnelSync;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\CreatesUsersWithRoles;
@@ -114,6 +115,17 @@ class PrimePersonnelSyncTest extends TestCase
         $this->assertSame('Retired', $retired->separation_cause);
         $this->assertSame('2025-06-30', $retired->separation_date?->toDateString());
         $this->assertSame(1, Personnel::query()->count());
+    }
+
+    public function test_a_second_sync_finds_everything_up_to_date(): void
+    {
+        $this->employee('6001', ['date_original_appointment' => '2015-02-16', 'date_last_promotion' => '2020-06-01', 'personnel_position_id' => (string) $this->position('Teacher I')]);
+        $this->sync();
+
+        $plan = app(PrimePersonnelSync::class)->plan();
+
+        $this->assertSame([], $plan['updates']);
+        $this->assertSame(1, $plan['unchanged']);
     }
 
     public function test_deactivates_synced_personnel_no_longer_in_prime(): void

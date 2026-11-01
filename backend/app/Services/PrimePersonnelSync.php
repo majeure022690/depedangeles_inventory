@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\Personnel;
 use App\Models\Position;
+use DateTimeInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -279,7 +280,7 @@ class PrimePersonnelSync
 
         foreach ($attributes as $field => $value) {
             $current = $person->getAttribute($field);
-            $current = $current instanceof Carbon ? $current->toDateString() : $current;
+            $current = $current instanceof DateTimeInterface ? $current->format('Y-m-d') : $current;
 
             if ($field === 'position_id' && $newPosition) {
                 $changes[] = $field;
