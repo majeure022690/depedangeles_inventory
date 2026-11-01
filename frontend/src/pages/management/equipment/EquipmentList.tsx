@@ -23,7 +23,7 @@ const column = gridColumnHelper<Equipment>()
 
 const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
 
-const EMPTY_FILTERS = { search: '', condition: '', category: '', disposition_status: '' }
+const EMPTY_FILTERS = { search: '', condition: '', category: '', disposition_status: '', duplicates: '' }
 
 type FilterKey = keyof typeof EMPTY_FILTERS
 
@@ -125,6 +125,7 @@ export function EquipmentList() {
       { key: 'condition', label: `Condition: ${optionLabel(filterOptions?.condition, Number(applied.condition))}` },
       { key: 'category', label: `Category: ${optionLabel(filterOptions?.category, Number(applied.category))}` },
       { key: 'disposition_status', label: `Disposition: ${optionLabel(filterOptions?.disposition_status, applied.disposition_status)}` },
+      { key: 'duplicates', label: 'Duplicate old property no. only' },
     ] as const
   )
     .filter((chip) => applied[chip.key] !== '')
@@ -162,6 +163,25 @@ export function EquipmentList() {
         cell: (info) => {
           const value = info.getValue()
           return value ? <span className="font-mono text-xs font-medium text-gray-900">{value}</span> : <Badge color="warning">Pending</Badge>
+        },
+      }),
+      column.accessor('old_property_no', {
+        header: 'Old Property No.',
+        enableSorting: false,
+        meta: { className: 'whitespace-nowrap' },
+        cell: (info) => {
+          const value = info.getValue()
+          if (!value) return <span className="text-gray-400">—</span>
+          return (
+            <span className="inline-flex items-center gap-2">
+              <span className="font-mono text-xs text-gray-700">{value}</span>
+              {info.row.original.old_property_no_duplicated && (
+                <span title="Another record you can see uses this old property number">
+                  <Badge color="warning">Duplicate</Badge>
+                </span>
+              )}
+            </span>
+          )
         },
       }),
       column.display({
@@ -321,6 +341,15 @@ export function EquipmentList() {
                 {option.label}
               </option>
             ))}
+          </FilterSelect>
+          <FilterSelect
+            label="Old property no."
+            value={draft.duplicates}
+            onChange={(duplicates) => setDraft((d) => ({ ...d, duplicates }))}
+            className="lg:col-span-3"
+          >
+            <option value="">All records</option>
+            <option value="1">Duplicates only</option>
           </FilterSelect>
         </div>
 
