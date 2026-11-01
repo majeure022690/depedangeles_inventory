@@ -88,7 +88,7 @@ class ImportPsfInventoryTest extends TestCase
             ['B' => 'CUT-001', 'E' => 'Laptop', 'F' => 'Piece', 'G' => 'A4TECH', 'W' => 'Program Support Funds (PSF)', 'AC' => "{$this->teacher->full_name} - 4400002", 'AP' => 'Serviceable'],
             ['B' => 'CUT-001', 'E' => 'RL-MOnitor', 'G' => 'Dell', 'AC' => "{$this->outsider->full_name} - 4400003", 'AP' => 'Some units unservicable'],
             ['B' => 'N/A', 'E' => 'Aircondition', 'G' => 'Dell'],
-            ['E' => 'Laptop'],
+            ['E' => 'Laptop', 'H' => str_repeat('Acer TravelMate full spec ', 20), 'D' => str_repeat('S', 300)],
         ]);
 
         $this->artisan('equipment:import-psf', ['folder' => $this->folder, '--user' => $this->importer()->email, '--force' => true])->assertSuccessful();
@@ -98,6 +98,9 @@ class ImportPsfInventoryTest extends TestCase
 
         [$laptop, $monitor, $aircon, $unbranded] = $imported;
         $this->assertSame('Others', $unbranded->brand->name);
+        $this->assertSame(255, mb_strlen((string) $unbranded->model));
+        $this->assertSame(255, mb_strlen((string) $unbranded->serial_number));
+        $this->assertStringContainsString(trim(str_repeat('Acer TravelMate full spec ', 20)), (string) $unbranded->specifications);
         $this->assertSame($this->teacher->id, $laptop->current_accountable_officer_id);
         $this->assertSame('CUT-001', $laptop->old_property_no);
         $this->assertSame('Others', $laptop->brand->name);

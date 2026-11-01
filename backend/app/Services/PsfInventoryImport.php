@@ -41,6 +41,8 @@ final class PsfInventoryImport
 
     private const int SHARED_REFERENCE_ROWS = 5;
 
+    private const int MAX_TEXT = 255;
+
     private const string REFERENCE_PATTERN = '/\b(iar|lot|batch|set|so|swpp?s|po|dr|si|dcp)\s*[#:\-]?\s*\d|\biar[-\s]/i';
 
     private const string NO_NUMBER_PATTERN = '/^(unknown|unidentified|not\s+indicated|no\s+property|none|tbd|to\s+follow)\b/i';
@@ -381,6 +383,12 @@ final class PsfInventoryImport
         [$dcpValue, $dcpOther] = $dcpPackage === null ? [null, null] : $this->pickOrOther('dcp_package', $dcpPackage);
         [$fundValue, $fundOther] = $this->pickOrOther('source_fund', $cell('W') ?? self::DEFAULTS['source_fund']);
 
+        $model = $real('H');
+        $specifications = $cell('I');
+        if ($model !== null && mb_strlen($model) > self::MAX_TEXT) {
+            $specifications = trim(($specifications ?? '')."\n".$model);
+        }
+
         $propertyNo = $this->propertyNumber($real('B'));
         $previousNo = $this->propertyNumber($real('C'));
         $remarks = array_filter([
@@ -401,33 +409,33 @@ final class PsfInventoryImport
         }
 
         $equipment = [
-            'old_property_no' => $propertyNo,
-            'serial_number' => $real('D'),
+            'old_property_no' => $this->fit($propertyNo),
+            'serial_number' => $this->fit($real('D')),
             'item_type_id' => $itemTypeId,
             'item_type_other' => $itemOther,
             'uom' => $this->pick('uom', $cell('F')),
             'brand_id' => $brandId,
             'brand_other' => $brandOther,
-            'model' => $real('H'),
-            'specifications' => $cell('I'),
+            'model' => $this->fit($model),
+            'specifications' => $specifications,
             'non_dcp' => $dcpPackage === null,
             'dcp_package' => $dcpValue,
             'dcp_package_other' => $dcpOther,
             'dcp_year' => $dcpPackage === null ? null : $this->year($cell('L')),
             'equipment_classification_id' => $this->lookups['equipment_classification'][mb_strtolower((string) $cell('N'))]
                 ?? $this->lookups['equipment_classification'][mb_strtolower(self::DEFAULTS['equipment_classification'])],
-            'uacs' => $real('P'),
+            'uacs' => $this->fit($real('P')),
             'acquisition_cost' => $this->money($raw('Q')),
             'received_date' => $this->date($raw('R')),
             'estimated_useful_life' => $this->integer($cell('S')),
             'mode_acquisition' => $this->pick('mode_acquisition', $cell('T')) ?? self::DEFAULTS['mode_acquisition'],
             'source_acquisition' => $this->pick('source_acquisition', $cell('U')) ?? self::DEFAULTS['source_acquisition'],
-            'donor' => $real('V'),
+            'donor' => $this->fit($real('V')),
             'source_fund' => $fundValue,
             'source_fund_other' => $fundOther,
             'allotment_class' => $this->pick('allotment_class', $cell('X')),
-            'pm_plan' => $real('Y'),
-            'supplier' => $real('AK'),
+            'pm_plan' => $this->fit($real('Y')),
+            'supplier' => $this->fit($real('AK')),
             'under_warranty' => $this->truthy($raw('AL')),
             'end_warranty_date' => $this->date($raw('AM')),
             'equipment_location' => $cell('AN'),
@@ -453,9 +461,9 @@ final class PsfInventoryImport
             'date_assigned_end_user' => $this->date($raw('AF')),
             'date_received_new_accountable' => $this->date($raw('AH')),
             'supporting_documents1' => $this->pick('supporting_document_type', $cell('Z')),
-            'or_si_dr_iar_no' => $real('AA'),
+            'or_si_dr_iar_no' => $this->fit($real('AA')),
             'supporting_documents2' => $this->pick('supporting_document_type', $cell('AI')),
-            'par_ics_rrsp_rs_wmr_no' => $real('AJ'),
+            'par_ics_rrsp_rs_wmr_no' => $this->fit($real('AJ')),
         ];
 
         return ['equipment' => $equipment, 'transaction' => $transaction, 'notes' => $notes, 'officer' => $officer['name'], 'item' => $cell('E')];
@@ -517,6 +525,11 @@ final class PsfInventoryImport
         $value = trim($value, " \t`'\"");
 
         return $value === '' ? null : $value;
+    }
+
+    private function fit(?string $value): ?string
+    {
+        return $value === null ? null : mb_substr($value, 0, self::MAX_TEXT);
     }
 
     private function placeholder(?string $value): bool
