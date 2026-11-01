@@ -93,23 +93,8 @@ final class PsfInventoryImport
     {
         $this->heads = $heads;
         $this->loadLookups();
-        $offices = $this->primeSchoolOffices();
 
-        $byId = [];
-        foreach ($this->workbooks($folder) as $path) {
-            $schoolId = $assign[basename($path)] ?? $this->schoolIdOf($path, $folder);
-            if ($schoolId !== null) {
-                $byId[$schoolId][] = $path;
-            }
-        }
-        ksort($byId);
-
-        $plans = [];
-        foreach ($byId as $schoolId => $paths) {
-            $plans[] = $this->planSchool((string) $schoolId, $paths, $offices);
-        }
-
-        return $plans;
+        return array_map(fn (array $school) => $this->planSchool($school), $this->schools($folder, $assign));
     }
 
     /**
@@ -207,39 +192,22 @@ final class PsfInventoryImport
     /**
      * The newest workbook named like the school that has equipment rows.
      *
-     * @param  list<string>  $paths
-     * @param  array<string, list<Office>>  $offices
+     * @param  array{school_id: string, office: ?Office, problem: ?string, file: string, paths: list<string>}  $school
      * @return SchoolPlan
      */
-    private function planSchool(string $schoolId, array $paths, array $offices): array
+    private function planSchool(array $school): array
     {
-        usort($paths, fn (string $a, string $b) => filemtime($b) <=> filemtime($a));
-        $plan = ['file' => $paths[0], 'school_id' => $schoolId, 'office' => null, 'name_match' => 0, 'problem' => null, 'rows' => [], 'already_imported' => false];
-        $candidates = $offices[$schoolId] ?? [];
+        $schoolId = $school['school_id'];
+        $plan = ['file' => $school['file'], 'school_id' => $schoolId, 'office' => $school['office'], 'name_match' => 0, 'problem' => $school['problem'], 'rows' => [], 'already_imported' => false];
 
-        $office = $this->pickOffice($candidates, $paths);
-
-        if ($office === null) {
-            $plan['problem'] = $candidates === []
-                ? 'No PRIME-linked office has this school ID'
-                : 'Several PRIME-linked offices share this school ID: '.collect($candidates)->pluck('office_name')->implode(', ');
-
+        if ($school['problem'] !== null) {
             return $plan;
         }
 
-        $plan['office'] = $office;
-        $plan['already_imported'] = DB::table('activity_log')
-            ->where('event', self::EVENT)->where('subject_type', $office->getMorphClass())->where('subject_id', $office->id)->exists();
+        $office = $school['office'];
+        $plan['already_imported'] = self::alreadyImported(self::EVENT, $office);
 
-        $named = array_values(array_filter($paths, fn (string $path) => $this->nameMatch(pathinfo($path, PATHINFO_FILENAME), (string) $office->office_name) >= self::MIN_NAME_MATCH));
-        if ($named === []) {
-            $plan['name_match'] = max(array_map(fn (string $path) => $this->nameMatch(pathinfo($path, PATHINFO_FILENAME), (string) $office->office_name), $paths));
-            $plan['problem'] = "No file name looks like {$office->office_name}";
-
-            return $plan;
-        }
-
-        foreach ($named as $path) {
+        foreach ($school['paths'] as $path) {
             try {
                 $rows = $this->mapRows($path, $office, $schoolId);
             } catch (Throwable $e) {
@@ -260,6 +228,64 @@ final class PsfInventoryImport
         $plan['problem'] ??= 'No equipment rows in its workbooks';
 
         return $plan;
+    }
+
+    /**
+     * Every school ID found in the folder, resolved to its PRIME-linked office and its matching workbooks, newest first.
+     *
+     * @param  array<string, string>  $assign
+     * @return list<array{school_id: string, office: ?Office, problem: ?string, file: string, paths: list<string>}>
+     */
+    public function schools(string $folder, array $assign = []): array
+    {
+        $offices = $this->primeSchoolOffices();
+
+        $byId = [];
+        foreach ($this->workbooks($folder) as $path) {
+            $schoolId = $assign[basename($path)] ?? $this->schoolIdOf($path, $folder);
+            if ($schoolId !== null) {
+                $byId[$schoolId][] = $path;
+            }
+        }
+        ksort($byId);
+
+        return array_map(fn ($schoolId) => $this->resolveSchool((string) $schoolId, $byId[$schoolId], $offices), array_keys($byId));
+    }
+
+    public static function alreadyImported(string $event, Office $office): bool
+    {
+        return DB::table('activity_log')
+            ->where('event', $event)->where('subject_type', $office->getMorphClass())->where('subject_id', $office->id)->exists();
+    }
+
+    /**
+     * @param  list<string>  $paths
+     * @param  array<string, list<Office>>  $offices
+     * @return array{school_id: string, office: ?Office, problem: ?string, file: string, paths: list<string>}
+     */
+    private function resolveSchool(string $schoolId, array $paths, array $offices): array
+    {
+        usort($paths, fn (string $a, string $b) => filemtime($b) <=> filemtime($a));
+        $school = ['school_id' => $schoolId, 'office' => null, 'problem' => null, 'file' => $paths[0], 'paths' => []];
+        $candidates = $offices[$schoolId] ?? [];
+        $office = $this->pickOffice($candidates, $paths);
+
+        if ($office === null) {
+            $school['problem'] = $candidates === []
+                ? 'No PRIME-linked office has this school ID'
+                : 'Several PRIME-linked offices share this school ID: '.collect($candidates)->pluck('office_name')->implode(', ');
+
+            return $school;
+        }
+
+        $school['office'] = $office;
+        $school['paths'] = array_values(array_filter($paths, fn (string $path) => $this->nameMatch(pathinfo($path, PATHINFO_FILENAME), (string) $office->office_name) >= self::MIN_NAME_MATCH));
+
+        if ($school['paths'] === []) {
+            $school['problem'] = "No file name looks like {$office->office_name}";
+        }
+
+        return $school;
     }
 
     private static function schoolLevel(string $name): ?string
