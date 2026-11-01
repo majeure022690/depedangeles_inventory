@@ -16,6 +16,8 @@ use Illuminate\Validation\Rule;
  */
 trait ValidatesEquipmentFields
 {
+    use ValidatesOtherOptions;
+
     /**
      * A donor only for donor sources, and a DCP package only for DCP items.
      */
@@ -83,6 +85,7 @@ trait ValidatesEquipmentFields
             'under_warranty' => ['nullable', 'boolean'],
             'end_warranty_date' => ['nullable', 'date'],
             'supplier' => ['nullable', 'string', 'max:255'],
+            ...$this->otherRules(array_keys(Equipment::OTHER_FIELDS)),
         ];
     }
 
@@ -110,6 +113,15 @@ trait ValidatesEquipmentFields
             'used_by' => 'used by',
             'equipment_condition_id' => 'equipment condition',
             'end_warranty_date' => 'warranty end date',
+            ...$this->otherAttributes(array_keys(Equipment::OTHER_FIELDS)),
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function equipmentMessages(): array
+    {
+        return $this->otherMessages(array_keys(Equipment::OTHER_FIELDS));
     }
 }

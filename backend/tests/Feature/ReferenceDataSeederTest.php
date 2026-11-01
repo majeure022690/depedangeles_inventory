@@ -41,7 +41,7 @@ class ReferenceDataSeederTest extends TestCase
             Brand::class => 76,
             EquipmentCategory::class => 2,
             EquipmentClassification::class => 5,
-            EquipmentCondition::class => 4,
+            EquipmentCondition::class => 5,
             Position::class => 316,
             RoOffice::class => 13,
             SdoOffice::class => 8,
@@ -55,14 +55,14 @@ class ReferenceDataSeederTest extends TestCase
     private static function expectedTier2Counts(): array
     {
         return [
-            EquipmentLibrary::class => 64,
+            EquipmentLibrary::class => 66,
             PersonnelLibrary::class => 27,
             StakeholderLibrary::class => 49,
             ConnectivityLibrary::class => 42,
         ];
     }
 
-    public function test_fresh_run_inserts_every_row_across_all_13_tables_summing_to_681(): void
+    public function test_fresh_run_inserts_every_row_across_all_13_tables_summing_to_684(): void
     {
         $this->seed(ReferenceDataSeeder::class);
 
@@ -73,7 +73,7 @@ class ReferenceDataSeederTest extends TestCase
             $total += $expected;
         }
 
-        $this->assertSame(681, $total);
+        $this->assertSame(684, $total);
     }
 
     public function test_school_level_coverage_lands_in_connectivity_libraries_not_stakeholder_libraries(): void

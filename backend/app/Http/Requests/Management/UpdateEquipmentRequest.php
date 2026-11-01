@@ -73,6 +73,9 @@ class UpdateEquipmentRequest extends FormRequest
      */
     public function messages(): array
     {
-        return ['property_no.prohibited' => __('The property number cannot be changed.')];
+        return [
+            'property_no.prohibited' => __('The property number cannot be changed.'),
+            ...$this->equipmentMessages(),
+        ];
     }
 }

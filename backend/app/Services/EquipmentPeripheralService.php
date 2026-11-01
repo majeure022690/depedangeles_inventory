@@ -19,8 +19,8 @@ use Illuminate\Validation\ValidationException;
 final class EquipmentPeripheralService
 {
     private const INHERITED_FIELDS = [
-        'non_dcp', 'dcp_package', 'dcp_year', 'equipment_classification_id',
-        'received_date', 'mode_acquisition', 'source_acquisition', 'donor', 'source_fund',
+        'non_dcp', 'dcp_package', 'dcp_package_other', 'dcp_year', 'equipment_classification_id',
+        'received_date', 'mode_acquisition', 'source_acquisition', 'donor', 'source_fund', 'source_fund_other',
         'allotment_class', 'equipment_location', 'disposition_status',
         'end_warranty_date', 'supplier', 'used_by',
         'current_accountable_officer_id', 'current_end_user_id',
@@ -42,7 +42,9 @@ final class EquipmentPeripheralService
                 ...$parent->only(self::INHERITED_FIELDS),
                 ...$data,
                 'brand_id' => $data['brand_id'] ?? $parent->brand_id,
+                'brand_other' => isset($data['brand_id']) ? ($data['brand_other'] ?? null) : $parent->brand_other,
                 'equipment_condition_id' => $data['equipment_condition_id'] ?? $parent->equipment_condition_id,
+                'equipment_condition_other' => isset($data['equipment_condition_id']) ? ($data['equipment_condition_other'] ?? null) : $parent->equipment_condition_other,
                 'property_no' => $this->nextPropertyNo($parent),
             ]);
             $peripheral->parent()->associate($parent);

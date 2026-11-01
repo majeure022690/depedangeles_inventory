@@ -88,6 +88,7 @@ class StoreEquipmentRequest extends FormRequest
     {
         return [
             'property_no.prohibited' => __('The property number is generated when the record is saved.'),
+            ...$this->equipmentMessages(),
             ...$this->transactionMessages('accountability.'),
             ...$this->peripheralRowsMessages(),
         ];

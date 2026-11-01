@@ -138,7 +138,7 @@ class EquipmentFactory extends Factory
      */
     private static function resolveTier1Id(string $modelClass, string $fallbackName, array $fallbackAttributes = []): int
     {
-        return $modelClass::query()->inRandomOrder()->value('id')
+        return $modelClass::query()->where('name', '!=', Equipment::OTHERS)->inRandomOrder()->value('id')
             ?? $modelClass::query()->create(['name' => $fallbackName, 'is_active' => true, ...$fallbackAttributes])->id;
     }
 

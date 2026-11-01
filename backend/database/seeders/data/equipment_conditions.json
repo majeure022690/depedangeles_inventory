@@ -18,5 +18,10 @@
         "name": "Not Applicable",
         "description": null,
         "sort_order": 3
+    },
+    {
+        "name": "Others",
+        "description": null,
+        "sort_order": 4
     }
 ]

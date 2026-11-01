@@ -142,6 +142,31 @@ class EquipmentPeripheralTest extends TestCase
             ->assertJsonPath('data.parent', null);
     }
 
+    public function test_a_peripheral_specifies_an_others_brand_or_inherits_the_desktops(): void
+    {
+        $others = Equipment::othersValue('brand_other');
+        $desktop = $this->desktop(['brand_id' => $others, 'brand_other' => 'Xitrix', 'source_fund' => 'Others', 'source_fund_other' => 'Barangay Fund']);
+
+        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/peripherals", $this->payload(['brand_id' => $others]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['brand_other']);
+
+        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/peripherals/batch", [
+            'peripherals' => [['item_type_id' => $this->itemType('Mouse'), 'brand_id' => $others]],
+        ])->assertJsonValidationErrors(['peripherals.0.brand_other']);
+
+        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/peripherals", $this->payload(['brand_id' => $others, 'brand_other' => 'A4Tech']))
+            ->assertCreated()
+            ->assertJsonPath('data.brand_other', 'A4Tech')
+            ->assertJsonPath('data.source_fund_other', 'Barangay Fund');
+
+        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/peripherals/batch", [
+            'peripherals' => [['item_type_id' => $this->itemType('Mouse')]],
+        ])->assertCreated();
+
+        $this->assertSame('Xitrix', Equipment::where('parent_equipment_id', $desktop->id)->latest('id')->value('brand_other'));
+    }
+
     public function test_store_copies_the_desktops_latest_transaction_onto_the_new_peripheral(): void
     {
         $officer = Personnel::factory()->create();

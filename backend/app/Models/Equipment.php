@@ -96,6 +96,7 @@ use Spatie\Activitylog\Support\LogOptions;
     'current_accountable_officer_id', 'current_end_user_id', 'used_by',
     'item_type_id', 'brand_id', 'equipment_category_id',
     'equipment_classification_id', 'equipment_condition_id',
+    'item_type_other', 'brand_other', 'dcp_package_other', 'source_fund_other', 'equipment_condition_other',
 ])]
 class Equipment extends Model
 {
@@ -118,6 +119,39 @@ class Equipment extends Model
         'Other National Government Agency',
         "Parent Teacher's Association",
     ];
+
+    public const string OTHERS = 'Others';
+
+    /**
+     * Each free-text column => the dropdown it specifies, and that dropdown's lookup model when it stores an id.
+     *
+     * @var array<string, array{0: string, 1: class-string<Model>|null}>
+     */
+    public const array OTHER_FIELDS = [
+        'item_type_other' => ['item_type_id', ItemType::class],
+        'brand_other' => ['brand_id', Brand::class],
+        'dcp_package_other' => ['dcp_package', null],
+        'source_fund_other' => ['source_fund', null],
+        'equipment_condition_other' => ['equipment_condition_id', EquipmentCondition::class],
+    ];
+
+    /**
+     * The dropdown value that stands for Others: the library value, or the lookup row's id.
+     */
+    public static function othersValue(string $otherField): int|string|null
+    {
+        $model = self::OTHER_FIELDS[$otherField][1];
+
+        return $model === null ? self::OTHERS : $model::query()->where('name', self::OTHERS)->value('id');
+    }
+
+    /**
+     * The typed value in place of "Others", for display.
+     */
+    public function specified(string $otherField, ?string $name): ?string
+    {
+        return $name === self::OTHERS && filled($this->{$otherField}) ? $this->{$otherField} : $name;
+    }
 
     protected function casts(): array
     {
@@ -289,6 +323,14 @@ class Equipment extends Model
 
             if ($equipment->isDirty(['current_accountable_officer_id', 'current_end_user_id'])) {
                 throw new AccountabilitySyncRequiredException;
+            }
+        });
+
+        static::saving(function (Equipment $equipment) {
+            foreach (self::OTHER_FIELDS as $other => [$field]) {
+                if ($equipment->{$other} !== null && (string) $equipment->{$field} !== (string) self::othersValue($other)) {
+                    $equipment->{$other} = null;
+                }
             }
         });
     }
@@ -506,6 +548,7 @@ class Equipment extends Model
                 'item_type_id', 'brand_id', 'equipment_category_id',
                 'equipment_classification_id', 'equipment_condition_id',
                 'created_by_user_id', 'parent_equipment_id', 'used_by',
+                'item_type_other', 'brand_other', 'dcp_package_other', 'source_fund_other', 'equipment_condition_other',
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()

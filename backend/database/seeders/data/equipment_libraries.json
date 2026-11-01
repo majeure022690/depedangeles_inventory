@@ -72,6 +72,12 @@
         "sort_order": 8
     },
     {
+        "type": "dcp_package",
+        "value": "Others",
+        "description": null,
+        "sort_order": 9
+    },
+    {
         "type": "mode_of_acquisition",
         "value": "DepEd Purchase",
         "description": null,
@@ -190,6 +196,12 @@
         "value": "Not Applicable",
         "description": null,
         "sort_order": 6
+    },
+    {
+        "type": "source_of_funds",
+        "value": "Others",
+        "description": null,
+        "sort_order": 7
     },
     {
         "type": "allotment_class",

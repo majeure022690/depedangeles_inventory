@@ -54,6 +54,7 @@ class StoreEquipmentPeripheralRequest extends FormRequest
             'equipment_condition_id' => ['required', 'integer', Rule::exists('equipment_conditions', 'id')->where('is_active', true)],
             'acquisition_cost' => ['nullable', 'numeric', 'min:0'],
             'remarks' => ['nullable', 'string'],
+            ...$this->otherRules(self::PERIPHERAL_OTHER_FIELDS),
         ];
     }
 
@@ -72,7 +73,10 @@ class StoreEquipmentPeripheralRequest extends FormRequest
      */
     public function messages(): array
     {
-        return ['item_type_id.exists' => __('A peripheral must be a Monitor, Keyboard or Mouse.')];
+        return [
+            'item_type_id.exists' => __('A peripheral must be a Monitor, Keyboard or Mouse.'),
+            ...$this->otherMessages(self::PERIPHERAL_OTHER_FIELDS),
+        ];
     }
 
     /**
@@ -84,6 +88,7 @@ class StoreEquipmentPeripheralRequest extends FormRequest
             'item_type_id' => 'item type',
             'brand_id' => 'brand',
             'equipment_condition_id' => 'equipment condition',
+            ...$this->otherAttributes(self::PERIPHERAL_OTHER_FIELDS),
         ];
     }
 }

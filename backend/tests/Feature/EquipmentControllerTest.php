@@ -251,6 +251,52 @@ class EquipmentControllerTest extends TestCase
             ->assertJsonValidationErrors(['used_by']);
     }
 
+    public function test_choosing_others_requires_the_specified_value_for_each_dropdown(): void
+    {
+        $equipment = $this->makeEquipment();
+        $brandOthers = Equipment::othersValue('brand_other');
+        $conditionOthers = Equipment::othersValue('equipment_condition_other');
+
+        $this->actingAs($this->editor())->putJson("/api/equipment/{$equipment->id}", $this->payload([
+            'item_type_id' => Equipment::othersValue('item_type_other'),
+            'brand_id' => $brandOthers,
+            'non_dcp' => false,
+            'dcp_package' => 'Others',
+            'dcp_year' => 2019,
+            'source_fund' => 'Others',
+            'equipment_condition_id' => $conditionOthers,
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['item_type_other', 'brand_other', 'dcp_package_other', 'source_fund_other', 'equipment_condition_other'])
+            ->assertJsonFragment(['brand_other' => ['Specify the brand when Others is selected.']]);
+
+        $this->actingAs($this->editor())->putJson("/api/equipment/{$equipment->id}", $this->payload([
+            'brand_id' => $brandOthers,
+            'brand_other' => 'A4Tech',
+            'source_fund' => 'Others',
+            'source_fund_other' => 'Barangay Fund',
+        ]))
+            ->assertOk()
+            ->assertJsonPath('data.brand_other', 'A4Tech')
+            ->assertJsonPath('data.brand_manufacturer', 'A4Tech')
+            ->assertJsonPath('data.source_fund_other', 'Barangay Fund')
+            ->assertJsonPath('data.item_type_other', null);
+    }
+
+    public function test_the_specified_value_is_cleared_once_the_dropdown_leaves_others(): void
+    {
+        $equipment = $this->makeEquipment(['brand_id' => Equipment::othersValue('brand_other'), 'brand_other' => 'A4Tech']);
+        $brand = $this->payload()['brand_id'];
+
+        $this->assertSame('A4Tech', $equipment->fresh()->brand_other);
+
+        $this->actingAs($this->editor())->putJson("/api/equipment/{$equipment->id}", $this->payload(['brand_id' => $brand, 'brand_other' => 'A4Tech']))
+            ->assertOk()
+            ->assertJsonPath('data.brand_other', null);
+
+        $this->assertNull($equipment->fresh()->brand_other);
+    }
+
     public function test_show_returns_the_record_with_its_transaction_history_newest_first(): void
     {
         $equipment = $this->makeEquipment();

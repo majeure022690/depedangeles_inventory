@@ -9,6 +9,10 @@ use Illuminate\Validation\Validator;
 
 trait ValidatesDesktopBundles
 {
+    use ValidatesOtherOptions;
+
+    private const array PERIPHERAL_OTHER_FIELDS = ['brand_other', 'equipment_condition_other'];
+
     public const int MAX_PERIPHERAL_ROWS = 10;
 
     protected function bundleParent(): Equipment
@@ -63,6 +67,7 @@ trait ValidatesDesktopBundles
             'peripherals.*.equipment_condition_id' => ['nullable', 'integer', Rule::exists('equipment_conditions', 'id')->where('is_active', true)],
             'peripherals.*.acquisition_cost' => ['nullable', 'numeric', 'min:0'],
             'peripherals.*.remarks' => ['nullable', 'string'],
+            ...$this->otherRules(self::PERIPHERAL_OTHER_FIELDS, 'peripherals.*.'),
         ];
     }
 
@@ -71,7 +76,10 @@ trait ValidatesDesktopBundles
      */
     protected function peripheralRowsMessages(): array
     {
-        return ['peripherals.*.item_type_id.exists' => __('A peripheral must be a Monitor, Keyboard or Mouse.')];
+        return [
+            'peripherals.*.item_type_id.exists' => __('A peripheral must be a Monitor, Keyboard or Mouse.'),
+            ...$this->otherMessages(self::PERIPHERAL_OTHER_FIELDS, 'peripherals.*.'),
+        ];
     }
 
     /**
@@ -88,6 +96,7 @@ trait ValidatesDesktopBundles
             'peripherals.*.equipment_condition_id' => 'equipment condition',
             'peripherals.*.acquisition_cost' => 'acquisition cost',
             'peripherals.*.remarks' => 'remarks',
+            ...$this->otherAttributes(self::PERIPHERAL_OTHER_FIELDS, 'peripherals.*.'),
         ];
     }
 

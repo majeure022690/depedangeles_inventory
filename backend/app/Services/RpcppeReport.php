@@ -183,7 +183,7 @@ class RpcppeReport
 
         return [
             'sheet' => $this->sheetTitle($category, $category->splitsSemiExpendable() ? ($cost === null || $cost < Equipment::PPE_THRESHOLD) : null),
-            'article' => self::ARTICLES[(string) $item->itemType?->name][1] ?? $item->itemType?->name,
+            'article' => self::ARTICLES[(string) $item->itemType?->name][1] ?? $item->specified('item_type_other', $item->itemType?->name),
             'description' => $this->description($item),
             'property_no' => $item->property_no,
             'unit' => $item->uom,
@@ -443,7 +443,7 @@ class RpcppeReport
 
     private function description(Equipment $item): string
     {
-        $brand = $item->brand?->name;
+        $brand = $item->specified('brand_other', $item->brand?->name);
         $model = trim((string) $item->model);
         $brand = in_array($brand, [null, 'Others'], true) || str_starts_with(strtolower($model), strtolower((string) $brand)) ? null : $brand;
         $name = trim(implode(' ', array_filter([$brand, $model])));
