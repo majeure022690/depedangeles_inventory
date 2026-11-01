@@ -77,16 +77,21 @@ final class PsfInventoryImport
     /** @var array<string, array<string, int|string>> */
     private array $lookups = [];
 
+    /** @var array<string, string> */
+    private array $heads = [];
+
     public function __construct(private readonly PrimeDirectory $prime) {}
 
     /**
      * The newest workbook per resolved school, with every row mapped but nothing written.
      *
      * @param  array<string, string>  $assign  file name => school ID, for files whose own ID is wrong
+     * @param  array<string, string>  $heads  school ID => employee no. of who receives officer-less rows there
      * @return list<SchoolPlan>
      */
-    public function plan(string $folder, array $assign = []): array
+    public function plan(string $folder, array $assign = [], array $heads = []): array
     {
+        $this->heads = $heads;
         $this->loadLookups();
         $offices = $this->primeSchoolOffices();
 
@@ -236,7 +241,7 @@ final class PsfInventoryImport
 
         foreach ($named as $path) {
             try {
-                $rows = $this->mapRows($path, $office);
+                $rows = $this->mapRows($path, $office, $schoolId);
             } catch (Throwable $e) {
                 $plan['problem'] = basename($path).' is unreadable: '.$e->getMessage();
 
@@ -257,8 +262,18 @@ final class PsfInventoryImport
         return $plan;
     }
 
+    private static function schoolLevel(string $name): ?string
+    {
+        return match (true) {
+            preg_match('/elementary|\belem\b|\bES\b/i', $name) === 1 => 'elementary',
+            preg_match('/integrated|\bIS\b/i', $name) === 1 => 'integrated',
+            preg_match('/high|\bN?M?HS\b/i', $name) === 1 => 'high',
+            default => null,
+        };
+    }
+
     /**
-     * The only candidate, or the one whose name alone best fits the files (a school and its SHS share an ID).
+     * The only candidate, or the one whose name and level best fit the files (a school and its SHS share an ID).
      *
      * @param  list<Office>  $candidates
      * @param  list<string>  $paths
@@ -271,6 +286,12 @@ final class PsfInventoryImport
 
         $mentionsShs = collect($paths)->contains(fn (string $path) => preg_match('/\bSHS\b|senior high/i', pathinfo($path, PATHINFO_FILENAME)) === 1);
         $fitting = array_values(array_filter($candidates, fn (Office $office) => (preg_match('/\bSHS\b|senior high/i', (string) $office->office_name) === 1) === $mentionsShs));
+
+        $level = collect($paths)->map(fn (string $path) => self::schoolLevel(pathinfo($path, PATHINFO_FILENAME)))->filter()->unique();
+        if ($level->count() === 1) {
+            $sameLevel = array_values(array_filter($fitting, fn (Office $office) => self::schoolLevel((string) $office->office_name) === $level->first()));
+            $fitting = $sameLevel === [] ? $fitting : $sameLevel;
+        }
 
         if (count($fitting) === 1) {
             return $fitting[0];
@@ -289,7 +310,7 @@ final class PsfInventoryImport
     /**
      * @return list<array<string, mixed>>
      */
-    private function mapRows(string $path, Office $office): array
+    private function mapRows(string $path, Office $office, string $schoolId): array
     {
         $reader = IOFactory::createReader('Xlsx');
         $reader->setReadDataOnly(true);
@@ -301,7 +322,7 @@ final class PsfInventoryImport
             throw new \RuntimeException('no Equipment sheet');
         }
 
-        $people = new PsfPersonnelMatcher($office);
+        $people = new PsfPersonnelMatcher($office, $this->heads[$schoolId] ?? null);
         $rows = [];
         $blank = 0;
         $last = $sheet->getHighestDataRow('E');

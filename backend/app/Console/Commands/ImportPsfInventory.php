@@ -18,6 +18,7 @@ class ImportPsfInventory extends Command
         {--dry-run : Map and report every row without writing anything}
         {--school=* : Only these school IDs}
         {--assign=* : "file name=school ID" for a file whose own school ID is wrong}
+        {--head=* : "school ID=employee no." of who receives officer-less rows at a school with no head on record}
         {--user= : Email of the IRIS user recorded as the importer (optional; otherwise a system import)}
         {--force : Skip the confirmation prompt}';
 
@@ -45,7 +46,7 @@ class ImportPsfInventory extends Command
 
         $this->info('Reading workbooks…');
         try {
-            $plans = $import->plan($folder, $this->assignments());
+            $plans = $import->plan($folder, $this->assignments(), $this->heads());
         } catch (Throwable $e) {
             $this->error('Could not plan the import: '.$e->getMessage());
 
@@ -109,6 +110,22 @@ class ImportPsfInventory extends Command
         }
 
         return $assign;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function heads(): array
+    {
+        $heads = [];
+        foreach ((array) $this->option('head') as $pair) {
+            [$schoolId, $employeeNo] = array_pad(explode('=', (string) $pair, 2), 2, '');
+            if (preg_match('/^\d{6}$/', trim($schoolId)) === 1 && trim($employeeNo) !== '') {
+                $heads[trim($schoolId)] = trim($employeeNo);
+            }
+        }
+
+        return $heads;
     }
 
     /**

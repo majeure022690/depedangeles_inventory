@@ -262,6 +262,31 @@ class ImportPsfInventoryTest extends TestCase
         $this->assertSame(0, Equipment::query()->count());
     }
 
+    public function test_an_elementary_school_and_a_high_school_sharing_an_id_are_told_apart(): void
+    {
+        $elementary = Office::factory()->create(['office_name' => 'Dr. Clemente N. Dayrit Sr. Elem. School', 'school_id' => '107027', 'prime_department_id' => $this->primeDepartment('Dr. Clemente N. Dayrit Sr. Elem. School')]);
+        Office::factory()->create(['office_name' => 'Dr. Clemente N. Dayrit Sr. MHS', 'school_id' => '107027', 'prime_department_id' => $this->primeDepartment('Dr. Clemente N. Dayrit Sr. MHS')]);
+        $this->workbook('107027 - Dayrit/107027-Dr. Clemente N. Dayrit Sr. Elem. School_ict-equipment-inventory-school-template.xlsx', [['E' => 'Laptop', 'G' => 'Dell']]);
+
+        $plan = collect(app(PsfInventoryImport::class)->plan($this->folder))->firstWhere('school_id', '107027');
+
+        $this->assertSame($elementary->id, $plan['office']?->id);
+    }
+
+    public function test_head_names_who_receives_officerless_rows_but_only_from_that_school(): void
+    {
+        Personnel::query()->where('office_id', $this->school->id)->whereKeyNot($this->teacher->id)->update(['inactive' => true]);
+        $this->teacher->forceFill(['oic' => false, 'inactive' => false])->save();
+        $this->workbook('107025 - Cutud ES/107025 Cutud ES.xlsx', [['E' => 'Laptop', 'G' => 'Dell']]);
+
+        $outsiderPlan = app(PsfInventoryImport::class)->plan($this->folder, [], ['107025' => '4400003'])[0];
+        $this->assertNotNull($outsiderPlan['problem']);
+
+        $plan = app(PsfInventoryImport::class)->plan($this->folder, [], ['107025' => '4400002'])[0];
+        $this->assertNull($plan['problem']);
+        $this->assertSame($this->teacher->id, $plan['rows'][0]['transaction']['accountable_officer_id']);
+    }
+
     public function test_the_importer_account_is_optional_but_a_mistyped_one_stops_the_run(): void
     {
         $this->workbook('107025 - Cutud ES/107025 Cutud ES.xlsx', [['E' => 'Laptop', 'G' => 'Dell']]);

@@ -30,14 +30,21 @@ final class PsfPersonnelMatcher
     /** @var Collection<string, Personnel>|null */
     private ?Collection $everyone = null;
 
-    public function __construct(Office $office)
+    /**
+     * A named head must already be personnel of this office.
+     */
+    public function __construct(Office $office, ?string $headEmployeeNo = null)
     {
         $this->people = Personnel::query()->where('office_id', $office->id)
             ->with('personnelPosition:id,name')
             ->orderBy('last_name')->orderBy('first_name')
             ->get(['id', 'employee_id', 'full_name', 'first_name', 'last_name', 'position_id', 'inactive', 'oic']);
 
-        $this->head = $this->pickHead();
+        $named = $headEmployeeNo === null ? null : $this->people->first(
+            fn (Personnel $person) => $person->employee_id !== null && self::numberKey((string) $person->employee_id) === self::numberKey($headEmployeeNo),
+        );
+
+        $this->head = $named ?? $this->pickHead();
     }
 
     public function hasHead(): bool
