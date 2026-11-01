@@ -18,7 +18,7 @@ class ImportPsfInventory extends Command
         {--dry-run : Map and report every row without writing anything}
         {--school=* : Only these school IDs}
         {--assign=* : "file name=school ID" for a file whose own school ID is wrong}
-        {--user= : Email of the IRIS user recorded as the importer (required unless --dry-run)}
+        {--user= : Email of the IRIS user recorded as the importer (optional; otherwise a system import)}
         {--force : Skip the confirmation prompt}';
 
     protected $description = 'One-time import of school equipment from the PSF inventory workbooks, matched to PRIME-linked offices';
@@ -34,10 +34,10 @@ class ImportPsfInventory extends Command
 
         $dryRun = (bool) $this->option('dry-run');
         $importer = null;
-        if (! $dryRun) {
+        if (filled($this->option('user'))) {
             $importer = User::query()->where('email', (string) $this->option('user'))->first();
             if ($importer === null) {
-                $this->error('Pass --user=<email> of an existing IRIS user to record as the importer.');
+                $this->error('No IRIS user has the email '.$this->option('user').'. Leave out --user to record the import as a system import.');
 
                 return self::FAILURE;
             }

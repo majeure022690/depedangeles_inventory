@@ -110,9 +110,11 @@ final class PsfInventoryImport
      *
      * @param  SchoolPlan  $plan
      */
-    public function import(array $plan, User $importer, EquipmentPropertyNumberService $numbers, EquipmentAccountabilityService $accountability): int
+    public function import(array $plan, ?User $importer, EquipmentPropertyNumberService $numbers, EquipmentAccountabilityService $accountability): int
     {
-        Auth::setUser($importer);
+        if ($importer !== null) {
+            Auth::setUser($importer);
+        }
 
         return DB::transaction(function () use ($plan, $importer, $numbers, $accountability) {
             foreach ($plan['rows'] as $row) {
@@ -123,7 +125,7 @@ final class PsfInventoryImport
             }
 
             activity()
-                ->causedBy($importer)
+                ->when($importer !== null, fn ($log) => $log->causedBy($importer))
                 ->performedOn($plan['office'])
                 ->event(self::EVENT)
                 ->withProperties(['school_id' => $plan['school_id'], 'file' => basename($plan['file']), 'rows' => count($plan['rows'])])

@@ -257,11 +257,17 @@ class ImportPsfInventoryTest extends TestCase
         $this->assertSame(0, Equipment::query()->count());
     }
 
-    public function test_a_real_import_needs_an_existing_importer(): void
+    public function test_the_importer_account_is_optional_but_a_mistyped_one_stops_the_run(): void
     {
         $this->workbook('107025 - Cutud ES/107025 Cutud ES.xlsx', [['E' => 'Laptop', 'G' => 'Dell']]);
 
         $this->artisan('equipment:import-psf', ['folder' => $this->folder, '--user' => 'nobody@deped.gov.ph', '--force' => true])->assertFailed();
         $this->assertSame(0, Equipment::query()->count());
+
+        $this->artisan('equipment:import-psf', ['folder' => $this->folder, '--force' => true])->assertSuccessful();
+        $equipment = Equipment::query()->with('transactions')->sole();
+        $this->assertNull($equipment->created_by_user_id);
+        $this->assertSame($this->head->id, $equipment->current_accountable_officer_id);
+        $this->assertNull($equipment->transactions->first()->recorded_by_user_id);
     }
 }
