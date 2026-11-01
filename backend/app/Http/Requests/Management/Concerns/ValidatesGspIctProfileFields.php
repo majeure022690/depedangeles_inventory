@@ -4,6 +4,7 @@ namespace App\Http\Requests\Management\Concerns;
 
 use App\Models\GspIctProfile;
 use App\Models\IspAccount;
+use App\Models\Personnel;
 use App\Services\GspIctReport;
 use Closure;
 use Illuminate\Validation\Rule;
@@ -31,11 +32,30 @@ trait ValidatesGspIctProfileFields
             'dict_free_wifi_installed' => ['nullable', 'string', 'max:30'],
             'isp_reliability' => ['nullable', 'array'],
             'isp_reliability.*' => ['nullable', 'string', Rule::in(GspIctProfile::RELIABILITY)],
-            'school_head_name' => ['nullable', 'string', 'max:150'],
-            'school_head_position' => ['nullable', 'string', 'max:150'],
-            'ito_name' => ['nullable', 'string', 'max:150'],
-            'planning_officer_name' => ['nullable', 'string', 'max:150'],
+            'school_head_id' => ['nullable', 'integer'],
+            'ito_id' => ['nullable', 'integer', Rule::exists('personnel', 'id')->whereNull('deleted_at')],
+            'planning_officer_id' => ['nullable', 'integer', Rule::exists('personnel', 'id')->whereNull('deleted_at')],
         ];
+    }
+
+    /**
+     * The school head must be personnel of the profile's office.
+     *
+     * @return Closure(Validator): void
+     */
+    protected function requireSchoolHeadAtOffice(?int $officeId): Closure
+    {
+        return function (Validator $validator) use ($officeId): void {
+            if (! $this->filled('school_head_id') || $validator->errors()->has('school_head_id')) {
+                return;
+            }
+
+            $belongs = $officeId !== null && Personnel::query()->whereKey($this->integer('school_head_id'))->where('office_id', $officeId)->exists();
+
+            if (! $belongs) {
+                $validator->errors()->add('school_head_id', __('Choose someone from this school.'));
+            }
+        };
     }
 
     /**
@@ -70,7 +90,9 @@ trait ValidatesGspIctProfileFields
             'as_of' => 'as-of date',
             'dict_free_wifi' => 'DICT Free WiFi',
             'dict_free_wifi_installed' => 'installation date',
-            'ito_name' => 'Information Technology Officer',
+            'school_head_id' => 'school head',
+            'ito_id' => 'Information Technology Officer',
+            'planning_officer_id' => 'Planning Officer III',
             'radio_teachers.*.literacy' => 'literacy teachers',
             'radio_teachers.*.numeracy' => 'numeracy teachers',
         ];

@@ -122,10 +122,10 @@ export function GspProfileList() {
         cell: (info) => formatDate(info.getValue()),
       }),
       column.accessor('level_label', { header: 'Level', enableSorting: false }),
-      column.accessor('school_head_name', {
+      column.display({
+        id: 'school_head',
         header: 'School head',
-        enableSorting: false,
-        cell: (info) => info.getValue() ?? <span className="text-gray-400">—</span>,
+        cell: ({ row }) => row.original.school_head?.label ?? <span className="text-gray-400">—</span>,
       }),
       column.accessor('updated_at', {
         header: 'Last updated',

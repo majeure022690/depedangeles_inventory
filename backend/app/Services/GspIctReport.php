@@ -298,13 +298,13 @@ class GspIctReport
 
         $row += 2;
         foreach ([
-            ['Certified True and Correct by School Head:', $profile->school_head_name, $profile->school_head_position],
-            ['Validated by Information Technology Officer:', $profile->ito_name, 'Information Technology Officer'],
-            ['Validated by Planning Officer III (PRS-SGOD):', $profile->planning_officer_name, 'Planning Officer III'],
-        ] as [$label, $name, $position]) {
+            ['Certified True and Correct by School Head:', $profile->schoolHead, null],
+            ['Validated by Information Technology Officer:', $profile->ito, 'Information Technology Officer'],
+            ['Validated by Planning Officer III (PRS-SGOD):', $profile->planningOfficer, 'Planning Officer III'],
+        ] as [$label, $person, $fallbackPosition]) {
             $sheet->setCellValue("B{$row}", $label);
-            WorkbookStyle::signature($sheet, 'B'.($row + 2), 'B'.($row + 3), $name, 'Signature over Printed Name / Date');
-            $sheet->setCellValue('B'.($row + 4), 'Position Title: '.($position ?? ''));
+            WorkbookStyle::signature($sheet, 'B'.($row + 2), 'B'.($row + 3), $person?->printedName(), 'Signature over Printed Name / Date');
+            $sheet->setCellValue('B'.($row + 4), 'Position Title: '.($person?->personnelPosition->name ?? $fallbackPosition ?? ''));
             $row += 7;
         }
     }

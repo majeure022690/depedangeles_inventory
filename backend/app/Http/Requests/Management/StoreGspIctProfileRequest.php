@@ -40,6 +40,7 @@ class StoreGspIctProfileRequest extends FormRequest
             $this->requireActorOffice(),
             $this->lockForScopedActors(['office_id' => [$this->user()->office_id]], allowBlank: true),
             $this->requireOfficeIspAccounts($this->targetOfficeId()),
+            $this->requireSchoolHeadAtOffice($this->targetOfficeId()),
         ];
     }
 

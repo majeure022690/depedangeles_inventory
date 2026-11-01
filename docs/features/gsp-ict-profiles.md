@@ -14,7 +14,7 @@ Table `gsp_ict_profiles` (unique `office_id` + `school_year`, audited as `gsp_ic
 | `radio_teachers` | Table 4: `{grade_1: {literacy, numeracy}, … grade_6}`. |
 | `dict_free_wifi`, `dict_free_wifi_installed` | Box 1 Q4: `with_internet`, `without_internet` or `not_recipient`, and the month/year installed. |
 | `isp_reliability` | Box 1 Q2 service reliability per ISP account id of the office (Highly Reliable, Reliable, Unstable, Poor). |
-| `school_head_name`, `school_head_position`, `ito_name`, `planning_officer_name` | Cover page signatories. |
+| `school_head_id`, `ito_id`, `planning_officer_id` | Cover page signatories, linked to Personnel (null on delete). The school head must belong to the profile's office; the options list that office's active personnel, principals and head teachers first (`Personnel::scopeSchoolHeadsFirst`). The ITO and Planning Officer lists are active personnel division-wide whose position contains "Information Technology Officer" / "Planning Officer". The cover prints each person's printed name and Personnel position, so changes synced from PRIME show on the next download. |
 
 The form is tabbed like the workbook: **Profile, Table 1, Table 2, Table 3, Table 4, Box 1, Signatories**. Tables 1–3 and the survey/subscription parts of Box 1 are shown read-only from `GET /api/gsp-profiles/preview`, computed by the same `GspIctReport::irisData()` the workbook uses, with links to where each source is edited; Table 4, DICT Free WiFi, reliability and signatories are entered.
 
@@ -23,7 +23,7 @@ The form is tabbed like the workbook: **Profile, Table 1, Table 2, Table 3, Tabl
 | Method | Path | Permission |
 |---|---|---|
 | GET | `/api/gsp-profiles` (`search` = school name/ID, `school_year`, `sort`, `direction`, `per_page`) | `gsp_profiles.view` |
-| GET | `/api/gsp-profiles/options[?office_id=]` (adds the office's active ISP accounts) | view, create or edit |
+| GET | `/api/gsp-profiles/options[?office_id=]` (`itos`, `planning_officers`; with `office_id` also `school_heads` and the office's active ISP accounts) | view, create or edit |
 | GET | `/api/gsp-profiles/preview?office_id=&school_year=&level=` (Tables 1–3 and Box 1 from IRIS; 404 outside the data scope) | view, create or edit |
 | GET | `/api/gsp-profiles/{id}` | `gsp_profiles.view` |
 | GET | `/api/gsp-profiles/{id}/download` | `reports.gsp_ict` (throttled 20/min, audited `report.generated`) |

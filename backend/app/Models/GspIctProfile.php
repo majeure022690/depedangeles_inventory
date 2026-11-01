@@ -15,7 +15,7 @@ use Spatie\Activitylog\Support\LogOptions;
 /**
  * One office's Government School Profile Part VI for one school year: the
  * answers IRIS can't derive (radio-based instruction, DICT Free WiFi,
- * service reliability, signatories). Equipment and ISP counts come live
+ * service reliability) and its signatories, picked from Personnel. Equipment and ISP counts come live
  * from their own records when the workbook is generated.
  *
  * @property array<string, array{literacy: int, numeracy: int}>|null $radio_teachers keyed grade_1..grade_6
@@ -23,8 +23,7 @@ use Spatie\Activitylog\Support\LogOptions;
  */
 #[Fillable([
     'office_id', 'school_year', 'as_of', 'level', 'radio_teachers', 'dict_free_wifi',
-    'dict_free_wifi_installed', 'isp_reliability', 'school_head_name', 'school_head_position',
-    'ito_name', 'planning_officer_name',
+    'dict_free_wifi_installed', 'isp_reliability', 'school_head_id', 'ito_id', 'planning_officer_id',
 ])]
 class GspIctProfile extends Model
 {
@@ -55,6 +54,30 @@ class GspIctProfile extends Model
     }
 
     /**
+     * @return BelongsTo<Personnel, $this>
+     */
+    public function schoolHead(): BelongsTo
+    {
+        return $this->belongsTo(Personnel::class, 'school_head_id');
+    }
+
+    /**
+     * @return BelongsTo<Personnel, $this>
+     */
+    public function ito(): BelongsTo
+    {
+        return $this->belongsTo(Personnel::class, 'ito_id');
+    }
+
+    /**
+     * @return BelongsTo<Personnel, $this>
+     */
+    public function planningOfficer(): BelongsTo
+    {
+        return $this->belongsTo(Personnel::class, 'planning_officer_id');
+    }
+
+    /**
      * @param  Builder<GspIctProfile>  $query
      */
     public function scopeVisibleTo(Builder $query, User $user): void
@@ -82,8 +105,7 @@ class GspIctProfile extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'office_id', 'school_year', 'as_of', 'level', 'radio_teachers', 'dict_free_wifi',
-                'dict_free_wifi_installed', 'isp_reliability', 'school_head_name', 'school_head_position',
-                'ito_name', 'planning_officer_name',
+                'dict_free_wifi_installed', 'isp_reliability', 'school_head_id', 'ito_id', 'planning_officer_id',
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()

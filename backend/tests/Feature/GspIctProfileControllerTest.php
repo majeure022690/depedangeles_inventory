@@ -15,6 +15,7 @@ use App\Models\IspSpeedTest;
 use App\Models\ItemType;
 use App\Models\Office;
 use App\Models\Personnel;
+use App\Models\Position;
 use App\Models\User;
 use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
@@ -142,6 +143,30 @@ class GspIctProfileControllerTest extends TestCase
         $this->actingAs($scoped)->getJson("/api/gsp-profiles/preview?{$query}")->assertNotFound();
     }
 
+    public function test_signatories_are_picked_from_personnel_with_school_heads_first(): void
+    {
+        $principal = Position::query()->firstOrCreate(['name' => 'Principal I'], ['is_active' => true]);
+        $ito = Position::query()->firstOrCreate(['name' => 'Information Technology Officer I'], ['is_active' => true]);
+        $teacher = Personnel::factory()->create(['office_id' => $this->office->id, 'last_name' => 'Aaron', 'inactive' => false]);
+        $head = Personnel::factory()->create(['office_id' => $this->office->id, 'last_name' => 'Zamora', 'position_id' => $principal->id, 'inactive' => false]);
+        $itOfficer = Personnel::factory()->create(['office_id' => Office::factory()->create()->id, 'position_id' => $ito->id, 'inactive' => false]);
+        $user = $this->reporter();
+
+        $options = $this->actingAs($user)->getJson("/api/gsp-profiles/options?office_id={$this->office->id}")->assertOk();
+        $heads = array_column($options->json('data.school_heads'), 'value');
+        $this->assertSame($head->id, $heads[0]);
+        $this->assertContains($teacher->id, $heads);
+        $this->assertSame([$itOfficer->id], array_column($options->json('data.itos'), 'value'));
+
+        $payload = ['office_id' => $this->office->id, 'school_year' => '2025-2026', 'as_of' => '2026-03-31', 'level' => 'elementary', 'school_head_id' => $itOfficer->id];
+        $this->actingAs($user)->postJson('/api/gsp-profiles', $payload)->assertUnprocessable()->assertJsonValidationErrors(['school_head_id']);
+
+        $this->actingAs($user)->postJson('/api/gsp-profiles', [...$payload, 'school_head_id' => $head->id, 'ito_id' => $itOfficer->id])
+            ->assertCreated()
+            ->assertJsonPath('data.school_head.position', 'Principal I')
+            ->assertJsonPath('data.ito.value', $itOfficer->id);
+    }
+
     public function test_download_needs_the_report_permission(): void
     {
         $profile = GspIctProfile::factory()->create(['office_id' => $this->office->id]);
@@ -162,7 +187,8 @@ class GspIctProfileControllerTest extends TestCase
         $elsewhere = Personnel::factory()->create(['office_id' => Office::factory()->create()->id]);
         $this->item('Laptop', ['used_by' => 'Teacher', 'current_accountable_officer_id' => $elsewhere->id]);
 
-        $profile = GspIctProfile::factory()->create(['office_id' => $this->office->id, 'school_head_name' => 'Juan Dela Cruz', 'radio_teachers' => ['grade_3' => ['literacy' => 2, 'numeracy' => 1]]]);
+        $head = Personnel::factory()->create(['office_id' => $this->office->id, 'first_name' => 'Juan', 'middle_name' => null, 'last_name' => 'Dela Cruz', 'suffix' => null, 'position_id' => Position::query()->firstOrCreate(['name' => 'Principal II'], ['is_active' => true])->id]);
+        $profile = GspIctProfile::factory()->create(['office_id' => $this->office->id, 'school_head_id' => $head->id, 'radio_teachers' => ['grade_3' => ['literacy' => 2, 'numeracy' => 1]]]);
         $response = $this->download($profile)->assertOk();
         $this->assertStringContainsString('GSP_ICT_Report_Sample_ES_2025-2026.xlsx', (string) $response->headers->get('Content-Disposition'));
 
@@ -174,6 +200,7 @@ class GspIctProfileControllerTest extends TestCase
         $this->assertSame('GOVERNMENT SCHOOL PROFILE, SY 2025–2026', $cover->getCell('A1')->getValue());
         $this->assertSame('SAMPLE ES - 107001', $cover->getCell('A3')->getValue());
         $this->rowOf($cover, 'B', 'JUAN DELA CRUZ');
+        $this->rowOf($cover, 'B', 'Position Title: Principal II');
         $this->assertSame('SY 2025–2026, as of March 31, 2026', $table1->getCell('A2')->getValue());
 
         $this->assertSame(2, $table1->getCell('B9')->getValue());

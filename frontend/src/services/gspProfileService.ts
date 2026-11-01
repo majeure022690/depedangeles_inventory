@@ -35,10 +35,9 @@ export function emptyGspProfileForm(officeId = ''): GspProfileFormData {
     dict_free_wifi: '',
     dict_free_wifi_installed: '',
     isp_reliability: {},
-    school_head_name: '',
-    school_head_position: '',
-    ito_name: '',
-    planning_officer_name: '',
+    school_head_id: '',
+    ito_id: '',
+    planning_officer_id: '',
   }
 }
 
@@ -61,10 +60,9 @@ export function gspProfileFormFrom(profile: GspProfile): GspProfileFormData {
     dict_free_wifi: profile.dict_free_wifi ?? '',
     dict_free_wifi_installed: profile.dict_free_wifi_installed ?? '',
     isp_reliability: { ...profile.isp_reliability },
-    school_head_name: profile.school_head_name ?? '',
-    school_head_position: profile.school_head_position ?? '',
-    ito_name: profile.ito_name ?? '',
-    planning_officer_name: profile.planning_officer_name ?? '',
+    school_head_id: profile.school_head_id === null ? '' : String(profile.school_head_id),
+    ito_id: profile.ito_id === null ? '' : String(profile.ito_id),
+    planning_officer_id: profile.planning_officer_id === null ? '' : String(profile.planning_officer_id),
   }
 }
 
@@ -84,10 +82,9 @@ function payload(form: GspProfileFormData) {
     dict_free_wifi: text(form.dict_free_wifi),
     dict_free_wifi_installed: text(form.dict_free_wifi_installed),
     isp_reliability: Object.fromEntries(Object.entries(form.isp_reliability).filter(([, value]) => value !== '')),
-    school_head_name: text(form.school_head_name),
-    school_head_position: text(form.school_head_position),
-    ito_name: text(form.ito_name),
-    planning_officer_name: text(form.planning_officer_name),
+    school_head_id: form.school_head_id === '' ? null : Number(form.school_head_id),
+    ito_id: form.ito_id === '' ? null : Number(form.ito_id),
+    planning_officer_id: form.planning_officer_id === '' ? null : Number(form.planning_officer_id),
   }
 }
 

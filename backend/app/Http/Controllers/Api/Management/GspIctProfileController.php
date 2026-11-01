@@ -13,6 +13,7 @@ use App\Http\Resources\Management\GspIctProfileResource;
 use App\Models\GspIctProfile;
 use App\Models\IspAccount;
 use App\Models\Office;
+use App\Models\Personnel;
 use App\Models\User;
 use App\Services\GspIctReport;
 use Illuminate\Database\Eloquent\Builder;
@@ -31,6 +32,13 @@ class GspIctProfileController extends Controller
 {
     use ResolvesListParameters;
 
+    private const RELATIONS = [
+        'office:id,office_name,school_id',
+        'schoolHead:id,full_name,position_id', 'schoolHead.personnelPosition:id,name',
+        'ito:id,full_name,position_id', 'ito.personnelPosition:id,name',
+        'planningOfficer:id,full_name,position_id', 'planningOfficer.personnelPosition:id,name',
+    ];
+
     /**
      * @var array<string, string>
      */
@@ -44,7 +52,7 @@ class GspIctProfileController extends Controller
         $search = $request->string('search')->toString();
         $query = GspIctProfile::query()
             ->visibleTo($request->user())
-            ->with('office:id,office_name,school_id')
+            ->with(self::RELATIONS)
             ->when($search !== '', fn (Builder $query) => $query->whereHas('office', fn (Builder $query) => $query
                 ->where('office_name', 'like', "%{$search}%")
                 ->orWhere('school_id', 'like', "%{$search}%")))
@@ -82,9 +90,12 @@ class GspIctProfileController extends Controller
             'level' => collect(GspIctReport::LEVELS)->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])->values()->all(),
             'dict_free_wifi' => collect(GspIctProfile::DICT_FREE_WIFI)->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])->values()->all(),
             'reliability' => array_map(fn (string $value) => ['value' => $value, 'label' => $value], GspIctProfile::RELIABILITY),
+            'itos' => $this->pickerOptions(Personnel::query()->withPositionLike('Information Technology Officer')->orderBy('last_name')),
+            'planning_officers' => $this->pickerOptions(Personnel::query()->withPositionLike('Planning Officer')->orderBy('last_name')),
         ];
 
         if ($officeId > 0 && $user->reachesOffice($officeId)) {
+            $data['school_heads'] = $this->pickerOptions(Personnel::query()->where('office_id', $officeId)->schoolHeadsFirst());
             $data['isp_accounts'] = IspAccount::query()
                 ->where('office_id', $officeId)
                 ->where('inactive_contract', false)
@@ -124,12 +135,27 @@ class GspIctProfileController extends Controller
         ]);
     }
 
+    /**
+     * Active personnel for a signatory picker.
+     *
+     * @param  Builder<Personnel>  $query
+     * @return list<array{value: int, label: string, position: ?string}>
+     */
+    private function pickerOptions(Builder $query): array
+    {
+        return array_values($query->active()
+            ->with('personnelPosition:id,name')
+            ->get(['id', 'full_name', 'position_id'])
+            ->map(fn (Personnel $personnel) => $personnel->toOption())
+            ->all());
+    }
+
     public function store(StoreGspIctProfileRequest $request): JsonResponse
     {
         $profile = new GspIctProfile($request->validated());
         $profile->forceFill(['office_id' => $request->targetOfficeId(), 'created_by_user_id' => $request->user()->id])->save();
 
-        return new GspIctProfileResource($profile->load('office:id,office_name,school_id'))
+        return new GspIctProfileResource($profile->load(self::RELATIONS))
             ->additional(['message' => 'GSP ICT profile created.'])
             ->response()
             ->setStatusCode(201);
@@ -139,7 +165,7 @@ class GspIctProfileController extends Controller
     {
         $this->authorize('view', $gspIctProfile);
 
-        return new GspIctProfileResource($gspIctProfile->load('office:id,office_name,school_id'))
+        return new GspIctProfileResource($gspIctProfile->load(self::RELATIONS))
             ->additional(['message' => 'Success'])
             ->response();
     }
@@ -148,7 +174,7 @@ class GspIctProfileController extends Controller
     {
         $gspIctProfile->update($request->validated());
 
-        return new GspIctProfileResource($gspIctProfile->load('office:id,office_name,school_id'))
+        return new GspIctProfileResource($gspIctProfile->load(self::RELATIONS))
             ->additional(['message' => 'GSP ICT profile updated.'])
             ->response();
     }
@@ -171,6 +197,7 @@ class GspIctProfileController extends Controller
         /** @var User $user */
         $user = $request->user();
         $office = $gspIctProfile->office()->firstOrFail();
+        $gspIctProfile->load(['schoolHead.personnelPosition', 'ito.personnelPosition', 'planningOfficer.personnelPosition']);
 
         activity()
             ->performedOn($office)

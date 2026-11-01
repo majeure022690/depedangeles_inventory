@@ -1,5 +1,8 @@
 import type { Option } from '@/types/lookup'
 
+/** A personnel picker entry (`Personnel::toOption()`). */
+export type PersonOption = Option<number> & { position: string | null }
+
 export type SchoolLevel = 'elementary' | 'junior_high' | 'senior_high'
 
 export const RADIO_GRADES = ['grade_1', 'grade_2', 'grade_3', 'grade_4', 'grade_5', 'grade_6'] as const
@@ -19,10 +22,12 @@ export interface GspProfile {
   dict_free_wifi: string | null
   dict_free_wifi_installed: string | null
   isp_reliability: Record<string, string>
-  school_head_name: string | null
-  school_head_position: string | null
-  ito_name: string | null
-  planning_officer_name: string | null
+  school_head_id: number | null
+  school_head?: PersonOption | null
+  ito_id: number | null
+  ito?: PersonOption | null
+  planning_officer_id: number | null
+  planning_officer?: PersonOption | null
   created_at: string | null
   updated_at: string | null
 }
@@ -33,6 +38,9 @@ export interface GspProfileOptions {
   level: Option<SchoolLevel>[]
   dict_free_wifi: Option<string>[]
   reliability: Option<string>[]
+  itos: PersonOption[]
+  planning_officers: PersonOption[]
+  school_heads?: PersonOption[]
   isp_accounts?: (Option<number> & { connection_type: string | null })[]
 }
 
@@ -45,10 +53,9 @@ export interface GspProfileFormData {
   dict_free_wifi: string
   dict_free_wifi_installed: string
   isp_reliability: Record<string, string>
-  school_head_name: string
-  school_head_position: string
-  ito_name: string
-  planning_officer_name: string
+  school_head_id: string
+  ito_id: string
+  planning_officer_id: string
 }
 
 export type FundKey = 'dcp' | 'deped_non_dcp' | 'lgu_sef' | 'pta_private' | 'other_government' | 'others'

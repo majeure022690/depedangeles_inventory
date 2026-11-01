@@ -9,13 +9,68 @@ import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
+import { SelectPicker } from '@/components/ui/SelectPicker'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { TabPanel, Tabs } from '@/components/ui/Tabs'
 import { extractError, extractFieldErrors, isValidationError, type FieldErrors } from '@/lib/errors'
 import { gspProfileService } from '@/services/gspProfileService'
-import { RADIO_GRADES, type GspIrisData, type GspProfile, type GspProfileFormData, type GspProfileOptions, type SchoolLevel } from '@/types/gsp-profile'
+import {
+  RADIO_GRADES,
+  type GspIrisData,
+  type GspProfile,
+  type GspProfileFormData,
+  type GspProfileOptions,
+  type PersonOption,
+  type SchoolLevel,
+} from '@/types/gsp-profile'
 
 const TABS_ID = 'gsp-profile'
+
+/** A searchable personnel picker that shows the chosen person's position under it. */
+function PersonPicker({
+  id,
+  label,
+  hint,
+  people,
+  current,
+  value,
+  onChange,
+  placeholder,
+  disabled = false,
+  error,
+}: {
+  id: string
+  label: string
+  hint: string
+  people: PersonOption[]
+  current: PersonOption | null
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  disabled?: boolean
+  error?: string
+}) {
+  const list = current && !people.some((person) => person.value === current.value) ? [current, ...people] : people
+  const selected = list.find((person) => String(person.value) === value) ?? null
+
+  return (
+    <FormField id={id} label={label} hint={hint} error={error} note={selected ? `Position: ${selected.position ?? 'not set in Personnel'}` : undefined}>
+      {(aria) => (
+        <SelectPicker
+          id={id}
+          aria-labelledby={`${id}-label`}
+          options={list.map((person) => ({ value: String(person.value), label: person.label }))}
+          selectedValue={value === '' ? null : value}
+          onSelect={(option) => onChange(option ? option.value : '')}
+          placeholder={placeholder}
+          disabled={disabled}
+          clearable
+          {...aria}
+        />
+      )}
+    </FormField>
+  )
+}
 
 const SECTIONS = [
   { value: 'profile', label: 'Profile' },
@@ -38,10 +93,9 @@ const FIELD_SECTION: Record<string, Section> = {
   dict_free_wifi: 'box1',
   dict_free_wifi_installed: 'box1',
   isp_reliability: 'box1',
-  school_head_name: 'signatories',
-  school_head_position: 'signatories',
-  ito_name: 'signatories',
-  planning_officer_name: 'signatories',
+  school_head_id: 'signatories',
+  ito_id: 'signatories',
+  planning_officer_id: 'signatories',
 }
 
 /**
@@ -56,6 +110,7 @@ export function GspProfileForm({
   profileId,
   readOnly = false,
   canDownload = false,
+  currentPeople,
   submit,
   onSaved,
 }: {
@@ -65,6 +120,8 @@ export function GspProfileForm({
   profileId?: number
   readOnly?: boolean
   canDownload?: boolean
+  /** The saved signatories, so a person no longer in a picker list still shows. */
+  currentPeople?: Pick<GspProfile, 'school_head' | 'ito' | 'planning_officer'>
   submit: (form: GspProfileFormData) => Promise<{ data: GspProfile; message: string }>
   onSaved: (profile: GspProfile, message: string) => void
 }) {
@@ -74,6 +131,7 @@ export function GspProfileForm({
   const [accountList, setAccountList] = useState<{
     officeId: string
     accounts: NonNullable<GspProfileOptions['isp_accounts']>
+    schoolHeads: PersonOption[]
   } | null>(null)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -87,10 +145,10 @@ export function GspProfileForm({
     gspProfileService
       .options(Number(officeId))
       .then((loaded) => {
-        if (!cancelled) setAccountList({ officeId, accounts: loaded.isp_accounts ?? [] })
+        if (!cancelled) setAccountList({ officeId, accounts: loaded.isp_accounts ?? [], schoolHeads: loaded.school_heads ?? [] })
       })
       .catch(() => {
-        if (!cancelled) setAccountList({ officeId, accounts: [] })
+        if (!cancelled) setAccountList({ officeId, accounts: [], schoolHeads: [] })
       })
     return () => {
       cancelled = true
@@ -98,6 +156,7 @@ export function GspProfileForm({
   }, [form.office_id])
 
   const accounts = accountList && accountList.officeId === form.office_id ? accountList.accounts : []
+  const schoolHeads = accountList && accountList.officeId === form.office_id ? accountList.schoolHeads : []
 
   const previewKey = /^\d{4}-\d{4}$/.test(form.school_year) && form.office_id !== '' ? `${form.office_id}|${form.school_year}|${form.level}` : null
   const [preview, setPreview] = useState<{ key: string; data: GspIrisData | null; error: string | null } | null>(null)
@@ -149,6 +208,7 @@ export function GspProfileForm({
       office_id: officeId,
       level: office?.default_level ?? prev.level,
       isp_reliability: {},
+      school_head_id: '',
     }))
   }
 
@@ -431,44 +491,41 @@ export function GspProfileForm({
         </TabPanel>
 
         <TabPanel tabsId={TABS_ID} value="signatories" active={section === 'signatories'}>
-          <FormSection title="Cover page signatories" columns={4}>
-            <FormField id="school_head_name" label="School head (optional)" error={errors.school_head_name}>
-              {(aria) => (
-                <Input
-                  id="school_head_name"
-                  value={form.school_head_name}
-                  maxLength={150}
-                  onChange={(event) => set('school_head_name', event.target.value)}
-                  {...aria}
-                />
-              )}
-            </FormField>
-            <FormField id="school_head_position" label="School head position (optional)" error={errors.school_head_position}>
-              {(aria) => (
-                <Input
-                  id="school_head_position"
-                  value={form.school_head_position}
-                  maxLength={150}
-                  placeholder="e.g. Principal II"
-                  onChange={(event) => set('school_head_position', event.target.value)}
-                  {...aria}
-                />
-              )}
-            </FormField>
-            <FormField id="ito_name" label="Information Technology Officer (optional)" error={errors.ito_name}>
-              {(aria) => <Input id="ito_name" value={form.ito_name} maxLength={150} onChange={(event) => set('ito_name', event.target.value)} {...aria} />}
-            </FormField>
-            <FormField id="planning_officer_name" label="Planning Officer III (optional)" error={errors.planning_officer_name}>
-              {(aria) => (
-                <Input
-                  id="planning_officer_name"
-                  value={form.planning_officer_name}
-                  maxLength={150}
-                  onChange={(event) => set('planning_officer_name', event.target.value)}
-                  {...aria}
-                />
-              )}
-            </FormField>
+          <FormSection title="Cover page signatories" columns={3}>
+            <PersonPicker
+              id="school_head_id"
+              label="School head (optional)"
+              hint="This school's personnel, principals and head teachers first. The position on the cover comes from their Personnel record."
+              people={schoolHeads}
+              current={currentPeople?.school_head ?? null}
+              value={form.school_head_id}
+              onChange={(value) => set('school_head_id', value)}
+              placeholder={form.office_id === '' ? 'Choose the office first' : 'Select the school head'}
+              disabled={form.office_id === ''}
+              error={errors.school_head_id}
+            />
+            <PersonPicker
+              id="ito_id"
+              label="Information Technology Officer (optional)"
+              hint="Division personnel whose position is Information Technology Officer."
+              people={options.itos}
+              current={currentPeople?.ito ?? null}
+              value={form.ito_id}
+              onChange={(value) => set('ito_id', value)}
+              placeholder="Select the ITO"
+              error={errors.ito_id}
+            />
+            <PersonPicker
+              id="planning_officer_id"
+              label="Planning Officer III (optional)"
+              hint="Division personnel whose position is Planning Officer."
+              people={options.planning_officers}
+              current={currentPeople?.planning_officer ?? null}
+              value={form.planning_officer_id}
+              onChange={(value) => set('planning_officer_id', value)}
+              placeholder="Select the Planning Officer"
+              error={errors.planning_officer_id}
+            />
           </FormSection>
         </TabPanel>
       </fieldset>

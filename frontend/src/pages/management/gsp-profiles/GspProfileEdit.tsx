@@ -66,6 +66,7 @@ export function GspProfileEdit() {
           options={options}
           officeLocked={!hasAllScope(user)}
           profileId={profile.id}
+          currentPeople={profile}
           readOnly={!can('gsp_profiles.edit')}
           canDownload={can('reports.gsp_ict')}
           submit={(form) => gspProfileService.update(profile.id, form)}

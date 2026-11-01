@@ -38,7 +38,10 @@ class UpdateGspIctProfileRequest extends FormRequest
      */
     public function after(): array
     {
-        return [$this->requireOfficeIspAccounts($this->profile()->office_id)];
+        return [
+            $this->requireOfficeIspAccounts($this->profile()->office_id),
+            $this->requireSchoolHeadAtOffice($this->profile()->office_id),
+        ];
     }
 
     /**
