@@ -98,8 +98,9 @@ class PropertyItemController extends Controller
                 ->active()
                 ->orderBy('last_name')
                 ->orderBy('first_name')
-                ->get(['id', 'first_name', 'last_name', 'middle_name'])
-                ->map(fn (Personnel $personnel) => ['value' => $personnel->id, 'label' => trim("{$personnel->last_name}, {$personnel->first_name} {$personnel->middle_name}")])
+                ->with('personnelPosition:id,name')
+                ->get(['id', 'full_name', 'position_id'])
+                ->map(fn (Personnel $personnel) => $personnel->toOption())
                 ->all();
         }
 

@@ -197,7 +197,7 @@ class RpcppeReport
             'with_are' => $item->current_accountable_officer_id !== null,
             'other' => $this->joined([
                 $item->equipment_location,
-                $endUser !== null && $item->current_end_user_id !== $item->current_accountable_officer_id ? 'End user: '.$this->printedName($endUser) : null,
+                $endUser !== null && $item->current_end_user_id !== $item->current_accountable_officer_id ? 'End user: '.$endUser->printedName() : null,
                 $item->disposition_status !== 'Normal' ? $item->disposition_status : null,
             ]),
         ];
@@ -224,7 +224,7 @@ class RpcppeReport
             'with_are' => $item->with_are,
             'other' => $this->joined([
                 $item->location,
-                $item->endUser === null ? null : 'End user: '.$this->printedName($item->endUser),
+                $item->endUser === null ? null : 'End user: '.$item->endUser->printedName(),
                 $item->remarks,
             ]),
         ];
@@ -433,7 +433,7 @@ class RpcppeReport
     private function accountabilityLine(Worksheet $sheet, Office $office, ?Personnel $officer, ?string $assumedOn): void
     {
         $sheet->setCellValue('A6', 'For which');
-        WorkbookStyle::signature($sheet, 'B6:C6', 'B7:C7', $officer === null ? null : $this->printedName($officer), 'Name of Accountable Officer');
+        WorkbookStyle::signature($sheet, 'B6:C6', 'B7:C7', $officer === null ? null : $officer->printedName(), 'Name of Accountable Officer');
         WorkbookStyle::signature($sheet, 'D6:F6', 'D7:F7', $officer?->personnelPosition?->name, 'Official Designation');
         WorkbookStyle::signature($sheet, 'G6:I6', 'G7:I7', $office->office_name, 'Agency / Office');
         $sheet->setCellValue('J6', ', is accountable, having assumed such accountability on');
@@ -451,21 +451,6 @@ class RpcppeReport
         $serial = trim((string) $item->serial_number);
 
         return $serial !== '' && ! in_array(strtoupper($serial), ['N/A', 'NA', 'NONE', '-'], true) ? "{$name} (S/N: {$serial})" : $name;
-    }
-
-    /**
-     * As printed on signature lines: "JUAN P. DELA CRUZ JR.".
-     */
-    private function printedName(Personnel $personnel): string
-    {
-        $middle = trim((string) $personnel->middle_name);
-
-        return mb_strtoupper(trim(implode(' ', array_filter([
-            $personnel->first_name,
-            $middle !== '' ? mb_substr($middle, 0, 1).'.' : null,
-            $personnel->last_name,
-            $personnel->suffix,
-        ]))));
     }
 
     /**

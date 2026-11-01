@@ -166,6 +166,52 @@ class Personnel extends Model
     }
 
     /**
+     * As printed on signature lines: "JUAN P. DELA CRUZ JR.".
+     */
+    public function printedName(): string
+    {
+        $middle = trim((string) $this->middle_name);
+
+        return mb_strtoupper(trim(implode(' ', array_filter([
+            $this->first_name,
+            $middle !== '' ? mb_substr($middle, 0, 1).'.' : null,
+            $this->last_name,
+            $this->suffix,
+        ]))));
+    }
+
+    /**
+     * One entry of a personnel picker; `position` needs personnelPosition loaded.
+     *
+     * @return array{value: int, label: string, position: ?string}
+     */
+    public function toOption(): array
+    {
+        return ['value' => $this->id, 'label' => (string) $this->full_name, 'position' => $this->personnelPosition?->name];
+    }
+
+    /**
+     * Principals, head teachers and other school heads before everyone else, then by name.
+     *
+     * @param  Builder<Personnel>  $query
+     */
+    public function scopeSchoolHeadsFirst(Builder $query): void
+    {
+        $query->orderByRaw(
+            'coalesce((select case when lower(name) like ? or lower(name) like ? or lower(name) like ? then 0 else 1 end from positions where positions.id = personnel.position_id), 1) asc',
+            ['%principal%', '%head teacher%', '%school head%'],
+        )->orderBy('last_name')->orderBy('first_name');
+    }
+
+    /**
+     * @param  Builder<Personnel>  $query
+     */
+    public function scopeWithPositionLike(Builder $query, string $title): void
+    {
+        $query->whereHas('personnelPosition', fn (Builder $query) => $query->whereRaw('lower(name) like ?', ['%'.mb_strtolower($title).'%']));
+    }
+
+    /**
      * @return BelongsTo<Office, $this>
      */
     public function office(): BelongsTo

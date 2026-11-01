@@ -54,11 +54,7 @@ class ReportController extends Controller
                 ->with('personnelPosition:id,name')
                 ->orderBy('full_name')
                 ->get(['id', 'full_name', 'position_id'])
-                ->map(fn (Personnel $personnel) => [
-                    'value' => $personnel->id,
-                    'label' => $personnel->full_name,
-                    'position' => $personnel->personnelPosition?->name,
-                ])
+                ->map(fn (Personnel $personnel) => $personnel->toOption())
                 ->all();
         }
 

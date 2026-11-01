@@ -211,8 +211,9 @@ class EquipmentController extends Controller
                 ->active()
                 ->orderBy('last_name')
                 ->orderBy('first_name')
-                ->get(['id', 'full_name'])
-                ->map(fn (Personnel $person) => ['value' => $person->id, 'label' => $person->full_name])
+                ->with('personnelPosition:id,name')
+                ->get(['id', 'full_name', 'position_id'])
+                ->map(fn (Personnel $person) => $person->toOption())
                 ->all();
         }
 
