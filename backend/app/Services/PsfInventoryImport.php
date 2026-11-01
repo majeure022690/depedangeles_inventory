@@ -375,6 +375,7 @@ final class PsfInventoryImport
 
         [$itemTypeId, $itemOther] = $this->pickOrOther('item_type', $cell('E'));
         [$brandId, $brandOther] = $this->pickOrOther('brand', $cell('G'));
+        $brandId ??= $this->lookups['brand'][mb_strtolower(Equipment::OTHERS)] ?? null;
         [$conditionId, $conditionOther] = $this->pickOrOther('equipment_condition', $cell('AP') ?? self::DEFAULTS['equipment_condition']);
         $dcpPackage = $cell('K');
         [$dcpValue, $dcpOther] = $dcpPackage === null ? [null, null] : $this->pickOrOther('dcp_package', $dcpPackage);

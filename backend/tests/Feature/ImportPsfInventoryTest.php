@@ -88,14 +88,16 @@ class ImportPsfInventoryTest extends TestCase
             ['B' => 'CUT-001', 'E' => 'Laptop', 'F' => 'Piece', 'G' => 'A4TECH', 'W' => 'Program Support Funds (PSF)', 'AC' => "{$this->teacher->full_name} - 4400002", 'AP' => 'Serviceable'],
             ['B' => 'CUT-001', 'E' => 'RL-MOnitor', 'G' => 'Dell', 'AC' => "{$this->outsider->full_name} - 4400003", 'AP' => 'Some units unservicable'],
             ['B' => 'N/A', 'E' => 'Aircondition', 'G' => 'Dell'],
+            ['E' => 'Laptop'],
         ]);
 
         $this->artisan('equipment:import-psf', ['folder' => $this->folder, '--user' => $this->importer()->email, '--force' => true])->assertSuccessful();
 
         $imported = Equipment::query()->with('itemType', 'brand')->orderBy('id')->get();
-        $this->assertCount(3, $imported);
+        $this->assertCount(4, $imported);
 
-        [$laptop, $monitor, $aircon] = $imported;
+        [$laptop, $monitor, $aircon, $unbranded] = $imported;
+        $this->assertSame('Others', $unbranded->brand->name);
         $this->assertSame($this->teacher->id, $laptop->current_accountable_officer_id);
         $this->assertSame('CUT-001', $laptop->old_property_no);
         $this->assertSame('Others', $laptop->brand->name);
@@ -247,7 +249,7 @@ class ImportPsfInventoryTest extends TestCase
 
     public function test_a_school_without_any_head_is_held_back_when_rows_would_be_unassigned(): void
     {
-        $this->head->forceFill(['inactive' => true])->save();
+        Personnel::query()->where('office_id', $this->school->id)->update(['inactive' => true]);
         $this->workbook('107025 - Cutud ES/107025 Cutud ES.xlsx', [['E' => 'Laptop', 'G' => 'Dell']]);
 
         $this->artisan('equipment:import-psf', ['folder' => $this->folder, '--user' => $this->importer()->email, '--force' => true])
