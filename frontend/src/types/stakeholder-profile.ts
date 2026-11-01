@@ -14,6 +14,7 @@ export interface StakeholderProfileOfficeRow {
   office_type: string | null
   school_id: string | number | null
   has_profile: boolean
+  completion_percent: number
   updated_at: string | null
 }
 

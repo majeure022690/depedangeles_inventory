@@ -52,6 +52,30 @@ export function StakeholderProfileList() {
         meta: { className: 'whitespace-nowrap' },
         cell: (info) => <Badge color={info.getValue() ? 'success' : 'gray'}>{info.getValue() ? 'Submitted' : 'Not started'}</Badge>,
       }),
+      column.accessor('completion_percent', {
+        header: 'Completion',
+        enableSorting: false,
+        meta: { className: 'whitespace-nowrap' },
+        cell: (info) => {
+          const percent = info.getValue()
+          const tone = percent >= 100 ? 'bg-success-500' : percent >= 50 ? 'bg-primary-500' : 'bg-warning-500'
+          return (
+            <div className="flex items-center gap-2">
+              <div
+                className="h-2 w-24 overflow-hidden rounded-full bg-gray-200"
+                role="progressbar"
+                aria-valuenow={percent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`${info.row.original.office_name} profile ${percent}% complete`}
+              >
+                <div className={`h-full rounded-full ${tone}`} style={{ width: `${percent}%` }} />
+              </div>
+              <span className="w-10 text-right text-sm tabular-nums text-gray-700">{percent}%</span>
+            </div>
+          )
+        },
+      }),
       column.accessor('updated_at', {
         header: 'Last updated',
         enableSorting: false,
@@ -101,7 +125,13 @@ export function StakeholderProfileList() {
         }}
       >
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <FilterSearch label="Search by office name..." value={search} onChange={setSearch} onSubmit={() => setApplied({ search })} className="sm:max-w-md sm:flex-1" />
+          <FilterSearch
+            label="Search by office name..."
+            value={search}
+            onChange={setSearch}
+            onSubmit={() => setApplied({ search })}
+            className="sm:max-w-md sm:flex-1"
+          />
           <div className="flex flex-1 flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
             <FilterChips chips={chips} onRemove={reset} />
             <div className="flex gap-2">

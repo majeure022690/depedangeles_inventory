@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Management;
 
 use App\Models\Office;
+use App\Models\StakeholderProfile;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -27,6 +28,7 @@ class StakeholderProfileOfficeResource extends JsonResource
             'office_type' => $this->office_type,
             'school_id' => $this->school_id,
             'has_profile' => $answered,
+            'completion_percent' => StakeholderProfile::completionPercent($this->stakeholderProfile, $this->resource),
             'updated_at' => $answered ? $this->stakeholderProfile->updated_at : null,
         ];
     }

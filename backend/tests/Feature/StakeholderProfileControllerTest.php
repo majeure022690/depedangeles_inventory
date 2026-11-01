@@ -208,6 +208,18 @@ class StakeholderProfileControllerTest extends TestCase
             ->assertJsonPath('data.0.id', $withoutProfile->id);
     }
 
+    public function test_index_shows_each_offices_completion_percentage_like_the_edit_form(): void
+    {
+        $started = $this->createOffice(['office_name' => 'Started ES']);
+        $untouched = $this->createOffice(['office_name' => 'Untouched ES', 'school_id' => 107001]);
+        StakeholderProfile::create(['office_id' => $started->id, 'ro' => 'III', 'sdo' => 'SDO Angeles City', 'nearby_institutions' => [1, 2], 'access_paths' => []]);
+
+        $rows = collect($this->actingAs($this->userWithPermissions([Permission::StakeholderProfileView]))->getJson('/api/stakeholder-profiles')->assertOk()->json('data'));
+
+        $this->assertSame(11, $rows->firstWhere('id', $started->id)['completion_percent']);
+        $this->assertSame(6, $rows->firstWhere('id', $untouched->id)['completion_percent']);
+    }
+
     /**
      * show() returns a transient blank model; merely opening it must not
      * flip the list to "submitted", nor write an audit row.

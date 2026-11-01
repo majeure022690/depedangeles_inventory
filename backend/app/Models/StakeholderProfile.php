@@ -77,6 +77,42 @@ class StakeholderProfile extends Model
     }
 
     /**
+     * Fields counted toward completion; the same set as the edit form's progress
+     * (STAKEHOLDER_SECTIONS in the frontend).
+     */
+    public const COMPLETION_FIELDS = [
+        'province_id', 'municipality_id', 'legislative_district', 'barangay_id', 'street',
+        'governance_level', 'ro', 'sdo', 'school_district', 'school_name', 'school_id',
+        'chief_name', 'chief_position', 'chief_email', 'chief_mobile',
+        'admin_staff_name', 'admin_staff_position', 'admin_staff_email', 'admin_staff_mobile', 'network_administrator_name',
+        'mobile_1', 'mobile_2', 'landline',
+        'longitude', 'latitude',
+        'nearby_institutions', 'travel_time_to_center_minutes', 'access_paths', 'transportation_options', 'remote_context_notes',
+        'community_engagement', 'community_context_remarks',
+        'submitted_at', 'transaction_type', 'notes_corrections', 'notes_recent_development',
+    ];
+
+    /**
+     * Percentage of COMPLETION_FIELDS filled, with school name and ID falling back
+     * to the office's like the edit form does. A missing profile counts only those.
+     */
+    public static function completionPercent(?self $profile, Office $office): int
+    {
+        $defaults = ['school_name' => $office->office_name, 'school_id' => $office->school_id];
+        $filled = 0;
+
+        foreach (self::COMPLETION_FIELDS as $field) {
+            $value = $profile?->getAttribute($field) ?? $defaults[$field] ?? null;
+
+            if (is_array($value) ? $value !== [] : ($value !== null && trim((string) $value) !== '')) {
+                $filled++;
+            }
+        }
+
+        return (int) round($filled / count(self::COMPLETION_FIELDS) * 100);
+    }
+
+    /**
      * @return BelongsTo<Office, $this>
      */
     public function office(): BelongsTo
