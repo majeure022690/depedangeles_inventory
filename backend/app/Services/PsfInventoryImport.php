@@ -68,8 +68,8 @@ final class PsfInventoryImport
     ];
 
     private const array SCHOOL_WORDS = [
-        'elementary school', 'integrated school', 'national high school', 'high school', 'senior high school',
-        'memorial', 'es', 'is', 'nhs', 'hs', 'mhs', 'shs', 'elem', 'school', 'sr', 'jr', 'of',
+        'elementary', 'elem', 'integrated', 'national', 'high', 'memorial', 'school',
+        'es', 'is', 'nhs', 'hs', 'mhs', 'shs', 'sr', 'jr', 'of',
     ];
 
     /** @var array<string, array<string, int|string>> */
@@ -566,7 +566,7 @@ final class PsfInventoryImport
             $name = mb_strtolower(preg_replace('/\d+|_|ict[- ]equipment[- ]inventory.*|school[- ]template|inventory|ict|equipment/iu', ' ', $name) ?? '');
             $words = preg_split('/[^a-z]+/u', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [];
 
-            return implode(' ', array_diff($words, self::SCHOOL_WORDS));
+            return implode('', array_diff($words, self::SCHOOL_WORDS));
         };
         $file = $key($fileName);
         $office = $key($officeName);

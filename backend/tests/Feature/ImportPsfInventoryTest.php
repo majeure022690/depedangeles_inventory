@@ -192,6 +192,19 @@ class ImportPsfInventoryTest extends TestCase
         $this->assertDatabaseMissing('activity_log', ['event' => PsfInventoryImport::EVENT, 'subject_id' => $this->otherSchool->id]);
     }
 
+    public function test_a_school_named_with_different_spacing_and_words_still_matches(): void
+    {
+        $sapangbato = Office::factory()->create(['office_name' => 'Sapangbato NHS', 'school_id' => '301043', 'prime_department_id' => $this->primeDepartment('Sapangbato NHS')]);
+        $this->workbook('301043 - Sapangbato High School/Sapangbato High School - 301043.xlsx', []);
+        $this->workbook('301043 - Sapangbato High School/301043-Sapang Bato National High School_ict-equipment-inventory-school-template.xlsx', [['E' => 'Laptop', 'G' => 'Dell']]);
+
+        $plan = collect(app(PsfInventoryImport::class)->plan($this->folder))->firstWhere('school_id', '301043');
+
+        $this->assertSame($sapangbato->id, $plan['office']?->id);
+        $this->assertNull($plan['problem']);
+        $this->assertCount(1, $plan['rows']);
+    }
+
     public function test_primes_school_id_wins_over_the_one_stored_in_iris(): void
     {
         $airForce = Office::factory()->create([
