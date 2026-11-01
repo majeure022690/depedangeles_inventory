@@ -1,6 +1,7 @@
 import { Building2, RefreshCw, Sparkles, Tag } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { DashboardFilterBar } from '@/components/dashboard/DashboardFilterBar'
 import { EquipmentDistributionCard } from '@/components/dashboard/EquipmentDistributionCard'
 import { EquipmentOverviewSection } from '@/components/dashboard/EquipmentOverviewSection'
 import { InternetConnectivitySection } from '@/components/dashboard/InternetConnectivitySection'
@@ -11,8 +12,8 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { extractError } from '@/lib/errors'
-import { dashboardService } from '@/services/dashboardService'
-import type { DashboardSummary } from '@/types/dashboard'
+import { dashboardService, EMPTY_DASHBOARD_FILTERS } from '@/services/dashboardService'
+import type { DashboardFilterOptions, DashboardFilters, DashboardSummary } from '@/types/dashboard'
 
 function formatAsOf(date: Date): string {
   return date.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -56,13 +57,15 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [filterOptions, setFilterOptions] = useState<DashboardFilterOptions | null>(null)
+  const [filters, setFilters] = useState<DashboardFilters>(EMPTY_DASHBOARD_FILTERS)
 
-  async function loadSummary(showRefreshState = false) {
+  async function loadSummary(showRefreshState = false, narrowedTo: DashboardFilters = EMPTY_DASHBOARD_FILTERS) {
     if (showRefreshState) setRefreshing(true)
     else setLoading(true)
     setError(null)
     try {
-      setSummary(await dashboardService.summary())
+      setSummary(await dashboardService.summary(narrowedTo))
       setAsOf(new Date())
     } catch (requestError) {
       setError(extractError(requestError, 'Unable to load dashboard data.'))
@@ -73,8 +76,20 @@ export function Dashboard() {
   }
 
   useEffect(() => {
+    dashboardService
+      .filters()
+      .then(setFilterOptions)
+      .catch(() => setFilterOptions(null))
+  }, [])
+
+  useEffect(() => {
     loadSummary()
   }, [])
+
+  function narrow(next: DashboardFilters) {
+    setFilters(next)
+    loadSummary(false, next)
+  }
 
   const ppe = summary?.ppe
   const semi = summary?.semi_expendable
@@ -94,11 +109,15 @@ export function Dashboard() {
           <p className="text-sm text-gray-500">
             As of <time dateTime={isoDate(asOf)}>{formatAsOf(asOf)}</time>
           </p>
-          <Button variant="outline" size="sm" isLoading={refreshing} disabled={loading} leftIcon={<RefreshCw className="h-4 w-4" />} onClick={() => loadSummary(true)}>
+          <Button variant="outline" size="sm" isLoading={refreshing} disabled={loading} leftIcon={<RefreshCw className="h-4 w-4" />} onClick={() => loadSummary(true, filters)}>
             Refresh data
           </Button>
         </div>
       </div>
+
+      {filterOptions && filterOptions.offices.length > 0 && (
+        <DashboardFilterBar options={filterOptions} value={filters} onChange={narrow} disabled={loading || refreshing} />
+      )}
 
       {error && <Alert type="error">{error}</Alert>}
       {scopeNotice && <Alert type="warning">{scopeNotice}</Alert>}

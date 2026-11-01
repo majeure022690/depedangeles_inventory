@@ -64,3 +64,22 @@ export interface DashboardSummary {
   equipment_distribution?: DashboardEquipmentDistribution
   internet_connectivity?: DashboardInternetConnectivity
 }
+
+export interface DashboardOfficeOption {
+  value: number
+  label: string
+  office_type: string | null
+  district: string | null
+}
+
+export interface DashboardFilterOptions {
+  offices: DashboardOfficeOption[]
+  office_types: string[]
+  districts: string[]
+}
+
+export interface DashboardFilters {
+  office_id: string
+  office_type: string
+  district: string
+}
