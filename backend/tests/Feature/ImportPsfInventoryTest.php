@@ -273,6 +273,18 @@ class ImportPsfInventoryTest extends TestCase
         $this->assertSame($elementary->id, $plan['office']?->id);
     }
 
+    public function test_a_duplicate_prime_office_loses_to_the_one_with_personnel(): void
+    {
+        Office::factory()->create(['office_name' => 'Dr. Clemente N. Dayrit Sr. Elem. School', 'school_id' => '107027', 'prime_department_id' => $this->primeDepartment('Dr. Clemente N. Dayrit Sr. Elem. School')]);
+        $staffed = Office::factory()->create(['office_name' => 'DR. CLEMENTE N. DAYRIT SR. ES', 'school_id' => '107027', 'prime_department_id' => $this->primeDepartment('DR. CLEMENTE N. DAYRIT SR. ES')]);
+        Personnel::factory()->create(['office_id' => $staffed->id, 'inactive' => false]);
+        $this->workbook('107027 - Dayrit/107027-Dr. Clemente N. Dayrit Sr. Elem. School_ict-equipment-inventory-school-template.xlsx', [['E' => 'Laptop', 'G' => 'Dell']]);
+
+        $plan = collect(app(PsfInventoryImport::class)->plan($this->folder))->firstWhere('school_id', '107027');
+
+        $this->assertSame($staffed->id, $plan['office']?->id);
+    }
+
     public function test_head_names_who_receives_officerless_rows_but_only_from_that_school(): void
     {
         Personnel::query()->where('office_id', $this->school->id)->whereKeyNot($this->teacher->id)->update(['inactive' => true]);

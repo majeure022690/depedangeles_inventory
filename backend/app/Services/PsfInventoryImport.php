@@ -12,6 +12,7 @@ use App\Models\EquipmentCondition;
 use App\Models\EquipmentLibrary;
 use App\Models\ItemType;
 use App\Models\Office;
+use App\Models\Personnel;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
@@ -328,9 +329,13 @@ final class PsfInventoryImport
             $paths,
         ))])->sortDesc();
 
-        return $scores->count() > 1 && $scores->values()[0] > $scores->values()[1]
-            ? collect($fitting)->firstWhere('id', $scores->keys()[0])
-            : null;
+        if ($scores->count() > 1 && $scores->values()[0] > $scores->values()[1]) {
+            return collect($fitting)->firstWhere('id', $scores->keys()[0]);
+        }
+
+        $staffed = array_values(array_filter($fitting, fn (Office $office) => Personnel::query()->where('office_id', $office->id)->where('inactive', false)->exists()));
+
+        return count($staffed) === 1 ? $staffed[0] : null;
     }
 
     /**
