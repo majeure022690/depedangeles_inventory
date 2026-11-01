@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}</style>
+</head>
+<body>
+<title>DICTIS Screen Flow</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a fixed toolbar over a full-height pannable canvas; screens sit in dashed sections like a design-tool board, joined by orthogonal arrows. */
+:root {
+  --canvas: #eef2f7;
+  --dot: #cbd5e1;
+  --card: #ffffff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --edge: #0052bc;
+  --edge-soft: #99c2f7;
+  --section: rgba(0, 102, 235, 0.035);
+  --section-line: #94a3b8;
+  --section-ink: #334155;
+  --bar: rgba(255, 255, 255, 0.92);
+  --bar-line: #e2e8f0;
+  --chip: #f1f5f9;
+  --chip-on: #0f172a;
+  --chip-on-ink: #ffffff;
+  --shot-bg: #f8fafc;
+  --scrim: rgba(15, 23, 42, 0.55);
+  --font-ui: 'Poppins', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #0b1220; --dot: #1e293b; --card: #111a2e; --ink: #e2e8f0; --muted: #94a3b8;
+    --edge: #66a3f3; --edge-soft: #2b4f86; --section: rgba(102, 163, 243, 0.05); --section-line: #475569; --section-ink: #cbd5e1;
+    --bar: rgba(11, 18, 32, 0.92); --bar-line: #1e293b; --chip: #1e293b; --chip-on: #e2e8f0; --chip-on-ink: #0b1220;
+    --shot-bg: #0f172a; --scrim: rgba(0, 0, 0, 0.7); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --canvas: #0b1220; --dot: #1e293b; --card: #111a2e; --ink: #e2e8f0; --muted: #94a3b8;
+  --edge: #66a3f3; --edge-soft: #2b4f86; --section: rgba(102, 163, 243, 0.05); --section-line: #475569; --section-ink: #cbd5e1;
+  --bar: rgba(11, 18, 32, 0.92); --bar-line: #1e293b; --chip: #1e293b; --chip-on: #e2e8f0; --chip-on-ink: #0b1220;
+  --shot-bg: #0f172a; --scrim: rgba(0, 0, 0, 0.7); color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--canvas); color: var(--ink); font-family: var(--font-ui); overflow: hidden; }
+.app { height: 100%; display: flex; flex-direction: column; }
+
+.bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--bar); border-bottom: 1px solid var(--bar-line); backdrop-filter: blur(8px); z-index: 2;
+}
+.brand { display: flex; flex-direction: column; min-width: 0; margin-right: auto; }
+.brand h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.brand p { margin: 0; font-size: 12px; color: var(--muted); }
+.group { display: flex; align-items: center; gap: 4px; background: var(--chip); border-radius: 8px; padding: 3px; }
+.group button {
+  font: 500 12px var(--font-ui); color: var(--ink); background: transparent; border: 0; border-radius: 6px;
+  padding: 6px 10px; min-width: 32px; cursor: pointer;
+}
+.group button[aria-pressed="true"] { background: var(--chip-on); color: var(--chip-on-ink); }
+.group button:focus-visible, .card:focus-visible, .close:focus-visible { outline: 2px solid var(--edge); outline-offset: 2px; }
+.zoom-val { font: 500 12px var(--font-mono); font-variant-numeric: tabular-nums; min-width: 44px; text-align: center; color: var(--muted); }
+
+.viewport {
+  position: relative; flex: 1; overflow: hidden; touch-action: none; cursor: grab;
+  background-image: radial-gradient(var(--dot) 1px, transparent 1.2px); background-size: 22px 22px;
+}
+.viewport.dragging { cursor: grabbing; }
+.board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.edges path { fill: none; stroke: var(--edge); stroke-width: 2; stroke-linejoin: round; }
+.edges path.bus { stroke: var(--edge-soft); }
+.edges .arrowhead { fill: var(--edge); }
+.edge-label {
+  position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
+  font: 500 12px var(--font-ui); color: var(--edge); background: var(--canvas);
+  border: 1.5px solid var(--edge); border-radius: 999px; padding: 2px 10px; pointer-events: none;
+}
+
+.section { position: absolute; border: 1.5px dashed var(--section-line); border-radius: 14px; background: var(--section); }
+.section > span {
+  position: absolute; left: 14px; top: -17px; padding: 2px 12px; border-radius: 6px;
+  font: 600 20px var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--section-ink); background: var(--canvas);
+}
+.block-title { position: absolute; font-weight: 700; font-size: 72px; line-height: 1; letter-spacing: -0.02em; color: var(--ink); white-space: nowrap; }
+.block-title small { display: block; font: 400 26px var(--font-ui); letter-spacing: 0; color: var(--muted); margin-top: 12px; }
+
+.card {
+  position: absolute; display: flex; flex-direction: column; gap: 10px; padding: 0; margin: 0;
+  background: none; border: 0; text-align: left; color: var(--ink); font: inherit; cursor: pointer;
+}
+.shot {
+  width: 240px; height: 300px; border-radius: 10px; overflow: hidden; background: var(--shot-bg);
+  border: 1px solid var(--bar-line); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px -12px rgba(15, 23, 42, 0.18);
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.shot img { width: 100%; display: block; image-rendering: auto; }
+.board.hand .shot { background: transparent; border-color: transparent; box-shadow: none; overflow: visible; }
+.board.hand .shot img { height: 100%; object-fit: contain; object-position: top; filter: drop-shadow(0 6px 10px rgba(15, 23, 42, 0.25)); }
+.card:hover .shot { box-shadow: 0 0 0 2px var(--edge), 0 12px 28px -12px rgba(15, 23, 42, 0.3); }
+.cap { display: flex; flex-direction: column; gap: 2px; width: 240px; }
+.cap b { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.cap code { font: 400 11.5px var(--font-mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.hint { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); font-size: 12px; color: var(--muted); background: var(--bar); border: 1px solid var(--bar-line); border-radius: 8px; padding: 6px 10px; pointer-events: none; }
+
+dialog { border: 0; padding: 0; background: transparent; max-width: min(960px, calc(100vw - 32px)); width: 100%; max-height: calc(100vh - 32px); color: var(--ink); }
+dialog::backdrop { background: var(--scrim); }
+.sheet { background: var(--card); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; max-height: calc(100vh - 32px); }
+.sheet header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--bar-line); flex-wrap: wrap; }
+.sheet header div { margin-right: auto; min-width: 0; }
+.sheet h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.sheet header code { font: 400 12px var(--font-mono); color: var(--muted); }
+.sheet .body { overflow: auto; background: var(--shot-bg); }
+.sheet .body img { display: block; width: 100%; }
+.sheet footer { padding: 10px 16px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--bar-line); }
+.close { font: 500 13px var(--font-ui); background: var(--chip); color: var(--ink); border: 0; border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .shot { transition: none; } }
+@media (max-width: 640px) { .brand p { display: none; } .hint { display: none; } }
+</style>
+
+<div class="app">
+  <div class="bar">
+    <div class="brand">
+      <h1>DICTIS Screen Flow</h1>
+      <p>26 desktop screens · DepEd Division ICT Inventory System · personal data masked</p>
+    </div>
+    <div class="group" role="group" aria-label="Screen style">
+      <button type="button" id="mode-wire" aria-pressed="true">Wireframe</button>
+      <button type="button" id="mode-hand" aria-pressed="false">Hand</button>
+      <button type="button" id="mode-design" aria-pressed="false">Design</button>
+    </div>
+    <div class="group" role="group" aria-label="Zoom">
+      <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+      <span class="zoom-val" id="zoom-val">100%</span>
+      <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+      <button type="button" id="zoom-fit">Fit</button>
+    </div>
+  </div>
+  <div class="viewport" id="viewport">
+    <div class="board" id="board"></div>
+    <div class="hint">Drag to pan · Ctrl + scroll or pinch to zoom · click a screen to enlarge</div>
+  </div>
+</div>
+
+<dialog id="viewer" aria-labelledby="viewer-title">
+  <div class="sheet">
+    <header>
+      <div><h2 id="viewer-title"></h2><code id="viewer-route"></code></div>
+      <div class="group" role="group" aria-label="Screen style">
+        <button type="button" id="v-wire" aria-pressed="true">Wireframe</button>
+        <button type="button" id="v-hand" aria-pressed="false">Hand</button>
+        <button type="button" id="v-design" aria-pressed="false">Design</button>
+      </div>
+      <button type="button" class="close" id="viewer-close">Close</button>
+    </header>
+    <div class="body"><img id="viewer-img" alt=""></div>
+    <footer>Top 1800px of the page at 1440px wide, captured from the running app; names, IDs, dates and other personal values are replaced with placeholders. Hand view is a sketch-style rendering generated from the same screen.</footer>
+  </div>
+</dialog>
+
+<script>
+const CW = 240, CH = 300, CAP = 48, DX = 330, DY = 440, OX = 420, OY = 200;
+
+const screens = [
+  ['auth/01-login', 'Login', '/login', 0, 0],
+  ['app/04-dashboard', 'Dashboard', '/dashboard', 1, 0],
+  ['app/05-profile', 'Profile', '/profile', 1, 1],
+  ['app/06-page-not-found', 'Page Not Found', '/* (unknown URL)', 1, 2],
+
+  ['app/07-personnel', 'Personnel', '/personnel', 2, 1],
+  ['app/08-edit-personnel', 'Edit Personnel', '/personnel/:id/edit', 3, 1],
+  ['app/09-new-personnel', 'New Personnel', '/personnel/new', 3, 2],
+  ['app/10-equipment', 'Equipment', '/equipment', 2, 3],
+  ['app/11-edit-equipment', 'Edit Equipment', '/equipment/:id/edit', 3, 3],
+  ['app/12-new-equipment', 'New Equipment', '/equipment/new', 3, 4],
+  ['app/13-isp-accounts', 'ISP Accounts', '/isp-accounts', 2, 5],
+  ['app/14-edit-isp-account', 'Edit ISP Account', '/isp-accounts/:id/edit', 3, 5],
+  ['app/15-new-isp-account', 'New ISP Account', '/isp-accounts/new', 3, 6],
+
+  ['app/16-stakeholder-profiles', 'Stakeholder Profiles', '/stakeholder-profiles', 4, 1],
+  ['app/17-stakeholder-profile', 'Stakeholder Profile', '/stakeholder-profiles/:officeId', 5, 1],
+  ['app/18-internet-connectivity', 'Internet Connectivity', '/internet-connectivity-surveys', 4, 2],
+  ['app/19-connectivity-survey', 'Connectivity Survey', '/internet-connectivity-surveys/:officeId', 5, 2],
+
+  ['app/20-reference-data', 'Reference Data', '/reference-data', 6, 1],
+  ['app/21-reference-table', 'Reference Table', '/reference-data/:table', 7, 1],
+  ['app/22-offices', 'Offices', '/offices', 6, 2],
+  ['app/23-edit-office', 'Edit Office', '/offices/:id/edit', 7, 2],
+  ['app/24-new-office', 'New Office', '/offices/new', 7, 3],
+
+  ['app/25-users', 'Users', '/users', 8, 1],
+  ['app/26-roles', 'Roles', '/roles', 8, 2],
+  ['app/27-audit-log', 'Audit Log', '/audit-log', 8, 3],
+  ['app/28-settings', 'Settings', '/settings', 8, 4],
+].map(([id, name, route, c, r]) => ({ id, name, route, c, r }));
+
+const sections = [
+  ['Sign in', 0, 0, 0, 0],
+  ['Overview', 1, 1, 1, 2],
+  ['Records', 2, 3, 1, 6],
+  ['Office profiles', 4, 5, 1, 2],
+  ['Libraries', 6, 7, 1, 3],
+  ['Administration', 8, 8, 1, 4],
+];
+const busSections = sections.filter((s) => s[0] !== 'Sign in');
+
+const edges = [
+  ['auth/01-login', 'app/04-dashboard', 'h', '2FA code'],
+  ['app/07-personnel', 'app/08-edit-personnel', 'h'],
+  ['app/07-personnel', 'app/09-new-personnel', 'h', 'Add'],
+  ['app/10-equipment', 'app/11-edit-equipment', 'h'],
+  ['app/10-equipment', 'app/12-new-equipment', 'h', 'Add'],
+  ['app/13-isp-accounts', 'app/14-edit-isp-account', 'h'],
+  ['app/13-isp-accounts', 'app/15-new-isp-account', 'h', 'Add'],
+  ['app/16-stakeholder-profiles', 'app/17-stakeholder-profile', 'h'],
+  ['app/18-internet-connectivity', 'app/19-connectivity-survey', 'h'],
+  ['app/20-reference-data', 'app/21-reference-table', 'h'],
+  ['app/22-offices', 'app/23-edit-office', 'h'],
+  ['app/22-offices', 'app/24-new-office', 'h', 'Add'],
+];
+
+const pos = (s) => ({ x: OX + s.c * DX, y: OY + s.r * DY });
+const byId = Object.fromEntries(screens.map((s) => [s.id, s]));
+
+const board = document.getElementById('board');
+const W = OX + 9 * DX + 160, H = OY + 7 * DY + 80;
+board.style.width = W + 'px';
+board.style.height = H + 'px';
+
+const ns = 'http://www.w3.org/2000/svg';
+const svg = document.createElementNS(ns, 'svg');
+svg.setAttribute('class', 'edges');
+svg.setAttribute('width', W);
+svg.setAttribute('height', H);
+svg.innerHTML = '<defs><marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M0 0 L10 5 L0 10 z"/></marker></defs>';
+board.appendChild(svg);
+
+const title = document.createElement('div');
+title.className = 'block-title';
+title.style.left = OX + 2 * DX + 'px';
+title.style.top = OY - 30 + 'px';
+title.innerHTML = 'DepEd Division ICT Inventory System<small>Schools Division Office staff · personnel names, IDs and contact details are masked with placeholders</small>';
+board.appendChild(title);
+
+for (const [label, c0, c1, r0, r1] of sections) {
+  const el = document.createElement('div');
+  el.className = 'section';
+  el.style.left = OX + c0 * DX - 28 + 'px';
+  el.style.top = OY + r0 * DY - 34 + 'px';
+  el.style.width = (c1 - c0) * DX + CW + 56 + 'px';
+  el.style.height = (r1 - r0) * DY + CH + CAP + 58 + 'px';
+  el.innerHTML = `<span>${label}</span>`;
+  board.appendChild(el);
+}
+
+const path = (d, cls) => {
+  const p = document.createElementNS(ns, 'path');
+  p.setAttribute('d', d);
+  if (cls) p.setAttribute('class', cls);
+  else p.setAttribute('marker-end', 'url(#arrow)');
+  svg.appendChild(p);
+  return p;
+};
+const label = (text, x, y) => {
+  const l = document.createElement('div');
+  l.className = 'edge-label';
+  l.textContent = text;
+  l.style.left = x + 'px';
+  l.style.top = y + 'px';
+  board.appendChild(l);
+};
+
+{
+  const f = pos(byId['app/04-dashboard']);
+  const busY = OY + DY - 78;
+  const sx = f.x + CW / 2;
+  const tops = busSections.map((s) => OX + s[1] * DX + CW / 2);
+  const minX = Math.min(sx, ...tops), maxX = Math.max(sx, ...tops);
+  path(`M${sx} ${f.y + CH + CAP} V${busY} M${minX} ${busY} H${maxX}`, 'bus');
+  for (const tx of tops) path(`M${tx} ${busY} V${busY + 40}`);
+}
+
+for (const [a, b, type, text] of edges) {
+  const f = pos(byId[a]), t = pos(byId[b]);
+  const fy = f.y + CH / 2, ty = t.y + CH / 2;
+  if (type === 'h') {
+    const sx = f.x + CW + 6, ex = t.x - 6, mx = (sx + ex) / 2;
+    path(fy === ty ? `M${sx} ${fy} H${ex}` : `M${sx} ${fy} H${mx} V${ty} H${ex}`);
+    if (text) label(text, mx, fy === ty ? fy : (fy + ty) / 2);
+  } else if (type === 'back') {
+    const sx = f.x - 6, ex = t.x + CW + 6;
+    path(`M${sx} ${fy} H${ex}`);
+    if (text) label(text, (sx + ex) / 2, fy);
+  } else if (type === 'down') {
+    const cx = f.x + CW / 2;
+    path(`M${cx} ${f.y + CH + CAP + 6} V${t.y - 6}`);
+  }
+}
+
+const cards = [];
+for (const s of screens) {
+  const p = pos(s);
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'card';
+  b.style.left = p.x + 'px';
+  b.style.top = p.y + 'px';
+  b.dataset.id = s.id;
+  b.setAttribute('aria-label', `${s.name}, ${s.route}`);
+  b.innerHTML = `<div class="shot"><img alt="" draggable="false"></div><div class="cap"><b>${s.name}</b><code>${s.route}</code></div>`;
+  board.appendChild(b);
+  cards.push(b);
+}
+
+const MODES = [['mode-wire', 'w'], ['mode-hand', 'h'], ['mode-design', 'c'], ['v-wire', 'w'], ['v-hand', 'h'], ['v-design', 'c']];
+let current = null;
+let sharpTimer = 0;
+let mode = 'w';
+try { const saved = localStorage.getItem('rw-flow-mode'); if (['w', 'h', 'c'].includes(saved)) mode = saved; } catch (e) {}
+const src = (id, m, tier) => `img/${m}/${id.replace('/', '-')}-${tier}.webp`;
+const sharpen = () => {
+  if (scale * CW * (window.devicePixelRatio || 1) < 520) return;
+  const vr = viewport.getBoundingClientRect();
+  for (const b of cards) {
+    if (b.dataset.tier === 'lg') continue;
+    const r = b.getBoundingClientRect();
+    if (r.right < vr.left || r.left > vr.right || r.bottom < vr.top || r.top > vr.bottom) continue;
+    b.dataset.tier = 'lg';
+    const m = mode, img = b.querySelector('img'), hi = new Image();
+    hi.src = src(b.dataset.id, m, 'lg');
+    hi.decode().then(() => { if (b.dataset.tier === 'lg' && mode === m) img.src = hi.src; }).catch(() => {});
+  }
+};
+const paint = () => {
+  for (const b of cards) {
+    b.dataset.tier = 'sm';
+    b.querySelector('img').src = src(b.dataset.id, mode, 'sm');
+  }
+  for (const [id, m] of MODES) document.getElementById(id).setAttribute('aria-pressed', String(mode === m));
+  board.classList.toggle('hand', mode === 'h');
+  if (document.getElementById('viewer').open) document.getElementById('viewer-img').src = src(current, mode, 'lg');
+  if (typeof scale !== 'undefined') sharpen();
+};
+const setMode = (m) => { mode = m; try { localStorage.setItem('rw-flow-mode', m); } catch (e) {} paint(); };
+for (const [id, m] of MODES) document.getElementById(id).addEventListener('click', () => setMode(m));
+
+const viewport = document.getElementById('viewport');
+let scale = 1, tx = 0, ty = 0;
+const apply = () => {
+  board.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  document.getElementById('zoom-val').textContent = Math.round(scale * 100) + '%';
+  clearTimeout(sharpTimer);
+  sharpTimer = setTimeout(sharpen, 150);
+};
+const clamp = (v) => Math.min(6, Math.max(0.08, v));
+const zoomAt = (next, cx, cy) => {
+  next = clamp(next);
+  tx = cx - (cx - tx) * (next / scale);
+  ty = cy - (cy - ty) * (next / scale);
+  scale = next;
+  apply();
+};
+const fit = () => {
+  const r = viewport.getBoundingClientRect();
+  scale = clamp(Math.min((r.width - 40) / W, (r.height - 40) / H));
+  tx = (r.width - W * scale) / 2;
+  ty = (r.height - H * scale) / 2;
+  apply();
+};
+const center = () => { const r = viewport.getBoundingClientRect(); return [r.width / 2, r.height / 2]; };
+document.getElementById('zoom-in').addEventListener('click', () => zoomAt(scale * 1.25, ...center()));
+document.getElementById('zoom-out').addEventListener('click', () => zoomAt(scale / 1.25, ...center()));
+document.getElementById('zoom-fit').addEventListener('click', fit);
+
+viewport.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const r = viewport.getBoundingClientRect();
+  if (e.ctrlKey || e.metaKey) zoomAt(scale * Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
+  else { tx -= e.deltaX; ty -= e.deltaY; apply(); }
+}, { passive: false });
+
+const pointers = new Map();
+let moved = false, pinch = null;
+viewport.addEventListener('pointerdown', (e) => {
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  moved = false;
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s: scale };
+  }
+});
+viewport.addEventListener('pointermove', (e) => {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  if (!moved && Math.hypot(dx, dy) > 4) { moved = true; viewport.classList.add('dragging'); try { viewport.setPointerCapture(e.pointerId); } catch (err) {} }
+  if (!moved) return;
+  p.x = e.clientX; p.y = e.clientY;
+  if (pointers.size === 2 && pinch) {
+    const [a, b] = [...pointers.values()];
+    const r = viewport.getBoundingClientRect();
+    zoomAt(pinch.s * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+  } else { tx += dx; ty += dy; apply(); }
+});
+const release = (e) => {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinch = null;
+  if (!pointers.size) viewport.classList.remove('dragging');
+};
+viewport.addEventListener('pointerup', release);
+viewport.addEventListener('pointercancel', release);
+
+const viewer = document.getElementById('viewer');
+board.addEventListener('click', (e) => {
+  const card = e.target.closest('.card');
+  if (!card || moved) return;
+  current = card.dataset.id;
+  const s = byId[current];
+  document.getElementById('viewer-title').textContent = s.name;
+  document.getElementById('viewer-route').textContent = s.route;
+  document.getElementById('viewer-img').alt = `${s.name} screen`;
+  viewer.showModal();
+  paint();
+});
+document.getElementById('viewer-close').addEventListener('click', () => viewer.close());
+viewer.addEventListener('click', (e) => { if (e.target === viewer) viewer.close(); });
+
+window.addEventListener('keydown', (e) => {
+  if (viewer.open || e.target.closest('input, textarea')) return;
+  if (e.key === '+' || e.key === '=') zoomAt(scale * 1.25, ...center());
+  else if (e.key === '-') zoomAt(scale / 1.25, ...center());
+  else if (e.key === '0') fit();
+});
+window.addEventListener('resize', fit);
+fit();
+paint();
+</script>
+
+</body>
+</html>
