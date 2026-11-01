@@ -9,7 +9,7 @@ import { Select, type SelectOption } from '@/components/ui/Select'
 import { SelectPicker } from '@/components/ui/SelectPicker'
 import { Textarea } from '@/components/ui/Textarea'
 import type { FieldErrors } from '@/lib/errors'
-import { withCurrentOption } from '@/lib/options'
+import { selectsOthers, withCurrentOption } from '@/lib/options'
 import { formatDate } from '@/lib/utils'
 import type {
   Equipment,
@@ -32,7 +32,7 @@ export const EQUIPMENT_FIELD_SECTIONS: { value: EquipmentFieldSection; label: st
   {
     value: 'equipment',
     label: 'Equipment',
-    fields: ['property_no', 'old_property_no', 'item_type_id', 'uom', 'brand_id', 'model', 'serial_number', 'specifications'],
+    fields: ['property_no', 'old_property_no', 'item_type_id', 'item_type_other', 'uom', 'brand_id', 'brand_other', 'model', 'serial_number', 'specifications'],
   },
   {
     value: 'acquisition',
@@ -44,9 +44,11 @@ export const EQUIPMENT_FIELD_SECTIONS: { value: EquipmentFieldSection; label: st
       'source_acquisition',
       'donor',
       'source_fund',
+      'source_fund_other',
       'equipment_classification_id',
       'non_dcp',
       'dcp_package',
+      'dcp_package_other',
       'dcp_year',
       'uacs',
       'allotment_class',
@@ -75,6 +77,7 @@ export const EQUIPMENT_FIELD_SECTIONS: { value: EquipmentFieldSection; label: st
       'equipment_location',
       'non_functional',
       'equipment_condition_id',
+      'equipment_condition_other',
       'disposition_status',
       'remarks',
       'supplier',
@@ -111,12 +114,15 @@ export function emptyEquipmentForm(): EquipmentFormData {
     old_property_no: '',
     serial_number: '',
     item_type_id: null,
+    item_type_other: '',
     uom: '',
     brand_id: null,
+    brand_other: '',
     model: '',
     specifications: '',
     non_dcp: true,
     dcp_package: '',
+    dcp_package_other: '',
     dcp_year: '',
     equipment_classification_id: null,
     uacs: '',
@@ -127,11 +133,13 @@ export function emptyEquipmentForm(): EquipmentFormData {
     source_acquisition: '',
     donor: '',
     source_fund: '',
+    source_fund_other: '',
     allotment_class: '',
     pm_plan: '',
     equipment_location: '',
     non_functional: false,
     equipment_condition_id: null,
+    equipment_condition_other: '',
     disposition_status: '',
     remarks: '',
     under_warranty: false,
@@ -164,12 +172,15 @@ export function equipmentToForm(equipment: Equipment): EquipmentFormData {
     old_property_no: equipment.old_property_no ?? '',
     serial_number: equipment.serial_number ?? '',
     item_type_id: equipment.item_type_id,
+    item_type_other: equipment.item_type_other ?? '',
     uom: equipment.uom ?? '',
     brand_id: equipment.brand_id,
+    brand_other: equipment.brand_other ?? '',
     model: equipment.model ?? '',
     specifications: equipment.specifications ?? '',
     non_dcp: equipment.non_dcp,
     dcp_package: equipment.dcp_package ?? '',
+    dcp_package_other: equipment.dcp_package_other ?? '',
     dcp_year: equipment.dcp_year ? String(equipment.dcp_year) : '',
     equipment_classification_id: equipment.equipment_classification_id,
     uacs: equipment.uacs ?? '',
@@ -180,11 +191,13 @@ export function equipmentToForm(equipment: Equipment): EquipmentFormData {
     source_acquisition: equipment.source_acquisition ?? '',
     donor: equipment.donor ?? '',
     source_fund: equipment.source_fund ?? '',
+    source_fund_other: equipment.source_fund_other ?? '',
     allotment_class: equipment.allotment_class ?? '',
     pm_plan: equipment.pm_plan ?? '',
     equipment_location: equipment.equipment_location ?? '',
     non_functional: equipment.non_functional,
     equipment_condition_id: equipment.equipment_condition_id,
+    equipment_condition_other: equipment.equipment_condition_other ?? '',
     disposition_status: equipment.disposition_status ?? '',
     remarks: equipment.remarks ?? '',
     under_warranty: equipment.under_warranty,
@@ -332,6 +345,11 @@ export function EquipmentFields({
     )
   }
 
+  function otherText(key: TextKey, label: string, list: SelectOption[] | undefined, selected: string | number | null) {
+    if (!selectsOthers(list, selected)) return null
+    return text(key, `${label} (please specify)`, `Type the ${label.toLowerCase()} when it isn't in the list.`, { required: true })
+  }
+
   function checkbox(key: BoolKey, label: string, hint: string) {
     return (
       <div className="sm:col-span-2">
@@ -429,8 +447,10 @@ export function EquipmentFields({
             'Select an item type',
             current?.item,
           )}
+          {otherText('item_type_other', 'Item', formOptions?.item_type, value.item_type_id)}
           {stringSelect('uom', 'Unit of measure', 'Select the unit of measure of the item.', formOptions?.unit_of_measure, 'Select a unit of measure', true)}
           {idSelect('brand_id', 'Brand/manufacturer', 'Choose the Brand/Manufacturer from the dropdown.', formOptions?.brand, 'Select a brand', current?.brand_manufacturer)}
+          {otherText('brand_other', 'Brand', formOptions?.brand, value.brand_id)}
           {text('model', 'Model', 'Input the equipment\'s Model Name or Number.', { required: true })}
           {text('serial_number', 'Serial number', 'Input the equipment\'s Serial number', { required: true })}
           {longText(
@@ -477,6 +497,7 @@ export function EquipmentFields({
               required: true,
             })}
           {stringSelect('source_fund', 'Source of funds', 'Select the corresponding source of funds from the dropdown.', formOptions?.source_of_funds, 'Select a fund source', true)}
+          {otherText('source_fund_other', 'Source of funds', formOptions?.source_of_funds, value.source_fund)}
         </FormSection>
 
         <FormSection title="Classification & accounting">
@@ -501,6 +522,7 @@ export function EquipmentFields({
           {!value.non_dcp && (
             <>
               {stringSelect('dcp_package', 'DCP package', 'Input the Package Name of the DCP.', formOptions?.dcp_package, 'Select a DCP package', true)}
+              {otherText('dcp_package_other', 'DCP package', formOptions?.dcp_package, value.dcp_package)}
               {text('dcp_year', 'DCP year package', 'Input the Year of the DCP Package the item belongs to.', {
                 inputMode: 'numeric',
                 placeholder: 'YYYY',
@@ -662,6 +684,7 @@ export function EquipmentFields({
           'Select a condition',
           current?.equipment_condition,
         )}
+        {otherText('equipment_condition_other', 'Condition', formOptions?.condition, value.equipment_condition_id)}
         {stringSelect(
           'disposition_status',
           'Disposition status',

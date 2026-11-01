@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
 import { PERIPHERAL_ITEMS } from '@/lib/equipmentBundles'
+import { selectsOthers } from '@/lib/options'
 import { extractRowErrors, type FieldErrors, type RowErrors } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { toPeripheralPayload } from '@/services/equipmentService'
@@ -30,9 +31,11 @@ export function newPeripheralRow(itemTypeId: number | null = null): PeripheralRo
     item_type_id: itemTypeId,
     serial_number: '',
     brand_id: null,
+    brand_other: '',
     model: '',
     specifications: '',
     equipment_condition_id: null,
+    equipment_condition_other: '',
     acquisition_cost: '',
     remarks: '',
   }
@@ -227,6 +230,8 @@ function PeripheralRowFields({ idPrefix, position, row, itemTypes, options, erro
   const headingId = `${idPrefix}-heading`
   const detailsId = `${idPrefix}-details`
   const otherErrors = Object.entries(errors).filter(([field]) => !(field in row))
+  const brandIsOthers = selectsOthers(options?.brand, row.brand_id)
+  const conditionIsOthers = selectsOthers(options?.condition, row.equipment_condition_id)
 
   useEffect(() => {
     if (detailsHaveError) setDetailsOpen(true)
@@ -307,6 +312,35 @@ function PeripheralRowFields({ idPrefix, position, row, itemTypes, options, erro
             />
           </RowField>
         </div>
+
+        {(brandIsOthers || conditionIsOthers) && (
+          <div className="mt-3 grid gap-3 @xl:grid-cols-2">
+            {brandIsOthers && (
+              <RowField id={`${idPrefix}-brand-other`} label="Brand (please specify)" rowLabel={rowLabel} alwaysShowLabel>
+                <Input
+                  id={`${idPrefix}-brand-other`}
+                  aria-required="true"
+                  maxLength={255}
+                  value={row.brand_other}
+                  onChange={(e) => onChange({ brand_other: e.target.value })}
+                  error={errors.brand_other}
+                />
+              </RowField>
+            )}
+            {conditionIsOthers && (
+              <RowField id={`${idPrefix}-condition-other`} label="Condition (please specify)" rowLabel={rowLabel} alwaysShowLabel>
+                <Input
+                  id={`${idPrefix}-condition-other`}
+                  aria-required="true"
+                  maxLength={255}
+                  value={row.equipment_condition_other}
+                  onChange={(e) => onChange({ equipment_condition_other: e.target.value })}
+                  error={errors.equipment_condition_other}
+                />
+              </RowField>
+            )}
+          </div>
+        )}
 
         {otherErrors.map(([field, message]) => (
           <p key={field} className="mt-2 text-xs text-error-600">

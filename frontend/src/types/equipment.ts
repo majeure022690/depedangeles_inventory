@@ -43,9 +43,11 @@ export interface EquipmentPeripheralFormData {
   item_type_id: number | null
   serial_number: string
   brand_id: number | null
+  brand_other: string
   model: string
   specifications: string
   equipment_condition_id: number | null
+  equipment_condition_other: string
   acquisition_cost: string
   remarks: string
 }
@@ -66,13 +68,16 @@ export interface Equipment {
   serial_number: string | null
   item_type_id: number
   item: string | null
+  item_type_other: string | null
   uom: string
   brand_id: number
   brand_manufacturer: string | null
+  brand_other: string | null
   model: string | null
   specifications: string | null
   non_dcp: boolean
   dcp_package: string | null
+  dcp_package_other: string | null
   dcp_year: number | null
   equipment_category_id: number
   category: string | null
@@ -87,12 +92,14 @@ export interface Equipment {
   source_acquisition: string
   donor: string | null
   source_fund: string
+  source_fund_other: string | null
   allotment_class: string
   pm_plan: string | null
   equipment_location: string | null
   non_functional: boolean
   equipment_condition_id: number
   equipment_condition: string | null
+  equipment_condition_other: string | null
   disposition_status: string
   remarks: string | null
   qr_code: string | null
@@ -194,12 +201,15 @@ export interface EquipmentFormData {
   old_property_no: string
   serial_number: string
   item_type_id: number | null
+  item_type_other: string
   uom: string
   brand_id: number | null
+  brand_other: string
   model: string
   specifications: string
   non_dcp: boolean
   dcp_package: string
+  dcp_package_other: string
   dcp_year: string
   equipment_classification_id: number | null
   uacs: string
@@ -210,11 +220,13 @@ export interface EquipmentFormData {
   source_acquisition: string
   donor: string
   source_fund: string
+  source_fund_other: string
   allotment_class: string
   pm_plan: string
   equipment_location: string
   non_functional: boolean
   equipment_condition_id: number | null
+  equipment_condition_other: string
   disposition_status: string
   remarks: string
   under_warranty: boolean
