@@ -34,6 +34,10 @@ class PersonnelPolicy
 
     public function delete(User $user, Personnel $personnel): Response
     {
+        if ($personnel->isManagedByPrime() && $user->hasPermissionTo(Permission::PersonnelDelete) && $personnel->isVisibleTo($user)) {
+            return Response::deny('This person is managed by PRIME and is removed there, not in IRIS.');
+        }
+
         $response = $this->permittedAndVisible($user, $personnel, Permission::PersonnelDelete);
 
         if ($response->denied()) {

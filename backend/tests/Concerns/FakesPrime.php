@@ -35,7 +35,26 @@ trait FakesPrime
             $table->string('deped_id_no')->nullable();
             $table->string('deped_email')->nullable();
             $table->string('employee_status')->default('Active');
+            $table->string('appointment_status')->nullable();
             $table->unsignedInteger('department_school_id')->nullable();
+            $table->string('personnel_position_id')->nullable();
+            $table->string('curr_psipop_item_number')->nullable();
+            $table->string('psipop_item_level')->nullable();
+            $table->string('actual_workstation')->nullable();
+            $table->string('date_original_appointment')->nullable();
+            $table->string('date_last_promotion')->nullable();
+        });
+        $schema->create('personnelposition', function (Blueprint $table) {
+            $table->increments('personnel_position_id');
+            $table->string('type_of_position')->nullable();
+            $table->string('position_title')->nullable();
+        });
+        $schema->create('service_records', function (Blueprint $table) {
+            $table->increments('service_records_id');
+            $table->unsignedInteger('user_id')->nullable();
+            $table->date('from_date')->nullable();
+            $table->date('separation_date')->nullable();
+            $table->string('separation_cause')->nullable();
         });
         $schema->create('departments', function (Blueprint $table) {
             $table->increments('dept_id');

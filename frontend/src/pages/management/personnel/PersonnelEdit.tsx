@@ -145,7 +145,7 @@ export function PersonnelEdit() {
             </p>
           </div>
         </div>
-        {canDelete && (
+        {canDelete && !personnel?.managed_by_prime && (
           <div className="page-actions">
             <Button variant="outline" size="sm" leftIcon={<Trash2 className="h-4 w-4 text-error-600" />} onClick={() => setDeleteOpen(true)}>
               Delete
@@ -163,6 +163,9 @@ export function PersonnelEdit() {
           {flash && <Alert type="success">{flash}</Alert>}
         </div>
         {!canEdit && <Alert type="info">You can view this record but not edit it.</Alert>}
+        {personnel?.managed_by_prime && (
+          <Alert type="info">Synced from PRIME. Name, employee ID, DepEd email, school/office, position, hire date and status come from PRIME and are updated there; the other fields can be edited here.</Alert>
+        )}
 
         <PersonnelFields value={form} onChange={setForm} options={options} errors={errors} disabled={!canEdit} current={personnel} />
 

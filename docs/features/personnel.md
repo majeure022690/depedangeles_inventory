@@ -61,3 +61,25 @@ Form body: `components/personnel/PersonnelFields.tsx`; API: `services/personnelS
 ## Future considerations
 
 None blocking.
+
+## PRIME sync
+
+Personnel is a copy of PRIME's `employees` table, kept current by `php artisan personnel:sync-prime` (`App\Services\PrimePersonnelSync`).
+
+- **Matching:** by `prime_employee_id` once linked, otherwise by DepEd employee number (`employees.deped_id_no` ↔ `personnel.employee_id`). A matched record keeps its id, so equipment, transactions and property stay attached.
+- **PRIME-owned fields** (`Personnel::PRIME_FIELDS`), overwritten on every run: employee ID, last/first/middle name, suffix (`name_extension`), DepEd email, school/office (`department_school_id` → the office linked by `prime_department_id`), position (`personnelposition.position_title`, matched to Positions by name and added if missing), date hired (`date_original_appointment`), appointment status, plantilla item no./level (`curr_psipop_item_number`, `psipop_item_level`), workstation (`actual_workstation`), date of last promotion, and status. `employee_status` `Active` is active; any `Inactive - <reason>` is inactive with `<reason>` as the cause, and the separation date comes from the latest `service_records.separation_date`.
+- **IRIS-owned fields** stay editable: OIC and OIC office, mobile numbers, personal email, RO division, division/unit, non-DepEd funding and fund source, transferred from/to. `mobile_no` is not synced (filled for 1 of 3,698 PRIME employees).
+- **Skipped PRIME rows:** no employee number, `Inactive - Applicant`, or an employee number shared by several PRIME employees.
+- **Gone from PRIME:** a synced record is marked inactive with cause "No longer in PRIME". Nothing synced is ever deleted.
+- **IRIS-only records** (no PRIME match): left alone unless `--remove-legacy` is passed, which soft-deletes those that no equipment, equipment transaction or property item points to. Records still referenced are listed for reassignment and kept.
+- Not copied on purpose: `personalinformation` (birth date, GSIS/TIN/PhilHealth/Pag-IBIG numbers, civil status) and payroll fields (`lbp_account_no`, `gsis_no`, `salary_step_id`).
+
+On synced records the API ignores PRIME-owned fields on update (`exclude` rules in `UpdatePersonnelRequest`), `PersonnelPolicy::delete()` refuses deletion, and the form shows those fields read-only with a "Synced from PRIME" note plus a read-only *From PRIME* section. `PersonnelResource` adds `managed_by_prime`, `prime_synced_at`, `appointment_status`, `plantilla_item_no`, `plantilla_item_level`, `workstation`, `date_last_promotion`. Each run writes a `personnel.prime_synced` activity row with the counts, plus the usual per-record `personnel.created/updated/deleted` rows. Manual **Add personnel** remains for staff not in PRIME.
+
+```bash
+php artisan personnel:sync-prime --dry-run          # what would change; writes nothing
+php artisan personnel:sync-prime                    # create, update, deactivate
+php artisan personnel:sync-prime --remove-legacy    # also remove unreferenced IRIS-only records
+```
+
+Tests: `backend/tests/Feature/PrimePersonnelSyncTest.php`.

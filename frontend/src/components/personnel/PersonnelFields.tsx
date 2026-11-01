@@ -7,7 +7,19 @@ import { useAuth } from '@/context/AuthContext'
 import { hasAllScope, SCOPE_LOCK_HINT } from '@/lib/dataScope'
 import type { FieldErrors } from '@/lib/errors'
 import { withCurrentOption } from '@/lib/options'
+import { formatDate } from '@/lib/utils'
 import type { Personnel, PersonnelFormData, PersonnelOptions } from '@/types/personnel'
+
+const PRIME_LOCK_HINT = 'Synced from PRIME; change it there.'
+
+function ReadOnly({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div>
+      <p className="mb-1 text-sm font-medium text-gray-700">{label}</p>
+      <p className="text-sm text-gray-900">{value || <span className="text-gray-400">—</span>}</p>
+    </div>
+  )
+}
 
 export function emptyPersonnelForm(): PersonnelFormData {
   return {
@@ -82,6 +94,8 @@ interface PersonnelFieldsProps {
 export function PersonnelFields({ value, onChange, options, errors, disabled = false, current }: PersonnelFieldsProps) {
   const { user } = useAuth()
   const scopeLocked = !hasAllScope(user)
+  const prime = current?.managed_by_prime === true
+  const lockNote = (locked: boolean | 'prime') => (disabled || !locked ? undefined : locked === 'prime' ? PRIME_LOCK_HINT : SCOPE_LOCK_HINT)
 
   const officeList =
     scopeLocked && value.office_id !== null && value.office_id === user?.office_id && current?.office_id !== value.office_id
@@ -95,17 +109,17 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
   function text(
     key: TextKey,
     label: string,
-    props: { type?: string; autoComplete?: string; required?: boolean; className?: string; locked?: boolean } = {},
+    props: { type?: string; autoComplete?: string; required?: boolean; className?: string; locked?: boolean | 'prime' } = {},
   ) {
     const { className, locked = false, ...inputProps } = props
     return (
-      <FormField id={key} label={label} error={errors[key]} className={className} note={locked && !disabled ? SCOPE_LOCK_HINT : undefined}>
+      <FormField id={key} label={label} error={errors[key]} className={className} note={lockNote(locked)}>
         {(aria) => (
           <Input
             id={key}
             name={key}
             value={value[key]}
-            disabled={disabled || locked}
+            disabled={disabled || locked !== false}
             onChange={(e) => set(key, e.target.value)}
             {...inputProps}
             {...aria}
@@ -115,15 +129,15 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
     )
   }
 
-  function stringSelect(key: TextKey, label: string, list: SelectOption[] | undefined) {
+  function stringSelect(key: TextKey, label: string, list: SelectOption[] | undefined, locked: boolean | 'prime' = false) {
     return (
-      <FormField id={key} label={label} error={errors[key]}>
+      <FormField id={key} label={label} error={errors[key]} note={lockNote(locked)}>
         {(aria) => (
           <Select
             id={key}
             name={key}
             value={value[key]}
-            disabled={disabled || !options}
+            disabled={disabled || locked !== false || !options}
             options={withCurrentOption(list, value[key])}
             placeholder="None"
             onChange={(e) => set(key, e.target.value)}
@@ -139,17 +153,17 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
     label: string,
     list: SelectOption[] | undefined,
     currentLabel: string | null | undefined,
-    locked = false,
+    locked: boolean | 'prime' = false,
   ) {
     const selected = value[key]
     return (
-      <FormField id={key} label={label} error={errors[key]} note={locked && !disabled ? SCOPE_LOCK_HINT : undefined}>
+      <FormField id={key} label={label} error={errors[key]} note={lockNote(locked)}>
         {(aria) => (
           <Select
             id={key}
             name={key}
             value={selected ?? ''}
-            disabled={disabled || locked || !options}
+            disabled={disabled || locked !== false || !options}
             options={withCurrentOption(list, selected, current?.[key] === selected ? currentLabel : null)}
             placeholder="None"
             onChange={(e) => set(key, e.target.value === '' ? null : Number(e.target.value))}
@@ -163,18 +177,18 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <FormSection title="Identification">
-        {text('employee_id', 'Employee ID', { required: true, autoComplete: 'off', locked: scopeLocked && !!current })}
-        {stringSelect('suffix', 'Suffix (optional)', options?.name_suffix)}
-        {text('last_name', 'Last name', { required: true })}
-        {text('first_name', 'First name', { required: true })}
-        {text('middle_name', 'Middle name (optional)')}
+        {text('employee_id', 'Employee ID', { required: true, autoComplete: 'off', locked: prime ? 'prime' : scopeLocked && !!current })}
+        {stringSelect('suffix', 'Suffix (optional)', options?.name_suffix, prime && 'prime')}
+        {text('last_name', 'Last name', { required: true, locked: prime && 'prime' })}
+        {text('first_name', 'First name', { required: true, locked: prime && 'prime' })}
+        {text('middle_name', 'Middle name (optional)', { locked: prime && 'prime' })}
       </FormSection>
 
       <FormSection title="Assignment">
-        {idSelect('position_id', 'Position (optional)', options?.position, current?.position)}
+        {idSelect('position_id', 'Position (optional)', options?.position, current?.position, prime && 'prime')}
         {idSelect('ro_office_id', 'RO division (optional)', options?.ro_office, current?.ro_division)}
         {idSelect('sdo_office_id', 'Division/unit (optional)', options?.sdo_office, current?.division_unit)}
-        {idSelect('office_id', 'School/office (optional)', officeList, current?.office, scopeLocked)}
+        {idSelect('office_id', 'School/office (optional)', officeList, current?.office, prime ? 'prime' : scopeLocked)}
         <CheckboxField id="oic" label="Officer-in-charge (OIC)" checked={value.oic} disabled={disabled} error={errors.oic} onChange={(checked) => set('oic', checked)} />
         {value.oic && text('oic_office', 'OIC office (optional)', { className: 'sm:col-span-2' })}
       </FormSection>
@@ -182,12 +196,12 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
       <FormSection title="Contact information">
         {text('mobile_1', 'Mobile number 1 (optional)', { type: 'tel', autoComplete: 'tel' })}
         {text('mobile_2', 'Mobile number 2 (optional)', { type: 'tel', autoComplete: 'tel' })}
-        {text('deped_email', 'DepEd email (optional)', { type: 'email', autoComplete: 'email' })}
+        {text('deped_email', 'DepEd email (optional)', { type: 'email', autoComplete: 'email', locked: prime && 'prime' })}
         {text('personal_email', 'Personal email (optional)', { type: 'email', autoComplete: 'email' })}
       </FormSection>
 
       <FormSection title="Employment">
-        {text('date_hired', 'Date hired (optional)', { type: 'date' })}
+        {text('date_hired', 'Date hired (optional)', { type: 'date', locked: prime && 'prime' })}
         <CheckboxField
           id="non_deped_funded"
           label="Non-DepEd funded"
@@ -210,20 +224,31 @@ export function PersonnelFields({ value, onChange, options, errors, disabled = f
         )}
       </FormSection>
 
+      {prime && current && (
+        <FormSection title="From PRIME (read-only)">
+          <ReadOnly label="Appointment status" value={current.appointment_status} />
+          <ReadOnly label="Plantilla item no." value={current.plantilla_item_no} />
+          <ReadOnly label="Item level" value={current.plantilla_item_level} />
+          <ReadOnly label="Actual workstation" value={current.workstation} />
+          <ReadOnly label="Date of last promotion" value={formatDate(current.date_last_promotion)} />
+          <ReadOnly label="Last synced" value={formatDate(current.prime_synced_at)} />
+        </FormSection>
+      )}
+
       <FormSection title="Status" className="lg:col-span-2">
         <CheckboxField
           id="inactive"
           label="Inactive / separated"
           checked={value.inactive}
-          disabled={disabled}
+          disabled={disabled || prime}
           error={errors.inactive}
           onChange={(checked) => set('inactive', checked)}
         />
         <div aria-hidden="true" className="hidden sm:block" />
         {value.inactive && (
           <>
-            {text('separation_date', 'Separation date (optional)', { type: 'date' })}
-            {stringSelect('separation_cause', 'Cause of separation (optional)', options?.cause_of_separation)}
+            {text('separation_date', 'Separation date (optional)', { type: 'date', locked: prime && 'prime' })}
+            {stringSelect('separation_cause', 'Cause of separation (optional)', options?.cause_of_separation, prime && 'prime')}
             {text('transferred_from', 'Transferred from (optional)')}
             {text('transferred_to', 'Transferred to (optional)')}
           </>

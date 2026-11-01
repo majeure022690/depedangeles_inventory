@@ -75,7 +75,18 @@ class UpdatePersonnelRequest extends FormRequest
 
             'transferred_from' => ['nullable', 'string', 'max:255'],
             'transferred_to' => ['nullable', 'string', 'max:255'],
+            ...$this->primeOwned(),
         ];
+    }
+
+    /**
+     * PRIME owns these on synced records, so whatever the form sends for them is left out.
+     *
+     * @return array<string, list<string>>
+     */
+    private function primeOwned(): array
+    {
+        return $this->personnel()->isManagedByPrime() ? array_fill_keys(Personnel::PRIME_FIELDS, ['exclude']) : [];
     }
 
     /**

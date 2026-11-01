@@ -59,6 +59,7 @@ use Spatie\Activitylog\Support\LogOptions;
     'non_deped_funded', 'fund_source', 'inactive', 'separation_date',
     'separation_cause', 'transferred_from', 'transferred_to',
     'position_id', 'ro_office_id', 'sdo_office_id', 'office_id',
+    'appointment_status', 'plantilla_item_no', 'plantilla_item_level', 'workstation', 'date_last_promotion',
 ])]
 class Personnel extends Model
 {
@@ -75,6 +76,8 @@ class Personnel extends Model
             'inactive' => 'boolean',
             'date_hired' => 'date',
             'separation_date' => 'date',
+            'date_last_promotion' => 'date',
+            'prime_synced_at' => 'datetime',
             'fund_source' => 'array',
         ];
     }
@@ -145,6 +148,20 @@ class Personnel extends Model
     public function sdoOffice(): BelongsTo
     {
         return $this->belongsTo(SdoOffice::class);
+    }
+
+    /**
+     * Fields `personnel:sync-prime` owns on records linked to a PRIME employee; locked in IRIS.
+     */
+    public const PRIME_FIELDS = [
+        'employee_id', 'last_name', 'first_name', 'middle_name', 'suffix', 'deped_email', 'office_id', 'position_id',
+        'date_hired', 'inactive', 'separation_date', 'separation_cause', 'appointment_status', 'plantilla_item_no',
+        'plantilla_item_level', 'workstation', 'date_last_promotion',
+    ];
+
+    public function isManagedByPrime(): bool
+    {
+        return $this->prime_employee_id !== null;
     }
 
     /**
@@ -225,6 +242,8 @@ class Personnel extends Model
                 'non_deped_funded', 'fund_source', 'inactive', 'separation_date',
                 'separation_cause', 'transferred_from', 'transferred_to',
                 'position_id', 'ro_office_id', 'sdo_office_id', 'office_id',
+                'appointment_status', 'plantilla_item_no', 'plantilla_item_level', 'workstation', 'date_last_promotion',
+                'prime_employee_id',
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()

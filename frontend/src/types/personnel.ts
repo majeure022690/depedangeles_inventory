@@ -36,6 +36,14 @@ export interface Personnel {
   separation_cause: string | null
   transferred_from: string | null
   transferred_to: string | null
+  /** Synced from PRIME: its PRIME-owned fields are read-only and it cannot be deleted in IRIS. */
+  managed_by_prime: boolean
+  prime_synced_at: string | null
+  appointment_status: string | null
+  plantilla_item_no: string | null
+  plantilla_item_level: string | null
+  workstation: string | null
+  date_last_promotion: string | null
   created_at: string | null
   updated_at: string | null
 }
