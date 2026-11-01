@@ -7,7 +7,7 @@ Two DepEd workbooks are built from IRIS data, one office at a time, each downloa
 | GSP Part VI – ICT in Schools | `reports.gsp_ict` | `GET /api/gsp-profiles/{id}/download` |
 | RPCPPE – Physical Count of Property | `reports.rpcppe` | `GET /api/reports/rpcppe/{office}` |
 
-`GET /api/reports/options[?office_id=]` (RPCPPE dialog) returns the offices the user can reach and, with `office_id`, the personnel there accountable for equipment or school property.
+`GET /api/reports/options[?office_id=]` (RPCPPE dialog) returns the offices the user can reach and `supply_officers` (personnel whose position contains "Supply Officer"); with `office_id` also `people` (that office's active personnel, school heads first) and `accountable_officers`.
 
 ## Access
 
@@ -41,7 +41,7 @@ Sheets: **Cover** (title, school, table of contents, signature blocks), **Table 
 
 ## RPCPPE
 
-Parameters: `school_year`, optional `accountable_officer_id` (limits both equipment and School Property to that officer and prints their name and designation), `assumed_on`, `prepared_by` (property custodian), `school_head`, `supply_officer`.
+Parameters: `school_year`, optional `accountable_officer_id` (limits both equipment and School Property to that officer and prints their name and designation), `assumed_on`, and the signatories as personnel ids: `prepared_by_id` (property custodian) and `school_head_id` from the office's personnel, `supply_officer_id` from any active personnel. The workbook prints their names in signature format.
 
 One sheet per `PropertyCategory`, with a separate semi-expendable sheet (unit value under ₱50,000) for IT, Office and TLE equipment: **IT, IT Semi-Exp, Office Eqpt, Office Eqpt Semi-Exp, F&F, School Bldg, Other Structures, TLE, TLE Semi-Exp, Sci & Math, Sports-Music**, then **Books** and **F&F per Teacher**.
 

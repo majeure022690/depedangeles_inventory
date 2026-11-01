@@ -10,5 +10,8 @@ export interface Option<TValue extends string | number = string | number> {
   parent_id?: number
 }
 
+/** A personnel picker entry (`Personnel::toOption()` on the backend). */
+export type PersonOption = Option<number> & { position: string | null }
+
 /** A keyed bag of option lists, e.g. `{ item_type: Option<number>[], unit_of_measure: Option<string>[] }`. */
 export type OptionSet = Record<string, Option[]>

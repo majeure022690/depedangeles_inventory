@@ -2,6 +2,7 @@ import { Download } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 
 import { FormField } from '@/components/forms/FormField'
+import { PersonPicker } from '@/components/forms/PersonPicker'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/Dialog'
@@ -29,9 +30,9 @@ const EMPTY_FORM: RpcppeReportParams = {
   school_year: currentSchoolYear(),
   accountable_officer_id: null,
   assumed_on: '',
-  prepared_by: '',
-  school_head: '',
-  supply_officer: '',
+  prepared_by_id: '',
+  school_head_id: '',
+  supply_officer_id: '',
 }
 
 /**
@@ -44,6 +45,7 @@ export function RpcppeDownloadDialog({ open, onOpenChange }: { open: boolean; on
   const [officerList, setOfficerList] = useState<{
     officeId: string
     officers: NonNullable<ReportOptions['accountable_officers']>
+    people: NonNullable<ReportOptions['people']>
   } | null>(null)
   const [form, setForm] = useState<RpcppeReportParams>(EMPTY_FORM)
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -71,10 +73,11 @@ export function RpcppeDownloadDialog({ open, onOpenChange }: { open: boolean; on
           setOfficerList({
             officeId,
             officers: loaded.accountable_officers ?? [],
+            people: loaded.people ?? [],
           })
       })
       .catch(() => {
-        if (!cancelled) setOfficerList({ officeId, officers: [] })
+        if (!cancelled) setOfficerList({ officeId, officers: [], people: [] })
       })
     return () => {
       cancelled = true
@@ -82,6 +85,7 @@ export function RpcppeDownloadDialog({ open, onOpenChange }: { open: boolean; on
   }, [officeId])
 
   const officers = officerList && officerList.officeId === officeId ? officerList.officers : []
+  const people = officerList && officerList.officeId === officeId ? officerList.people : []
 
   function set<K extends keyof RpcppeReportParams>(key: K, value: RpcppeReportParams[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -134,7 +138,7 @@ export function RpcppeDownloadDialog({ open, onOpenChange }: { open: boolean; on
                   disabled={!options || options.offices.length === 1}
                   onChange={(event) => {
                     setOfficeId(event.target.value)
-                    set('accountable_officer_id', null)
+                    setForm((prev) => ({ ...prev, accountable_officer_id: null, prepared_by_id: '', school_head_id: '' }))
                   }}
                   {...aria}
                 />
@@ -178,39 +182,41 @@ export function RpcppeDownloadDialog({ open, onOpenChange }: { open: boolean; on
                 <Input id="rpcppe-assumed-on" type="date" value={form.assumed_on} onChange={(event) => set('assumed_on', event.target.value)} {...aria} />
               )}
             </FormField>
-            <FormField id="rpcppe-prepared-by" label="Prepared by (optional)" error={errors.prepared_by}>
-              {(aria) => (
-                <Input
-                  id="rpcppe-prepared-by"
-                  value={form.prepared_by}
-                  maxLength={150}
-                  onChange={(event) => set('prepared_by', event.target.value)}
-                  {...aria}
-                />
-              )}
-            </FormField>
-            <FormField id="rpcppe-school-head" label="School head (optional)" error={errors.school_head}>
-              {(aria) => (
-                <Input
-                  id="rpcppe-school-head"
-                  value={form.school_head}
-                  maxLength={150}
-                  onChange={(event) => set('school_head', event.target.value)}
-                  {...aria}
-                />
-              )}
-            </FormField>
-            <FormField id="rpcppe-supply-officer" label="Supply officer (optional)" error={errors.supply_officer}>
-              {(aria) => (
-                <Input
-                  id="rpcppe-supply-officer"
-                  value={form.supply_officer}
-                  maxLength={150}
-                  onChange={(event) => set('supply_officer', event.target.value)}
-                  {...aria}
-                />
-              )}
-            </FormField>
+            <PersonPicker
+              id="rpcppe-prepared-by"
+              label="Prepared by (optional)"
+              hint="The property custodian, from this office's personnel."
+              people={people}
+              current={null}
+              value={form.prepared_by_id}
+              onChange={(value) => set('prepared_by_id', value)}
+              placeholder={officeId === '' ? 'Choose the office first' : 'Select a person'}
+              disabled={officeId === ''}
+              error={errors.prepared_by_id}
+            />
+            <PersonPicker
+              id="rpcppe-school-head"
+              label="School head (optional)"
+              hint="This office's personnel, principals and head teachers first."
+              people={people}
+              current={null}
+              value={form.school_head_id}
+              onChange={(value) => set('school_head_id', value)}
+              placeholder={officeId === '' ? 'Choose the office first' : 'Select the school head'}
+              disabled={officeId === ''}
+              error={errors.school_head_id}
+            />
+            <PersonPicker
+              id="rpcppe-supply-officer"
+              label="Supply officer (optional)"
+              hint="Personnel whose position is Supply Officer."
+              people={options?.supply_officers ?? []}
+              current={null}
+              value={form.supply_officer_id}
+              onChange={(value) => set('supply_officer_id', value)}
+              placeholder="Select the supply officer"
+              error={errors.supply_officer_id}
+            />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={generating}>

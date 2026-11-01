@@ -151,7 +151,8 @@ class ReportControllerTest extends TestCase
             'school_year' => '2025-2026',
             'accountable_officer_id' => $this->officer->id,
             'assumed_on' => '2025-01-02',
-            'prepared_by' => 'Preparer Name',
+            'prepared_by_id' => $teacher->id,
+            'school_head_id' => $this->officer->id,
         ])->assertOk();
 
         $book = $this->workbook($response);
@@ -168,7 +169,8 @@ class ReportControllerTest extends TestCase
         $this->assertSame(0, $semi->getCell('I12')->getValue());
         $this->assertSame('=I12-H12', $semi->getCell('J12')->getValue());
         $this->assertSame('✓', $semi->getCell('L11')->getValue());
-        $this->rowOf($semi, 'B', 'PREPARER NAME');
+        $this->rowOf($semi, 'B', 'ANA C. LOPEZ');
+        $this->rowOf($semi, 'F', 'MARIA S. REYES');
 
         $this->assertSame('OFC-001', $book->getSheetByNameOrThrow('Office Eqpt')->getCell('C11')->getValue());
 
@@ -200,5 +202,10 @@ class ReportControllerTest extends TestCase
             ->getJson("/api/reports/rpcppe/{$this->office->id}?school_year=2025&accountable_officer_id={$elsewhere->id}")
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['school_year', 'accountable_officer_id']);
+
+        $this->actingAs($this->reporter())
+            ->getJson("/api/reports/rpcppe/{$this->office->id}?school_year=2025-2026&prepared_by_id={$elsewhere->id}&school_head_id={$elsewhere->id}")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['prepared_by_id', 'school_head_id']);
     }
 }

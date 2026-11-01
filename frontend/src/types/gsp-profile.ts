@@ -1,7 +1,6 @@
-import type { Option } from '@/types/lookup'
+import type { Option, PersonOption } from '@/types/lookup'
 
-/** A personnel picker entry (`Personnel::toOption()`). */
-export type PersonOption = Option<number> & { position: string | null }
+export type { PersonOption }
 
 export type SchoolLevel = 'elementary' | 'junior_high' | 'senior_high'
 

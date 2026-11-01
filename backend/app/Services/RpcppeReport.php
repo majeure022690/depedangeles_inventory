@@ -75,7 +75,7 @@ class RpcppeReport
     private const CHECK = '✓';
 
     /**
-     * @param  array{school_year: string, accountable_officer_id: ?int, assumed_on: ?string, prepared_by: ?string, school_head: ?string, supply_officer: ?string}  $input
+     * @param  array{school_year: string, accountable_officer_id: ?int, assumed_on: ?string, prepared_by: ?Personnel, school_head: ?Personnel, supply_officer: ?Personnel}  $input
      */
     public function generate(Office $office, User $user, array $input): string
     {
@@ -283,9 +283,9 @@ class RpcppeReport
         $sheet->setCellValue("B{$row}", 'Prepared by:');
         $sheet->setCellValue("F{$row}", 'Noted:');
         $sheet->setCellValue("O{$row}", 'Received / Verified by:');
-        WorkbookStyle::signature($sheet, 'B'.($row + 2), 'B'.($row + 3), $input['prepared_by'], 'Property Custodian');
-        WorkbookStyle::signature($sheet, 'F'.($row + 2).':K'.($row + 2), 'F'.($row + 3).':K'.($row + 3), $input['school_head'], 'School Head');
-        WorkbookStyle::signature($sheet, 'O'.($row + 2).':S'.($row + 2), 'O'.($row + 3).':S'.($row + 3), $input['supply_officer'], 'Supply Officer');
+        WorkbookStyle::signature($sheet, 'B'.($row + 2), 'B'.($row + 3), $input['prepared_by']?->printedName(), 'Property Custodian');
+        WorkbookStyle::signature($sheet, 'F'.($row + 2).':K'.($row + 2), 'F'.($row + 3).':K'.($row + 3), $input['school_head']?->printedName(), 'School Head');
+        WorkbookStyle::signature($sheet, 'O'.($row + 2).':S'.($row + 2), 'O'.($row + 3).':S'.($row + 3), $input['supply_officer']?->printedName(), 'Supply Officer');
 
         $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(9, 10)->setPrintArea('A1:S'.($row + 3));
         $sheet->freezePane('A11');
@@ -356,8 +356,8 @@ class RpcppeReport
         $row += 3;
         $sheet->setCellValue("A{$row}", 'Prepared by:');
         $sheet->setCellValue("E{$row}", 'Noted:');
-        WorkbookStyle::signature($sheet, 'A'.($row + 2).':C'.($row + 2), 'A'.($row + 3).':C'.($row + 3), $input['prepared_by'], 'School Property Custodian');
-        WorkbookStyle::signature($sheet, 'E'.($row + 2).':H'.($row + 2), 'E'.($row + 3).':H'.($row + 3), $input['school_head'], 'School Head');
+        WorkbookStyle::signature($sheet, 'A'.($row + 2).':C'.($row + 2), 'A'.($row + 3).':C'.($row + 3), $input['prepared_by']?->printedName(), 'School Property Custodian');
+        WorkbookStyle::signature($sheet, 'E'.($row + 2).':H'.($row + 2), 'E'.($row + 3).':H'.($row + 3), $input['school_head']?->printedName(), 'School Head');
         $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(9, 9);
     }
 
