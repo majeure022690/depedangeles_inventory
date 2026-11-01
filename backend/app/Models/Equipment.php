@@ -439,6 +439,24 @@ class Equipment extends Model
      *
      * @param  Builder<Equipment>  $query
      */
+    /**
+     * Flags rows whose old property number another record in the user's own reach also uses.
+     *
+     * @param  Builder<Equipment>  $query
+     */
+    public function scopeWithDuplicateOldPropertyNo(Builder $query, User $user, bool $onlyDuplicates = false): void
+    {
+        $visible = self::query()->visibleTo($user)->select('equipment.id');
+        $exists = 'exists (select 1 from equipment as twin where twin.old_property_no = equipment.old_property_no'
+            .' and twin.id <> equipment.id and twin.deleted_at is null and twin.id in ('.$visible->toSql().'))';
+
+        $query->select('equipment.*')->selectRaw("{$exists} as old_property_no_duplicated", $visible->getBindings());
+
+        if ($onlyDuplicates) {
+            $query->whereRaw($exists, $visible->getBindings());
+        }
+    }
+
     public function scopeVisibleTo(Builder $query, User $user): void
     {
         $personnelIds = $user->scopedPersonnelIds();

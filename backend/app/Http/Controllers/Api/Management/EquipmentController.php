@@ -142,6 +142,7 @@ class EquipmentController extends Controller
             ->dispositionStatus($request->string('disposition_status')->toString() ?: null)
             ->dashboardGroup($this->dashboardGroupFilter($request))
             ->itemTypes($this->itemTypeFilter($request))
+            ->withDuplicateOldPropertyNo($request->user(), $request->boolean('duplicates'))
             ->with(self::LIST_RELATIONS);
 
         if (! $this->applySort($query, $request, self::SORTABLE)) {

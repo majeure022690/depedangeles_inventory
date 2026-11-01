@@ -89,6 +89,28 @@ class EquipmentDataScopeTest extends TestCase
             ->pluck('id')->sort()->values()->all();
     }
 
+    public function test_duplicate_old_property_numbers_are_flagged_only_against_records_in_the_users_reach(): void
+    {
+        $this->mine->forceFill(['old_property_no' => 'SCH-001'])->save();
+        $this->colleagues->forceFill(['old_property_no' => 'SCH-002'])->save();
+        $this->elsewhere->forceFill(['old_property_no' => 'SCH-001'])->save();
+
+        $school = $this->userWithScope(DataScope::School);
+        $this->actingAs($school)->getJson('/api/equipment')
+            ->assertOk()
+            ->assertJsonPath('data.0.old_property_no_duplicated', false)
+            ->assertJsonPath('data.1.old_property_no_duplicated', false);
+        $this->actingAs($school)->getJson('/api/equipment?duplicates=1')->assertJsonCount(0, 'data');
+
+        $all = $this->userWithScope(DataScope::All, linked: false);
+        $this->actingAs($all)->getJson('/api/equipment?duplicates=1')
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.old_property_no_duplicated', true);
+
+        $this->colleagues->forceFill(['old_property_no' => 'SCH-001'])->save();
+        $this->actingAs($school)->getJson('/api/equipment?duplicates=1')->assertJsonCount(2, 'data');
+    }
+
     public function test_own_scope_lists_only_items_issued_to_the_users_linked_personnel_record(): void
     {
         $this->assertSame([$this->mine->id], $this->listedIds($this->userWithScope(DataScope::Own)));

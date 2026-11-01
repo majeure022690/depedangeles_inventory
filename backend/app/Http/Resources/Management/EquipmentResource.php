@@ -40,6 +40,10 @@ class EquipmentResource extends JsonResource
             'id' => $this->id,
             'property_no' => $this->property_no,
             'old_property_no' => $this->old_property_no,
+            'old_property_no_duplicated' => $this->when(
+                array_key_exists('old_property_no_duplicated', $this->resource->getAttributes()),
+                fn () => (bool) $this->resource->getAttribute('old_property_no_duplicated'),
+            ),
             'serial_number' => $this->serial_number,
             'item_type_id' => $this->item_type_id,
             'item' => $this->whenLoaded('itemType', fn () => $this->specified('item_type_other', $this->itemType?->name)),
