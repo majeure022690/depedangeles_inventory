@@ -17,11 +17,12 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
 use Tests\Concerns\CreatesUsersWithRoles;
+use Tests\Concerns\RecordsTransactions;
 use Tests\TestCase;
 
 class EquipmentPeripheralScopeTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
+    use CreatesUsersWithRoles, RecordsTransactions, RefreshDatabase;
 
     private const ENCODER_PERMISSIONS = [
         Permission::EquipmentView, Permission::EquipmentCreate,
@@ -92,10 +93,10 @@ class EquipmentPeripheralScopeTest extends TestCase
 
     private function issueTo(Personnel $officer, User $user): TestResponse
     {
-        return $this->actingAs($user)->postJson("/api/equipment/{$this->desktop->id}/transactions", [
+        return $this->actingAs($user)->postJson("/api/equipment/{$this->desktop->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Issuance/Transfer',
             'accountable_officer_id' => $officer->id,
-        ]);
+        ]));
     }
 
     public function test_link_is_refused_when_holders_differ_and_the_desktop_has_no_transaction(): void

@@ -11,11 +11,12 @@ use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\CreatesUsersWithRoles;
+use Tests\Concerns\RecordsTransactions;
 use Tests\TestCase;
 
 class EquipmentBulkTransactionTest extends TestCase
 {
-    use CreatesUsersWithRoles, RefreshDatabase;
+    use CreatesUsersWithRoles, RecordsTransactions, RefreshDatabase;
 
     private Office $from;
 
@@ -53,13 +54,11 @@ class EquipmentBulkTransactionTest extends TestCase
      */
     private function payload(array $ids): array
     {
-        return [
+        return $this->transactionPayload([
             'equipment_ids' => $ids,
             'transaction_type' => 'Issuance/Transfer',
             'accountable_officer_id' => $this->receiver->id,
-            'date_assigned_accountable_officer' => '2026-11-02',
-            'par_ics_rrsp_rs_wmr_no' => 'PAR-2026-001',
-        ];
+        ]);
     }
 
     public function test_moves_every_selected_item_and_its_peripherals_to_the_new_officer(): void
@@ -76,7 +75,7 @@ class EquipmentBulkTransactionTest extends TestCase
 
         foreach ([$laptop, $desktop, $monitor] as $moved) {
             $this->assertSame($this->receiver->id, $moved->fresh()->current_accountable_officer_id);
-            $this->assertDatabaseHas('equipment_transactions', ['equipment_id' => $moved->id, 'transaction_type' => 'Issuance/Transfer', 'par_ics_rrsp_rs_wmr_no' => 'PAR-2026-001']);
+            $this->assertDatabaseHas('equipment_transactions', ['equipment_id' => $moved->id, 'transaction_type' => 'Issuance/Transfer']);
         }
         $this->assertSame($this->holder->id, $untouched->fresh()->current_accountable_officer_id);
         $this->assertDatabaseHas('activity_log', ['event' => 'equipment.bulk_transaction']);

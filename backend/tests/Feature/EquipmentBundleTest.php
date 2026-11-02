@@ -19,11 +19,12 @@ use RuntimeException;
 use Spatie\Activitylog\Models\Activity;
 use Tests\Concerns\BuildsEquipmentPayloads;
 use Tests\Concerns\CreatesUsersWithRoles;
+use Tests\Concerns\RecordsTransactions;
 use Tests\TestCase;
 
 class EquipmentBundleTest extends TestCase
 {
-    use BuildsEquipmentPayloads, CreatesUsersWithRoles, RefreshDatabase;
+    use BuildsEquipmentPayloads, CreatesUsersWithRoles, RecordsTransactions, RefreshDatabase;
 
     private const PN = 'AC-2016-IT-DST-000001';
 
@@ -177,10 +178,10 @@ class EquipmentBundleTest extends TestCase
             ->where('event', 'equipment.transaction.recorded')->where('subject_id', $monitor->id)->sole()->properties['copied_from_transaction_id']);
 
         $issued = Personnel::factory()->create();
-        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", [
+        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Beginning Inventory',
             'accountable_officer_id' => $issued->id,
-        ])->assertCreated();
+        ]))->assertCreated();
         $this->assertSame(3, Equipment::where('parent_equipment_id', $desktop->id)->where('current_accountable_officer_id', $issued->id)->count());
     }
 
@@ -246,10 +247,10 @@ class EquipmentBundleTest extends TestCase
         $officer = Personnel::factory()->create();
         $desktop = $this->desktop(['brand_id' => $this->dell(), 'equipment_condition_id' => $this->serviceable()]);
         $this->equipment('Monitor', ['property_no' => self::PN.'-001']);
-        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", [
+        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Beginning Inventory',
             'accountable_officer_id' => $officer->id,
-        ])->assertCreated();
+        ]))->assertCreated();
 
         $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/peripherals/batch", [
             'peripherals' => [$this->row('Monitor'), $this->row('Laptop')],
@@ -393,10 +394,10 @@ class EquipmentBundleTest extends TestCase
         $this->assertNotSame('INJECTED-QR', $created->qr_code);
 
         $desktop = Equipment::findOrFail($id);
-        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", [
+        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Beginning Inventory',
             'accountable_officer_id' => $officer->id,
-        ])->assertCreated();
+        ]))->assertCreated();
 
         $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/peripherals/batch", [
             'peripherals' => [$this->row('Keyboard', $injected)],

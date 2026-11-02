@@ -12,6 +12,7 @@ use App\Models\ConnectivityLibrary;
 use App\Models\Equipment;
 use App\Models\EquipmentLibrary;
 use App\Models\EquipmentTransaction;
+use App\Models\EquipmentTransactionDocument;
 use App\Models\InternetConnectivitySurvey;
 use App\Models\IspAccount;
 use App\Models\IspSpeedTest;
@@ -186,9 +187,7 @@ final class ReferenceDataResolver
                 || IspAccount::where('fund_source', $value)->exists(),
             EquipmentLibraryType::AllotmentClass => Equipment::where('allotment_class', $value)->exists(),
             EquipmentLibraryType::UsedBy => Equipment::where('used_by', $value)->exists(),
-            EquipmentLibraryType::SupportingDocumentType => EquipmentTransaction::where('supporting_documents1', $value)
-                ->orWhere('supporting_documents2', $value)
-                ->exists(),
+            EquipmentLibraryType::SupportingDocumentType => EquipmentTransactionDocument::where('document_type', $value)->exists(),
             EquipmentLibraryType::TransactionType => EquipmentTransaction::where('transaction_type', $value)->exists()
                 || StakeholderProfile::where('transaction_type', $value)->exists(),
         };

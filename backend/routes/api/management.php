@@ -60,6 +60,8 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     Route::post('/equipment', [EquipmentController::class, 'store'])->middleware($can(P::EquipmentCreate));
     Route::put('/equipment/{equipment}', [EquipmentController::class, 'update'])->middleware($can(P::EquipmentEdit))->whereNumber('equipment');
     Route::delete('/equipment/{equipment}', [EquipmentController::class, 'destroy'])->middleware($can(P::EquipmentDelete))->whereNumber('equipment');
+    Route::post('/equipment/transaction-documents', [EquipmentTransactionController::class, 'uploadDocument'])->middleware([$can(P::EquipmentTransactionsCreate, P::EquipmentCreate), 'throttle:attachment-upload']);
+    Route::get('/equipment/{equipment}/transactions/{transaction}/documents/{document}', [EquipmentTransactionController::class, 'downloadDocument'])->middleware($can(P::EquipmentView))->whereNumber(['equipment', 'transaction', 'document'])->scopeBindings();
     Route::post('/equipment/receipts', [EquipmentTransactionController::class, 'confirmReceipt'])->middleware([$can(P::EquipmentTransactionsCreate), 'throttle:20,1']);
     Route::post('/equipment/transactions/bulk', [EquipmentTransactionController::class, 'bulkStore'])->middleware([$can(P::EquipmentTransactionsCreate), 'throttle:20,1']);
     Route::post('/equipment/{equipment}/transactions', [EquipmentTransactionController::class, 'store'])->middleware($can(P::EquipmentTransactionsCreate))->whereNumber('equipment');

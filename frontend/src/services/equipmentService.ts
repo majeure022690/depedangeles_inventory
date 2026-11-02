@@ -1,4 +1,5 @@
 import { api } from '@/lib/api'
+import { downloadFile } from '@/lib/download'
 import { lookupService } from '@/services/lookupService'
 import type { ApiResponse, PaginatedResponse } from '@/types/api'
 import type {
@@ -29,11 +30,15 @@ export function toEquipmentPayload(form: EquipmentFormData): EquipmentPayload {
 }
 
 export function toEquipmentCreatePayload(form: EquipmentFormData, accountability: EquipmentTransactionFormData): EquipmentCreatePayload {
-  return { ...blankToNull(form), accountability: blankToNull(accountability) }
+  return { ...blankToNull(form), accountability: toTransactionPayload(accountability) }
 }
 
 export function toTransactionPayload(form: EquipmentTransactionFormData): EquipmentTransactionPayload {
-  return blankToNull(form)
+  const { documents, ...fields } = form
+  return {
+    ...blankToNull(fields),
+    documents: documents.map((row) => ({ document_type: row.document_type, document_no: row.document_no.trim() === '' ? null : row.document_no.trim(), upload_id: row.upload_id })),
+  }
 }
 
 export function toPeripheralPayload(form: EquipmentPeripheralFormData): EquipmentPeripheralPayload {
@@ -60,6 +65,13 @@ export const equipmentService = {
   qrCode: (id: number) => api.get<Blob>(`/equipment/${id}/qr-code`, { responseType: 'blob' }).then((r) => r.data),
   recordTransaction: (id: number, payload: EquipmentTransactionPayload) =>
     api.post<ApiResponse<EquipmentTransaction>>(`/equipment/${id}/transactions`, payload).then((r) => r.data),
+  uploadTransactionDocument: (file: File) => {
+    const body = new FormData()
+    body.append('file', file)
+    return api.post<ApiResponse<{ id: number; original_filename: string }>>('/equipment/transaction-documents', body).then((r) => r.data.data)
+  },
+  downloadTransactionDocument: (equipmentId: number, transactionId: number, document: { id: number; original_filename: string | null }) =>
+    downloadFile(`/equipment/${equipmentId}/transactions/${transactionId}/documents/${document.id}`, {}, document.original_filename ?? 'document'),
   confirmReceipt: (equipmentIds: number[]) =>
     api.post<ApiResponse<{ count: number }>>('/equipment/receipts', { equipment_ids: equipmentIds }).then((r) => r.data),
   bulkTransaction: (payload: EquipmentTransactionPayload & { equipment_ids: number[] }) =>

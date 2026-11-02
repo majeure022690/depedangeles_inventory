@@ -19,6 +19,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Activitylog\Models\Activity;
 use Tests\Concerns\BuildsEquipmentPayloads;
 use Tests\Concerns\CreatesUsersWithRoles;
+use Tests\Concerns\RecordsTransactions;
 use Tests\TestCase;
 
 /**
@@ -30,7 +31,7 @@ use Tests\TestCase;
  */
 class EquipmentControllerTest extends TestCase
 {
-    use BuildsEquipmentPayloads, CreatesUsersWithRoles, RefreshDatabase;
+    use BuildsEquipmentPayloads, CreatesUsersWithRoles, RecordsTransactions, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -101,10 +102,7 @@ class EquipmentControllerTest extends TestCase
                 'date_assigned_end_user' => '2026-03-17',
                 'received_by_id' => $receiver->id,
                 'date_received_new_accountable' => '2026-03-18',
-                'supporting_documents2' => 'Property Acknowledgment Receipt (PAR)',
-                'par_ics_rrsp_rs_wmr_no' => 'PAR-2026-001',
-                'supporting_documents1' => 'Sales Invoice (SI)',
-                'or_si_dr_iar_no' => 'SI-778',
+                'documents' => [$this->supportingDocument($user), [...$this->supportingDocument($user, 'Sales Invoice (SI)'), 'document_no' => 'SI-778']],
             ],
         ]))
             ->assertCreated()
@@ -127,9 +125,7 @@ class EquipmentControllerTest extends TestCase
         $this->assertSame($equipment->id, $transaction->equipment_id);
         $this->assertSame('Beginning Inventory', $transaction->transaction_type);
         $this->assertSame($receiver->id, $transaction->received_by_id);
-        $this->assertSame('PAR-2026-001', $transaction->par_ics_rrsp_rs_wmr_no);
-        $this->assertSame('Sales Invoice (SI)', $transaction->supporting_documents1);
-        $this->assertSame('SI-778', $transaction->or_si_dr_iar_no);
+        $this->assertSame([['Property Acknowledgment Receipt (PAR)', 'PAR-2026-001'], ['Sales Invoice (SI)', 'SI-778']], $transaction->documents->map(fn ($document) => [$document->document_type, $document->document_no])->all());
         $this->assertSame($user->id, $transaction->recorded_by_user_id);
 
         $this->assertDatabaseHas('activity_log', [
@@ -155,16 +151,15 @@ class EquipmentControllerTest extends TestCase
                 'accountability.transaction_type', 'accountability.accountable_officer_id', 'accountability.date_assigned_accountable_officer',
                 'accountability.end_user_id', 'accountability.date_assigned_end_user', 'accountability.received_by_id',
             ])
-            ->assertJsonMissingValidationErrors(['accountability.date_received_new_accountable', 'accountability.supporting_documents1',
-                'accountability.or_si_dr_iar_no', 'accountability.supporting_documents2', 'accountability.par_ics_rrsp_rs_wmr_no']);
+            ->assertJsonMissingValidationErrors(['accountability.date_received_new_accountable']);
 
         $this->actingAs($this->editor())->postJson('/api/equipment', $this->newEquipmentPayload([
             'accountability' => $this->accountabilityFields(overrides: [
                 'accountable_officer_id' => 999999,
                 'transaction_type' => 'Borrowed',
-                'supporting_documents2' => 'Napkin',
+                'documents' => [['document_type' => 'Napkin', 'upload_id' => 999999]],
             ]),
-        ]))->assertJsonValidationErrors(['accountability.accountable_officer_id', 'accountability.transaction_type', 'accountability.supporting_documents2']);
+        ]))->assertJsonValidationErrors(['accountability.accountable_officer_id', 'accountability.transaction_type', 'accountability.documents.0.document_type', 'accountability.documents.0.upload_id']);
 
         $this->assertSame(0, Equipment::count());
         $this->assertSame(0, EquipmentTransaction::count());
@@ -542,14 +537,14 @@ class EquipmentControllerTest extends TestCase
         $endUser = Personnel::factory()->create();
         $equipment = $this->makeEquipment();
 
-        $this->actingAs($user)->postJson("/api/equipment/{$equipment->id}/transactions", [])
+        $this->actingAs($user)->postJson("/api/equipment/{$equipment->id}/transactions", $this->transactionPayload([]))
             ->assertJsonValidationErrors(['transaction_type']);
 
-        $this->actingAs($user)->postJson("/api/equipment/{$equipment->id}/transactions", [
+        $this->actingAs($user)->postJson("/api/equipment/{$equipment->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Beginning Inventory',
             'accountable_officer_id' => $officer->id,
             'end_user_id' => $endUser->id,
-        ])->assertCreated()
+        ]))->assertCreated()
             ->assertJsonPath('data.transaction_type', 'Beginning Inventory')
             ->assertJsonPath('data.accountable_officer.id', $officer->id)
             ->assertJsonPath('data.end_user.id', $endUser->id);
@@ -578,16 +573,16 @@ class EquipmentControllerTest extends TestCase
         $newOfficer = Personnel::factory()->create();
         $equipment = $this->makeEquipment();
 
-        $this->actingAs($user)->postJson("/api/equipment/{$equipment->id}/transactions", [
+        $this->actingAs($user)->postJson("/api/equipment/{$equipment->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Beginning Inventory',
             'accountable_officer_id' => $officer->id,
             'end_user_id' => $officer->id,
-        ])->assertCreated();
+        ]))->assertCreated();
 
-        $this->actingAs($user)->postJson("/api/equipment/{$equipment->id}/transactions", [
+        $this->actingAs($user)->postJson("/api/equipment/{$equipment->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Issuance/Transfer',
             'accountable_officer_id' => $newOfficer->id,
-        ])->assertCreated();
+        ]))->assertCreated();
 
         $equipment->refresh();
         $this->assertSame($newOfficer->id, $equipment->current_accountable_officer_id);
@@ -600,9 +595,9 @@ class EquipmentControllerTest extends TestCase
         $equipment = $this->makeEquipment();
         $editor = $this->userWithPermissions([Permission::EquipmentView, Permission::EquipmentEdit]);
 
-        $this->actingAs($editor)->postJson("/api/equipment/{$equipment->id}/transactions", [
+        $this->actingAs($editor)->postJson("/api/equipment/{$equipment->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Beginning Inventory',
-        ])->assertForbidden();
+        ]))->assertForbidden();
 
         $this->assertSame(0, EquipmentTransaction::count());
     }

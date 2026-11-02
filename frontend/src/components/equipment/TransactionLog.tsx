@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { SelectPicker } from '@/components/ui/SelectPicker'
+import { TransactionDocumentsField } from '@/components/equipment/TransactionDocumentsField'
+import { transactionRequirements } from '@/lib/transactionRules'
 import { extractError, extractFieldErrors, type FieldErrors } from '@/lib/errors'
 import { equipmentService, toTransactionPayload } from '@/services/equipmentService'
 import type { EquipmentOptions, EquipmentTransaction, EquipmentTransactionFormData, EquipmentTransactionOptions } from '@/types/equipment'
@@ -22,10 +24,7 @@ function emptyTransaction(): EquipmentTransactionFormData {
     date_assigned_accountable_officer: '',
     date_assigned_end_user: '',
     date_received_new_accountable: '',
-    supporting_documents1: '',
-    or_si_dr_iar_no: '',
-    supporting_documents2: '',
-    par_ics_rrsp_rs_wmr_no: '',
+    documents: [],
   }
 }
 
@@ -40,7 +39,7 @@ function formatTimestamp(value: string | null): string {
 }
 
 type PersonKey = 'accountable_officer_id' | 'end_user_id' | 'received_by_id'
-type TextKey = Exclude<keyof EquipmentTransactionFormData, PersonKey>
+type TextKey = Exclude<keyof EquipmentTransactionFormData, PersonKey | 'documents'>
 
 interface TransactionLogProps {
   equipmentId: number
@@ -104,9 +103,9 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
     }
   }
 
-  function textField(key: TextKey, label: string, hint: string, type: 'text' | 'date' = 'text') {
+  function textField(key: TextKey, label: string, hint: string, type: 'text' | 'date' = 'text', required = false) {
     return (
-      <FormField id={`tx-${key}`} label={label} hint={hint} error={errors[key]}>
+      <FormField id={`tx-${key}`} label={required ? label : `${label} (optional)`} hint={hint} error={errors[key]} required={required}>
         {(aria) => (
           <Input
             id={`tx-${key}`}
@@ -139,11 +138,11 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
   }
 
   // SelectPicker (searchable) for the personnel lists, which can be long.
-  function personField(key: PersonKey, label: string, hint: string) {
+  function personField(key: PersonKey, label: string, hint: string, required = false) {
     const id = `tx-${key}`
     const selected = form[key]
     return (
-      <FormField id={id} label={`${label} (optional)`} hint={hint} error={errors[key]}>
+      <FormField id={id} label={required ? label : `${label} (optional)`} hint={hint} error={errors[key]} required={required}>
         {(aria) => (
           <SelectPicker
             id={id}
@@ -158,6 +157,8 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
       </FormField>
     )
   }
+
+  const required = transactionRequirements(form.transaction_type)
 
   return (
     <div className="space-y-4">
@@ -197,47 +198,41 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
                     <Select id="tx-office" value={officeFilter} options={offices} placeholder="All offices" onChange={(e) => changeOffice(e.target.value)} {...aria} />
                   )}
                 </FormField>
-                {personField('accountable_officer_id', 'Accountable officer', 'Choose the employee accountable for the equipment from the dropdown.')}
+                {personField('accountable_officer_id', 'Accountable officer', 'Choose the employee accountable for the equipment from the dropdown.', required.officer)}
                 {textField(
                   'date_assigned_accountable_officer',
-                  'Date assigned (optional)',
+                  'Date assigned',
                   'Enter the date when the equipment was received by the Accountable Officer in the \'MM/DD/YYYY\' format.',
                   'date',
+                  required.officer || form.accountable_officer_id !== null,
                 )}
                 {personField('end_user_id', 'End user', 'Select the Custodian or End User from the dropdown to whom the equipment is assigned.')}
                 {textField(
                   'date_assigned_end_user',
-                  'Date assigned (optional)',
+                  'Date assigned',
                   'Enter the date when the equipment was received by the Custodian/End User in the \'MM/DD/YYYY\' format.',
                   'date',
+                  form.end_user_id !== null,
                 )}
-                {personField('received_by_id', 'Received by', 'Choose the new Accountable Officer, Custodian, or End User from the dropdown for the newly assigned equipment.')}
+                {personField('received_by_id', 'Received by', 'Choose the new Accountable Officer, Custodian, or End User from the dropdown for the newly assigned equipment.', required.receiver)}
                 {textField(
                   'date_received_new_accountable',
-                  'Date received (optional)',
+                  'Date received',
                   'Enter the date when the new Accountable Officer, Custodian, or End User received the equipment in the \'MM/DD/YYYY\' format.',
                   'date',
+                  required.receiver || form.received_by_id !== null,
                 )}
-                {selectField(
-                  'supporting_documents1',
-                  'Supporting document 1 (optional)',
-                  'Select the appropriate document type from the dropdown to identify the transaction. This typically pertains to deliveries, inspection reports, and the initial setup of beginning inventory.',
-                  options?.supporting_document_type,
-                  'Select a document type',
-                )}
-                {textField(
-                  'or_si_dr_iar_no',
-                  'OR/SI/DR/IAR no. (optional)',
-                  'Enter the document number for the transaction (e.g., delivery, inspection, or transfer) to ensure proper tracking and identification of the equipment.',
-                )}
-                {selectField(
-                  'supporting_documents2',
-                  'Supporting document 2 (optional)',
-                  'Select the appropriate document type from the dropdown to identify the transaction. This typically applies to Issuances, Transfers, Returns, Stock Reports, or Waste Material.',
-                  options?.supporting_document_type,
-                  'Select a document type',
-                )}
-                {textField('par_ics_rrsp_rs_wmr_no', 'PAR/ICS/RRSP/RS/WMR no. (optional)', 'Input the document number to track and properly identify the transaction.')}
+                <TransactionDocumentsField
+                  id="tx-documents"
+                  rows={form.documents}
+                  onChange={(documents) => set('documents', documents)}
+                  documentTypes={options?.supporting_document_type}
+                  required={required.documents}
+                  needsWmr={required.wmr}
+                  errors={errors}
+                  errorPrefix="documents"
+                  disabled={saving}
+                />
               </div>
               <div className="flex justify-end">
                 <Button type="submit" isLoading={saving}>
@@ -281,9 +276,22 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
                     <PersonCell name={transaction.end_user?.full_name} date={transaction.date_assigned_end_user} />
                     <PersonCell name={transaction.received_by?.full_name} date={transaction.date_received_new_accountable} />
                     <td className="px-4 py-3 text-xs text-gray-600">
-                      <DocumentLine type={transaction.supporting_documents1} number={transaction.or_si_dr_iar_no} />
-                      <DocumentLine type={transaction.supporting_documents2} number={transaction.par_ics_rrsp_rs_wmr_no} />
-                      {!transaction.supporting_documents1 && !transaction.or_si_dr_iar_no && !transaction.supporting_documents2 && !transaction.par_ics_rrsp_rs_wmr_no && '—'}
+                      {(transaction.documents ?? []).length === 0
+                        ? '—'
+                        : transaction.documents?.map((document) => (
+                            <div key={document.id}>
+                              {[document.document_type, document.document_no].filter(Boolean).join(' · ')}
+                              {document.has_file && (
+                                <button
+                                  type="button"
+                                  className="ml-2 font-medium text-primary-700 underline-offset-2 hover:underline"
+                                  onClick={() => void equipmentService.downloadTransactionDocument(equipmentId, transaction.id, document)}
+                                >
+                                  Download
+                                </button>
+                              )}
+                            </div>
+                          ))}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">{formatTimestamp(transaction.created_at)}</td>
                   </tr>
@@ -304,9 +312,4 @@ function PersonCell({ name, date }: { name: string | null | undefined; date: str
       <div className="text-xs text-gray-500">{formatDate(date)}</div>
     </td>
   )
-}
-
-function DocumentLine({ type, number }: { type: string | null; number: string | null }) {
-  if (!type && !number) return null
-  return <div>{[type, number].filter(Boolean).join(' · ')}</div>
 }

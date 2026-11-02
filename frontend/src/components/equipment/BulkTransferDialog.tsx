@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { SelectPicker } from '@/components/ui/SelectPicker'
+import { emptyDocumentRow, TransactionDocumentsField } from '@/components/equipment/TransactionDocumentsField'
+import { transactionRequirements } from '@/lib/transactionRules'
 import { extractError, extractFieldErrors, type FieldErrors } from '@/lib/errors'
 import { equipmentService, toTransactionPayload } from '@/services/equipmentService'
 import type { EquipmentOptions, EquipmentTransactionFormData } from '@/types/equipment'
@@ -22,11 +24,8 @@ function emptyTransfer(types: string[]): EquipmentTransactionFormData {
     received_by_id: null,
     date_assigned_accountable_officer: new Date().toISOString().slice(0, 10),
     date_assigned_end_user: '',
-    date_received_new_accountable: '',
-    supporting_documents1: '',
-    or_si_dr_iar_no: '',
-    supporting_documents2: '',
-    par_ics_rrsp_rs_wmr_no: '',
+    date_received_new_accountable: new Date().toISOString().slice(0, 10),
+    documents: [emptyDocumentRow()],
   }
 }
 
@@ -62,7 +61,8 @@ export function BulkTransferDialog({ open, onOpenChange, equipmentIds, options, 
   function changeOffice(next: string) {
     const heads = people.filter((person) => String(person.office_id) === next && person.is_school_head)
     setOfficeId(next)
-    setForm((prev) => ({ ...prev, accountable_officer_id: heads.length === 1 ? heads[0].value : null, end_user_id: null }))
+    const head = heads.length === 1 ? heads[0].value : null
+    setForm((prev) => ({ ...prev, accountable_officer_id: head, end_user_id: null, received_by_id: head }))
   }
 
   function close(nextOpen: boolean) {
@@ -97,7 +97,7 @@ export function BulkTransferDialog({ open, onOpenChange, equipmentIds, options, 
     }
   }
 
-  function person(key: 'accountable_officer_id' | 'end_user_id', label: string, hint: string, required = false) {
+  function person(key: 'accountable_officer_id' | 'end_user_id' | 'received_by_id', label: string, hint: string, required = false) {
     const id = `bulk-${key}`
     return (
       <FormField id={id} label={label} hint={hint} error={errors[key]} required={required}>
@@ -116,6 +116,8 @@ export function BulkTransferDialog({ open, onOpenChange, equipmentIds, options, 
       </FormField>
     )
   }
+
+  const required = transactionRequirements(form.transaction_type)
 
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -158,26 +160,28 @@ export function BulkTransferDialog({ open, onOpenChange, equipmentIds, options, 
                 />
               )}
             </FormField>
-            <FormField id="bulk-date" label="Date assigned" error={errors.date_assigned_accountable_officer}>
+            <FormField id="bulk-date" label="Date assigned" required error={errors.date_assigned_accountable_officer}>
               {(aria) => (
                 <Input id="bulk-date" type="date" value={form.date_assigned_accountable_officer} onChange={(e) => set('date_assigned_accountable_officer', e.target.value)} {...aria} />
               )}
             </FormField>
-            <FormField id="bulk-doc" label="Supporting document (optional)" error={errors.supporting_documents2}>
+            {person('received_by_id', required.receiver ? 'Received by' : 'Received by (optional)', 'Who physically received the items at the office.', required.receiver)}
+            <FormField id="bulk-date-received" label={required.receiver || form.received_by_id !== null ? 'Date received' : 'Date received (optional)'} required={required.receiver || form.received_by_id !== null} error={errors.date_received_new_accountable}>
               {(aria) => (
-                <Select
-                  id="bulk-doc"
-                  value={form.supporting_documents2}
-                  options={options.transaction.supporting_document_type ?? []}
-                  placeholder="None"
-                  onChange={(e) => set('supporting_documents2', e.target.value)}
-                  {...aria}
-                />
+                <Input id="bulk-date-received" type="date" value={form.date_received_new_accountable} onChange={(e) => set('date_received_new_accountable', e.target.value)} {...aria} />
               )}
             </FormField>
-            <FormField id="bulk-doc-no" label="PAR/ICS/RRSP/RS/WMR no. (optional)" error={errors.par_ics_rrsp_rs_wmr_no}>
-              {(aria) => <Input id="bulk-doc-no" value={form.par_ics_rrsp_rs_wmr_no} onChange={(e) => set('par_ics_rrsp_rs_wmr_no', e.target.value)} {...aria} />}
-            </FormField>
+            <TransactionDocumentsField
+              id="bulk-documents"
+              rows={form.documents}
+              onChange={(documents) => set('documents', documents)}
+              documentTypes={options.transaction.supporting_document_type}
+              required={required.documents}
+              needsWmr={required.wmr}
+              errors={errors}
+              errorPrefix="documents"
+              disabled={saving}
+            />
           </div>
           <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
             <Button type="button" variant="outline" onClick={() => close(false)} disabled={saving}>

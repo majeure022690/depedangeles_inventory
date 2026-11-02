@@ -170,10 +170,6 @@ class EquipmentSeeder extends Seeder
                     'date_assigned_accountable_officer' => null,
                     'date_assigned_end_user' => null,
                     'date_received_new_accountable' => null,
-                    'supporting_documents1' => $row['supporting_documents1'],
-                    'or_si_dr_iar_no' => $row['or_si_dr_iar_no'],
-                    'supporting_documents2' => $row['supporting_documents2'],
-                    'par_ics_rrsp_rs_wmr_no' => $row['par_ics_rrsp_rs_wmr_no'],
                 ]);
             } else {
                 $skipped++;

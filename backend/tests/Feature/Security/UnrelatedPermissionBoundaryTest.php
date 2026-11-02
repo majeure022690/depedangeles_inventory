@@ -49,6 +49,8 @@ class UnrelatedPermissionBoundaryTest extends TestCase
             'personnel' => Personnel::factory()->create()->id,
             'equipment' => $equipment->id,
             'attachment' => $attachment->id,
+            'transaction' => ($transaction = $equipment->transactions()->create(['transaction_type' => 'Beginning Inventory']))->id,
+            'document' => $transaction->documents()->create(['document_type' => 'Delivery Receipt (DR)', 'path' => 'boundary.pdf', 'disk' => 'local'])->id,
             'peripheral' => Equipment::factory()->create()->id,
             'ispAccount' => IspAccount::factory()->create()->id,
             'office' => Office::create(['office_name' => 'Boundary ES'])->id,

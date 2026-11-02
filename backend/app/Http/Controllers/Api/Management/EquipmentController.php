@@ -306,7 +306,7 @@ class EquipmentController extends Controller
             ...self::LIST_RELATIONS,
             ...self::BUNDLE_RELATIONS,
             'transactions' => fn ($query) => $query
-                ->with(['accountableOfficer:id,full_name', 'endUser:id,full_name', 'receivedBy:id,full_name'])
+                ->with(['accountableOfficer:id,full_name', 'endUser:id,full_name', 'receivedBy:id,full_name', 'documents'])
                 ->latest('created_at')
                 ->latest('id'),
             'attachments' => fn ($query) => $query->with('uploadedBy:id,name')->latest('id'),

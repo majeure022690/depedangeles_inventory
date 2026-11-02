@@ -60,6 +60,7 @@ trait BuildsEquipmentPayloads
             'end_user_id' => $holder->id,
             'date_assigned_end_user' => '2026-03-16',
             'received_by_id' => $holder->id,
+            'date_received_new_accountable' => '2026-03-16',
             ...$overrides,
         ];
     }

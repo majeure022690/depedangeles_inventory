@@ -18,11 +18,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Activitylog\Models\Activity;
 use Tests\Concerns\BuildsEquipmentPayloads;
 use Tests\Concerns\CreatesUsersWithRoles;
+use Tests\Concerns\RecordsTransactions;
 use Tests\TestCase;
 
 class EquipmentPeripheralTest extends TestCase
 {
-    use BuildsEquipmentPayloads, CreatesUsersWithRoles, RefreshDatabase;
+    use BuildsEquipmentPayloads, CreatesUsersWithRoles, RecordsTransactions, RefreshDatabase;
 
     private const PN = 'AC-2016-IT-DST-000001';
 
@@ -171,18 +172,18 @@ class EquipmentPeripheralTest extends TestCase
     {
         $officer = Personnel::factory()->create();
         $desktop = $this->desktop();
-        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", [
+        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Beginning Inventory',
             'accountable_officer_id' => $officer->id,
-            'par_ics_rrsp_rs_wmr_no' => 'PAR-1',
-        ])->assertCreated();
+            'documents' => [$this->supportingDocument($this->editor)],
+        ]))->assertCreated();
 
         $id = $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/peripherals", $this->payload())->assertCreated()->json('data.id');
 
         $copy = EquipmentTransaction::where('equipment_id', $id)->sole();
         $this->assertSame('Beginning Inventory', $copy->transaction_type);
         $this->assertSame($officer->id, $copy->accountable_officer_id);
-        $this->assertSame('PAR-1', $copy->par_ics_rrsp_rs_wmr_no);
+        $this->assertSame(['PAR-2026-001'], $copy->documents->pluck('document_no')->all());
         $this->assertSame($officer->id, Equipment::findOrFail($id)->current_accountable_officer_id);
     }
 
@@ -283,10 +284,10 @@ class EquipmentPeripheralTest extends TestCase
         $officer = Personnel::factory()->create();
         $previous = Personnel::factory()->create();
         $desktop = $this->desktop();
-        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", [
+        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Issuance/Transfer',
             'accountable_officer_id' => $officer->id,
-        ])->assertCreated();
+        ]))->assertCreated();
         $monitor = $this->equipment('Monitor', ['current_accountable_officer_id' => $previous->id]);
 
         $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/peripherals/link", ['equipment_id' => $monitor->id])->assertOk();
@@ -351,11 +352,11 @@ class EquipmentPeripheralTest extends TestCase
         $this->addPeripheral($desktop);
         $standalone = $this->equipment('Keyboard');
 
-        $parentTransactionId = $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", [
+        $parentTransactionId = $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Issuance/Transfer',
             'accountable_officer_id' => $officer->id,
             'end_user_id' => $endUser->id,
-        ])->assertCreated()->json('data.id');
+        ]))->assertCreated()->json('data.id');
 
         foreach ($desktop->children()->get() as $peripheral) {
             $this->assertSame($officer->id, $peripheral->current_accountable_officer_id);
@@ -380,7 +381,7 @@ class EquipmentPeripheralTest extends TestCase
         $this->addPeripheral($desktop);
         $peripheral = Equipment::where('property_no', self::PN.'-001')->sole();
 
-        $this->actingAs($this->editor)->postJson("/api/equipment/{$peripheral->id}/transactions", ['transaction_type' => 'Return'])
+        $this->actingAs($this->editor)->postJson("/api/equipment/{$peripheral->id}/transactions", $this->transactionPayload(['transaction_type' => 'Return']))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['equipment' => 'This peripheral moves with its desktop '.self::PN.'.']);
 
@@ -415,10 +416,10 @@ class EquipmentPeripheralTest extends TestCase
 
         $this->assertSame(self::PN.'-003', $this->addPeripheral($desktop));
 
-        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", [
+        $this->actingAs($this->editor)->postJson("/api/equipment/{$desktop->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Issuance/Transfer',
             'accountable_officer_id' => $officer->id,
-        ])->assertCreated();
+        ]))->assertCreated();
 
         $this->assertSame(0, EquipmentTransaction::where('equipment_id', $second->id)->count());
         $this->assertNull(Equipment::withTrashed()->findOrFail($second->id)->current_accountable_officer_id);

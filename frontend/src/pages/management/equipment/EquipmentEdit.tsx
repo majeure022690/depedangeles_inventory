@@ -211,7 +211,7 @@ export function EquipmentEdit() {
     { value: 'overview', label: 'Overview' },
     ...EQUIPMENT_FIELD_SECTIONS.map((section) => ({ value: section.value, label: section.label, errorCount: sectionErrorCount(section.value, errors) })),
     ...(showBundle ? [{ value: PERIPHERALS_TAB, label: 'Peripherals', count: equipment.children?.length ?? 0 }] : []),
-    { value: 'history', label: 'History', count: equipment.transactions?.length ?? 0 },
+    { value: 'history', label: 'Log a transaction', count: equipment.transactions?.length ?? 0 },
   ]
   const requestedTab = searchParams.get('tab')
   const tab = tabs.some((item) => item.value === requestedTab) ? requestedTab! : 'overview'

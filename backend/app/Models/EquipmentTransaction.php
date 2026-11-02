@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Append-only audit log — Backend should not expose update/delete routes
@@ -17,8 +18,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'equipment_id', 'recorded_by_user_id', 'transaction_type', 'accountable_officer_id',
     'end_user_id', 'received_by_id', 'date_assigned_accountable_officer',
     'date_assigned_end_user', 'date_received_new_accountable',
-    'supporting_documents1', 'or_si_dr_iar_no', 'supporting_documents2',
-    'par_ics_rrsp_rs_wmr_no',
 ])]
 class EquipmentTransaction extends Model
 {
@@ -29,6 +28,14 @@ class EquipmentTransaction extends Model
             'date_assigned_end_user' => 'date',
             'date_received_new_accountable' => 'date',
         ];
+    }
+
+    /**
+     * @return HasMany<EquipmentTransactionDocument, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(EquipmentTransactionDocument::class)->orderBy('id');
     }
 
     /**

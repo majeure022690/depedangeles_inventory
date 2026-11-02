@@ -15,11 +15,17 @@ export interface EquipmentTransaction {
   date_assigned_accountable_officer: string | null
   date_assigned_end_user: string | null
   date_received_new_accountable: string | null
-  supporting_documents1: string | null
-  or_si_dr_iar_no: string | null
-  supporting_documents2: string | null
-  par_ics_rrsp_rs_wmr_no: string | null
+  documents?: EquipmentTransactionDocument[]
   created_at: string | null
+}
+
+/** A supporting document recorded with a transaction. */
+export interface EquipmentTransactionDocument {
+  id: number
+  document_type: string | null
+  document_no: string | null
+  original_filename: string | null
+  has_file: boolean
 }
 
 export interface EquipmentParentSummary {
@@ -269,15 +275,23 @@ export interface EquipmentTransactionFormData {
   date_assigned_accountable_officer: string
   date_assigned_end_user: string
   date_received_new_accountable: string
-  supporting_documents1: string
-  or_si_dr_iar_no: string
-  supporting_documents2: string
-  par_ics_rrsp_rs_wmr_no: string
+  documents: TransactionDocumentRow[]
+}
+
+/** One supporting-document row while editing; `upload_id` is set once its file has uploaded. */
+export interface TransactionDocumentRow {
+  key: string
+  document_type: string
+  document_no: string
+  upload_id: number | null
+  file_name: string | null
 }
 
 export type EquipmentPayload = { [K in keyof EquipmentFormData]: EquipmentFormData[K] | null }
 
-export type EquipmentTransactionPayload = { [K in keyof EquipmentTransactionFormData]: EquipmentTransactionFormData[K] | null }
+export type EquipmentTransactionPayload = { [K in Exclude<keyof EquipmentTransactionFormData, 'documents'>]: EquipmentTransactionFormData[K] | null } & {
+  documents: { document_type: string; document_no: string | null; upload_id: number | null }[]
+}
 
 export type EquipmentCreatePayload = EquipmentPayload & {
   accountability: EquipmentTransactionPayload

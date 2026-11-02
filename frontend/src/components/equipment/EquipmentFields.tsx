@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { CheckboxField, FormField } from '@/components/forms/FormField'
 import { FormSection } from '@/components/forms/FormSection'
+import { TransactionDocumentsField } from '@/components/equipment/TransactionDocumentsField'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Input } from '@/components/ui/Input'
@@ -11,6 +12,7 @@ import { SelectPicker } from '@/components/ui/SelectPicker'
 import { Textarea } from '@/components/ui/Textarea'
 import type { FieldErrors } from '@/lib/errors'
 import { selectsOthers, withCurrentOption } from '@/lib/options'
+import { transactionRequirements } from '@/lib/transactionRules'
 import { formatDate } from '@/lib/utils'
 import type {
   Equipment,
@@ -66,8 +68,7 @@ export const EQUIPMENT_FIELD_SECTIONS: { value: EquipmentFieldSection; label: st
       'accountability.date_assigned_end_user',
       'accountability.received_by_id',
       'accountability.date_received_new_accountable',
-      'accountability.supporting_documents2',
-      'accountability.par_ics_rrsp_rs_wmr_no',
+      'accountability.documents',
       'used_by',
       'school_level',
     ],
@@ -92,7 +93,7 @@ export const EQUIPMENT_FIELD_SECTIONS: { value: EquipmentFieldSection; label: st
   {
     value: 'documents',
     label: 'Documents',
-    fields: ['pm_plan', 'accountability.supporting_documents1', 'accountability.or_si_dr_iar_no'],
+    fields: ['pm_plan'],
   },
 ]
 
@@ -103,12 +104,17 @@ export function isEquipmentFieldSection(value: string | null): value is Equipmen
   return EQUIPMENT_FIELD_SECTIONS.some((section) => section.value === value)
 }
 
+/** A list field (the documents) also counts the errors of its rows. */
+function fieldHasError(field: string, errors: FieldErrors): boolean {
+  return Boolean(errors[field]) || (field.endsWith('.documents') && Object.keys(errors).some((key) => key.startsWith(`${field}.`)))
+}
+
 export function sectionErrorCount(section: EquipmentFieldSection, errors: FieldErrors): number {
-  return EQUIPMENT_FIELD_SECTIONS.find((s) => s.value === section)?.fields.filter((field) => errors[field]).length ?? 0
+  return EQUIPMENT_FIELD_SECTIONS.find((s) => s.value === section)?.fields.filter((field) => fieldHasError(field, errors)).length ?? 0
 }
 
 export function firstSectionWithError(errors: FieldErrors): EquipmentFieldSection | null {
-  return EQUIPMENT_FIELD_SECTIONS.find((section) => section.fields.some((field) => errors[field]))?.value ?? null
+  return EQUIPMENT_FIELD_SECTIONS.find((section) => section.fields.some((field) => fieldHasError(field, errors)))?.value ?? null
 }
 
 export function emptyEquipmentForm(): EquipmentFormData {
@@ -163,10 +169,7 @@ export function emptyAccountability(options?: EquipmentOptions | null): Equipmen
     date_assigned_accountable_officer: '',
     date_assigned_end_user: '',
     date_received_new_accountable: '',
-    supporting_documents1: '',
-    or_si_dr_iar_no: '',
-    supporting_documents2: '',
-    par_ics_rrsp_rs_wmr_no: '',
+    documents: [],
   }
 }
 
@@ -245,7 +248,7 @@ type TextKey = { [K in keyof EquipmentFormData]: EquipmentFormData[K] extends st
 type IdKey = { [K in keyof EquipmentFormData]: EquipmentFormData[K] extends number | null ? K : never }[keyof EquipmentFormData]
 type BoolKey = { [K in keyof EquipmentFormData]: EquipmentFormData[K] extends boolean ? K : never }[keyof EquipmentFormData]
 type PersonKey = 'accountable_officer_id' | 'end_user_id' | 'received_by_id'
-type AccountabilityTextKey = Exclude<AccountabilityKey, PersonKey>
+type AccountabilityTextKey = Exclude<AccountabilityKey, PersonKey | 'documents'>
 
 interface TextProps {
   type?: string
@@ -651,7 +654,7 @@ export function EquipmentFields({
             <p className="text-sm text-gray-600 sm:col-span-2">
               Accountability changes are recorded as transactions. Log one in the{' '}
               <Link to={{ search: '?tab=history' }} replace className="font-medium text-primary-700 underline hover:no-underline">
-                History tab
+                Log a transaction tab
               </Link>
               .
             </p>
@@ -689,18 +692,22 @@ export function EquipmentFields({
           {personField('received_by_id', 'Received by', 'Choose the Accountable Officer, Custodian, or End User who received the equipment.')}
           {accountabilityText(
             'date_received_new_accountable',
-            'Date received (optional)',
+            'Date received',
             'Enter the date when the equipment was received in the \'MM/DD/YYYY\' format.',
             'date',
+            true,
           )}
-          {accountabilitySelect(
-            'supporting_documents2',
-            'Supporting document (PAR/ICS/RRSP/RS/WMR) (optional)',
-            'Select the document type for the issuance: PAR, ICS, RRSP, RS or WMR.',
-            options?.transaction.supporting_document_type,
-            'Select a document type',
-          )}
-          {accountabilityText('par_ics_rrsp_rs_wmr_no', 'PAR/ICS/RRSP/RS/WMR no. (optional)', 'Input the document number to track and properly identify the transaction.')}
+          <TransactionDocumentsField
+            id="accountability-documents"
+            rows={accountability?.documents ?? []}
+            onChange={(documents) => setAccountability('documents', documents)}
+            documentTypes={options?.transaction.supporting_document_type}
+            required={transactionRequirements(accountability?.transaction_type ?? '').documents}
+            needsWmr={transactionRequirements(accountability?.transaction_type ?? '').wmr}
+            errors={errors}
+            errorPrefix="accountability.documents"
+            disabled={disabled}
+          />
           {usedBy}
           {schoolLevel}
         </FormSection>
@@ -713,24 +720,8 @@ export function EquipmentFields({
       <div className="space-y-4">
         <FormSection title="Documents">
           {text('pm_plan', 'PM plan (optional)', 'Input the preventive maintenance plan or schedule for the equipment.', { className: 'sm:col-span-2' })}
-          {isCreate && (
-            <>
-              {accountabilitySelect(
-                'supporting_documents1',
-                'Supporting document (OR/SI/DR/IAR/RRSP) (optional)',
-                'Select the document type for the delivery or inspection: OR, SI, DR, IAR or RRSP.',
-                options?.transaction.supporting_document_type,
-                'Select a document type',
-              )}
-              {accountabilityText(
-                'or_si_dr_iar_no',
-                'Document no. (optional)',
-                'Enter the document number for the delivery or inspection to ensure proper tracking and identification of the equipment.',
-              )}
-            </>
-          )}
         </FormSection>
-        {isCreate && <Alert type="info">You can attach scanned documents or photos after saving the record.</Alert>}
+        {isCreate && <Alert type="info">Supporting documents for the first transaction go on the Accountability tab. You can attach other scanned documents or photos after saving the record.</Alert>}
       </div>
     )
   }

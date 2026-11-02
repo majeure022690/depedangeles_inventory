@@ -14,11 +14,12 @@ use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\BuildsEquipmentPayloads;
+use Tests\Concerns\RecordsTransactions;
 use Tests\TestCase;
 
 class EquipmentDataScopeTest extends TestCase
 {
-    use BuildsEquipmentPayloads, RefreshDatabase;
+    use BuildsEquipmentPayloads, RecordsTransactions, RefreshDatabase;
 
     private Office $school;
 
@@ -156,9 +157,9 @@ class EquipmentDataScopeTest extends TestCase
         $this->actingAs($user)->get("/api/equipment/{$this->elsewhere->id}/qr-code")->assertNotFound();
         $this->actingAs($user)->putJson("/api/equipment/{$this->elsewhere->id}", [])->assertNotFound();
         $this->actingAs($user)->deleteJson("/api/equipment/{$this->elsewhere->id}")->assertNotFound();
-        $this->actingAs($user)->postJson("/api/equipment/{$this->elsewhere->id}/transactions", [
+        $this->actingAs($user)->postJson("/api/equipment/{$this->elsewhere->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Beginning Inventory',
-        ])->assertNotFound();
+        ]))->assertNotFound();
 
         $this->assertNotSoftDeleted($this->elsewhere);
         $this->assertSame(0, EquipmentTransaction::count());
@@ -172,7 +173,7 @@ class EquipmentDataScopeTest extends TestCase
         $user->assignRole($role);
 
         $this->actingAs($user)->putJson("/api/equipment/{$this->elsewhere->id}", [])->assertForbidden();
-        $this->actingAs($user)->postJson("/api/equipment/{$this->elsewhere->id}/transactions", ['transaction_type' => 'Return'])->assertForbidden();
+        $this->actingAs($user)->postJson("/api/equipment/{$this->elsewhere->id}/transactions", $this->transactionPayload(['transaction_type' => 'Return']))->assertForbidden();
         $this->actingAs($user)->deleteJson("/api/equipment/{$this->elsewhere->id}")->assertForbidden();
 
     }
@@ -284,10 +285,10 @@ class EquipmentDataScopeTest extends TestCase
         $user = $this->userWithScope(DataScope::School, [Permission::EquipmentTransactionsCreate]);
 
         foreach (['accountable_officer_id', 'end_user_id', 'received_by_id'] as $field) {
-            $this->actingAs($user->fresh())->postJson("/api/equipment/{$this->mine->id}/transactions", [
+            $this->actingAs($user->fresh())->postJson("/api/equipment/{$this->mine->id}/transactions", $this->transactionPayload([
                 'transaction_type' => 'Issuance/Transfer',
                 $field => $this->outsider->id,
-            ])->assertUnprocessable()
+            ]))->assertUnprocessable()
                 ->assertJsonValidationErrors($field)
                 ->assertJsonPath("errors.{$field}.0", 'Choose someone within your access.');
         }
@@ -295,12 +296,12 @@ class EquipmentDataScopeTest extends TestCase
         $this->assertSame(0, EquipmentTransaction::count());
         $this->assertSame($this->me->id, $this->mine->fresh()->current_accountable_officer_id);
 
-        $this->actingAs($user->fresh())->postJson("/api/equipment/{$this->mine->id}/transactions", [
+        $this->actingAs($user->fresh())->postJson("/api/equipment/{$this->mine->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Issuance/Transfer',
             'accountable_officer_id' => $this->colleague->id,
             'end_user_id' => $this->me->id,
             'received_by_id' => $this->colleague->id,
-        ])->assertCreated();
+        ]))->assertCreated();
 
         $this->assertSame($this->colleague->id, $this->mine->fresh()->current_accountable_officer_id);
     }
@@ -309,10 +310,10 @@ class EquipmentDataScopeTest extends TestCase
     {
         $user = $this->userWithScope(DataScope::All, [Permission::EquipmentTransactionsCreate], linked: false);
 
-        $this->actingAs($user)->postJson("/api/equipment/{$this->mine->id}/transactions", [
+        $this->actingAs($user)->postJson("/api/equipment/{$this->mine->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Issuance/Transfer',
             'accountable_officer_id' => $this->outsider->id,
-        ])->assertCreated();
+        ]))->assertCreated();
     }
 
     public function test_scoped_transfer_errors_do_not_reveal_whether_a_personnel_id_exists(): void
@@ -323,10 +324,11 @@ class EquipmentDataScopeTest extends TestCase
 
         $errors = [];
         foreach (['out of reach' => $this->outsider->id, 'nonexistent' => 999999, 'soft-deleted' => $trashed->id] as $case => $id) {
-            $errors[$case] = $this->actingAs($user->fresh())->postJson("/api/equipment/{$this->mine->id}/transactions", [
+            $errors[$case] = $this->actingAs($user->fresh())->postJson("/api/equipment/{$this->mine->id}/transactions", $this->transactionPayload([
                 'transaction_type' => 'Issuance/Transfer',
                 'accountable_officer_id' => $id,
-            ])->assertUnprocessable()->json('errors');
+                'received_by_id' => $this->me->id,
+            ]))->assertUnprocessable()->json('errors');
         }
 
         $this->assertSame(['accountable_officer_id' => ['Choose someone within your access.']], $errors['out of reach']);
@@ -341,10 +343,10 @@ class EquipmentDataScopeTest extends TestCase
         $this->outsider->delete();
 
         foreach (['accountable_officer_id', 'end_user_id', 'received_by_id'] as $field) {
-            $this->actingAs($user)->postJson("/api/equipment/{$this->mine->id}/transactions", [
+            $this->actingAs($user)->postJson("/api/equipment/{$this->mine->id}/transactions", $this->transactionPayload([
                 'transaction_type' => 'Issuance/Transfer',
                 $field => $this->outsider->id,
-            ])->assertUnprocessable()->assertJsonValidationErrors($field);
+            ]))->assertUnprocessable()->assertJsonValidationErrors($field);
         }
 
         $this->assertSame(0, EquipmentTransaction::count());
@@ -357,9 +359,10 @@ class EquipmentDataScopeTest extends TestCase
         $this->mine->forceFill(['created_by_user_id' => $creator->id])->saveQuietly();
         $user = $this->userWithScope(DataScope::School, [Permission::EquipmentTransactionsCreate]);
 
-        $this->actingAs($user->fresh())->postJson("/api/equipment/{$this->mine->id}/transactions", [
+        $this->actingAs($user->fresh())->postJson("/api/equipment/{$this->mine->id}/transactions", $this->transactionPayload([
             'transaction_type' => 'Return',
-        ])->assertCreated();
+            'received_by_id' => $this->me->id,
+        ]))->assertCreated();
 
         $this->assertNull($this->mine->fresh()->current_accountable_officer_id);
         $this->actingAs($user->fresh())->getJson("/api/equipment/{$this->mine->id}")->assertNotFound();

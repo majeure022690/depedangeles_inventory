@@ -8,12 +8,18 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Management\BulkStoreEquipmentTransactionRequest;
 use App\Http\Requests\Management\ConfirmEquipmentReceiptRequest;
 use App\Http\Requests\Management\StoreEquipmentTransactionRequest;
+use App\Http\Requests\Management\StoreTransactionDocumentUploadRequest;
 use App\Http\Resources\Management\EquipmentTransactionResource;
 use App\Models\Equipment;
+use App\Models\EquipmentTransaction;
+use App\Models\EquipmentTransactionDocument;
 use App\Services\EquipmentAccountabilityService;
+use App\Services\FileUploadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Append-only: equipment_transactions has no update/destroy routes by
@@ -34,6 +40,7 @@ class EquipmentTransactionController extends Controller
             'accountableOfficer:id,full_name',
             'endUser:id,full_name',
             'receivedBy:id,full_name',
+            'documents',
         ]))
             ->additional(['message' => 'Transaction recorded.'])
             ->response()
@@ -77,6 +84,40 @@ class EquipmentTransactionController extends Controller
         return response()->json([
             'data' => ['count' => $count],
             'message' => trans_choice('Receipt confirmed for :count item.|Receipt confirmed for :count items.', $count),
+        ]);
+    }
+
+    /**
+     * Stores a supporting document as a pending upload, claimed later by the transaction that names it.
+     */
+    public function uploadDocument(StoreTransactionDocumentUploadRequest $request, FileUploadService $uploads): JsonResponse
+    {
+        $stored = $uploads->storeDocument($request->file('file'), 'local', 'equipment-transaction-documents');
+
+        $document = EquipmentTransactionDocument::create([
+            'original_filename' => mb_substr((string) $stored['original_filename'], 0, 255),
+            'disk' => $stored['disk'],
+            'path' => $stored['path'],
+            'mime_type' => $stored['mime_type'],
+            'file_size' => $stored['file_size'],
+            'file_hash' => $stored['file_hash'],
+            'uploaded_by_user_id' => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'data' => ['id' => $document->id, 'original_filename' => $document->original_filename, 'file_size' => $document->file_size],
+            'message' => 'File uploaded.',
+        ], 201);
+    }
+
+    public function downloadDocument(Equipment $equipment, EquipmentTransaction $transaction, EquipmentTransactionDocument $document): StreamedResponse
+    {
+        $this->authorize('view', $equipment);
+        abort_unless($document->hasFile() && Storage::disk((string) $document->disk)->exists((string) $document->path), 404);
+
+        return Storage::disk((string) $document->disk)->download((string) $document->path, $document->original_filename, [
+            'Content-Type' => $document->mime_type,
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 }

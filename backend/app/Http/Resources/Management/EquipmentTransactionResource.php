@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Management;
 
 use App\Models\EquipmentTransaction;
+use App\Models\EquipmentTransactionDocument;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -26,10 +27,13 @@ class EquipmentTransactionResource extends JsonResource
             'date_assigned_accountable_officer' => $this->date_assigned_accountable_officer?->toDateString(),
             'date_assigned_end_user' => $this->date_assigned_end_user?->toDateString(),
             'date_received_new_accountable' => $this->date_received_new_accountable?->toDateString(),
-            'supporting_documents1' => $this->supporting_documents1,
-            'or_si_dr_iar_no' => $this->or_si_dr_iar_no,
-            'supporting_documents2' => $this->supporting_documents2,
-            'par_ics_rrsp_rs_wmr_no' => $this->par_ics_rrsp_rs_wmr_no,
+            'documents' => $this->whenLoaded('documents', fn () => $this->documents->map(fn (EquipmentTransactionDocument $document) => [
+                'id' => $document->id,
+                'document_type' => $document->document_type,
+                'document_no' => $document->document_no,
+                'original_filename' => $document->original_filename,
+                'has_file' => $document->hasFile(),
+            ])->all()),
             'created_at' => $this->created_at,
         ];
     }

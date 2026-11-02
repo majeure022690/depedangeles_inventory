@@ -8,6 +8,8 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+Schedule::command('equipment:prune-pending-documents')->daily();
+
 Schedule::command('users:sync-external')
     ->everyFifteenMinutes()
     ->withoutOverlapping(30);

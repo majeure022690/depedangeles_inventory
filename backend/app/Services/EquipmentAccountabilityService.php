@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\Equipment;
 use App\Models\EquipmentTransaction;
+use App\Models\EquipmentTransactionDocument;
 use App\Models\Personnel;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Support\Facades\DB;
@@ -36,7 +37,6 @@ final class EquipmentAccountabilityService
     private const COPIED_FIELDS = [
         'transaction_type', 'accountable_officer_id', 'end_user_id', 'received_by_id',
         'date_assigned_accountable_officer', 'date_assigned_end_user', 'date_received_new_accountable',
-        'supporting_documents1', 'or_si_dr_iar_no', 'supporting_documents2', 'par_ics_rrsp_rs_wmr_no',
     ];
 
     public function __construct(
@@ -96,6 +96,12 @@ final class EquipmentAccountabilityService
             $data[$field] = $latest->getAttribute($field);
         }
 
+        $data['documents'] = $latest->documents->map(fn (EquipmentTransactionDocument $document) => [
+            'document_type' => $document->document_type,
+            'document_no' => $document->document_no,
+            'upload_id' => $document->id,
+        ])->all();
+
         return DB::transaction(fn () => $this->append($peripheral, $data, $latest, flagReceipt: false));
     }
 
@@ -144,6 +150,8 @@ final class EquipmentAccountabilityService
             'recorded_by_user_id' => $this->auth->id(),
         ]);
 
+        $this->attachDocuments($transaction, $data['documents'] ?? []);
+
         $fromOffice = $this->officeOf($equipment->current_accountable_officer_id ?? $equipment->current_end_user_id);
         $toOffice = $this->officeOf($data['accountable_officer_id'] ?? $data['end_user_id'] ?? null);
         $moved = $flagReceipt && $fromOffice !== null && $toOffice !== null && $fromOffice !== $toOffice;
@@ -165,6 +173,7 @@ final class EquipmentAccountabilityService
                 'accountable_officer_id' => $transaction->accountable_officer_id,
                 'end_user_id' => $transaction->end_user_id,
                 'received_by_id' => $transaction->received_by_id,
+                'documents' => $transaction->documents()->pluck('document_type')->all(),
                 ...($copiedFrom ? [
                     'copied_from_transaction_id' => $copiedFrom->id,
                     'parent_equipment_id' => $copiedFrom->equipment_id,
@@ -184,5 +193,34 @@ final class EquipmentAccountabilityService
         $office = Personnel::query()->whereKey($personnelId)->value('office_id');
 
         return $office === null ? null : (int) $office;
+    }
+
+    /**
+     * Claims a still-pending upload for this transaction, or copies an already-claimed one
+     * (same stored file) when the same documents back a bundle or a bulk transfer.
+     *
+     * @param  list<array{document_type: ?string, document_no?: ?string, upload_id: int}>  $documents
+     */
+    private function attachDocuments(EquipmentTransaction $transaction, array $documents): void
+    {
+        foreach ($documents as $document) {
+            $upload = EquipmentTransactionDocument::query()->lockForUpdate()->find($document['upload_id']);
+
+            if ($upload === null) {
+                continue;
+            }
+
+            $details = [
+                'equipment_transaction_id' => $transaction->id,
+                'document_type' => $document['document_type'],
+                'document_no' => $document['document_no'] ?? null,
+            ];
+
+            if ($upload->equipment_transaction_id === null) {
+                $upload->update($details);
+            } else {
+                $upload->replicate()->fill($details)->save();
+            }
+        }
     }
 }
