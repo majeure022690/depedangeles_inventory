@@ -30,7 +30,7 @@ class ContentSecurityPolicyTest extends TestCase
 
     public function test_the_qr_label_redirect_without_a_built_spa_gets_the_strict_csp(): void
     {
-        config(['app.spa_index' => '/nonexistent/index.html', 'app.frontend_url' => 'https://dictis.example.gov.ph']);
+        config(['app.spa_index' => '/nonexistent/index.html', 'app.frontend_url' => 'https://iris.example.gov.ph']);
 
         $response = $this->get('/equipment/12/edit');
 
@@ -41,7 +41,7 @@ class ContentSecurityPolicyTest extends TestCase
     public function test_the_spa_document_keeps_its_nonce_csp(): void
     {
         $index = (string) tempnam(sys_get_temp_dir(), 'spa');
-        file_put_contents($index, '<!doctype html><title>DICTIS</title>');
+        file_put_contents($index, '<!doctype html><title>IRIS</title>');
         config(['app.spa_index' => $index]);
 
         try {

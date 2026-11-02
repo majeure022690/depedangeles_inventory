@@ -21,7 +21,7 @@ class RecaptchaRuleTest extends TestCase
 
     private function fakeGoogle(array $body): void
     {
-        config(['services.recaptcha.secret_key' => 'real-secret', 'app.frontend_url' => 'https://dictis.example.ph']);
+        config(['services.recaptcha.secret_key' => 'real-secret', 'app.frontend_url' => 'https://iris.example.ph']);
         Http::fake(['www.google.com/*' => Http::response($body)]);
     }
 
@@ -63,14 +63,14 @@ class RecaptchaRuleTest extends TestCase
     public function test_a_human_token_for_this_form_and_site_passes(): void
     {
         $this->app['env'] = 'production';
-        $this->fakeGoogle(['success' => true, 'score' => 0.9, 'action' => 'admin_login', 'hostname' => 'dictis.example.ph']);
+        $this->fakeGoogle(['success' => true, 'score' => 0.9, 'action' => 'admin_login', 'hostname' => 'iris.example.ph']);
 
         $this->assertSame([], $this->failures());
     }
 
     public function test_a_token_solved_for_another_form_is_rejected(): void
     {
-        $this->fakeGoogle(['success' => true, 'score' => 0.9, 'action' => 'reset_password', 'hostname' => 'dictis.example.ph']);
+        $this->fakeGoogle(['success' => true, 'score' => 0.9, 'action' => 'reset_password', 'hostname' => 'iris.example.ph']);
 
         $this->assertNotEmpty($this->failures('admin_login'));
     }

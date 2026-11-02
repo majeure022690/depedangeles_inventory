@@ -151,7 +151,7 @@ export function ProfileSettings() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = 'dictis-recovery-codes.txt'
+    link.download = 'iris-recovery-codes.txt'
     document.body.appendChild(link)
     link.click()
     link.remove()

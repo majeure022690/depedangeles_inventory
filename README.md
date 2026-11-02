@@ -1,4 +1,4 @@
-# DepEd Division ICT Inventory System
+# ICT Resources Inventory System
 
 A Laravel API + React SPA for a DepEd (Department of Education) **Division Office** to track ICT equipment, personnel, ISP/connectivity accounts, and internet-connectivity survey data in one place — replacing the spreadsheet workbook the office previously maintained by hand.
 
@@ -120,10 +120,10 @@ Both are looser than Laravel's own limiters, so the app's limits still decide no
 - **Verify.** Run this from an IP that isn't your office's shared NAT, because it briefly throttles everyone behind that IP. The first command shows `200`s followed by `429`s. The last two must return `404`, because Apache would otherwise accept `/index.php/...` path info (including percent-encoded spellings of it), which the path-based rules don't match:
 
   ```bash
-  seq 1 400 | xargs -P 10 -I{} curl -s -o /dev/null -w "%{http_code}\n" https://dictis.example.gov.ph/sanctum/csrf-cookie | sort | uniq -c
-  curl -si https://dictis.example.gov.ph/sanctum/csrf-cookie | grep -iE '^HTTP|^retry-after|message'
-  curl -s -o /dev/null -w "%{http_code}\n" -X POST https://dictis.example.gov.ph/index.php/api/login
-  curl -s -o /dev/null -w "%{http_code}\n" --path-as-is https://dictis.example.gov.ph/index.ph%70/api/login
+  seq 1 400 | xargs -P 10 -I{} curl -s -o /dev/null -w "%{http_code}\n" https://iris.example.gov.ph/sanctum/csrf-cookie | sort | uniq -c
+  curl -si https://iris.example.gov.ph/sanctum/csrf-cookie | grep -iE '^HTTP|^retry-after|message'
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST https://iris.example.gov.ph/index.php/api/login
+  curl -s -o /dev/null -w "%{http_code}\n" --path-as-is https://iris.example.gov.ph/index.ph%70/api/login
   ```
 
 #### Cloudflare and the CSP

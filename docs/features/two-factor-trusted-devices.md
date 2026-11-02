@@ -10,7 +10,7 @@ This replaced the Fortify-based optional 2FA and its "remember this device for 3
 
 - `Api\Auth\TwoFactorController` — `setup`, `confirmSetup`, `verify` (pre-session, keyed by a short-lived cache token from `/api/login`), `regenerateRecoveryCodes`.
 - `Api\Auth\TrustedDeviceController` — list and revoke the current user's trusted devices.
-- `App\Services\TwoFactorAuthService` — secrets, QR data URI (issuer `DICTIS`), code verification with replay protection (`verifyCodeOnce()` remembers the last accepted time step per user, so a code can't be reused within its window), 8 recovery codes stored hashed.
+- `App\Services\TwoFactorAuthService` — secrets, QR data URI (issuer `IRIS`), code verification with replay protection (`verifyCodeOnce()` remembers the last accepted time step per user, so a code can't be reused within its window), 8 recovery codes stored hashed.
 - `App\Services\TrustedDeviceService` — issues, finds, touches and revokes devices; `days()` decides whether trusting is allowed.
 - `App\Models\TrustedDevice` (`trusted_devices`: `token_hash` (SHA-256), `user_agent`, `ip_address`, `last_used_ip`, `last_used_at`, `expires_at`).
 - User columns `two_factor_secret` (`encrypted` cast), `two_factor_recovery_codes` (`encrypted:array` of hashes), `two_factor_confirmed_at`. Never logged to activity.

@@ -5,7 +5,7 @@ import { BRANDING } from '@/lib/branding'
 const BASE_TITLE = BRANDING.appName
 
 /**
- * Sets the browser tab title to "DICTIS | <page>" on mount
+ * Sets the browser tab title to "IRIS | <page>" on mount
  * and resets to the base title on unmount.
  */
 export function usePageTitle(page?: string): void {

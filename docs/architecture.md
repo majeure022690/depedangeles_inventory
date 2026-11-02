@@ -108,7 +108,7 @@ PRIME (the `external_users` connection, its `users` table) is the only password 
 An account holding **zero permissions** (none direct, none through any role: no role yet, or only roles that grant none) cannot sign in. `User::hasAppAccess()` is the check; `LoginSession::refuseWithoutAccess()` builds the response:
 
 ```
-403 {"code": "no_access", "message": "Your account doesn't have access to DICTIS yet. Please contact the Division ICT Unit."}
+403 {"code": "no_access", "message": "Your account doesn't have access to IRIS yet. Please contact the Division ICT Unit."}
 ```
 
 **Why:** PRIME is the division-wide directory, so any division employee can pass the password check, and a first-time PRIME login creates/syncs the local user record before anyone has given it a role. Without this check that user would be walked through 2FA enrollment into an empty app. The local record is still created/synced, so it shows up in Users for an admin to act on.

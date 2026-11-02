@@ -18,7 +18,7 @@ class EquipmentQrCodeHostTest extends TestCase
 {
     use BuildsEquipmentPayloads, CreatesUsersWithRoles, RefreshDatabase;
 
-    private const CONFIGURED_URL = 'https://dictis.example.gov.ph';
+    private const CONFIGURED_URL = 'https://iris.example.gov.ph';
 
     private User $user;
 

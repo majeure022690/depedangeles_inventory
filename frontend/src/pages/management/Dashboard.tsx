@@ -128,7 +128,7 @@ export function Dashboard() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <Sparkles className="h-8 w-8 text-primary-500" aria-hidden="true" />
-            <h2 className="text-lg font-semibold text-gray-900">Welcome to the Division ICT Inventory System</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Welcome to the ICT Resources Inventory System</h2>
             <p className="max-w-md text-sm text-gray-500">
               Your account doesn&apos;t have access to any dashboard section yet. Once an administrator gives your role dashboard access, summaries of
               property values, ICT equipment and internet connectivity will appear here.

@@ -9,7 +9,7 @@ use Tests\TestCase;
 
 class SpaDocumentTest extends TestCase
 {
-    private const HTML = "<!doctype html>\n<html lang=\"en\"><head><title>DICTIS</title><script type=\"module\" src=\"/assets/index-abc.js\"></script></head><body><div id=\"root\"></div></body></html>\n";
+    private const HTML = "<!doctype html>\n<html lang=\"en\"><head><title>IRIS</title><script type=\"module\" src=\"/assets/index-abc.js\"></script></head><body><div id=\"root\"></div></body></html>\n";
 
     private const EXPECTED_CSP = "default-src 'self'; script-src 'self' 'nonce-%s' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org; connect-src 'self' https://www.google.com/recaptcha/ https://cloudflareinsights.com; frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests";
 
@@ -23,7 +23,7 @@ class SpaDocumentTest extends TestCase
 
         $this->index = (string) tempnam(sys_get_temp_dir(), 'spa');
         file_put_contents($this->index, self::HTML);
-        config(['app.spa_index' => $this->index, 'app.frontend_url' => 'https://dictis.example.gov.ph']);
+        config(['app.spa_index' => $this->index, 'app.frontend_url' => 'https://iris.example.gov.ph']);
     }
 
     protected function tearDown(): void
@@ -187,7 +187,7 @@ class SpaDocumentTest extends TestCase
     {
         config(['app.spa_index' => $this->index.'.missing']);
 
-        $this->get('/equipment/12/edit')->assertRedirect('https://dictis.example.gov.ph/equipment/12/edit');
+        $this->get('/equipment/12/edit')->assertRedirect('https://iris.example.gov.ph/equipment/12/edit');
         $this->get('/')->assertNotFound();
         $this->get('/dashboard')->assertNotFound();
     }

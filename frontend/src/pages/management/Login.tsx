@@ -16,7 +16,7 @@ import type { ApiValidationError } from '@/types/api'
 
 const PRIME_NOTE_ID = 'login-prime-note'
 
-const NO_ACCESS_FALLBACK ="Your account doesn't have access to DICTIS yet. Please contact the Division ICT Unit."
+const NO_ACCESS_FALLBACK ="Your account doesn't have access to IRIS yet. Please contact the Division ICT Unit."
 
 export function Login() {
   usePageTitle('User Login')

@@ -137,7 +137,7 @@ class AuthenticationTest extends TestCase
             ->assertForbidden()
             ->assertExactJson([
                 'code' => 'no_access',
-                'message' => "Your account doesn't have access to DICTIS yet. Please contact the Division ICT Unit.",
+                'message' => "Your account doesn't have access to IRIS yet. Please contact the Division ICT Unit.",
             ]);
 
         $this->assertGuest('web');

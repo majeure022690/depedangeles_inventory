@@ -1,4 +1,4 @@
-# Inventory — DepEd Division ICT Inventory System (DICTIS)
+# Inventory — ICT Resources Inventory System (IRIS)
 
 ## Stack
 

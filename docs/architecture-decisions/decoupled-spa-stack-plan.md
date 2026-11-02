@@ -34,7 +34,7 @@ Deviations from the plan below, recorded during execution:
 2. **Never port a role-name check.** rwatch's `role:` middleware and `config('rabieswatch.two_factor_always_required_roles')` have permission-based replacements (ADR §5).
 3. The old Vue app at `backend/resources/js` is a **read-only porting reference** from Phase 2 onward, once Fortify is removed. It isn't expected to run. Delete it in Phase 7.
 4. Keep the suite green at every commit. Each phase deletes a feature's old Inertia test in the same commit that adds its JSON replacement.
-5. Product name: `APP_NAME="DepEd Division ICT Inventory System"`, short name `VITE_APP_NAME="DICTIS"` (both already in `backend/.env.example`). Use "DICTIS" wherever rwatch shows "RabiesWatch" (2FA issuer, sidebar brand, page titles, cookie prefix `dictis_trusted_device`).
+5. Product name: `APP_NAME="ICT Resources Inventory System"`, short name `VITE_APP_NAME="IRIS"` (both already in `backend/.env.example`). Use "IRIS" wherever rwatch shows "RabiesWatch" (2FA issuer, sidebar brand, page titles, cookie prefix `dictis_trusted_device`).
 
 **Phase order:** 0 devops prep → 1 database → 2 auth → 3 backend → 4 frontend shell, then 4A-4D in parallel → 5 tests/QA → 6 devops → 7 cleanup → 8 security → reviewer → documentation.
 
@@ -133,7 +133,7 @@ Do **not** publish Spatie's stock `create_permission_tables` migration.
 | `app/Http/Controllers/Api/Auth/TrustedDeviceController.php` | verbatim |
 | `app/Http/Requests/Auth/{LoginRequest,ForgotPasswordRequest,ResetPasswordRequest,TwoFactorSetupRequest,TwoFactorConfirmRequest,TwoFactorVerifyRequest,RegenerateRecoveryCodesRequest,UpdateProfileRequest}.php` | Verbatim. `LoginRequest` keeps `Recaptcha::rules('admin_login')`. |
 | `app/Services/LoginSession.php` | verbatim |
-| `app/Services/TwoFactorAuthService.php` | `ISSUER = 'DICTIS'` |
+| `app/Services/TwoFactorAuthService.php` | `ISSUER = 'IRIS'` |
 | `app/Services/TrustedDeviceService.php` | `COOKIE = 'dictis_trusted_device'`. **Replace** the `hasAnyRole(config(...two_factor_always_required_roles))` line with `$user->hasAnyPermission([Permission::RolesManage->value, Permission::UsersManage->value])`. |
 | `app/Services/SecuritySettings.php` | Keep `login_rate_limit_per_minute`, `password_reset_rate_limit_per_hour`, `two_factor_verify_rate_limit_per_minute`, `trusted_device_days`, `idle_timeout_seconds`. Remove the three public-portal keys and `export_rate_limit_per_minute` (no export feature; removed in `436b336`). Reword the `trusted_device_days` description to "Users who can manage roles or users always need the code." |
 | `app/Services/FileUploadService.php` | verbatim (avatar uploads) |
@@ -387,7 +387,7 @@ Not ported (YAGNI; inventory has no use for them): rwatch's system-log/slow-quer
 
 ## Phase 4: Frontend (`frontend`)
 
-Create `frontend/` as a fresh Vite React-TS app. Copy these from `rwatch/frontend` and edit names: `package.json`, `vite.config.ts` (port 5173, `/api` proxy to :8000, `@` alias), `tsconfig*.json`, `index.html` (title "DICTIS"), and `.env.example` (`VITE_APP_NAME="DICTIS"`, `VITE_API_URL=http://localhost:8000`, `VITE_RECAPTCHA_SITE_KEY=<Google test key>`).
+Create `frontend/` as a fresh Vite React-TS app. Copy these from `rwatch/frontend` and edit names: `package.json`, `vite.config.ts` (port 5173, `/api` proxy to :8000, `@` alias), `tsconfig*.json`, `index.html` (title "IRIS"), and `.env.example` (`VITE_APP_NAME="IRIS"`, `VITE_API_URL=http://localhost:8000`, `VITE_RECAPTCHA_SITE_KEY=<Google test key>`).
 
 From rwatch's `package.json`, **keep only these dependencies**: `react`, `react-dom`, `react-router-dom`, `axios`, `@radix-ui/react-dialog`, `@tanstack/react-table`, `lucide-react`, `clsx`, `tailwind-merge`, `react-google-recaptcha-v3`, `react-easy-crop` (avatar crop), and `recharts` (dashboard). Dev dependencies as in rwatch.
 
@@ -409,7 +409,7 @@ From rwatch's `package.json`, **keep only these dependencies**: `react`, `react-
 - `hooks/`: `usePageTitle`, `usePortalTheme`, `useRecaptcha`, `useShowRecaptchaBadge`, `useServerTable`.
 - `lib/`:
   - `api.ts`, `errors.ts`, `utils.ts`, `recaptcha.ts`, `idleTicker.worker.ts`, `cropImage.ts`: verbatim.
-  - `branding.ts`: DICTIS.
+  - `branding.ts`: IRIS.
   - `permissions.ts`: reduced to `SETTINGS_PERMISSIONS = ['security_settings.manage']` plus a typed `PermissionName` union mirroring `App\Enums\Permission`.
 - `layouts/ManagementLayout.tsx`: remove `NotificationBell`; use the inventory sidebar below.
 - `pages/`:

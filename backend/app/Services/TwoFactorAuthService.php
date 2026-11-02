@@ -14,7 +14,7 @@ use PragmaRX\Google2FA\Google2FA;
 
 class TwoFactorAuthService
 {
-    private const ISSUER = 'DICTIS';
+    private const ISSUER = 'IRIS';
 
     private const WINDOW = 1;
 

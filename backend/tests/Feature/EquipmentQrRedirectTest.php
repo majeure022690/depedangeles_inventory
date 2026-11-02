@@ -16,13 +16,13 @@ class EquipmentQrRedirectTest extends TestCase
 
     public function test_the_printed_label_url_redirects_to_the_spa_edit_page(): void
     {
-        config(['app.frontend_url' => 'https://dictis.example.gov.ph/']);
+        config(['app.frontend_url' => 'https://iris.example.gov.ph/']);
         $equipment = Equipment::factory()->create();
 
         $this->assertSame(rtrim((string) config('app.url'), '/')."/equipment/{$equipment->id}/edit", $equipment->fresh()?->qr_code);
 
         $this->get("/equipment/{$equipment->id}/edit")
-            ->assertRedirect("https://dictis.example.gov.ph/equipment/{$equipment->id}/edit");
+            ->assertRedirect("https://iris.example.gov.ph/equipment/{$equipment->id}/edit");
     }
 
     public function test_the_redirect_target_never_comes_from_the_request(): void

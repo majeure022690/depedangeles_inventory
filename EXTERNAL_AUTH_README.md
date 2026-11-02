@@ -52,6 +52,6 @@ Deactivation in PRIME carries over to IRIS. Reactivation doesn't: an account dea
 
 ## Admin Workflow
 
-1. A new active PRIME account appears in the Users list on its own (imported on the next list load), or when the person first signs in. With no role yet, sign-in is refused with a 403 "Your account doesn't have access to DICTIS yet" notice (see `docs/architecture.md`, "No-access refusal").
+1. A new active PRIME account appears in the Users list on its own (imported on the next list load), or when the person first signs in. With no role yet, sign-in is refused with a 403 "Your account doesn't have access to IRIS yet" notice (see `docs/architecture.md`, "No-access refusal").
 2. An admin assigns a role in `/users`. Office and employee number come from PRIME and can't be changed there.
 3. The user signs in again, enrolls in 2FA, and can use the system.

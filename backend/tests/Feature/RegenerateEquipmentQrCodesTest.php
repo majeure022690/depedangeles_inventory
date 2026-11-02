@@ -27,7 +27,7 @@ class RegenerateEquipmentQrCodesTest extends TestCase
 
     public function test_force_rewrites_poisoned_and_empty_rows_and_audits_each(): void
     {
-        config(['app.url' => 'https://dictis.example.gov.ph']);
+        config(['app.url' => 'https://iris.example.gov.ph']);
         $poisoned = Equipment::factory()->create();
         $empty = Equipment::factory()->create();
         $correct = Equipment::factory()->create();
@@ -37,9 +37,9 @@ class RegenerateEquipmentQrCodesTest extends TestCase
 
         $this->artisan('equipment:regenerate-qr-codes', ['--force' => true])->assertSuccessful();
 
-        $this->assertSame("https://dictis.example.gov.ph/equipment/{$poisoned->id}/edit", Equipment::withTrashed()->find($poisoned->id)?->qr_code);
-        $this->assertSame("https://dictis.example.gov.ph/equipment/{$empty->id}/edit", $empty->fresh()?->qr_code);
-        $this->assertSame("https://dictis.example.gov.ph/equipment/{$correct->id}/edit", $correct->fresh()?->qr_code);
+        $this->assertSame("https://iris.example.gov.ph/equipment/{$poisoned->id}/edit", Equipment::withTrashed()->find($poisoned->id)?->qr_code);
+        $this->assertSame("https://iris.example.gov.ph/equipment/{$empty->id}/edit", $empty->fresh()?->qr_code);
+        $this->assertSame("https://iris.example.gov.ph/equipment/{$correct->id}/edit", $correct->fresh()?->qr_code);
 
         $this->assertDatabaseHas('activity_log', [
             'subject_type' => Equipment::class,
@@ -112,7 +112,7 @@ class RegenerateEquipmentQrCodesTest extends TestCase
 
     public function test_force_is_idempotent(): void
     {
-        config(['app.url' => 'https://dictis.example.gov.ph']);
+        config(['app.url' => 'https://iris.example.gov.ph']);
         $equipment = Equipment::factory()->create();
         DB::table('equipment')->where('id', $equipment->id)->update(['qr_code' => 'http://evil.example/x']);
 
@@ -124,7 +124,7 @@ class RegenerateEquipmentQrCodesTest extends TestCase
             ->assertSuccessful();
 
         $this->assertSame(1, DB::table('activity_log')->where('event', 'equipment.qr_code.regenerated')->count());
-        $this->assertSame("https://dictis.example.gov.ph/equipment/{$equipment->id}/edit", $equipment->fresh()?->qr_code);
+        $this->assertSame("https://iris.example.gov.ph/equipment/{$equipment->id}/edit", $equipment->fresh()?->qr_code);
     }
 
     /**
@@ -133,15 +133,15 @@ class RegenerateEquipmentQrCodesTest extends TestCase
     public static function appUrls(): array
     {
         return [
-            'trailing slash' => ['https://dictis.example.gov.ph/', 'https://dictis.example.gov.ph'],
-            'sub-path' => ['https://deped.example.gov.ph/dictis', 'https://deped.example.gov.ph/dictis'],
-            'sub-path with trailing slash' => ['https://deped.example.gov.ph/dictis/', 'https://deped.example.gov.ph/dictis'],
+            'trailing slash' => ['https://iris.example.gov.ph/', 'https://iris.example.gov.ph'],
+            'sub-path' => ['https://deped.example.gov.ph/iris', 'https://deped.example.gov.ph/iris'],
+            'sub-path with trailing slash' => ['https://deped.example.gov.ph/iris/', 'https://deped.example.gov.ph/iris'],
         ];
     }
 
     public function test_qr_code_url_ignores_the_request_host_and_base_path(): void
     {
-        config(['app.url' => 'https://deped.example.gov.ph/dictis/']);
+        config(['app.url' => 'https://deped.example.gov.ph/iris/']);
         $equipment = Equipment::factory()->create();
 
         url()->setRequest(Request::create('http://evil.example/legacy/api/equipment', 'POST', server: [
@@ -149,7 +149,7 @@ class RegenerateEquipmentQrCodesTest extends TestCase
             'SCRIPT_FILENAME' => base_path('public/index.php'),
         ]));
 
-        $this->assertSame("https://deped.example.gov.ph/dictis/equipment/{$equipment->id}/edit", $equipment->qrCodeUrl());
+        $this->assertSame("https://deped.example.gov.ph/iris/equipment/{$equipment->id}/edit", $equipment->qrCodeUrl());
     }
 
     #[DataProvider('appUrls')]

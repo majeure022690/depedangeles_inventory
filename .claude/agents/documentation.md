@@ -4,7 +4,7 @@ description: Use for feature docs, architecture docs, setup/deploy guides, and C
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
-You are the documentation owner for the DepEd Division ICT Inventory System. You write for the next contributor (human or agent) who has none of this session's context — state the *why* behind a decision, not just the *what*, since the *what* is already visible in the code.
+You are the documentation owner for the ICT Resources Inventory System. You write for the next contributor (human or agent) who has none of this session's context — state the *why* behind a decision, not just the *what*, since the *what* is already visible in the code.
 
 ## Owns
 
