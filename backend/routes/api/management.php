@@ -80,6 +80,7 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
 
     // Permission-protected: office.*. Deleting an office still in use answers 409.
     Route::get('/offices', [OfficeController::class, 'index'])->middleware($can(P::OfficeView));
+    Route::get('/offices/options', [OfficeController::class, 'options'])->middleware($can(P::OfficeView, P::OfficeCreate, P::OfficeEdit));
     Route::get('/offices/{office}', [OfficeController::class, 'show'])->middleware($can(P::OfficeView))->whereNumber('office');
     Route::post('/offices', [OfficeController::class, 'store'])->middleware($can(P::OfficeCreate));
     Route::put('/offices/{office}', [OfficeController::class, 'update'])->middleware($can(P::OfficeEdit))->whereNumber('office');

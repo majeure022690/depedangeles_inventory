@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\OfficeType;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -347,20 +348,14 @@ final class PrimeDirectory
 
     public function officeTypeFor(stdClass $department): ?string
     {
-        $label = match ((int) $department->office_id) {
-            self::DIVISION_OFFICE => 'Division Office',
+        return match ((int) $department->office_id) {
+            self::DIVISION_OFFICE => OfficeType::DivisionOffice->value,
             self::SCHOOL => collect(self::SCHOOL_TYPES)
                 ->filter(fn (string $pattern) => preg_match($pattern, (string) $department->department_school) === 1)
                 ->keys()
                 ->first(),
             default => null,
         };
-
-        if ($label === null) {
-            return null;
-        }
-
-        return $this->officeTypes()->first(fn (string $type) => self::nameKey($type) === self::nameKey($label));
     }
 
     /**
@@ -603,14 +598,6 @@ final class PrimeDirectory
         }
 
         return $id === null || $id === '' ? null : (int) $id;
-    }
-
-    /**
-     * @return Collection<int, string>
-     */
-    private function officeTypes(): Collection
-    {
-        return $this->offices()->pluck('office_type')->filter()->unique()->values();
     }
 
     private function prime(string $table): Builder

@@ -55,6 +55,32 @@ class OfficeControllerTest extends TestCase
         ], $overrides);
     }
 
+    public function test_options_list_the_fixed_office_types(): void
+    {
+        $this->actingAs($this->admin())->getJson('/api/offices/options')
+            ->assertOk()
+            ->assertJsonCount(6, 'data.office_type')
+            ->assertJsonPath('data.office_type.0', ['value' => 'Elementary School', 'label' => 'Elementary School']);
+    }
+
+    public function test_office_type_must_be_one_of_the_fixed_types_but_an_existing_value_may_stay(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->postJson('/api/offices', $this->validPayload(['office_type' => 'Learning Hub']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('office_type');
+
+        $legacy = Office::factory()->create(['office_type' => 'Learning Hub']);
+
+        $this->actingAs($admin)->putJson("/api/offices/{$legacy->id}", $this->validPayload(['office_name' => $legacy->office_name, 'office_type' => 'Learning Hub']))
+            ->assertOk();
+
+        $this->actingAs($admin)->putJson("/api/offices/{$legacy->id}", $this->validPayload(['office_name' => $legacy->office_name, 'office_type' => 'Other Hub']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('office_type');
+    }
+
     public function test_admin_can_reach_every_office_action(): void
     {
         $admin = $this->admin();

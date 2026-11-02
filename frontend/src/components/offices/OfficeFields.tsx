@@ -1,14 +1,17 @@
 import { isAxiosError } from 'axios'
 import { Building2, MapPin, Phone } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 import { FormField } from '@/components/forms/FormField'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { Switch } from '@/components/ui/Switch'
 import { Textarea } from '@/components/ui/Textarea'
 import { extractError } from '@/lib/errors'
-import type { Office, OfficeFormData, OfficePayload } from '@/types/office'
+import { lookupService } from '@/services/lookupService'
+import type { Option } from '@/types/lookup'
+import type { Office, OfficeFormData, OfficeOptions, OfficePayload } from '@/types/office'
 
 export type OfficeFieldErrors = Partial<Record<keyof OfficeFormData, string>>
 
@@ -94,6 +97,20 @@ interface OfficeFieldsProps {
 
 /** Shared by OfficeCreate and OfficeEdit (port of offices/Partials/Form.vue). */
 export function OfficeFields({ value, onChange, errors, disabled = false, nameLocked = false }: OfficeFieldsProps) {
+  const [officeTypes, setOfficeTypes] = useState<Option<string>[]>([])
+
+  useEffect(() => {
+    lookupService
+      .options<OfficeOptions>('/offices/options')
+      .then((options) => setOfficeTypes(options.office_type))
+      .catch(() => setOfficeTypes([]))
+  }, [])
+
+  const typeOptions =
+    value.office_type !== '' && !officeTypes.some((option) => option.value === value.office_type)
+      ? [...officeTypes, { value: value.office_type, label: value.office_type }]
+      : officeTypes
+
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <Section
@@ -116,15 +133,15 @@ export function OfficeFields({ value, onChange, errors, disabled = false, nameLo
             hint={nameLocked ? 'Managed by PRIME' : undefined}
             maxLength={255}
           />
-          <FormField id="office_type" label="Office type (optional)" hint="Free text, e.g. Elementary School, High School, Division Office or Unit." error={errors.office_type}>
+          <FormField id="office_type" label="Office type (optional)" error={errors.office_type}>
             {(aria) => (
-              <Input
+              <Select
                 id="office_type"
-                placeholder="e.g. Elementary School"
+                placeholder="Select office type"
+                options={typeOptions}
                 value={value.office_type}
                 onChange={(e) => onChange({ office_type: e.target.value })}
                 disabled={disabled}
-                maxLength={100}
                 {...aria}
               />
             )}

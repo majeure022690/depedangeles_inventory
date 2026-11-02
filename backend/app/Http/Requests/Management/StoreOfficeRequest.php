@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Management;
 
+use App\Enums\OfficeType;
 use App\Models\Office;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -32,7 +33,7 @@ class StoreOfficeRequest extends FormRequest
     {
         return [
             'office_name' => ['required', 'string', 'max:255', Rule::unique('offices', 'office_name')],
-            'office_type' => ['nullable', 'string', 'max:100'],
+            'office_type' => ['nullable', Rule::enum(OfficeType::class)],
             'school_id' => ['nullable', 'integer'],
             'address' => ['nullable', 'string'],
             'region' => ['nullable', 'string', 'max:100'],

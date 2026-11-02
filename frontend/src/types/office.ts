@@ -1,3 +1,5 @@
+import type { Option } from '@/types/lookup'
+
 /** One office (school or division-level office/unit), as shipped by OfficeResource. */
 export interface Office {
   id: number
@@ -29,6 +31,11 @@ export interface OfficePayload {
   contact_number: string | null
   email: string | null
   is_active: boolean
+}
+
+/** GET /api/offices/options. */
+export interface OfficeOptions {
+  office_type: Option<string>[]
 }
 
 /** Form state: every text field is a string while editing; `toOfficePayload` normalizes blanks to null. */

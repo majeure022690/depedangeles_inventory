@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Management;
 
+use App\Enums\OfficeType;
 use App\Models\Office;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -30,7 +31,7 @@ class UpdateOfficeRequest extends FormRequest
                 'required', 'string', 'max:255',
                 Rule::unique('offices', 'office_name')->ignore($this->route('office')),
             ],
-            'office_type' => ['nullable', 'string', 'max:100'],
+            'office_type' => ['nullable', 'string', Rule::in([...array_column(OfficeType::cases(), 'value'), $this->route('office')?->office_type])],
             'school_id' => ['nullable', 'integer'],
             'address' => ['nullable', 'string'],
             'region' => ['nullable', 'string', 'max:100'],

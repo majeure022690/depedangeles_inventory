@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Management;
 
+use App\Enums\OfficeType;
 use App\Http\Controllers\Api\Management\Concerns\ResolvesListParameters;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Management\StoreOfficeRequest;
@@ -47,6 +48,11 @@ class OfficeController extends Controller
         return OfficeResource::collection($query->paginate($this->perPage($request))->withQueryString())
             ->additional(['message' => 'Success'])
             ->response();
+    }
+
+    public function options(): JsonResponse
+    {
+        return response()->json(['data' => ['office_type' => OfficeType::options()], 'message' => 'Success']);
     }
 
     public function store(StoreOfficeRequest $request): JsonResponse
