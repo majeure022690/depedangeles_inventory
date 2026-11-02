@@ -11,6 +11,7 @@ use App\Models\InternetConnectivitySurvey;
 use App\Models\IspProvider;
 use App\Models\Office;
 use App\Models\StakeholderLibrary;
+use Closure;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
@@ -74,7 +75,13 @@ class UpdateInternetConnectivitySurveyRequest extends FormRequest
 
             'insufficient_bandwidth_explanation' => ['nullable', 'string'],
 
-            'coverage_areas' => ['nullable', 'array', 'max:'.count($coverageAreas)],
+            'coverage_areas' => ['nullable', 'array', 'max:'.count($coverageAreas), function (string $attribute, mixed $value, Closure $fail) {
+                $schoolWide = ConnectivityLibrary::query()->where('type', ConnectivityLibraryType::CoverageArea->value)->where('value', 'School-wide')->value('id');
+
+                if ($schoolWide !== null && is_array($value) && count($value) > 1 && in_array($schoolWide, array_map('intval', $value), true)) {
+                    $fail(__('School-wide cannot be combined with other coverage areas.'));
+                }
+            }],
             'coverage_areas.*' => [
                 'integer',
                 Rule::exists('connectivity_libraries', 'id')

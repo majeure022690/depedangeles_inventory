@@ -14,6 +14,8 @@ interface CheckboxGroupFieldProps<TValue extends string | number> {
   error?: string
   hint?: string
   className?: string
+  /** An option that, once ticked, is the only selection and disables the rest (e.g. School-wide). */
+  exclusiveValue?: TValue
 }
 
 /** Adds or removes `item` from `current` (no duplicates), keeping the original order. */
@@ -40,8 +42,10 @@ export function CheckboxGroupField<TValue extends string | number>({
   error,
   hint,
   className,
+  exclusiveValue,
 }: CheckboxGroupFieldProps<TValue>) {
   const selected = value ?? []
+  const exclusiveOn = exclusiveValue !== undefined && selected.includes(exclusiveValue)
   const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') || undefined
 
   return (
@@ -62,15 +66,20 @@ export function CheckboxGroupField<TValue extends string | number>({
         <div className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
           {options.map((option) => {
             const optionId = `${id}-${option.value}`
+            const optionDisabled = disabled || (exclusiveOn && option.value !== exclusiveValue)
             return (
-              <label key={option.value} htmlFor={optionId} className="flex items-center gap-2 text-sm text-gray-700 select-none">
+              <label key={option.value} htmlFor={optionId} className={cn('flex items-center gap-2 text-sm select-none', optionDisabled ? 'text-gray-400' : 'text-gray-700')}>
                 <input
                   id={optionId}
                   type="checkbox"
                   className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-2 focus:ring-primary-500/30"
                   checked={selected.includes(option.value)}
-                  disabled={disabled}
-                  onChange={(event) => onChange(toggleArrayValue(selected, option.value, event.target.checked))}
+                  disabled={optionDisabled}
+                  onChange={(event) =>
+                    onChange(
+                      option.value === exclusiveValue && event.target.checked ? [option.value] : toggleArrayValue(selected, option.value, event.target.checked),
+                    )
+                  }
                 />
                 {option.label}
               </label>

@@ -130,6 +130,20 @@ class InternetConnectivitySurveyControllerTest extends TestCase
         $this->assertSame(2, InternetConnectivitySurvey::where('office_id', $office->id)->sole()->rooms_other_use);
     }
 
+    public function test_school_wide_coverage_cannot_be_combined_with_other_areas(): void
+    {
+        $office = $this->createOffice();
+        $user = $this->userWithPermissions([Permission::InternetConnectivityView, Permission::InternetConnectivityEdit]);
+        $area = fn (string $value) => ConnectivityLibrary::query()->where('type', ConnectivityLibraryType::CoverageArea->value)->where('value', $value)->valueOrFail('id');
+
+        $this->actingAs($user)->putJson($this->url($office), ['coverage_areas' => [$area('School-wide'), $area('Library')]])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['coverage_areas']);
+
+        $this->actingAs($user)->putJson($this->url($office), ['coverage_areas' => [$area('School-wide')]])->assertOk();
+        $this->actingAs($user)->putJson($this->url($office), ['coverage_areas' => [$area('Library'), $area('ICT Room/Laboratory')]])->assertOk();
+    }
+
     public function test_only_all_scope_users_can_access_the_index_list(): void
     {
         $office = $this->createOffice();

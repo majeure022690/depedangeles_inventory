@@ -41,7 +41,7 @@ export function ConnectivitySurveyFields({ form, onChange, options, errors, disa
     <Switch id={field} checked={form[field]} disabled={disabled} onChange={(checked) => onChange(field, checked)} label={label} error={errors[field]} />
   )
 
-  const group = (field: IdListField, label: string, groupOptions: Option<number>[] | undefined) => (
+  const group = (field: IdListField, label: string, groupOptions: Option<number>[] | undefined, exclusiveValue?: number, hint?: string) => (
     <CheckboxGroupField
       id={field}
       label={label}
@@ -50,6 +50,8 @@ export function ConnectivitySurveyFields({ form, onChange, options, errors, disa
       onChange={(value) => onChange(field, value)}
       error={errors[field]}
       disabled={disabled}
+      exclusiveValue={exclusiveValue}
+      hint={hint}
     />
   )
 
@@ -89,7 +91,13 @@ export function ConnectivitySurveyFields({ form, onChange, options, errors, disa
 
       <DetailSection icon={<Wifi className="h-4 w-4" />} title="Coverage & bandwidth">
         <div className="space-y-4">
-          {group('coverage_areas', 'Coverage areas', options?.coverage_area)}
+          {group(
+            'coverage_areas',
+            'Coverage areas',
+            options?.coverage_area,
+            options?.coverage_area.find((option) => option.label === 'School-wide')?.value,
+            'Choosing School-wide clears and disables the other areas.',
+          )}
           <div className="sm:max-w-sm">
             <Input {...text('coverage_areas_other')} label="Other coverage area" />
           </div>
