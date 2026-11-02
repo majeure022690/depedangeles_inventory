@@ -1,48 +1,66 @@
-import { ArrowRight, Download, FileSpreadsheet, Filter, Plus, RotateCcw, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { FileSpreadsheet, Filter, RotateCcw } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 import { PropertyItemEquipmentTable } from '@/components/property-items/PropertyItemEquipmentTable'
 import { RpcppeDownloadDialog } from '@/components/property-items/RpcppeDownloadDialog'
 
 import { Alert } from '@/components/ui/Alert'
-import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/DataGrid'
+import { Card, CardContent } from '@/components/ui/Card'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/Dialog'
 import { FilterChips, FilterSearch, FilterSelect, type FilterChip } from '@/components/ui/FilterControls'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useServerTable } from '@/hooks/useServerTable'
 import { hasAllScope } from '@/lib/dataScope'
 import { extractError } from '@/lib/errors'
 import { propertyItemService } from '@/services/propertyItemService'
-import type { PropertyItem, PropertyItemFilters, PropertyItemOptions } from '@/types/property-item'
+import type { Option } from '@/types/lookup'
+import type { SchoolPropertyFilters, SchoolPropertyOfficeRow, SchoolPropertyOptions, SchoolPropertySummary } from '@/types/property-item'
 
-const column = gridColumnHelper<PropertyItem>()
+const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
 
-const currency = new Intl.NumberFormat('en-PH', {
-  style: 'currency',
-  currency: 'PHP',
-})
+const EMPTY_FILTERS: SchoolPropertyFilters = {
+  search: '',
+  office_id: '',
+  item_type_id: '',
+  brand_id: '',
+  functional: '',
+  equipment_condition_id: '',
+  disposition_status: '',
+  estimated_useful_life: '',
+  transaction_type: '',
+  accountable_officer_id: '',
+  received_by_id: '',
+}
 
-const EMPTY_FILTERS = { search: '', office_id: '' }
+type FilterKey = keyof SchoolPropertyFilters
 
-type Filters = typeof EMPTY_FILTERS
-type FilterKey = keyof Filters
-type Feedback = { type: 'success' | 'error'; message: string } | null
+const FUNCTIONAL_OPTIONS: Option<string>[] = [
+  { value: 'functional', label: 'Functional' },
+  { value: 'non_functional', label: 'Non-functional' },
+]
+
+/** Select filters in display order, each with its "any" text and the option list it reads. */
+const SELECT_FILTERS: { key: Exclude<FilterKey, 'search' | 'office_id'>; label: string; any: string; options: (o: SchoolPropertyOptions) => Option[] }[] = [
+  { key: 'item_type_id', label: 'Item type', any: 'All item types', options: (o) => o.item_type },
+  { key: 'brand_id', label: 'Brand / manufacturer', any: 'All brands', options: (o) => o.brand },
+  { key: 'functional', label: 'Status', any: 'Functional and non-functional', options: () => FUNCTIONAL_OPTIONS },
+  { key: 'equipment_condition_id', label: 'Condition', any: 'All conditions', options: (o) => o.equipment_condition },
+  { key: 'disposition_status', label: 'Disposition status', any: 'All disposition statuses', options: (o) => o.disposition_status },
+  { key: 'estimated_useful_life', label: 'Estimated useful life', any: 'Any useful life', options: (o) => o.estimated_useful_life },
+  { key: 'transaction_type', label: 'Latest transaction type', any: 'All transaction types', options: (o) => o.transaction_type },
+  { key: 'accountable_officer_id', label: 'Accountable officer', any: 'All accountable officers', options: (o) => o.accountable_officer },
+  { key: 'received_by_id', label: 'Received by (latest transaction)', any: 'Anyone', options: (o) => o.received_by },
+]
 
 export function PropertyItemList() {
   usePageTitle('School Property')
-  const navigate = useNavigate()
   const { can, user } = useAuth()
-  const [rpcppeOpen, setRpcppeOpen] = useState(false)
-  const canCreate = can('property_items.create')
-  const canEdit = can('property_items.edit')
-  const canDelete = can('property_items.delete')
   const showOffice = hasAllScope(user)
+  const [rpcppeOpen, setRpcppeOpen] = useState(false)
 
-  const [options, setOptions] = useState<PropertyItemOptions | null>(null)
+  const [options, setOptions] = useState<SchoolPropertyOptions | null>(null)
   useEffect(() => {
     propertyItemService
       .options()
@@ -50,220 +68,75 @@ export function PropertyItemList() {
       .catch(() => setOptions(null))
   }, [])
 
-  const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS)
-  const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS)
-  const query: PropertyItemFilters = useMemo(() => ({ ...applied, category: 'it_equipment' }), [applied])
+  const [draft, setDraft] = useState<SchoolPropertyFilters>(EMPTY_FILTERS)
+  const [applied, setApplied] = useState<SchoolPropertyFilters>(EMPTY_FILTERS)
   const dirty = JSON.stringify(draft) !== JSON.stringify(applied)
 
-  const { items, meta, loading, error, page, setPage, perPage, setPerPage, sortBy, sortDir, onSortChange, reload } = useServerTable(
-    (params) => propertyItemService.list(params),
-    {
-      filters: query,
-      waitForPerPage: true,
-    },
-  )
+  const [summary, setSummary] = useState<SchoolPropertySummary | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    propertyItemService
+      .summary(applied)
+      .then((data) => {
+        if (!cancelled) {
+          setSummary(data)
+          setError(null)
+        }
+      })
+      .catch((loadError: unknown) => {
+        if (!cancelled) setError(extractError(loadError, 'Unable to load school property.'))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [applied])
 
-  const [feedback, setFeedback] = useState<Feedback>(null)
-  const [pendingDelete, setPendingDelete] = useState<PropertyItem | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const [exporting, setExporting] = useState(false)
+  const [breakdown, setBreakdown] = useState<SchoolPropertyOfficeRow | null>(null)
 
-  const officeLabel = (value: string) => options?.office.find((option) => String(option.value) === value)?.label ?? 'Office'
+  const labelOf = (key: FilterKey, value: string): string => {
+    if (key === 'search') return `Search: ${value}`
+    if (key === 'office_id') return options?.office.find((o) => String(o.value) === value)?.label ?? 'Office'
+    const filter = SELECT_FILTERS.find((f) => f.key === key)
+    const option = filter && options ? filter.options(options).find((o) => String(o.value) === value) : undefined
+    return `${filter?.label ?? key}: ${option?.label ?? value}`
+  }
 
-  const chips: FilterChip<FilterKey>[] = (
-    [
-      { key: 'search', label: `Search: ${applied.search}` },
-      { key: 'office_id', label: officeLabel(applied.office_id) },
-    ] as const
-  )
-    .filter((chip) => applied[chip.key] !== '')
-    .map((chip) => ({ ...chip, removable: true }))
+  const chips: FilterChip<FilterKey>[] = (Object.keys(applied) as FilterKey[])
+    .filter((key) => applied[key] !== '')
+    .map((key) => ({ key, label: labelOf(key, applied[key]), removable: true }))
+
+  function apply(next: SchoolPropertyFilters) {
+    setSummary(null)
+    setApplied(next)
+  }
 
   function removeFilter(key: FilterKey) {
     const next = { ...applied, [key]: '' }
-    setApplied(next)
     setDraft(next)
+    apply(next)
   }
 
   function resetFilters() {
     setDraft(EMPTY_FILTERS)
-    setApplied(EMPTY_FILTERS)
+    apply(EMPTY_FILTERS)
   }
-
-  async function exportList() {
-    setExporting(true)
-    setFeedback(null)
-    try {
-      await propertyItemService.export(query)
-    } catch (exportError) {
-      setFeedback({
-        type: 'error',
-        message: extractError(exportError, 'Unable to export the list. Please try again.'),
-      })
-    } finally {
-      setExporting(false)
-    }
-  }
-
-  async function confirmDelete() {
-    if (!pendingDelete) return
-    setDeleting(true)
-    try {
-      await propertyItemService.remove(pendingDelete.id)
-      setFeedback({ type: 'success', message: 'Property item deleted.' })
-      setPendingDelete(null)
-      await reload()
-    } catch (deleteError) {
-      setFeedback({
-        type: 'error',
-        message: extractError(deleteError, 'Unable to delete the property item. Please try again.'),
-      })
-      setPendingDelete(null)
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  const columns = useMemo<GridColumn<PropertyItem>[]>(
-    () => [
-      column.accessor('article', {
-        header: 'Article',
-        enableHiding: false,
-        cell: ({ row }) => (
-          <div>
-            <span className="font-medium text-gray-900">{row.original.article}</span>
-            {row.original.description && <p className="text-xs text-gray-500">{row.original.description}</p>}
-          </div>
-        ),
-      }),
-      ...(showOffice
-        ? [
-            column.display({
-              id: 'office',
-              header: 'Office',
-              cell: ({ row }) => row.original.office?.office_name ?? <span className="text-gray-400">—</span>,
-            }),
-          ]
-        : []),
-      column.accessor('property_no', {
-        header: 'Property no.',
-        cell: (info) => (info.getValue() ? <span className="font-mono text-xs">{info.getValue()}</span> : <span className="text-gray-400">—</span>),
-      }),
-      column.accessor('quantity', {
-        header: 'Qty (card)',
-        meta: { align: 'right', className: 'tabular-nums' },
-      }),
-      column.accessor('on_hand_count', {
-        header: 'On hand',
-        enableSorting: false,
-        meta: { align: 'right', className: 'tabular-nums' },
-        cell: ({ row }) => (
-          <span className={row.original.on_hand_count < row.original.quantity ? 'font-medium text-error-600' : undefined}>{row.original.on_hand_count}</span>
-        ),
-      }),
-      column.accessor('unit_value', {
-        header: 'Unit value',
-        meta: { align: 'right', className: 'whitespace-nowrap tabular-nums' },
-        cell: (info) => (info.getValue() === null ? '—' : currency.format(info.getValue() as number)),
-      }),
-      column.accessor('total_value', {
-        header: 'Total value',
-        enableSorting: false,
-        meta: {
-          align: 'right',
-          className: 'whitespace-nowrap tabular-nums',
-          defaultHidden: true,
-        },
-        cell: (info) => (info.getValue() === null ? '—' : currency.format(info.getValue() as number)),
-      }),
-      column.accessor('end_user', {
-        header: 'End user',
-        enableSorting: false,
-        cell: (info) => info.getValue() ?? <span className="text-gray-400">—</span>,
-      }),
-      column.accessor('condition', {
-        header: 'Condition',
-        enableSorting: false,
-        cell: (info) =>
-          info.getValue() ? (
-            <Badge color={info.getValue() === 'functional' ? 'success' : 'error'}>{info.getValue() === 'functional' ? 'Functional' : 'Unserviceable'}</Badge>
-          ) : (
-            <span className="text-gray-400">—</span>
-          ),
-      }),
-      column.accessor('date_acquired', {
-        header: 'Acquired',
-        meta: { defaultHidden: true, className: 'whitespace-nowrap' },
-      }),
-      column.display({
-        id: 'actions',
-        header: '',
-        enableHiding: false,
-        meta: { align: 'right', className: 'whitespace-nowrap' },
-        cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1">
-            {canDelete && (
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-label={`Delete ${row.original.article}`}
-                title="Delete"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setPendingDelete(row.original)
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-error-600" />
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label={`${canEdit ? 'Edit' : 'View'} ${row.original.article}`}
-              title={canEdit ? 'Edit' : 'View'}
-              onClick={(event) => {
-                event.stopPropagation()
-                navigate(`/school-property/${row.original.id}/edit`)
-              }}
-            >
-              <ArrowRight className="h-4 w-4 text-primary-600" />
-            </Button>
-          </div>
-        ),
-      }),
-    ],
-    [canDelete, canEdit, navigate, showOffice],
-  )
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">School Property</h1>
-          <p className="text-sm text-gray-600">IT equipment counted on the RPCPPE: items recorded here, plus the office's Equipment-module items listed below.</p>
+          <p className="text-sm text-gray-600">
+            Equipment on hand and its total cost per office, from the Equipment module. An item belongs to its accountable officer&rsquo;s office.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" leftIcon={<Download className="h-4 w-4" />} isLoading={exporting} onClick={exportList}>
-            Export to Excel
+        {can('reports.rpcppe') && (
+          <Button variant="outline" size="sm" leftIcon={<FileSpreadsheet className="h-4 w-4 text-green-600" />} onClick={() => setRpcppeOpen(true)}>
+            Download RPCPPE
           </Button>
-          {can('reports.rpcppe') && (
-            <Button variant="outline" size="sm" leftIcon={<FileSpreadsheet className="h-4 w-4 text-green-600" />} onClick={() => setRpcppeOpen(true)}>
-              Download RPCPPE
-            </Button>
-          )}
-          {canCreate && (
-            <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => navigate('/school-property/new')}>
-              Add IT Equipment
-            </Button>
-          )}
-        </div>
+        )}
       </div>
-
-      {feedback && (
-        <Alert type={feedback.type} className="mb-4">
-          <span role={feedback.type === 'error' ? 'alert' : 'status'}>{feedback.message}</span>
-        </Alert>
-      )}
 
       <form
         className="mb-4 rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
@@ -271,24 +144,19 @@ export function PropertyItemList() {
         aria-label="Filter school property"
         onSubmit={(event) => {
           event.preventDefault()
-          setApplied(draft)
+          apply(draft)
         }}
       >
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-12">
           <FilterSearch
-            label="Search by article, description or property no..."
+            label="Search by property no., serial no., model or person..."
             value={draft.search}
             onChange={(search) => setDraft((d) => ({ ...d, search }))}
-            onSubmit={() => setApplied(draft)}
+            onSubmit={() => apply(draft)}
             className={showOffice ? 'sm:col-span-2 lg:col-span-8' : 'sm:col-span-2 lg:col-span-12'}
           />
           {showOffice && (
-            <FilterSelect
-              label="Office"
-              value={draft.office_id}
-              onChange={(officeId) => setDraft((d) => ({ ...d, office_id: officeId }))}
-              className="lg:col-span-4"
-            >
+            <FilterSelect label="Office" value={draft.office_id} onChange={(office_id) => setDraft((d) => ({ ...d, office_id }))} className="lg:col-span-4">
               <option value="">All offices</option>
               {options?.office.map((office) => (
                 <option key={office.value} value={office.value}>
@@ -297,6 +165,24 @@ export function PropertyItemList() {
               ))}
             </FilterSelect>
           )}
+          {SELECT_FILTERS.map((filter) => (
+            <FilterSelect
+              key={filter.key}
+              label={filter.label}
+              value={draft[filter.key]}
+              disabled={!options}
+              onChange={(value) => setDraft((d) => ({ ...d, [filter.key]: value }))}
+              className="lg:col-span-4"
+            >
+              <option value="">{filter.any}</option>
+              {options &&
+                filter.options(options).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+            </FilterSelect>
+          ))}
         </div>
 
         <div className="mt-3 flex flex-col-reverse gap-2 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
@@ -319,50 +205,104 @@ export function PropertyItemList() {
         </div>
       </form>
 
-      <h2 className="mb-2 text-sm font-semibold text-gray-900">Recorded in School Property</h2>
-      <DataGrid
-        id="school-property"
-        columns={columns}
-        rows={items}
-        rowKey={(row) => row.id}
-        loading={loading}
-        error={error}
-        meta={meta}
-        page={page}
-        onPageChange={setPage}
-        perPage={perPage}
-        onPerPageChange={setPerPage}
-        sortBy={sortBy}
-        sortDir={sortDir}
-        onSortChange={onSortChange}
-        emptyMessage="No IT equipment recorded yet."
-        onRowClick={(row) => navigate(`/school-property/${row.id}/edit`)}
-      />
+      {error && (
+        <Alert type="error" className="mb-4">
+          <span role="alert">{error}</span>
+        </Alert>
+      )}
 
-      <section aria-labelledby="school-property-equipment-heading" className="mt-8">
-        <h2 id="school-property-equipment-heading" className="text-sm font-semibold text-gray-900">
-          From the Equipment module
-        </h2>
-        <p className="mb-2 text-xs text-gray-500">Counted on the RPCPPE automatically. Edit these in Equipment.</p>
-        <PropertyItemEquipmentTable filters={applied} showOffice={showOffice} />
-      </section>
+      <Card>
+        <CardContent className="overflow-x-auto p-0">
+          <table className="w-full min-w-[36rem] text-sm">
+            <caption className="sr-only">Equipment on hand and total cost per office</caption>
+            <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+              <tr>
+                <th scope="col" className="px-4 py-3">
+                  Office
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  On hand
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  Lost / stolen
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  Total cost
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {!summary &&
+                !error &&
+                Array.from({ length: 4 }, (_, index) => (
+                  <tr key={index}>
+                    <td colSpan={4} className="px-4 py-3">
+                      <Skeleton className="h-5 w-full" />
+                    </td>
+                  </tr>
+                ))}
+              {summary?.offices.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-10 text-center text-gray-500">
+                    No equipment matches these filters.
+                  </td>
+                </tr>
+              )}
+              {summary?.offices.map((row) => (
+                <tr key={row.office_id ?? 'none'} className="even:bg-gray-50/60">
+                  <th scope="row" className="px-4 py-3 text-left font-medium text-gray-900">
+                    {row.office_name ?? <span className="font-normal italic text-gray-500">No office assigned</span>}
+                  </th>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {row.office_id !== null && row.on_hand > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setBreakdown(row)}
+                        className="font-semibold text-primary-700 underline-offset-2 hover:underline focus-visible:underline"
+                        aria-label={`Show the ${row.on_hand} items on hand at ${row.office_name ?? 'this office'}`}
+                      >
+                        {row.on_hand}
+                      </button>
+                    ) : (
+                      row.on_hand
+                    )}
+                  </td>
+                  <td className={`px-4 py-3 text-right tabular-nums ${row.missing > 0 ? 'font-medium text-error-600' : 'text-gray-500'}`}>{row.missing}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{currency.format(row.total_cost)}</td>
+                </tr>
+              ))}
+            </tbody>
+            {summary && summary.offices.length > 0 && (
+              <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-gray-900">
+                <tr>
+                  <th scope="row" className="px-4 py-3 text-left">
+                    Total
+                  </th>
+                  <td className="px-4 py-3 text-right tabular-nums">{summary.totals.on_hand}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{summary.totals.missing}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{currency.format(summary.totals.total_cost)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={breakdown !== null} onOpenChange={(open) => !open && setBreakdown(null)}>
+        <DialogContent size="full">
+          <DialogTitle>{breakdown?.office_name} &middot; items on hand</DialogTitle>
+          <DialogDescription>
+            {breakdown ? `${breakdown.on_hand} item(s) worth ${currency.format(breakdown.total_cost)}, under the filters applied on the page.` : ''}
+          </DialogDescription>
+          <div className="mt-4">
+            {breakdown && breakdown.office_id !== null && (
+              <PropertyItemEquipmentTable filters={{ ...applied, office_id: String(breakdown.office_id) }} showOffice={false} />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <RpcppeDownloadDialog open={rpcppeOpen} onOpenChange={setRpcppeOpen} />
-
-      <ConfirmDialog
-        open={pendingDelete !== null}
-        onOpenChange={(open) => !open && !deleting && setPendingDelete(null)}
-        onConfirm={confirmDelete}
-        loading={deleting}
-        title="Delete property item?"
-        description={
-          pendingDelete
-            ? `“${pendingDelete.article}” (${pendingDelete.quantity} ${pendingDelete.unit_of_measure ?? 'item(s)'}) will be removed from the list and from future reports.`
-            : ''
-        }
-        confirmText="Delete"
-        confirmVariant="danger"
-      />
     </div>
   )
 }

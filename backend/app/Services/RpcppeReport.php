@@ -8,7 +8,6 @@ use App\Enums\PropertySource;
 use App\Models\Equipment;
 use App\Models\Office;
 use App\Models\Personnel;
-use App\Models\PropertyItem;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
@@ -17,9 +16,9 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
  * Report on the Physical Count of Property, Plant and Equipment for one
- * office: IRIS equipment (one row per property number) plus School Property
- * items on the IT equipment sheet, items under Equipment::PPE_THRESHOLD on a
- * separate semi-expendable sheet.
+ * office: IRIS equipment, one row per property number, on the IT equipment
+ * sheet, items under Equipment::PPE_THRESHOLD on a separate semi-expendable
+ * sheet.
  *
  * @phpstan-type CountRow array{sheet: string, article: ?string, description: ?string, property_no: ?string, unit: ?string, date: ?\DateTimeInterface, unit_value: ?float, quantity: int, on_hand: int, source: ?PropertySource, functional: bool, unserviceable: bool, with_are: bool, other: ?string}
  */
@@ -75,7 +74,7 @@ class RpcppeReport
             : null;
 
         $bySheet = [];
-        foreach ([...$this->equipmentRows($office, $user, $officer), ...$this->propertyRows($office, $user, $officer)] as $row) {
+        foreach ($this->equipmentRows($office, $user, $officer) as $row) {
             $bySheet[$row['sheet']][] = $row;
         }
 
@@ -113,23 +112,6 @@ class RpcppeReport
     }
 
     /**
-     * @return list<CountRow>
-     */
-    private function propertyRows(Office $office, User $user, ?Personnel $officer): array
-    {
-        return array_values(PropertyItem::query()
-            ->visibleTo($user)
-            ->where('office_id', $office->id)
-            ->when($officer !== null, fn ($query) => $query->where('accountable_officer_id', $officer?->id))
-            ->with('endUser:id,first_name,middle_name,last_name,suffix')
-            ->orderBy('date_acquired')
-            ->orderBy('article')
-            ->get()
-            ->map(fn (PropertyItem $item): array => $this->propertyRow($item))
-            ->all());
-    }
-
-    /**
      * @return CountRow
      */
     private function equipmentRow(Equipment $item): array
@@ -156,33 +138,6 @@ class RpcppeReport
                 $item->equipment_location,
                 $endUser !== null && $item->current_end_user_id !== $item->current_accountable_officer_id ? 'End user: '.$endUser->printedName() : null,
                 $item->disposition_status !== 'Normal' ? $item->disposition_status : null,
-            ]),
-        ];
-    }
-
-    /**
-     * @return CountRow
-     */
-    private function propertyRow(PropertyItem $item): array
-    {
-        return [
-            'sheet' => $this->sheetTitle($item->isSemiExpendable()),
-            'article' => $item->article,
-            'description' => $item->description,
-            'property_no' => $item->property_no,
-            'unit' => $item->unit_of_measure,
-            'date' => $item->date_acquired,
-            'unit_value' => $item->unit_value === null ? null : (float) $item->unit_value,
-            'quantity' => $item->quantity,
-            'on_hand' => $item->on_hand_count,
-            'source' => $item->source,
-            'functional' => $item->condition === 'functional',
-            'unserviceable' => $item->condition === 'unserviceable',
-            'with_are' => $item->with_are,
-            'other' => $this->joined([
-                $item->location,
-                $item->endUser === null ? null : 'End user: '.$item->endUser->printedName(),
-                $item->remarks,
             ]),
         ];
     }

@@ -51,9 +51,7 @@ class ReportController extends Controller
             $data['accountable_officers'] = Personnel::query()
                 ->visibleTo($user)
                 ->where('office_id', $officeId)
-                ->where(fn ($query) => $query
-                    ->whereHas('currentlyAccountableForEquipment')
-                    ->orWhereIn('id', fn ($query) => $query->select('accountable_officer_id')->from('property_items')->whereNull('deleted_at')))
+                ->whereHas('currentlyAccountableForEquipment')
                 ->with('personnelPosition:id,name')
                 ->orderBy('full_name')
                 ->get(['id', 'full_name', 'position_id'])

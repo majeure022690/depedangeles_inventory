@@ -519,7 +519,17 @@ class Equipment extends Model
      */
     public function scopeInCustody(Builder $query): void
     {
-        $query->whereNotIn($query->qualifyColumn('disposition_status'), self::RELINQUISHED);
+        $column = $query->qualifyColumn('disposition_status');
+        $query->where(fn (Builder $query) => $query->whereNull($column)->orWhereNotIn($column, self::RELINQUISHED));
+    }
+
+    /**
+     * @param  Builder<Equipment>  $query
+     */
+    public function scopeOnHand(Builder $query): void
+    {
+        $column = $query->qualifyColumn('disposition_status');
+        $query->where(fn (Builder $query) => $query->whereNull($column)->orWhereNotIn($column, self::MISSING));
     }
 
     /**

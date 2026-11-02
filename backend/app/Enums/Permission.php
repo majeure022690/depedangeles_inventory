@@ -95,11 +95,8 @@ enum Permission: string
     case OfficeEdit = 'office.edit';
     case OfficeDelete = 'office.delete';
 
-    // School IT property counted for the RPCPPE. Reach follows the role's data scope.
+    // School Property: equipment in custody totalled per office. Reach follows the role's data scope.
     case PropertyItemsView = 'property_items.view';
-    case PropertyItemsCreate = 'property_items.create';
-    case PropertyItemsEdit = 'property_items.edit';
-    case PropertyItemsDelete = 'property_items.delete';
 
     // Government School Profile Part VI answers IRIS can't derive, one per office per school year.
     case GspProfilesView = 'gsp_profiles.view';
@@ -152,7 +149,7 @@ enum Permission: string
             self::OfficeView, self::OfficeCreate, self::OfficeEdit, self::OfficeDelete => 'Offices',
             self::StakeholderProfileView, self::StakeholderProfileEdit => 'Stakeholder Profile',
             self::InternetConnectivityView, self::InternetConnectivityEdit => 'Internet Connectivity',
-            self::PropertyItemsView, self::PropertyItemsCreate, self::PropertyItemsEdit, self::PropertyItemsDelete => 'School Property',
+            self::PropertyItemsView => 'School Property',
             self::GspProfilesView, self::GspProfilesCreate, self::GspProfilesEdit, self::GspProfilesDelete => 'GSP ICT Profile',
             self::ReportsGspIct, self::ReportsRpcppe => 'Reports',
             self::ReferenceDataManage, self::UsersView, self::UsersEdit,

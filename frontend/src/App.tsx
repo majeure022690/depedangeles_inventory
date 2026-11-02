@@ -42,8 +42,6 @@ const ReferenceDataTable = page(() => import('@/pages/management/reference-data/
 const GspProfileCreate = page(() => import('@/pages/management/gsp-profiles/GspProfileCreate'), 'GspProfileCreate')
 const GspProfileEdit = page(() => import('@/pages/management/gsp-profiles/GspProfileEdit'), 'GspProfileEdit')
 const GspProfileList = page(() => import('@/pages/management/gsp-profiles/GspProfileList'), 'GspProfileList')
-const PropertyItemCreate = page(() => import('@/pages/management/property-items/PropertyItemCreate'), 'PropertyItemCreate')
-const PropertyItemEdit = page(() => import('@/pages/management/property-items/PropertyItemEdit'), 'PropertyItemEdit')
 const PropertyItemList = page(() => import('@/pages/management/property-items/PropertyItemList'), 'PropertyItemList')
 const RoleList = page(() => import('@/pages/management/roles/RoleList'), 'RoleList')
 const StakeholderProfileEdit = page(() => import('@/pages/management/stakeholder-profiles/StakeholderProfileEdit'), 'StakeholderProfileEdit')
@@ -122,10 +120,6 @@ export function App() {
 
               <Route element={<RequirePermission permission="property_items.view" />}>
                 <Route path="school-property" element={<PropertyItemList />} />
-                <Route path="school-property/:id/edit" element={<PropertyItemEdit />} />
-                <Route element={<RequirePermission permission="property_items.create" />}>
-                  <Route path="school-property/new" element={<PropertyItemCreate />} />
-                </Route>
               </Route>
 
               <Route element={<RequirePermission permission="gsp_profiles.view" />}>

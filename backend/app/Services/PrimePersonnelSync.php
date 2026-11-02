@@ -40,8 +40,6 @@ class PrimePersonnelSync
         ['equipment_transactions', 'accountable_officer_id'],
         ['equipment_transactions', 'end_user_id'],
         ['equipment_transactions', 'received_by_id'],
-        ['property_items', 'accountable_officer_id'],
-        ['property_items', 'end_user_id'],
     ];
 
     public function __construct(private readonly PrimeDirectory $directory) {}

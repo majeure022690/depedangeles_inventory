@@ -10,7 +10,6 @@ use App\Models\IspAccount;
 use App\Models\ItemType;
 use App\Models\Office;
 use App\Models\Personnel;
-use App\Models\PropertyItem;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -55,7 +54,6 @@ class UnrelatedPermissionBoundaryTest extends TestCase
             'office' => Office::create(['office_name' => 'Boundary ES'])->id,
             'user' => $target->id,
             'role' => Role::create(['name' => 'boundary-role', 'label' => 'Boundary Role'])->id,
-            'propertyItem' => PropertyItem::factory()->create()->id,
             'gspIctProfile' => GspIctProfile::factory()->create()->id,
             'table' => 'item-types',
             'id' => ItemType::create(['name' => 'Boundary', 'sort_order' => 0, 'is_active' => true])->id,

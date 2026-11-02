@@ -40,8 +40,6 @@ class RolePermissionSeeder extends Seeder
         PermissionEnum::InternetConnectivityView,
         PermissionEnum::InternetConnectivityEdit,
         PermissionEnum::PropertyItemsView,
-        PermissionEnum::PropertyItemsCreate,
-        PermissionEnum::PropertyItemsEdit,
         PermissionEnum::GspProfilesView,
         PermissionEnum::GspProfilesCreate,
         PermissionEnum::GspProfilesEdit,

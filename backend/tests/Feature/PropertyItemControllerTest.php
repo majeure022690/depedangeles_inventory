@@ -4,14 +4,15 @@ namespace Tests\Feature;
 
 use App\Enums\DataScope;
 use App\Enums\Permission;
+use App\Models\Brand;
 use App\Models\Equipment;
+use App\Models\EquipmentCondition;
+use App\Models\ItemType;
 use App\Models\Office;
 use App\Models\Personnel;
-use App\Models\PropertyItem;
+use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use PhpOffice\PhpSpreadsheet\IOFactory;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
@@ -19,147 +20,149 @@ class PropertyItemControllerTest extends TestCase
 {
     use CreatesUsersWithRoles, RefreshDatabase;
 
-    private const ALL = [Permission::PropertyItemsView, Permission::PropertyItemsCreate, Permission::PropertyItemsEdit, Permission::PropertyItemsDelete];
-
     private Office $office;
+
+    private Personnel $officer;
 
     protected function setUp(): void
     {
         parent::setUp();
 
+        $this->seed(ReferenceDataSeeder::class);
         $this->seed(RolePermissionSeeder::class);
         $this->office = Office::factory()->create(['office_name' => 'Sample ES']);
+        $this->officer = Personnel::factory()->create(['office_id' => $this->office->id]);
     }
 
     /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function item(array $attributes = []): Equipment
+    {
+        return Equipment::factory()->create([
+            'current_accountable_officer_id' => $this->officer->id,
+            'current_end_user_id' => null,
+            'disposition_status' => 'Normal',
+            'non_functional' => false,
+            'acquisition_cost' => 10000,
+            ...$attributes,
+        ]);
+    }
+
+    /**
+     * @param  array<string, string|int>  $filters
      * @return array<string, mixed>
      */
-    private function payload(array $overrides = []): array
+    private function summary(array $filters = [], ?DataScope $scope = null, ?int $officeId = null): array
     {
-        return [
-            'office_id' => $this->office->id,
-            'category' => 'it_equipment',
-            'article' => 'Mouse',
-            'description' => 'USB optical',
-            'unit_of_measure' => 'pc',
-            'unit_value' => 350,
-            'quantity' => 40,
-            'on_hand_count' => 38,
-            'source' => 'lgu',
-            'condition' => 'functional',
-            'with_are' => true,
-            ...$overrides,
-        ];
+        $user = $this->userWithPermissions([Permission::PropertyItemsView], ['office_id' => $officeId], $scope ?? DataScope::All);
+
+        return $this->actingAs($user)->getJson('/api/property-items/summary?'.http_build_query($filters))->assertOk()->json('data');
     }
 
     public function test_guests_and_users_without_permission_are_rejected(): void
     {
-        $this->getJson('/api/property-items')->assertUnauthorized();
-        $this->actingAs($this->userWithPermissions([Permission::EquipmentView]))->getJson('/api/property-items')->assertForbidden();
-    }
+        foreach (['summary', 'equipment', 'options'] as $endpoint) {
+            $this->getJson("/api/property-items/{$endpoint}")->assertUnauthorized();
+        }
 
-    public function test_full_crud_is_audited(): void
-    {
-        $user = $this->userWithPermissions(self::ALL);
-        $teacher = Personnel::factory()->create(['office_id' => $this->office->id]);
-
-        $id = $this->actingAs($user)->postJson('/api/property-items', $this->payload(['end_user_id' => $teacher->id]))
-            ->assertCreated()
-            ->assertJsonPath('data.total_value', 14000)
-            ->assertJsonPath('data.category_label', 'IT Equipment')
-            ->json('data.id');
-
-        $this->assertSame($user->id, PropertyItem::findOrFail($id)->created_by_user_id);
-        $this->actingAs($user)->getJson("/api/property-items/{$id}")->assertOk()->assertJsonPath('data.end_user_id', $teacher->id);
-        $this->actingAs($user)->putJson("/api/property-items/{$id}", $this->payload(['quantity' => 41]))->assertOk()->assertJsonPath('data.quantity', 41);
-        $this->actingAs($user)->getJson('/api/property-items?category=it_equipment&search=Mouse')->assertOk()->assertJsonPath('meta.total', 1);
-        $this->actingAs($user)->deleteJson("/api/property-items/{$id}")->assertNoContent();
-
-        $this->assertSoftDeleted('property_items', ['id' => $id]);
-        foreach (['created', 'updated', 'deleted'] as $event) {
-            $this->assertDatabaseHas('activity_log', ['description' => "property_item.{$event}", 'subject_id' => $id]);
+        foreach (['summary', 'equipment', 'options'] as $endpoint) {
+            $this->actingAs($this->userWithPermissions([Permission::EquipmentView]))->getJson("/api/property-items/{$endpoint}")->assertForbidden();
         }
     }
 
-    public function test_validation_requires_core_fields_and_personnel_from_the_same_office(): void
+    public function test_summary_totals_items_on_hand_and_their_cost_per_office(): void
     {
-        $user = $this->userWithPermissions(self::ALL);
-        $outsider = Personnel::factory()->create(['office_id' => Office::factory()->create()->id]);
+        $this->item(['acquisition_cost' => 30000]);
+        $this->item(['acquisition_cost' => 20000]);
+        $this->item(['acquisition_cost' => 5000, 'disposition_status' => 'Lost']);
+        $this->item(['acquisition_cost' => 99999, 'disposition_status' => 'Transferred']);
+        $other = Office::factory()->create(['office_name' => 'Another HS']);
+        $this->item(['current_accountable_officer_id' => null, 'current_end_user_id' => Personnel::factory()->create(['office_id' => $other->id])->id, 'acquisition_cost' => 1500.5]);
 
-        $this->actingAs($user)->postJson('/api/property-items', ['category' => 'nope', 'quantity' => -1])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['office_id', 'category', 'article', 'quantity', 'on_hand_count']);
+        $data = $this->summary();
 
-        $this->actingAs($user)->postJson('/api/property-items', $this->payload(['end_user_id' => $outsider->id, 'category' => 'books']))
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['end_user_id', 'category']);
+        $this->assertSame([
+            ['office_id' => $other->id, 'office_name' => 'Another HS', 'on_hand' => 1, 'missing' => 0, 'total_cost' => 1500.5],
+            ['office_id' => $this->office->id, 'office_name' => 'Sample ES', 'on_hand' => 2, 'missing' => 1, 'total_cost' => 50000],
+        ], $data['offices']);
+        $this->assertSame(['on_hand' => 3, 'missing' => 1, 'total_cost' => 51500.5], $data['totals']);
     }
 
-    public function test_school_scoped_users_only_reach_their_own_office(): void
+    public function test_summary_filters_narrow_the_totals(): void
     {
+        $desktop = ItemType::where('name', 'Desktop (package)')->valueOrFail('id');
+        $acer = Brand::firstOrCreate(['name' => 'Acer'], ['is_active' => true])->id;
+        $unserviceable = EquipmentCondition::where('name', 'Unserviceable')->valueOrFail('id');
+        $otherOfficer = Personnel::factory()->create(['office_id' => $this->office->id]);
+        $receiver = Personnel::factory()->create(['office_id' => $this->office->id]);
+
+        $match = $this->item(['item_type_id' => $desktop, 'brand_id' => $acer, 'non_functional' => true, 'equipment_condition_id' => $unserviceable, 'disposition_status' => 'For Disposal', 'estimated_useful_life' => 5]);
+        $match->transactions()->create(['transaction_type' => 'Beginning Inventory']);
+        $match->transactions()->create(['transaction_type' => 'Issuance/Transfer', 'received_by_id' => $receiver->id]);
+        $earlier = $this->item(['estimated_useful_life' => 7]);
+        $earlier->transactions()->create(['transaction_type' => 'Issuance/Transfer', 'received_by_id' => $receiver->id]);
+        $earlier->transactions()->create(['transaction_type' => 'Return']);
+        $this->item(['current_accountable_officer_id' => $otherOfficer->id, 'estimated_useful_life' => null]);
+
+        $onHand = fn (array $filters) => $this->summary($filters)['totals']['on_hand'];
+
+        $this->assertSame(3, $onHand([]));
+        $this->assertSame(1, $onHand(['item_type_id' => $desktop]));
+        $this->assertSame(1, $onHand(['brand_id' => $acer]));
+        $this->assertSame(1, $onHand(['functional' => 'non_functional']));
+        $this->assertSame(2, $onHand(['functional' => 'functional']));
+        $this->assertSame(1, $onHand(['equipment_condition_id' => $unserviceable]));
+        $this->assertSame(1, $onHand(['disposition_status' => 'For Disposal']));
+        $this->assertSame(1, $onHand(['estimated_useful_life' => 7]));
+        $this->assertSame(1, $onHand(['accountable_officer_id' => $otherOfficer->id]));
+        $this->assertSame(1, $onHand(['transaction_type' => 'Issuance/Transfer']));
+        $this->assertSame(1, $onHand(['received_by_id' => $receiver->id]));
+        $this->assertSame(1, $onHand(['transaction_type' => 'Return']));
+    }
+
+    public function test_school_scoped_users_only_see_their_own_office(): void
+    {
+        $this->item();
         $other = Office::factory()->create();
-        $mine = PropertyItem::factory()->create(['office_id' => $this->office->id]);
-        $theirs = PropertyItem::factory()->create(['office_id' => $other->id]);
-        $user = $this->userWithPermissions(self::ALL, ['office_id' => $this->office->id], DataScope::School);
+        $this->item(['current_accountable_officer_id' => Personnel::factory()->create(['office_id' => $other->id])->id]);
 
-        $this->actingAs($user)->getJson('/api/property-items')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $mine->id);
-        $this->actingAs($user)->getJson("/api/property-items/{$theirs->id}")->assertNotFound();
-        $this->actingAs($user)->deleteJson("/api/property-items/{$theirs->id}")->assertNotFound();
+        $data = $this->summary([], DataScope::School, $this->office->id);
 
-        $created = $this->actingAs($user)->postJson('/api/property-items', $this->payload(['office_id' => null]))->assertCreated()->json('data.office_id');
-        $this->assertSame($this->office->id, $created);
-
-        $this->actingAs($user)->postJson('/api/property-items', $this->payload(['office_id' => $other->id]))
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['office_id']);
+        $this->assertSame([$this->office->id], array_column($data['offices'], 'office_id'));
     }
 
-    public function test_options_include_categories_with_article_suggestions_and_office_personnel(): void
+    public function test_equipment_lists_the_items_on_hand_behind_an_office_row(): void
     {
-        $person = Personnel::factory()->create(['office_id' => $this->office->id]);
-
-        $response = $this->actingAs($this->userWithPermissions(self::ALL))->getJson("/api/property-items/options?office_id={$this->office->id}")->assertOk();
-
-        $this->assertSame(['it_equipment'], array_column($response->json('data.category'), 'value'));
-        $this->assertContains('Laptop Computer', $response->json('data.category.0.articles'));
-        $this->assertSame([$person->id], array_column($response->json('data.personnel'), 'value'));
-    }
-
-    public function test_equipment_lists_the_items_the_rpcppe_counts_for_the_office(): void
-    {
-        $officer = Personnel::factory()->create(['office_id' => $this->office->id]);
-        $elsewhere = Personnel::factory()->create(['office_id' => Office::factory()->create()->id]);
-        $counted = Equipment::factory()->create(['current_accountable_officer_id' => $officer->id, 'disposition_status' => 'Normal', 'acquisition_cost' => 30000, 'property_no' => 'SE-001']);
-        $lost = Equipment::factory()->create(['current_accountable_officer_id' => $officer->id, 'disposition_status' => 'Lost', 'property_no' => 'SE-002']);
-        Equipment::factory()->create(['current_accountable_officer_id' => $officer->id, 'disposition_status' => 'Transferred']);
-        Equipment::factory()->create(['current_accountable_officer_id' => $elsewhere->id, 'disposition_status' => 'Normal']);
+        $counted = $this->item(['acquisition_cost' => 30000, 'property_no' => 'SE-001']);
+        $this->item(['disposition_status' => 'Lost']);
+        $this->item(['disposition_status' => 'Transferred']);
+        $this->item(['current_accountable_officer_id' => Personnel::factory()->create(['office_id' => Office::factory()->create()->id])->id]);
 
         $response = $this->actingAs($this->userWithPermissions([Permission::PropertyItemsView]))
             ->getJson("/api/property-items/equipment?office_id={$this->office->id}")
             ->assertOk()
-            ->assertJsonPath('meta.total', 2);
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $counted->id)
+            ->assertJsonPath('data.0.property_no', 'SE-001')
+            ->assertJsonPath('data.0.office', 'Sample ES')
+            ->assertJsonPath('data.0.semi_expendable', true);
 
-        $rows = collect($response->json('data'))->keyBy('id');
-        $this->assertSame(['SE-001', 1, true, 'Sample ES', $officer->fresh()->full_name], [$rows[$counted->id]['property_no'], $rows[$counted->id]['on_hand'], $rows[$counted->id]['semi_expendable'], $rows[$counted->id]['office'], $rows[$counted->id]['accountable_officer']]);
-        $this->assertSame(0, $rows[$lost->id]['on_hand']);
-        $this->assertArrayNotHasKey('serial_number', $rows[$counted->id]);
-
-        $this->actingAs($this->userWithPermissions([Permission::EquipmentView]))->getJson('/api/property-items/equipment')->assertForbidden();
+        $this->assertArrayNotHasKey('serial_number', $response->json('data.0'));
     }
 
-    public function test_export_downloads_the_filtered_list(): void
+    public function test_options_list_filters_from_visible_equipment(): void
     {
-        PropertyItem::factory()->create(['office_id' => $this->office->id, 'article' => 'Whiteboard']);
-        PropertyItem::factory()->create(['office_id' => $this->office->id, 'article' => 'Mouse']);
+        $receiver = Personnel::factory()->create(['office_id' => $this->office->id]);
+        $this->item(['estimated_useful_life' => 5])->transactions()->create(['transaction_type' => 'Issuance/Transfer', 'received_by_id' => $receiver->id]);
 
-        $response = $this->actingAs($this->userWithPermissions([Permission::PropertyItemsView]))
-            ->get('/api/property-items/export?search=Whiteboard')
-            ->assertOk();
+        $response = $this->actingAs($this->userWithPermissions([Permission::PropertyItemsView]))->getJson('/api/property-items/options')->assertOk();
 
-        $this->assertInstanceOf(BinaryFileResponse::class, $response->baseResponse);
-        $sheet = IOFactory::load($response->baseResponse->getFile()->getPathname())->getActiveSheet();
-        $this->assertSame('Whiteboard', $sheet->getCell('B5')->getValue());
-        $this->assertNull($sheet->getCell('B6')->getValue());
-        $this->assertDatabaseHas('activity_log', ['event' => 'property_item.exported']);
+        $this->assertSame([$this->officer->id], array_column($response->json('data.accountable_officer'), 'value'));
+        $this->assertSame([$receiver->id], array_column($response->json('data.received_by'), 'value'));
+        $this->assertSame([['value' => 5, 'label' => '5 years']], $response->json('data.estimated_useful_life'));
+        foreach (['office', 'item_type', 'brand', 'equipment_condition', 'disposition_status', 'transaction_type'] as $key) {
+            $this->assertNotEmpty($response->json("data.{$key}"), $key);
+        }
     }
 }

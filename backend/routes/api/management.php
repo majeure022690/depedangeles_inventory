@@ -99,15 +99,10 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     Route::get('/internet-connectivity-surveys/{office}', [InternetConnectivitySurveyController::class, 'show'])->middleware($can(P::InternetConnectivityView))->whereNumber('office');
     Route::put('/internet-connectivity-surveys/{office}', [InternetConnectivitySurveyController::class, 'update'])->middleware($can(P::InternetConnectivityEdit))->whereNumber('office');
 
-    // Permission-protected, data-scoped: property_items.* (non-ICT school property for the RPCPPE).
-    Route::get('/property-items/options', [PropertyItemController::class, 'options'])->middleware($can(P::PropertyItemsView, P::PropertyItemsCreate, P::PropertyItemsEdit));
-    Route::get('/property-items/export', [PropertyItemController::class, 'export'])->middleware([$can(P::PropertyItemsView), 'throttle:20,1']);
-    Route::get('/property-items', [PropertyItemController::class, 'index'])->middleware($can(P::PropertyItemsView));
+    // Permission-protected, data-scoped: property_items.view (equipment in custody, totalled per office).
+    Route::get('/property-items/options', [PropertyItemController::class, 'options'])->middleware($can(P::PropertyItemsView));
+    Route::get('/property-items/summary', [PropertyItemController::class, 'summary'])->middleware($can(P::PropertyItemsView));
     Route::get('/property-items/equipment', [PropertyItemController::class, 'equipment'])->middleware($can(P::PropertyItemsView));
-    Route::get('/property-items/{propertyItem}', [PropertyItemController::class, 'show'])->middleware($can(P::PropertyItemsView))->whereNumber('propertyItem');
-    Route::post('/property-items', [PropertyItemController::class, 'store'])->middleware($can(P::PropertyItemsCreate));
-    Route::put('/property-items/{propertyItem}', [PropertyItemController::class, 'update'])->middleware($can(P::PropertyItemsEdit))->whereNumber('propertyItem');
-    Route::delete('/property-items/{propertyItem}', [PropertyItemController::class, 'destroy'])->middleware($can(P::PropertyItemsDelete))->whereNumber('propertyItem');
 
     // Permission-protected, data-scoped: gsp_profiles.* (GSP Part VI answers per office and school year); downloading the workbook needs reports.gsp_ict.
     Route::get('/gsp-profiles/options', [GspIctProfileController::class, 'options'])->middleware($can(P::GspProfilesView, P::GspProfilesCreate, P::GspProfilesEdit));

@@ -6,7 +6,7 @@ import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/Dat
 import { useAuth } from '@/context/AuthContext'
 import { useServerTable } from '@/hooks/useServerTable'
 import { propertyItemService } from '@/services/propertyItemService'
-import type { PropertyItemEquipment } from '@/types/property-item'
+import type { PropertyItemEquipment, SchoolPropertyFilters } from '@/types/property-item'
 
 const column = gridColumnHelper<PropertyItemEquipment>()
 
@@ -14,8 +14,8 @@ const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: '
 
 const empty = <span className="text-gray-400">—</span>
 
-/** Equipment-module items the RPCPPE adds to the IT sheets; edited in Equipment, not here. */
-export function PropertyItemEquipmentTable({ filters, showOffice }: { filters: { search: string; office_id: string }; showOffice: boolean }) {
+/** The items on hand behind a School Property office row; edited in Equipment, not here. */
+export function PropertyItemEquipmentTable({ filters, showOffice }: { filters: SchoolPropertyFilters; showOffice: boolean }) {
   const navigate = useNavigate()
   const { can } = useAuth()
   const canOpen = can('equipment.view')
@@ -85,7 +85,7 @@ export function PropertyItemEquipmentTable({ filters, showOffice }: { filters: {
       onPageChange={setPage}
       perPage={perPage}
       onPerPageChange={setPerPage}
-      emptyMessage="No equipment from the Equipment module for this filter."
+      emptyMessage="No items on hand for these filters."
       onRowClick={canOpen ? (row) => navigate(`/equipment/${row.id}/edit`) : undefined}
     />
   )

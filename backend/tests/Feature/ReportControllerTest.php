@@ -4,14 +4,11 @@ namespace Tests\Feature;
 
 use App\Enums\DataScope;
 use App\Enums\Permission;
-use App\Enums\PropertyCategory;
-use App\Enums\PropertySource;
 use App\Models\Equipment;
 use App\Models\EquipmentCondition;
 use App\Models\ItemType;
 use App\Models\Office;
 use App\Models\Personnel;
-use App\Models\PropertyItem;
 use App\Models\User;
 use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
@@ -137,11 +134,7 @@ class ReportControllerTest extends TestCase
         $this->item('Laptop', ['acquisition_cost' => 20000, 'property_no' => 'SE-002', 'disposition_status' => 'Lost', 'received_date' => '2025-01-10']);
         $this->item('Laptop', ['property_no' => 'GONE-001', 'disposition_status' => 'Transferred']);
         $this->item('Copier / Xerox Machine', ['acquisition_cost' => 60000, 'property_no' => 'OFC-001']);
-        PropertyItem::factory()->create([
-            'office_id' => $this->office->id, 'category' => PropertyCategory::ItEquipment, 'article' => 'Mouse',
-            'quantity' => 40, 'on_hand_count' => 38, 'unit_value' => 350, 'source' => PropertySource::Lgu,
-            'accountable_officer_id' => $this->officer->id, 'end_user_id' => $teacher->id, 'date_acquired' => null,
-        ]);
+        $this->item('Laptop', ['acquisition_cost' => 15000, 'property_no' => 'SE-003', 'source_acquisition' => 'Local Government Unit (LGU)', 'received_date' => '2025-03-01']);
 
         $response = $this->rpcppe($this->reporter(), [
             'school_year' => '2025-2026',
@@ -168,8 +161,7 @@ class ReportControllerTest extends TestCase
         $this->rowOf($semi, 'B', 'ANA C. LOPEZ');
         $this->rowOf($semi, 'F', 'MARIA S. REYES');
 
-        $this->assertSame('Mouse', $semi->getCell('A13')->getValue());
-        $this->assertSame([40, 38], [$semi->getCell('H13')->getValue(), $semi->getCell('I13')->getValue()]);
+        $this->assertSame('SE-003', $semi->getCell('C13')->getValue());
         $this->assertSame('✓', $semi->getCell('N13')->getValue());
         $this->assertSame(['IT', 'IT Semi-Exp'], $book->getSheetNames());
 
