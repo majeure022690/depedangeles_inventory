@@ -22,7 +22,7 @@ class EquipmentResource extends JsonResource
     private bool $withOriginalBundle = false;
 
     /**
-     * Adds `original_bundle`, which costs a query and so stays off list responses.
+     * Adds `original_bundle` and `school_level_rule`, which cost queries and so stay off list responses.
      */
     public function withOriginalBundle(): static
     {
@@ -107,6 +107,7 @@ class EquipmentResource extends JsonResource
                 ->map(fn (Equipment $child) => self::peripheral($child, $request))
                 ->all()),
             'original_bundle' => $this->when($this->withOriginalBundle, fn () => self::originalBundle($this->resource, $request)),
+            'school_level_rule' => $this->when($this->withOriginalBundle, fn () => ($this->currentAccountableOfficer ?? $this->currentEndUser)?->office?->schoolLevelRule()),
             'transactions' => EquipmentTransactionResource::collection($this->whenLoaded('transactions')),
             'attachments' => EquipmentAttachmentResource::collection($this->whenLoaded('attachments')),
             'created_at' => $this->created_at,

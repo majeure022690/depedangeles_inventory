@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
 import { CheckboxField, FormField } from '@/components/forms/FormField'
@@ -299,6 +300,13 @@ export function EquipmentFields({
     onChange({ ...value, [key]: next })
   }
 
+  const officeOf = accountability?.accountable_officer_id ?? accountability?.end_user_id ?? null
+  const schoolLevelRule = isCreate ? (options?.personnel?.find((person) => person.value === officeOf)?.school_level_rule ?? null) : (current?.school_level_rule ?? null)
+  const ruleLevel = schoolLevelRule && !schoolLevelRule.choices.includes(value.school_level) ? schoolLevelRule.default : null
+  useEffect(() => {
+    if (ruleLevel !== null) onChange({ ...value, school_level: ruleLevel })
+  }, [ruleLevel, value, onChange])
+
   function text(key: TextKey, label: string, hint: string, props: TextProps = {}) {
     const { className, note, required, ...inputProps } = props
     return (
@@ -464,12 +472,11 @@ export function EquipmentFields({
           {idSelect('brand_id', 'Brand/manufacturer', 'Choose the Brand/Manufacturer from the dropdown.', formOptions?.brand, 'Select a brand', current?.brand_manufacturer)}
           {otherText('brand_other', 'Brand', formOptions?.brand, value.brand_id)}
           {text('model', 'Model', 'Input the equipment\'s Model Name or Number.', { required: true })}
-          {text('serial_number', 'Serial number', 'Input the equipment\'s Serial number', { required: true })}
+          {text('serial_number', 'Serial number (optional)', 'Input the equipment\'s Serial number')}
           {longText(
             'specifications',
-            'Specifications',
+            'Specifications (optional)',
             'Enter the equipment\'s detailed specifications. Refer to the Delivery Receipt (DR), Property Acknowledgment Receipt (PAR), Inventory Custodian Slip (ICS), Inspection and Acceptance Report (IAR), or other relevant documents.',
-            true,
           )}
         </FormSection>
       </div>
@@ -593,13 +600,34 @@ export function EquipmentFields({
       'Select who uses it',
       true,
     )
-    const schoolLevel = stringSelect(
-      'school_level',
-      'School level',
-      'The level of the school where the device is inventoried (the school that counts it), not the level the user teaches. Choose Not applicable for Division Office and other non-school items. Groups learner and teacher computers on GSP Table 1.',
-      formOptions?.school_level,
-      'Select a school level',
-      true,
+    const schoolLevelLocked = schoolLevelRule !== null && schoolLevelRule.choices.length === 1
+    const schoolLevel = (
+      <FormField
+        id="school_level"
+        label="School level"
+        required
+        error={errors.school_level}
+        hint={
+          schoolLevelRule === null
+            ? 'The level of the school where the device is inventoried, not the level the user teaches. Set from the accountable officer’s school; choose Not applicable for non-school items.'
+            : schoolLevelLocked
+              ? 'Set from the office type of the school where the device is inventoried.'
+              : 'This school has more than one level: pick the one where the device is inventoried.'
+        }
+      >
+        {(aria) => (
+          <Select
+            id="school_level"
+            name="school_level"
+            value={value.school_level}
+            disabled={disabled || !options || schoolLevelLocked}
+            options={(formOptions?.school_level ?? []).filter((option) => schoolLevelRule === null || schoolLevelRule.choices.includes(String(option.value)))}
+            placeholder="Select a school level"
+            onChange={(e) => set('school_level', e.target.value)}
+            {...aria}
+          />
+        )}
+      </FormField>
     )
 
     if (!isCreate) {

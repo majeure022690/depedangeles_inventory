@@ -46,13 +46,13 @@ trait ValidatesEquipmentFields
 
         return [
             'old_property_no' => ['nullable', 'string', 'max:255'],
-            'serial_number' => ['required', 'string', 'max:255'],
+            'serial_number' => ['nullable', 'string', 'max:255'],
 
             'item_type_id' => ['required', 'integer', Rule::exists('item_types', 'id')->where('is_active', true)],
             'uom' => ['required', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::UnitOfMeasure))],
             'brand_id' => ['required', 'integer', Rule::exists('brands', 'id')->where('is_active', true)],
             'model' => ['required', 'string', 'max:255'],
-            'specifications' => ['required', 'string'],
+            'specifications' => ['nullable', 'string'],
 
             'non_dcp' => ['required', 'boolean'],
             'dcp_package' => [$requiresDcp, 'nullable', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::DcpPackage))],

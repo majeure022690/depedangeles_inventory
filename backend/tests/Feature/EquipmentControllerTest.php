@@ -72,12 +72,12 @@ class EquipmentControllerTest extends TestCase
         $this->actingAs($this->editor())->postJson('/api/equipment', [])
             ->assertUnprocessable()
             ->assertJsonValidationErrors([
-                'item_type_id', 'uom', 'brand_id', 'model', 'serial_number', 'specifications', 'acquisition_cost',
+                'item_type_id', 'uom', 'brand_id', 'model', 'acquisition_cost',
                 'received_date', 'mode_acquisition', 'source_acquisition', 'source_fund', 'equipment_classification_id',
                 'non_dcp', 'used_by', 'equipment_location', 'non_functional', 'equipment_condition_id', 'disposition_status',
                 'accountability',
             ])
-            ->assertJsonMissingValidationErrors(['property_no', 'old_property_no', 'uacs', 'allotment_class', 'estimated_useful_life',
+            ->assertJsonMissingValidationErrors(['property_no', 'old_property_no', 'serial_number', 'specifications', 'uacs', 'allotment_class', 'estimated_useful_life',
                 'pm_plan', 'remarks', 'supplier', 'under_warranty', 'end_warranty_date', 'equipment_category_id', 'gl_sl_code'])
             ->assertJsonPath('errors.item_type_id.0', 'The item type field is required.');
 
@@ -242,7 +242,7 @@ class EquipmentControllerTest extends TestCase
         $this->actingAs($this->editor())->putJson("/api/equipment/{$equipment->id}", [])
             ->assertUnprocessable()
             ->assertJsonValidationErrors([
-                'item_type_id', 'uom', 'brand_id', 'model', 'serial_number', 'specifications', 'acquisition_cost',
+                'item_type_id', 'uom', 'brand_id', 'model', 'acquisition_cost',
                 'received_date', 'mode_acquisition', 'source_acquisition', 'source_fund', 'equipment_classification_id',
                 'non_dcp', 'used_by', 'equipment_location', 'non_functional', 'equipment_condition_id', 'disposition_status',
             ])

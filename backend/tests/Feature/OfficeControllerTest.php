@@ -55,6 +55,21 @@ class OfficeControllerTest extends TestCase
         ], $overrides);
     }
 
+    public function test_school_level_rule_follows_the_office_type_then_the_school_id(): void
+    {
+        $rule = fn (array $attributes) => Office::factory()->make($attributes)->schoolLevelRule();
+
+        $this->assertSame(['choices' => ['elementary'], 'default' => 'elementary'], $rule(['office_type' => 'Elementary School']));
+        $this->assertSame(['choices' => ['junior_high'], 'default' => 'junior_high'], $rule(['office_type' => 'High School']));
+        $this->assertSame(['choices' => ['senior_high'], 'default' => 'senior_high'], $rule(['office_type' => 'Senior High School']));
+        $this->assertSame(['choices' => ['elementary', 'junior_high', 'senior_high'], 'default' => 'senior_high'], $rule(['office_type' => 'Integrated School']));
+        $this->assertSame(['choices' => ['not_applicable'], 'default' => 'not_applicable'], $rule(['office_type' => 'Division Office', 'school_id' => 105000]));
+        $this->assertSame(['choices' => ['elementary'], 'default' => 'elementary'], $rule(['office_type' => null, 'school_id' => 105432]));
+        $this->assertSame(['choices' => ['junior_high', 'senior_high'], 'default' => 'junior_high'], $rule(['office_type' => null, 'school_id' => 305432]));
+        $this->assertSame(['choices' => ['elementary', 'junior_high', 'senior_high'], 'default' => 'senior_high'], $rule(['office_type' => null, 'school_id' => 500111]));
+        $this->assertSame(['choices' => ['not_applicable'], 'default' => 'not_applicable'], $rule(['office_type' => null, 'school_id' => null]));
+    }
+
     public function test_options_list_the_fixed_office_types(): void
     {
         $this->actingAs($this->admin())->getJson('/api/offices/options')

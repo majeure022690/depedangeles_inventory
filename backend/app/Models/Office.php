@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\OfficeType;
 use Database\Factories\OfficeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -116,6 +117,36 @@ class Office extends Model
     public function internetConnectivitySurvey(): HasOne
     {
         return $this->hasOne(InternetConnectivitySurvey::class);
+    }
+
+    /**
+     * Equipment school levels this office allows, from its type (else the School ID's first
+     * digit: 1 elementary, 3 secondary, 5 integrated). Only integrated and untyped secondary
+     * schools leave a choice.
+     *
+     * @return array{choices: list<string>, default: string}
+     */
+    public function schoolLevelRule(): array
+    {
+        $kind = match ($this->office_type) {
+            OfficeType::ElementarySchool->value => 'elementary',
+            OfficeType::HighSchool->value => 'junior_high',
+            OfficeType::SeniorHighSchool->value => 'senior_high',
+            OfficeType::IntegratedSchool->value => 'integrated',
+            OfficeType::DivisionOffice->value, OfficeType::Unit->value => 'not_applicable',
+            default => match (substr((string) $this->school_id, 0, 1)) {
+                '1' => 'elementary',
+                '3' => 'secondary',
+                '5' => 'integrated',
+                default => 'not_applicable',
+            },
+        };
+
+        return match ($kind) {
+            'integrated' => ['choices' => ['elementary', 'junior_high', 'senior_high'], 'default' => 'senior_high'],
+            'secondary' => ['choices' => ['junior_high', 'senior_high'], 'default' => 'junior_high'],
+            default => ['choices' => [$kind], 'default' => $kind],
+        };
     }
 
     public function getActivitylogOptions(): LogOptions

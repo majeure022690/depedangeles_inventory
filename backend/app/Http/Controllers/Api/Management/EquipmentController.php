@@ -111,8 +111,8 @@ class EquipmentController extends Controller
     ];
 
     public const LIST_RELATIONS = [
-        'currentAccountableOfficer:id,full_name',
-        'currentEndUser:id,full_name',
+        'currentAccountableOfficer:id,full_name,office_id',
+        'currentEndUser:id,full_name,office_id',
         'itemType:id,name,dashboard_group',
         'brand:id,name',
         'equipmentCategory:id,name',
@@ -241,9 +241,9 @@ class EquipmentController extends Controller
                 ->active()
                 ->orderBy('last_name')
                 ->orderBy('first_name')
-                ->with('personnelPosition:id,name')
-                ->get(['id', 'full_name', 'position_id'])
-                ->map(fn (Personnel $person) => $person->toOption())
+                ->with(['personnelPosition:id,name', 'office:id,office_type,school_id'])
+                ->get(['id', 'full_name', 'position_id', 'office_id'])
+                ->map(fn (Personnel $person) => [...$person->toOption(), 'school_level_rule' => $person->office?->schoolLevelRule()])
                 ->all();
         }
 

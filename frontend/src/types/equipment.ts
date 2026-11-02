@@ -118,6 +118,8 @@ export interface Equipment {
   parent?: EquipmentParentSummary | null
   children?: EquipmentPeripheral[]
   original_bundle?: EquipmentParentSummary | null
+  /** School levels the item's office allows; on detail and update only. */
+  school_level_rule?: SchoolLevelRule | null
   transactions?: EquipmentTransaction[]
   attachments?: EquipmentAttachment[]
   created_at: string | null
@@ -197,7 +199,7 @@ export interface EquipmentOptions {
   donor_sources: string[]
   category_rules: EquipmentCategoryRules
   attachment_document_types: string[]
-  personnel?: Option<number>[]
+  personnel?: (Option<number> & { school_level_rule?: SchoolLevelRule | null })[]
 }
 
 /**
@@ -248,6 +250,12 @@ export interface EquipmentFormData {
 }
 
 /** Mirrors StoreEquipmentTransactionRequest; personnel ids are `null` when not chosen. */
+/** Allowed school levels for an office (from its office type) and the one picked by default. */
+export interface SchoolLevelRule {
+  choices: string[]
+  default: string
+}
+
 export interface EquipmentTransactionFormData {
   transaction_type: string
   accountable_officer_id: number | null
