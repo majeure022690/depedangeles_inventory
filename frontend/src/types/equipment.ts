@@ -174,7 +174,7 @@ export interface EquipmentFilterOptions {
   brand: Option<number>[]
   transaction_type: Option<string>[]
   estimated_useful_life: Option<number>[]
-  accountable_officer: Option<number>[]
+  accountable_officer: (Option<number> & { office_id?: number | null })[]
   received_by: Option<number>[]
   used_by: Option<string>[]
 }

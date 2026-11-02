@@ -24,7 +24,7 @@ export interface SchoolPropertyOptions {
   disposition_status: Option<string>[]
   transaction_type: Option<string>[]
   estimated_useful_life: Option<number>[]
-  accountable_officer: Option<number>[]
+  accountable_officer: (Option<number> & { office_id?: number | null })[]
   received_by: Option<number>[]
 }
 

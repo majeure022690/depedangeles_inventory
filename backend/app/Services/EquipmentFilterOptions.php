@@ -33,8 +33,8 @@ final class EquipmentFilterOptions
             ->visibleTo($user)
             ->whereIn('id', $ids)
             ->orderBy('full_name')
-            ->get(['id', 'full_name'])
-            ->map(fn (Personnel $personnel) => ['value' => $personnel->id, 'label' => (string) $personnel->full_name])
+            ->get(['id', 'full_name', 'office_id'])
+            ->map(fn (Personnel $personnel) => ['value' => $personnel->id, 'label' => (string) $personnel->full_name, 'office_id' => $personnel->office_id])
             ->values()
             ->all();
 

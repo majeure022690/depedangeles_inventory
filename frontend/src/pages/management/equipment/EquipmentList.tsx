@@ -60,6 +60,19 @@ const FILTERS_BY_COLUMN: Record<string, string[]> = {
   acquisition_cost: ['high_cost'],
 }
 
+type OfficerOption = Option<number> & { office_id?: number | null }
+
+/** Accountable officers of the picked office, or everyone when no office is picked. */
+function officersOfOffice(officers: OfficerOption[] | undefined, officeId: string): OfficerOption[] | undefined {
+  return officeId === '' ? officers : officers?.filter((officer) => String(officer.office_id) === officeId)
+}
+
+/** Changing the office drops an accountable officer who doesn't belong to it. */
+function withOffice<T extends { office_id: string; accountable_officer_id: string }>(filters: T, officeId: string, officers: OfficerOption[] | undefined): T {
+  const keeps = filters.accountable_officer_id === '' || (officersOfOffice(officers, officeId) ?? []).some((officer) => String(officer.value) === filters.accountable_officer_id)
+  return { ...filters, office_id: officeId, accountable_officer_id: keeps ? filters.accountable_officer_id : '' }
+}
+
 const FUNCTIONAL_OPTIONS: Option<string>[] = [
   { value: 'functional', label: 'Functional' },
   { value: 'non_functional', label: 'Non-functional' },
@@ -486,7 +499,7 @@ export function EquipmentList() {
             className="sm:col-span-2 lg:col-span-4"
           />
           {filterShown('office_id') && (filterOptions?.office.length ?? 0) > 1 && (
-            <FilterSelect label="Office" value={draft.office_id} onChange={(office_id) => setDraft((d) => ({ ...d, office_id }))} className="lg:col-span-4">
+            <FilterSelect label="Office" value={draft.office_id} onChange={(office_id) => setDraft((d) => withOffice(d, office_id, filterOptions?.accountable_officer))} className="lg:col-span-4">
               <option value="">All offices</option>
               {filterOptions?.office.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -552,7 +565,7 @@ export function EquipmentList() {
             [
               ['estimated_useful_life', 'Estimated useful life', 'Any useful life', filterOptions?.estimated_useful_life],
               ['transaction_type', 'Latest transaction type', 'All transaction types', filterOptions?.transaction_type],
-              ['accountable_officer_id', 'Accountable officer', 'All accountable officers', filterOptions?.accountable_officer],
+              ['accountable_officer_id', 'Accountable officer', 'All accountable officers', officersOfOffice(filterOptions?.accountable_officer, draft.office_id)],
               ['received_by_id', 'Received by (latest transaction)', 'Anyone', filterOptions?.received_by],
               ['used_by', 'Used by', 'Anyone', [...(filterOptions?.used_by ?? []), { value: 'none', label: 'Not set' }]],
             ] as const

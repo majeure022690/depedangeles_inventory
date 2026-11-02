@@ -42,7 +42,7 @@ const FUNCTIONAL_OPTIONS: Option<string>[] = [
 ]
 
 /** Select filters in display order, each with its "any" text and the option list it reads. */
-const SELECT_FILTERS: { key: Exclude<FilterKey, 'search' | 'office_id'>; label: string; any: string; options: (o: SchoolPropertyOptions) => Option[] }[] = [
+const SELECT_FILTERS: { key: Exclude<FilterKey, 'search' | 'office_id'>; label: string; any: string; options: (o: SchoolPropertyOptions, draft: SchoolPropertyFilters) => Option[] }[] = [
   { key: 'item_type_id', label: 'Item type', any: 'All item types', options: (o) => o.item_type },
   { key: 'brand_id', label: 'Brand / manufacturer', any: 'All brands', options: (o) => o.brand },
   { key: 'functional', label: 'Status', any: 'Functional and non-functional', options: () => FUNCTIONAL_OPTIONS },
@@ -50,7 +50,12 @@ const SELECT_FILTERS: { key: Exclude<FilterKey, 'search' | 'office_id'>; label: 
   { key: 'disposition_status', label: 'Disposition status', any: 'All disposition statuses', options: (o) => o.disposition_status },
   { key: 'estimated_useful_life', label: 'Estimated useful life', any: 'Any useful life', options: (o) => o.estimated_useful_life },
   { key: 'transaction_type', label: 'Latest transaction type', any: 'All transaction types', options: (o) => o.transaction_type },
-  { key: 'accountable_officer_id', label: 'Accountable officer', any: 'All accountable officers', options: (o) => o.accountable_officer },
+  {
+    key: 'accountable_officer_id',
+    label: 'Accountable officer',
+    any: 'All accountable officers',
+    options: (o, draft) => (draft.office_id === '' ? o.accountable_officer : o.accountable_officer.filter((officer) => String(officer.office_id) === draft.office_id)),
+  },
   { key: 'received_by_id', label: 'Received by (latest transaction)', any: 'Anyone', options: (o) => o.received_by },
 ]
 
@@ -98,7 +103,7 @@ export function PropertyItemList() {
     if (key === 'search') return `Search: ${value}`
     if (key === 'office_id') return options?.office.find((o) => String(o.value) === value)?.label ?? 'Office'
     const filter = SELECT_FILTERS.find((f) => f.key === key)
-    const option = filter && options ? filter.options(options).find((o) => String(o.value) === value) : undefined
+    const option = filter && options ? filter.options(options, EMPTY_FILTERS).find((o) => String(o.value) === value) : undefined
     return `${filter?.label ?? key}: ${option?.label ?? value}`
   }
 
@@ -156,7 +161,15 @@ export function PropertyItemList() {
             className={showOffice ? 'sm:col-span-2 lg:col-span-8' : 'sm:col-span-2 lg:col-span-12'}
           />
           {showOffice && (
-            <FilterSelect label="Office" value={draft.office_id} onChange={(office_id) => setDraft((d) => ({ ...d, office_id }))} className="lg:col-span-4">
+            <FilterSelect
+              label="Office"
+              value={draft.office_id}
+              onChange={(office_id) =>
+                setDraft((d) => {
+                  const keeps = d.accountable_officer_id === '' || options?.accountable_officer.some((officer) => String(officer.value) === d.accountable_officer_id && (office_id === '' || String(officer.office_id) === office_id))
+                  return { ...d, office_id, accountable_officer_id: keeps ? d.accountable_officer_id : '' }
+                })
+              } className="lg:col-span-4">
               <option value="">All offices</option>
               {options?.office.map((office) => (
                 <option key={office.value} value={office.value}>
@@ -176,7 +189,7 @@ export function PropertyItemList() {
             >
               <option value="">{filter.any}</option>
               {options &&
-                filter.options(options).map((option) => (
+                filter.options(options, draft).map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
