@@ -219,8 +219,8 @@ function parseCost(cost: string): number | null {
 /** The stored category/GL-SL while the cost is unchanged on edit, otherwise the preview from the options' rules. */
 /** The property number a save will give `current` once its acquisition year changes; mirrors EquipmentPropertyNumberService. */
 function propertyNumberAfterYearChange(current: Equipment | null | undefined, receivedDate: string): { from: string; to: string | null } | null {
-  const parts = /^AC-(d{4})(-IT-[A-Z0-9]+-d{6})$/.exec(current?.property_no ?? '')
-  const year = /^(d{4})-/.exec(receivedDate)?.[1]
+  const parts = /^AC-(\d{4})(-IT-[A-Z0-9]+-\d{6})$/.exec(current?.property_no ?? '')
+  const year = /^(\d{4})-/.exec(receivedDate)?.[1]
   if (!current?.property_no || !parts || !year || Number(year) < 1 || parts[1] === year) return null
   if (current.parent_equipment_id !== null || (current.children?.length ?? 0) > 0) return null
   return { from: current.property_no, to: parts[1] === '0000' ? null : `AC-${year}${parts[2]}` }

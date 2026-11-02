@@ -74,7 +74,7 @@ export function EquipmentList() {
   const itemTypeFilter = itemTypeIds.join(',')
   const idFilter = (searchParams.get('ids') ?? '')
     .split(',')
-    .filter((id) => /^d+$/.test(id))
+    .filter((id) => /^\d+$/.test(id))
     .join(',')
 
   function clearUrlFilter(key: 'dashboard_group' | 'item_type' | 'used_by' | 'ids') {
