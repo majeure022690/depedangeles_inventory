@@ -6,6 +6,9 @@ import { cn } from '@/lib/utils'
 export const filterFieldClass =
   'h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500'
 
+/** The small visible caption above every filter control. */
+export const filterLabelClass = 'mb-1 block text-xs font-medium text-gray-600'
+
 export function FilterSearch({
   label,
   value,
@@ -20,18 +23,21 @@ export function FilterSearch({
   className?: string
 }) {
   return (
-    <div className={cn('relative', className)}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-      <input
-        type="text"
-        placeholder={label}
-        aria-label={label}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
-        className={cn(filterFieldClass, 'pl-9')}
-      />
-    </div>
+    <label className={cn('block', className)}>
+      <span className={filterLabelClass}>Search</span>
+      <span className="relative block">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          placeholder={label}
+          aria-label={label}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
+          className={cn(filterFieldClass, 'pl-9')}
+        />
+      </span>
+    </label>
   )
 }
 
@@ -51,19 +57,20 @@ export function FilterSelect({
   children: ReactNode
 }) {
   return (
-    <div className={cn('relative', className)}>
-      <select
-        aria-label={label}
-        title={label}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(filterFieldClass, 'appearance-none pr-9')}
-      >
-        {children}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-    </div>
+    <label className={cn('block', className)}>
+      <span className={filterLabelClass}>{label}</span>
+      <span className="relative block">
+        <select
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn(filterFieldClass, 'appearance-none pr-9')}
+        >
+          {children}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+      </span>
+    </label>
   )
 }
 

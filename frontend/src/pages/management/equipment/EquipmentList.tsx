@@ -56,6 +56,7 @@ const FILTERS_BY_COLUMN: Record<string, string[]> = {
   equipment_condition: ['condition'],
   disposition_status: ['disposition_status'],
   accountable_officer: ['accountable_officer_id'],
+  received_by: ['received_by_id'],
   old_property_no: ['duplicates'],
   acquisition_cost: ['high_cost'],
 }
@@ -401,6 +402,12 @@ export function EquipmentList() {
         cell: ({ row }) => row.original.office?.office_name ?? <span className="text-gray-400">—</span>,
       }),
       column.display({
+        id: 'received_by',
+        header: 'Received By',
+        enableSorting: false,
+        cell: ({ row }) => row.original.latest_received_by?.full_name ?? <span className="text-gray-400">—</span>,
+      }),
+      column.display({
         id: 'end_user',
         header: 'End User',
         enableSorting: false,
@@ -566,8 +573,8 @@ export function EquipmentList() {
               ['estimated_useful_life', 'Estimated useful life', 'Any useful life', filterOptions?.estimated_useful_life],
               ['transaction_type', 'Latest transaction type', 'All transaction types', filterOptions?.transaction_type],
               ['accountable_officer_id', 'Accountable officer', 'All accountable officers', officersOfOffice(filterOptions?.accountable_officer, draft.office_id)],
-              ['received_by_id', 'Received by (latest transaction)', 'Anyone', filterOptions?.received_by],
-              ['used_by', 'Used by', 'Anyone', [...(filterOptions?.used_by ?? []), { value: 'none', label: 'Not set' }]],
+              ['received_by_id', 'Received by (latest transaction)', 'Received by: anyone', filterOptions?.received_by],
+              ['used_by', 'Used by', 'Used by: anyone', [...(filterOptions?.used_by ?? []), { value: 'none', label: 'Not set' }]],
             ] as const
           )
             .filter(([key]) => filterShown(key))

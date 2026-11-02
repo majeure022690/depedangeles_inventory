@@ -183,7 +183,7 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
                 {selectField(
                   'transaction_type',
                   'Transaction type',
-                  'Select the appropriate Transaction Type from the dropdown list. For the initial transaction, choose \'Beginning Inventory.\' For subsequent transactions, including movements, transfers, or updates, select the Transaction Type that corresponds to the specific activity.',
+                  'Select the appropriate Transaction Type from the dropdown list. For the initial transaction, choose \'Beginning Inventory.\' For subsequent transactions, including movements, transfers, or updates, select the Transaction Type that corresponds to the specific activity. The fields marked required change with the type you choose.',
                   options?.transaction_type,
                   'Select a transaction type',
                   'sm:col-span-2',

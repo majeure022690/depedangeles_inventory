@@ -56,7 +56,7 @@ const SELECT_FILTERS: { key: Exclude<FilterKey, 'search' | 'office_id'>; label: 
     any: 'All accountable officers',
     options: (o, draft) => (draft.office_id === '' ? o.accountable_officer : o.accountable_officer.filter((officer) => String(officer.office_id) === draft.office_id)),
   },
-  { key: 'received_by_id', label: 'Received by (latest transaction)', any: 'Anyone', options: (o) => o.received_by },
+  { key: 'received_by_id', label: 'Received by (latest transaction)', any: 'Received by: anyone', options: (o) => o.received_by },
 ]
 
 export function PropertyItemList() {
@@ -267,12 +267,12 @@ export function PropertyItemList() {
                     {row.office_name ?? <span className="font-normal italic text-gray-500">No office assigned</span>}
                   </th>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    {row.office_id !== null && row.on_hand > 0 ? (
+                    {row.on_hand > 0 ? (
                       <button
                         type="button"
                         onClick={() => setBreakdown(row)}
                         className="font-semibold text-primary-700 underline-offset-2 hover:underline focus-visible:underline"
-                        aria-label={`Show the ${row.on_hand} items on hand at ${row.office_name ?? 'this office'}`}
+                        aria-label={`Show the ${row.on_hand} items on hand ${row.office_name ? `at ${row.office_name}` : 'with no office assigned'}`}
                       >
                         {row.on_hand}
                       </button>
@@ -303,13 +303,13 @@ export function PropertyItemList() {
 
       <Dialog open={breakdown !== null} onOpenChange={(open) => !open && setBreakdown(null)}>
         <DialogContent size="full">
-          <DialogTitle>{breakdown?.office_name} &middot; items on hand</DialogTitle>
+          <DialogTitle>{breakdown?.office_name ?? 'No office assigned'} &middot; items on hand</DialogTitle>
           <DialogDescription>
             {breakdown ? `${breakdown.on_hand} item(s) worth ${currency.format(breakdown.total_cost)}, under the filters applied on the page.` : ''}
           </DialogDescription>
           <div className="mt-4">
-            {breakdown && breakdown.office_id !== null && (
-              <PropertyItemEquipmentTable filters={{ ...applied, office_id: String(breakdown.office_id) }} showOffice={false} />
+            {breakdown && (
+              <PropertyItemEquipmentTable filters={{ ...applied, office_id: breakdown.office_id === null ? 'none' : String(breakdown.office_id) }} showOffice={false} />
             )}
           </div>
         </DialogContent>

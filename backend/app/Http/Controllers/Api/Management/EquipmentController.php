@@ -117,6 +117,8 @@ class EquipmentController extends Controller
         'currentEndUser.office:id,office_name',
         'createdBy:id,office_id',
         'createdBy.office:id,office_name',
+        'latestTransaction',
+        'latestTransaction.receivedBy:id,full_name',
         'itemType:id,name,dashboard_group',
         'brand:id,name',
         'equipmentCategory:id,name',

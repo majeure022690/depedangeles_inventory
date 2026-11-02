@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/DataGrid'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/Dialog'
-import { FilterChips, FilterSearch, FilterSelect, type FilterChip } from '@/components/ui/FilterControls'
+import { FilterChips, FilterSearch, FilterSelect, filterLabelClass, type FilterChip } from '@/components/ui/FilterControls'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { SelectPicker } from '@/components/ui/SelectPicker'
@@ -417,6 +417,7 @@ export function UserList() {
 )}
           {filterShown('office_id') && (
 <div className="sm:col-span-2 lg:col-span-3">
+            <span className={filterLabelClass}>Office</span>
             <SelectPicker
               aria-label="Office"
               placeholder="All offices"

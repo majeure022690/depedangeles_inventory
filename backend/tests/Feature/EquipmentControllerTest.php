@@ -435,6 +435,13 @@ class EquipmentControllerTest extends TestCase
         $only("received_by_id={$receiver->id}");
         $only("item_type_id={$match->item_type_id}&brand_id={$acer}");
 
+        $this->actingAs($user)->getJson("/api/equipment?received_by_id={$receiver->id}")->assertJsonPath('data.0.latest_received_by.id', $receiver->id);
+        $earlierOnly = Personnel::factory()->create();
+        $other->transactions()->oldest('id')->first()->forceFill(['received_by_id' => $earlierOnly->id])->save();
+        $receivers = array_column($this->actingAs($user)->getJson('/api/equipment/options')->json('data.filters.received_by'), 'value');
+        $this->assertContains($receiver->id, $receivers);
+        $this->assertNotContains($earlierOnly->id, $receivers);
+
         $this->makeEquipment(['property_no' => 'F-3', 'used_by' => null]);
         $this->actingAs($user)->getJson("/api/equipment?ids={$match->id},{$other->id},abc")->assertOk()->assertJsonPath('meta.total', 2);
         $this->actingAs($user)->getJson('/api/equipment?used_by=none')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.property_no', 'F-3');

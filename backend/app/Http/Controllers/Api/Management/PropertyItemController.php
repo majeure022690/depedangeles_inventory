@@ -27,12 +27,6 @@ class PropertyItemController extends Controller
 {
     use ResolvesListParameters;
 
-    private const OFFICE_OF_ITEM = 'CASE
-        WHEN equipment.current_accountable_officer_id IS NOT NULL THEN (SELECT personnel.office_id FROM personnel WHERE personnel.id = equipment.current_accountable_officer_id)
-        WHEN equipment.current_end_user_id IS NOT NULL THEN (SELECT personnel.office_id FROM personnel WHERE personnel.id = equipment.current_end_user_id)
-        ELSE (SELECT users.office_id FROM users WHERE users.id = equipment.created_by_user_id)
-    END';
-
     public function options(Request $request, EquipmentFilterOptions $filterOptions): JsonResponse
     {
         abort_unless($request->user()->hasPermissionTo(Permission::PropertyItemsView), 403);
@@ -52,9 +46,9 @@ class PropertyItemController extends Controller
     {
         $missing = implode(', ', array_fill(0, count(Equipment::MISSING), '?'));
         $items = $request->equipment()
-            ->when($request->filled('office_id'), fn (Builder $query) => $query->atOffice($request->integer('office_id')))
+            ->tap(fn (Builder $query) => $request->narrowToOffice($query))
             ->toBase()
-            ->selectRaw(self::OFFICE_OF_ITEM.' AS office_id')
+            ->selectRaw(Equipment::OFFICE_SQL.' AS office_id')
             ->addSelect(['equipment.acquisition_cost', 'equipment.disposition_status']);
 
         $rows = DB::query()
@@ -91,7 +85,7 @@ class PropertyItemController extends Controller
     public function equipment(ListSchoolPropertyRequest $request): JsonResponse
     {
         $query = $request->equipment()
-            ->when($request->filled('office_id'), fn (Builder $query) => $query->atOffice($request->integer('office_id')))
+            ->tap(fn (Builder $query) => $request->narrowToOffice($query))
             ->onHand()
             ->with([
                 'itemType:id,name', 'brand:id,name', 'equipmentCondition:id,name',

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/DataGrid'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/Dialog'
-import { FilterChips, FilterSearch, FilterSelect, filterFieldClass, type FilterChip } from '@/components/ui/FilterControls'
+import { FilterChips, FilterSearch, FilterSelect, filterFieldClass, filterLabelClass, type FilterChip } from '@/components/ui/FilterControls'
 import { SelectPicker } from '@/components/ui/SelectPicker'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useColumnLinkedFilters } from '@/hooks/useColumnLinkedFilters'
@@ -364,8 +364,8 @@ export function AuditLog() {
             ))}
           </FilterSelect>
 )}
-          <label className="flex items-center gap-2 text-xs text-gray-500 lg:col-span-3">
-            <span className="w-10 shrink-0">From</span>
+          <label className="block lg:col-span-3">
+            <span className={filterLabelClass}>From</span>
             <input
               type="date"
               aria-label="From date"
@@ -375,8 +375,8 @@ export function AuditLog() {
               className={filterFieldClass}
             />
           </label>
-          <label className="flex items-center gap-2 text-xs text-gray-500 lg:col-span-3">
-            <span className="w-10 shrink-0">Until</span>
+          <label className="block lg:col-span-3">
+            <span className={filterLabelClass}>Until</span>
             <input
               type="date"
               aria-label="Until date"
@@ -388,6 +388,7 @@ export function AuditLog() {
           </label>
           {filterShown('causer_id') && (
 <div className="sm:col-span-2 lg:col-span-6">
+            <span className={filterLabelClass}>Performed by</span>
             <SelectPicker
               aria-label="Performed by"
               placeholder="Anyone"

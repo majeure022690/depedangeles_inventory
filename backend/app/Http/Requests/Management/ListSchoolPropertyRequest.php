@@ -24,7 +24,7 @@ class ListSchoolPropertyRequest extends FormRequest
     {
         return [
             'search' => ['nullable', 'string', 'max:100'],
-            'office_id' => ['nullable', 'integer'],
+            'office_id' => ['nullable', 'string', 'regex:/^(\d+|none)$/'],
             'item_type_id' => ['nullable', 'integer'],
             'brand_id' => ['nullable', 'integer'],
             'functional' => ['nullable', 'string', 'in:functional,non_functional'],
@@ -35,6 +35,22 @@ class ListSchoolPropertyRequest extends FormRequest
             'accountable_officer_id' => ['nullable', 'integer'],
             'received_by_id' => ['nullable', 'integer'],
         ];
+    }
+
+    /**
+     * `office_id=none` keeps the items no office claims; a numeric id keeps that office's items.
+     *
+     * @param  Builder<Equipment>  $query
+     */
+    public function narrowToOffice(Builder $query): void
+    {
+        $office = $this->safe()->string('office_id')->toString();
+
+        if ($office === 'none') {
+            $query->whereRaw('('.Equipment::OFFICE_SQL.') IS NULL');
+        } elseif ($office !== '') {
+            $query->atOffice((int) $office);
+        }
     }
 
     /**

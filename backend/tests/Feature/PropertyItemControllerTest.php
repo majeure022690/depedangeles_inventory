@@ -135,6 +135,22 @@ class PropertyItemControllerTest extends TestCase
         $this->assertSame([$this->office->id], array_column($data['offices'], 'office_id'));
     }
 
+    public function test_items_no_office_claims_are_listed_under_office_none(): void
+    {
+        $orphan = $this->item(['current_accountable_officer_id' => null, 'current_end_user_id' => null, 'created_by_user_id' => null]);
+        $this->item();
+
+        $this->assertContains(['office_id' => null, 'office_name' => null, 'on_hand' => 1, 'missing' => 0, 'total_cost' => 10000], $this->summary()['offices']);
+
+        $this->actingAs($this->userWithPermissions([Permission::PropertyItemsView]))
+            ->getJson('/api/property-items/equipment?office_id=none')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $orphan->id);
+
+        $this->actingAs($this->userWithPermissions([Permission::PropertyItemsView]))->getJson('/api/property-items/equipment?office_id=abc')->assertUnprocessable();
+    }
+
     public function test_equipment_lists_the_items_on_hand_behind_an_office_row(): void
     {
         $counted = $this->item(['acquisition_cost' => 30000, 'property_no' => 'SE-001']);

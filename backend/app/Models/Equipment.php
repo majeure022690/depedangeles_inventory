@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
@@ -128,6 +129,13 @@ class Equipment extends Model
 
     public const array MISSING = ['Lost', 'Stolen'];
 
+    /** SQL for the office an item counts under, by the same rule as scopeAtOffices. */
+    public const string OFFICE_SQL = 'CASE
+        WHEN equipment.current_accountable_officer_id IS NOT NULL THEN (SELECT personnel.office_id FROM personnel WHERE personnel.id = equipment.current_accountable_officer_id)
+        WHEN equipment.current_end_user_id IS NOT NULL THEN (SELECT personnel.office_id FROM personnel WHERE personnel.id = equipment.current_end_user_id)
+        ELSE (SELECT users.office_id FROM users WHERE users.id = equipment.created_by_user_id)
+    END';
+
     /** Level of the school where the item is used; GSP Table 1 counts learner and teacher computers under it. */
     public const array SCHOOL_LEVELS = [...GspIctReport::LEVELS, 'not_applicable' => 'Not applicable'];
 
@@ -214,6 +222,16 @@ class Equipment extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    /**
+     * The transaction that set the current holders; the filters' "latest transaction".
+     *
+     * @return HasOne<EquipmentTransaction, $this>
+     */
+    public function latestTransaction(): HasOne
+    {
+        return $this->hasOne(EquipmentTransaction::class)->latestOfMany('id');
     }
 
     /**

@@ -56,7 +56,7 @@ final class EquipmentFilterOptions
                 ->values()
                 ->all(),
             'accountable_officer' => $people((clone $visible)->select('current_accountable_officer_id')->whereNotNull('current_accountable_officer_id')),
-            'received_by' => $people(EquipmentTransaction::query()->select('received_by_id')->whereNotNull('received_by_id')->whereIn('equipment_id', (clone $visible)->select('id'))),
+            'received_by' => $people(EquipmentTransaction::query()->select('received_by_id')->whereNotNull('received_by_id')->whereIn('id', EquipmentTransaction::query()->selectRaw('MAX(id)')->whereIn('equipment_id', (clone $visible)->select('id'))->groupBy('equipment_id'))),
         ];
     }
 }

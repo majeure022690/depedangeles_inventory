@@ -121,6 +121,8 @@ export interface Equipment {
   awaiting_receipt_since: string | null
   current_accountable_officer: PersonnelSummary | null
   current_end_user: PersonnelSummary | null
+  /** Receiver on the latest transaction; list only. */
+  latest_received_by?: PersonnelSummary | null
   /** The office the item counts under (accountable officer, else end user, else creator); list and detail only. */
   office?: { id: number; office_name: string } | null
   dashboard_group: string | null
