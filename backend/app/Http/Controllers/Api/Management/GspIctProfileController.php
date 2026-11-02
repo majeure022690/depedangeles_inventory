@@ -95,7 +95,7 @@ class GspIctProfileController extends Controller
         ];
 
         if ($officeId > 0 && $user->reachesOffice($officeId)) {
-            $data['school_heads'] = $this->pickerOptions(Personnel::query()->where('office_id', $officeId)->schoolHeadsFirst());
+            $data['school_heads'] = $this->pickerOptions(Personnel::query()->where('office_id', $officeId)->schoolHeads()->orderBy('last_name')->orderBy('first_name'));
             $data['isp_accounts'] = IspAccount::query()
                 ->where('office_id', $officeId)
                 ->where('inactive_contract', false)

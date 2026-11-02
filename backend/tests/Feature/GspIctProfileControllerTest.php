@@ -143,19 +143,23 @@ class GspIctProfileControllerTest extends TestCase
         $this->actingAs($scoped)->getJson("/api/gsp-profiles/preview?{$query}")->assertNotFound();
     }
 
-    public function test_signatories_are_picked_from_personnel_with_school_heads_first(): void
+    public function test_school_head_choices_are_only_the_heads_of_the_school(): void
     {
         $principal = Position::query()->firstOrCreate(['name' => 'Principal I'], ['is_active' => true]);
         $ito = Position::query()->firstOrCreate(['name' => 'Information Technology Officer I'], ['is_active' => true]);
-        $teacher = Personnel::factory()->create(['office_id' => $this->office->id, 'last_name' => 'Aaron', 'inactive' => false]);
+        $teacher = Personnel::factory()->create(['office_id' => $this->office->id, 'last_name' => 'Aaron', 'oic' => false, 'position_id' => Position::query()->firstOrCreate(['name' => 'Teacher I'], ['is_active' => true])->id, 'inactive' => false]);
         $head = Personnel::factory()->create(['office_id' => $this->office->id, 'last_name' => 'Zamora', 'position_id' => $principal->id, 'inactive' => false]);
+        $oic = Personnel::factory()->create(['office_id' => $this->office->id, 'last_name' => 'Bautista', 'oic' => true, 'inactive' => false]);
+        $elsewhere = Personnel::factory()->create(['office_id' => Office::factory()->create()->id, 'position_id' => $principal->id, 'inactive' => false]);
         $itOfficer = Personnel::factory()->create(['office_id' => Office::factory()->create()->id, 'position_id' => $ito->id, 'inactive' => false]);
         $user = $this->reporter();
 
         $options = $this->actingAs($user)->getJson("/api/gsp-profiles/options?office_id={$this->office->id}")->assertOk();
         $heads = array_column($options->json('data.school_heads'), 'value');
-        $this->assertSame($head->id, $heads[0]);
-        $this->assertContains($teacher->id, $heads);
+        $this->assertContains($head->id, $heads);
+        $this->assertContains($oic->id, $heads);
+        $this->assertNotContains($teacher->id, $heads);
+        $this->assertNotContains($elsewhere->id, $heads);
         $this->assertSame([$itOfficer->id], array_column($options->json('data.itos'), 'value'));
 
         $payload = ['office_id' => $this->office->id, 'school_year' => '2025-2026', 'as_of' => '2026-03-31', 'level' => 'elementary', 'school_head_id' => $itOfficer->id];

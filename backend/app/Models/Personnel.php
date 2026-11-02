@@ -204,6 +204,21 @@ class Personnel extends Model
     }
 
     /**
+     * Principals, head teachers, school heads and officers-in-charge.
+     *
+     * @param  Builder<Personnel>  $query
+     */
+    public function scopeSchoolHeads(Builder $query): void
+    {
+        $query->where(fn (Builder $query) => $query
+            ->where($query->qualifyColumn('oic'), true)
+            ->orWhereHas('personnelPosition', fn (Builder $query) => $query
+                ->whereRaw('lower(name) like ?', ['%principal%'])
+                ->orWhereRaw('lower(name) like ?', ['%head teacher%'])
+                ->orWhereRaw('lower(name) like ?', ['%school head%'])));
+    }
+
+    /**
      * @param  Builder<Personnel>  $query
      */
     public function scopeWithPositionLike(Builder $query, string $title): void

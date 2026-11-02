@@ -26,6 +26,8 @@ import {
 
 const TABS_ID = 'gsp-profile'
 
+type SignatoryKey = 'school_head_id' | 'ito_id' | 'planning_officer_id'
+
 const SECTIONS = [
   { value: 'profile', label: 'Profile' },
   { value: 'table1', label: 'Table 1' },
@@ -112,6 +114,20 @@ export function GspProfileForm({
   const accounts = accountList && accountList.officeId === form.office_id ? accountList.accounts : []
   const schoolHeads = accountList && accountList.officeId === form.office_id ? accountList.schoolHeads : []
 
+  const [clearedSignatories, setClearedSignatories] = useState<SignatoryKey[]>([])
+  const onlyChoice = (key: SignatoryKey, people: PersonOption[]) =>
+    form[key] === '' && people.length === 1 && !clearedSignatories.includes(key) ? String(people[0].value) : form[key]
+  const signatories: Pick<typeof form, SignatoryKey> = {
+    school_head_id: onlyChoice('school_head_id', schoolHeads),
+    ito_id: onlyChoice('ito_id', options.itos),
+    planning_officer_id: onlyChoice('planning_officer_id', options.planning_officers),
+  }
+
+  function setSignatory(key: SignatoryKey, value: string) {
+    setClearedSignatories((prev) => (value === '' ? [...prev, key] : prev.filter((cleared) => cleared !== key)))
+    set(key, value)
+  }
+
   const previewKey = /^\d{4}-\d{4}$/.test(form.school_year) && form.office_id !== '' ? `${form.office_id}|${form.school_year}|${form.level}` : null
   const [preview, setPreview] = useState<{ key: string; data: GspIrisData | null; error: string | null } | null>(null)
 
@@ -164,6 +180,7 @@ export function GspProfileForm({
       isp_reliability: {},
       school_head_id: '',
     }))
+    setClearedSignatories((prev) => prev.filter((cleared) => cleared !== 'school_head_id'))
   }
 
   function changeSchoolYear(value: string) {
@@ -192,7 +209,7 @@ export function GspProfileForm({
     setErrors({})
     setErrorMessage(null)
     try {
-      const response = await submit(form)
+      const response = await submit({ ...form, ...signatories })
       onSaved(response.data, response.message)
     } catch (error) {
       if (isValidationError(error)) {
@@ -449,11 +466,11 @@ export function GspProfileForm({
             <PersonPicker
               id="school_head_id"
               label="School head (optional)"
-              hint="This school's personnel, principals and head teachers first. The position on the cover comes from their Personnel record."
+              hint="Principals, head teachers and OICs of this school. Picked automatically when there is only one. The position on the cover comes from their Personnel record."
               people={schoolHeads}
               current={currentPeople?.school_head ?? null}
-              value={form.school_head_id}
-              onChange={(value) => set('school_head_id', value)}
+              value={signatories.school_head_id}
+              onChange={(value) => setSignatory('school_head_id', value)}
               placeholder={form.office_id === '' ? 'Choose the office first' : 'Select the school head'}
               disabled={form.office_id === ''}
               error={errors.school_head_id}
@@ -464,8 +481,8 @@ export function GspProfileForm({
               hint="Division personnel whose position is Information Technology Officer."
               people={options.itos}
               current={currentPeople?.ito ?? null}
-              value={form.ito_id}
-              onChange={(value) => set('ito_id', value)}
+              value={signatories.ito_id}
+              onChange={(value) => setSignatory('ito_id', value)}
               placeholder="Select the ITO"
               error={errors.ito_id}
             />
@@ -475,8 +492,8 @@ export function GspProfileForm({
               hint="Division personnel whose position is Planning Officer."
               people={options.planning_officers}
               current={currentPeople?.planning_officer ?? null}
-              value={form.planning_officer_id}
-              onChange={(value) => set('planning_officer_id', value)}
+              value={signatories.planning_officer_id}
+              onChange={(value) => setSignatory('planning_officer_id', value)}
               placeholder="Select the Planning Officer"
               error={errors.planning_officer_id}
             />
