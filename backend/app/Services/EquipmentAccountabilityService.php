@@ -34,6 +34,10 @@ use Illuminate\Validation\ValidationException;
  */
 final class EquipmentAccountabilityService
 {
+    private const DISPOSAL = 'Disposal';
+
+    private const DISPOSED = 'Disposed';
+
     private const COPIED_FIELDS = [
         'transaction_type', 'accountable_officer_id', 'end_user_id', 'received_by_id',
         'date_assigned_accountable_officer', 'date_assigned_end_user', 'date_received_new_accountable',
@@ -156,11 +160,14 @@ final class EquipmentAccountabilityService
         $toOffice = $this->officeOf($data['accountable_officer_id'] ?? $data['end_user_id'] ?? null);
         $moved = $flagReceipt && $fromOffice !== null && $toOffice !== null && $fromOffice !== $toOffice;
 
-        Equipment::withAccountabilitySync(function () use ($equipment, $data, $moved) {
+        $disposed = ($data['transaction_type'] ?? null) === self::DISPOSAL;
+
+        Equipment::withAccountabilitySync(function () use ($equipment, $data, $moved, $disposed) {
             $equipment->update([
                 'current_accountable_officer_id' => $data['accountable_officer_id'] ?? null,
                 'current_end_user_id' => $data['end_user_id'] ?? null,
                 ...($moved ? ['awaiting_receipt_since' => now()] : []),
+                ...($disposed ? ['disposition_status' => self::DISPOSED, 'awaiting_receipt_since' => null] : []),
             ]);
         });
 

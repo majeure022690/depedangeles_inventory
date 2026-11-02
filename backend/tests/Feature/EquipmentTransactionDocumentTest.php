@@ -70,6 +70,22 @@ class EquipmentTransactionDocumentTest extends TestCase
             ->assertHeader('X-Content-Type-Options', 'nosniff');
     }
 
+    public function test_a_disposal_marks_the_item_and_its_peripherals_disposed(): void
+    {
+        $desktop = $this->item();
+        $monitor = Equipment::factory()->create(['parent_equipment_id' => $desktop->id, 'current_accountable_officer_id' => $this->officer->id, 'current_end_user_id' => null, 'disposition_status' => 'Normal']);
+        $desktop->forceFill(['awaiting_receipt_since' => now()])->saveQuietly();
+
+        $this->actingAs($this->user)->postJson("/api/equipment/{$desktop->id}/transactions", $this->transactionPayload([
+            'transaction_type' => 'Disposal',
+            'documents' => [$this->supportingDocument($this->user, 'Waste Material Report (WMR)')],
+        ]))->assertCreated();
+
+        $this->assertSame('Disposed', $desktop->fresh()->disposition_status);
+        $this->assertNull($desktop->fresh()->awaiting_receipt_since);
+        $this->assertSame('Disposed', $monitor->fresh()->disposition_status);
+    }
+
     public function test_required_fields_follow_the_transaction_type(): void
     {
         $equipment = $this->item();
