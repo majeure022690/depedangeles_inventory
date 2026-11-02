@@ -440,6 +440,7 @@ class EquipmentControllerTest extends TestCase
         $only("item_type_id={$match->item_type_id}&brand_id={$acer}");
 
         $this->makeEquipment(['property_no' => 'F-3', 'used_by' => null]);
+        $this->actingAs($user)->getJson("/api/equipment?ids={$match->id},{$other->id},abc")->assertOk()->assertJsonPath('meta.total', 2);
         $this->actingAs($user)->getJson('/api/equipment?used_by=none')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.property_no', 'F-3');
     }
 

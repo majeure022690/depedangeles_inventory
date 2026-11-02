@@ -66,8 +66,8 @@ export interface GspIrisData {
     types: { key: string; label: string }[]
     /** group (learner, teacher, personnel) -> level (or `all`) -> computer type -> fund -> count; missing means 0. */
     counts: Partial<Record<string, Partial<Record<string, Partial<Record<string, Partial<Record<FundKey, number>>>>>>>>
-    /** Computers at the school left out of Table 1 because Used by is empty or the condition is Not Applicable. */
-    gaps: { missing_used_by: number; condition_not_applicable: number }
+    /** Ids of computers at the school left out of Table 1 because Used by is empty or the condition is Not Applicable. */
+    gaps: { missing_used_by: number[]; condition_not_applicable: number[] }
   }
   table_2: { label: string; dcp: number; deped_non_dcp: number; others: number }[]
   table_3: { years: number[]; rows: { label: string; counts: Record<string, number> }[] }

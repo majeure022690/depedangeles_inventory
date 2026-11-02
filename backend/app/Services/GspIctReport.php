@@ -123,7 +123,7 @@ class GspIctReport
      * Everything the workbook reads from IRIS records, for showing beside the profile.
      *
      * @return array{
-     *     table_1: array{funds: list<array{key: string, label: string}>, types: list<array{key: string, label: string}>, counts: array<string, array<string, array<string, array<string, int>>>>, gaps: array{missing_used_by: int, condition_not_applicable: int}},
+     *     table_1: array{funds: list<array{key: string, label: string}>, types: list<array{key: string, label: string}>, counts: array<string, array<string, array<string, array<string, int>>>>, gaps: array{missing_used_by: list<int>, condition_not_applicable: list<int>}},
      *     table_2: list<array{label: string, dcp: int, deped_non_dcp: int, others: int}>,
      *     table_3: array{years: list<int>, rows: list<array{label: string, counts: array<int, int>}>},
      *     box_1: array{available_isps: list<array{label: string, checked: bool}>, coverage: list<array{label: string, checked: bool}>, subscriptions: list<array<string, mixed>>, has_survey: bool}
@@ -410,7 +410,7 @@ class GspIctReport
      * functional ones with no Used by, and otherwise-working ones whose condition is Not Applicable.
      *
      * @param  Collection<int, Equipment>  $functional
-     * @return array{missing_used_by: int, condition_not_applicable: int}
+     * @return array{missing_used_by: list<int>, condition_not_applicable: list<int>}
      */
     private function table1Gaps(Office $office, User $user, Collection $functional): array
     {
@@ -424,8 +424,8 @@ class GspIctReport
             ->get(['id', 'item_type_id', 'parent_equipment_id']);
 
         return [
-            'missing_used_by' => $functional->filter(fn (Equipment $item) => $this->computerType($item) !== null && blank($item->used_by))->count(),
-            'condition_not_applicable' => $conditionNotApplicable->filter(fn (Equipment $item) => $this->computerType($item) !== null)->count(),
+            'missing_used_by' => $functional->filter(fn (Equipment $item) => $this->computerType($item) !== null && blank($item->used_by))->pluck('id')->values()->all(),
+            'condition_not_applicable' => $conditionNotApplicable->filter(fn (Equipment $item) => $this->computerType($item) !== null)->pluck('id')->values()->all(),
         ];
     }
 

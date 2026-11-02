@@ -47,7 +47,7 @@ const FUNCTIONAL_OPTIONS: Option<string>[] = [
 
 type FilterKey = keyof typeof EMPTY_FILTERS
 
-type ChipKey = FilterKey | 'dashboard_group' | 'item_type'
+type ChipKey = FilterKey | 'dashboard_group' | 'item_type' | 'ids'
 
 export function EquipmentList() {
   const { can, user } = useAuth()
@@ -72,8 +72,12 @@ export function EquipmentList() {
     .filter((id) => /^\d+$/.test(id))
     .map(Number)
   const itemTypeFilter = itemTypeIds.join(',')
+  const idFilter = (searchParams.get('ids') ?? '')
+    .split(',')
+    .filter((id) => /^d+$/.test(id))
+    .join(',')
 
-  function clearUrlFilter(key: 'dashboard_group' | 'item_type' | 'used_by') {
+  function clearUrlFilter(key: 'dashboard_group' | 'item_type' | 'used_by' | 'ids') {
     setSearchParams(
       (params) => {
         params.delete(key)
@@ -101,7 +105,7 @@ export function EquipmentList() {
 
   const { items, meta, loading, error, page, setPage, perPage, setPerPage, sortBy, sortDir, onSortChange, reload } = useServerTable(
     (params) => equipmentService.list(params),
-    { filters: { ...applied, dashboard_group: dashboardGroup, item_type: itemTypeFilter }, waitForPerPage: true },
+    { filters: { ...applied, dashboard_group: dashboardGroup, item_type: itemTypeFilter, ids: idFilter }, waitForPerPage: true },
   )
 
   function applyFilters() {
@@ -116,6 +120,7 @@ export function EquipmentList() {
         params.delete('dashboard_group')
         params.delete('item_type')
         params.delete('used_by')
+        params.delete('ids')
         return params
       },
       { replace: true },
@@ -123,7 +128,7 @@ export function EquipmentList() {
   }
 
   function removeFilter(key: ChipKey) {
-    if (key === 'dashboard_group' || key === 'item_type') {
+    if (key === 'dashboard_group' || key === 'item_type' || key === 'ids') {
       clearUrlFilter(key)
       return
     }
@@ -162,7 +167,11 @@ export function EquipmentList() {
     .filter((chip) => applied[chip.key] !== '')
     .map((chip) => ({ ...chip, removable: true }))
 
-  const chips = [...groupChip, ...itemTypeChip, ...filterChips]
+  const idChip: FilterChip<ChipKey>[] = idFilter
+    ? [{ key: 'ids', label: `Showing ${idFilter.split(',').length} item(s) from the GSP profile`, removable: true }]
+    : []
+
+  const chips = [...groupChip, ...itemTypeChip, ...idChip, ...filterChips]
 
   const [pendingDelete, setPendingDelete] = useState<Equipment | null>(null)
   const [deleting, setDeleting] = useState(false)

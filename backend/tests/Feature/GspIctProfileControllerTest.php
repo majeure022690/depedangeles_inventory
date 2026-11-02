@@ -224,14 +224,14 @@ class GspIctProfileControllerTest extends TestCase
     public function test_preview_reports_computers_table_1_leaves_out_for_missing_data(): void
     {
         $this->item('Laptop', ['used_by' => 'Teacher']);
-        $this->item('Laptop', ['used_by' => null]);
-        $this->item('Laptop', ['used_by' => 'Learner', 'equipment_condition_id' => EquipmentCondition::firstOrCreate(['name' => 'Not Applicable'], ['is_active' => true])->id]);
+        $missing = $this->item('Laptop', ['used_by' => null]);
+        $notApplicable = $this->item('Laptop', ['used_by' => 'Learner', 'equipment_condition_id' => EquipmentCondition::firstOrCreate(['name' => 'Not Applicable'], ['is_active' => true])->id]);
         $this->item('Smart TV', ['used_by' => null]);
         $query = http_build_query(['office_id' => $this->office->id, 'school_year' => '2025-2026', 'level' => 'elementary']);
 
         $response = $this->actingAs($this->userWithPermissions([Permission::GspProfilesView]))->getJson("/api/gsp-profiles/preview?{$query}")->assertOk();
 
-        $this->assertSame(['missing_used_by' => 1, 'condition_not_applicable' => 1], $response->json('data.table_1.gaps'));
+        $this->assertSame(['missing_used_by' => [$missing->id], 'condition_not_applicable' => [$notApplicable->id]], $response->json('data.table_1.gaps'));
     }
 
     public function test_gsp_ict_counts_learner_and_teacher_computers_under_their_own_school_level(): void

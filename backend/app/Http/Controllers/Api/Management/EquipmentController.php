@@ -147,6 +147,7 @@ class EquipmentController extends Controller
             ->dispositionStatus($request->string('disposition_status')->toString() ?: null)
             ->dashboardGroup($this->dashboardGroupFilter($request))
             ->itemTypes($this->itemTypeFilter($request))
+            ->when($request->filled('ids'), fn ($query) => $query->whereKey($this->idFilter($request)))
             ->when($request->filled('item_type_id'), fn ($query) => $query->where('item_type_id', $request->integer('item_type_id')))
             ->when($request->filled('brand_id'), fn ($query) => $query->where('brand_id', $request->integer('brand_id')))
             ->when(in_array($request->string('functional')->toString(), ['functional', 'non_functional'], true), fn ($query) => $query->where('non_functional', $request->string('functional')->toString() === 'non_functional'))
@@ -179,6 +180,16 @@ class EquipmentController extends Controller
         $ids = array_map('intval', array_filter(explode(',', $request->string('item_type')->toString()), 'ctype_digit'));
 
         return array_slice(array_values(array_unique(array_filter($ids, fn (int $id) => $id > 0))), 0, 50);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function idFilter(Request $request): array
+    {
+        $ids = array_map('intval', array_filter(explode(',', $request->string('ids')->toString()), 'ctype_digit'));
+
+        return array_slice(array_values(array_unique(array_filter($ids, fn (int $id) => $id > 0))), 0, 200);
     }
 
     private function dashboardGroupFilter(Request $request): ?string
