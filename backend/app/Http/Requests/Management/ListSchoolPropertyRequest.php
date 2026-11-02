@@ -6,7 +6,6 @@ namespace App\Http\Requests\Management;
 
 use App\Enums\Permission;
 use App\Models\Equipment;
-use App\Models\EquipmentTransaction;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Http\FormRequest;
@@ -60,13 +59,6 @@ class ListSchoolPropertyRequest extends FormRequest
             ->dispositionStatus($filters->string('disposition_status')->toString() ?: null)
             ->when($filters->filled('estimated_useful_life'), fn (Builder $query) => $query->where('estimated_useful_life', $filters->integer('estimated_useful_life')))
             ->when($filters->filled('accountable_officer_id'), fn (Builder $query) => $query->where('current_accountable_officer_id', $filters->integer('accountable_officer_id')))
-            ->when($filters->filled('transaction_type') || $filters->filled('received_by_id'), fn (Builder $query) => $query->whereIn(
-                $query->qualifyColumn('id'),
-                EquipmentTransaction::query()
-                    ->select('equipment_id')
-                    ->whereIn('id', EquipmentTransaction::query()->selectRaw('MAX(id)')->groupBy('equipment_id'))
-                    ->when($filters->filled('transaction_type'), fn ($latest) => $latest->where('transaction_type', $filters->string('transaction_type')->toString()))
-                    ->when($filters->filled('received_by_id'), fn ($latest) => $latest->where('received_by_id', $filters->integer('received_by_id'))),
-            ));
+            ->latestTransaction($filters->string('transaction_type')->toString() ?: null, $filters->filled('received_by_id') ? $filters->integer('received_by_id') : null);
     }
 }

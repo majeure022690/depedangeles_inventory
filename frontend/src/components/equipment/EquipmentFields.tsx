@@ -11,7 +11,6 @@ import { Textarea } from '@/components/ui/Textarea'
 import type { FieldErrors } from '@/lib/errors'
 import { selectsOthers, withCurrentOption } from '@/lib/options'
 import { formatDate } from '@/lib/utils'
-import { usesSchoolLevel } from '@/services/equipmentService'
 import type {
   Equipment,
   EquipmentCategoryRule,
@@ -594,15 +593,14 @@ export function EquipmentFields({
       'Select who uses it',
       true,
     )
-    const schoolLevel = usesSchoolLevel(value.used_by)
-      ? stringSelect(
-          'school_level',
-          'School level (optional)',
-          'For schools with more than one level: whose learners or teachers use it. Groups the computer on GSP Table 1; leave blank to use the GSP profile’s level.',
-          formOptions?.school_level,
-          'Use the profile’s level',
-        )
-      : null
+    const schoolLevel = stringSelect(
+      'school_level',
+      'School level',
+      'The level of the school where the device is inventoried (the school that counts it), not the level the user teaches. Choose Not applicable for Division Office and other non-school items. Groups learner and teacher computers on GSP Table 1.',
+      formOptions?.school_level,
+      'Select a school level',
+      true,
+    )
 
     if (!isCreate) {
       return (

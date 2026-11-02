@@ -84,6 +84,7 @@ class EquipmentFactory extends Factory
             'current_accountable_officer_id' => Personnel::factory(),
             'current_end_user_id' => Personnel::factory(),
             'used_by' => fake()->randomElement(['Learner', 'Teacher', 'Teaching-Related', 'Non-Teaching']),
+            'school_level' => 'not_applicable',
         ];
     }
 

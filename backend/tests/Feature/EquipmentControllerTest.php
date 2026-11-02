@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\Permission;
 use App\Exceptions\AccountabilitySyncRequiredException;
+use App\Models\Brand;
 use App\Models\Equipment;
 use App\Models\EquipmentCategory;
 use App\Models\EquipmentCondition;
@@ -412,6 +413,31 @@ class EquipmentControllerTest extends TestCase
         $this->actingAs($user)->getJson("/api/equipment?category={$lowValueId}")->assertJsonPath('data.0.property_no', 'A-2')->assertJsonPath('meta.total', 1);
         $this->actingAs($user)->getJson('/api/equipment?disposition_status=For%20Disposal')->assertJsonPath('meta.total', 1);
         $this->actingAs($user)->getJson('/api/equipment?search=A-1')->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.property_no', 'A-1');
+    }
+
+    public function test_index_filters_by_brand_status_useful_life_officer_and_latest_transaction(): void
+    {
+        $acer = Brand::firstOrCreate(['name' => 'Acer'], ['is_active' => true])->id;
+        $officer = Personnel::factory()->create();
+        $receiver = Personnel::factory()->create();
+
+        $match = $this->makeEquipment(['property_no' => 'F-1', 'brand_id' => $acer, 'non_functional' => true, 'estimated_useful_life' => 5, 'current_accountable_officer_id' => $officer->id]);
+        $match->transactions()->create(['transaction_type' => 'Beginning Inventory']);
+        $match->transactions()->create(['transaction_type' => 'Issuance/Transfer', 'received_by_id' => $receiver->id]);
+        $other = $this->makeEquipment(['property_no' => 'F-2', 'non_functional' => false, 'estimated_useful_life' => 7]);
+        $other->transactions()->create(['transaction_type' => 'Issuance/Transfer', 'received_by_id' => $receiver->id]);
+        $other->transactions()->create(['transaction_type' => 'Return']);
+
+        $user = $this->editor();
+        $only = fn (string $query) => $this->actingAs($user)->getJson("/api/equipment?{$query}")->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.property_no', 'F-1');
+
+        $only("brand_id={$acer}");
+        $only('functional=non_functional');
+        $only('estimated_useful_life=5');
+        $only("accountable_officer_id={$officer->id}");
+        $only('transaction_type=Issuance%2FTransfer');
+        $only("received_by_id={$receiver->id}");
+        $only("item_type_id={$match->item_type_id}&brand_id={$acer}");
     }
 
     public function test_index_filters_by_dashboard_group_including_other_and_ships_the_group(): void

@@ -22,7 +22,7 @@ final class EquipmentPeripheralService
         'non_dcp', 'dcp_package', 'dcp_package_other', 'dcp_year', 'equipment_classification_id',
         'received_date', 'mode_acquisition', 'source_acquisition', 'donor', 'source_fund', 'source_fund_other',
         'allotment_class', 'equipment_location', 'disposition_status',
-        'end_warranty_date', 'supplier', 'used_by',
+        'end_warranty_date', 'supplier', 'used_by', 'school_level',
         'current_accountable_officer_id', 'current_end_user_id',
     ];
 

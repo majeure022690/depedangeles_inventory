@@ -5,22 +5,15 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Management;
 
 use App\Enums\DataScope;
-use App\Enums\EquipmentLibraryType;
 use App\Enums\Permission;
-use App\Http\Controllers\Api\Management\Concerns\HasLookupOptions;
 use App\Http\Controllers\Api\Management\Concerns\ResolvesListParameters;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Management\ListSchoolPropertyRequest;
 use App\Http\Resources\Management\PropertyItemEquipmentResource;
-use App\Models\Brand;
 use App\Models\Equipment;
-use App\Models\EquipmentCondition;
-use App\Models\EquipmentLibrary;
-use App\Models\EquipmentTransaction;
-use App\Models\ItemType;
 use App\Models\Office;
-use App\Models\Personnel;
 use App\Models\User;
+use App\Services\EquipmentFilterOptions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,7 +26,7 @@ use Illuminate\Support\Facades\DB;
  */
 class PropertyItemController extends Controller
 {
-    use HasLookupOptions, ResolvesListParameters;
+    use ResolvesListParameters;
 
     private const OFFICE_OF_ITEM = 'CASE
         WHEN equipment.current_accountable_officer_id IS NOT NULL THEN (SELECT personnel.office_id FROM personnel WHERE personnel.id = equipment.current_accountable_officer_id)
@@ -41,20 +34,12 @@ class PropertyItemController extends Controller
         ELSE (SELECT users.office_id FROM users WHERE users.id = equipment.created_by_user_id)
     END';
 
-    public function options(Request $request): JsonResponse
+    public function options(Request $request, EquipmentFilterOptions $filterOptions): JsonResponse
     {
         abort_unless($request->user()->hasPermissionTo(Permission::PropertyItemsView), 403);
 
         /** @var User $user */
         $user = $request->user();
-        $visible = Equipment::query()->visibleTo($user)->inCustody();
-        $people = fn (Builder $ids) => Personnel::query()
-            ->visibleTo($user)
-            ->whereIn('id', $ids)
-            ->orderBy('full_name')
-            ->get(['id', 'full_name'])
-            ->map(fn (Personnel $personnel) => ['value' => $personnel->id, 'label' => (string) $personnel->full_name])
-            ->all();
 
         return response()->json(['data' => [
             'office' => Office::query()
@@ -64,16 +49,7 @@ class PropertyItemController extends Controller
                 ->get(['id', 'office_name', 'school_id'])
                 ->map(fn (Office $office) => ['value' => $office->id, 'label' => $office->school_id ? "{$office->office_name} ({$office->school_id})" : $office->office_name])
                 ->all(),
-            ...$this->referenceOptions(['item_type' => ItemType::class, 'brand' => Brand::class, 'equipment_condition' => EquipmentCondition::class]),
-            ...$this->libraryOptions(EquipmentLibrary::class, [
-                'disposition_status' => EquipmentLibraryType::DispositionStatus,
-                'transaction_type' => EquipmentLibraryType::TransactionType,
-            ]),
-            'estimated_useful_life' => (clone $visible)->whereNotNull('estimated_useful_life')->distinct()->orderBy('estimated_useful_life')->pluck('estimated_useful_life')
-                ->map(fn ($years) => ['value' => (int) $years, 'label' => "{$years} ".((int) $years === 1 ? 'year' : 'years')])
-                ->all(),
-            'accountable_officer' => $people((clone $visible)->select('current_accountable_officer_id')->whereNotNull('current_accountable_officer_id')),
-            'received_by' => $people(EquipmentTransaction::query()->select('received_by_id')->whereNotNull('received_by_id')->whereIn('equipment_id', (clone $visible)->select('id'))),
+            ...$filterOptions->forUser($user),
         ], 'message' => 'Success']);
     }
 

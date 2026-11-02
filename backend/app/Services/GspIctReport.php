@@ -387,8 +387,8 @@ class GspIctReport
         foreach ($equipment as $item) {
             $type = $this->computerType($item);
             [$group, $levelKey] = match ($item->used_by) {
-                'Learner' => ['learner', $item->school_level ?? $level],
-                'Teacher' => ['teacher', $item->school_level ?? $level],
+                'Learner' => ['learner', isset(self::LEVELS[$item->school_level]) ? $item->school_level : $level],
+                'Teacher' => ['teacher', isset(self::LEVELS[$item->school_level]) ? $item->school_level : $level],
                 'Teaching-Related', 'Non-Teaching' => ['personnel', 'all'],
                 default => [null, null],
             };

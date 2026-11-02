@@ -36,6 +36,7 @@ trait BuildsEquipmentPayloads
             'equipment_classification_id' => EquipmentClassification::where('name', 'Office, ICT Equipment, Furniture And Fixtures')->valueOrFail('id'),
             'non_dcp' => true,
             'used_by' => 'Teacher',
+            'school_level' => 'elementary',
             'equipment_location' => 'ICT Unit',
             'non_functional' => false,
             'equipment_condition_id' => EquipmentCondition::where('name', 'Serviceable')->valueOrFail('id'),

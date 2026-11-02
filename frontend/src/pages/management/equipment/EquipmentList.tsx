@@ -23,7 +23,26 @@ const column = gridColumnHelper<Equipment>()
 
 const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
 
-const EMPTY_FILTERS = { search: '', condition: '', category: '', disposition_status: '', duplicates: '', high_cost: '' }
+const EMPTY_FILTERS = {
+  search: '',
+  item_type_id: '',
+  brand_id: '',
+  functional: '',
+  condition: '',
+  category: '',
+  disposition_status: '',
+  estimated_useful_life: '',
+  transaction_type: '',
+  accountable_officer_id: '',
+  received_by_id: '',
+  duplicates: '',
+  high_cost: '',
+}
+
+const FUNCTIONAL_OPTIONS: Option<string>[] = [
+  { value: 'functional', label: 'Functional' },
+  { value: 'non_functional', label: 'Non-functional' },
+]
 
 type FilterKey = keyof typeof EMPTY_FILTERS
 
@@ -122,6 +141,13 @@ export function EquipmentList() {
   const filterChips: FilterChip<ChipKey>[] = (
     [
       { key: 'search', label: `Search: ${applied.search}` },
+      { key: 'item_type_id', label: `Item type: ${optionLabel(filterOptions?.item_type, Number(applied.item_type_id))}` },
+      { key: 'brand_id', label: `Brand: ${optionLabel(filterOptions?.brand, Number(applied.brand_id))}` },
+      { key: 'functional', label: `Status: ${optionLabel(FUNCTIONAL_OPTIONS, applied.functional)}` },
+      { key: 'estimated_useful_life', label: `Useful life: ${optionLabel(filterOptions?.estimated_useful_life, Number(applied.estimated_useful_life))}` },
+      { key: 'transaction_type', label: `Latest transaction: ${optionLabel(filterOptions?.transaction_type, applied.transaction_type)}` },
+      { key: 'accountable_officer_id', label: `Accountable officer: ${optionLabel(filterOptions?.accountable_officer, Number(applied.accountable_officer_id))}` },
+      { key: 'received_by_id', label: `Received by: ${optionLabel(filterOptions?.received_by, Number(applied.received_by_id))}` },
       { key: 'condition', label: `Condition: ${optionLabel(filterOptions?.condition, Number(applied.condition))}` },
       { key: 'category', label: `Category: ${optionLabel(filterOptions?.category, Number(applied.category))}` },
       { key: 'disposition_status', label: `Disposition: ${optionLabel(filterOptions?.disposition_status, applied.disposition_status)}` },
@@ -324,6 +350,22 @@ export function EquipmentList() {
             onSubmit={applyFilters}
             className="sm:col-span-2 lg:col-span-4"
           />
+          {(
+            [
+              ['item_type_id', 'Item type', 'All item types', filterOptions?.item_type],
+              ['brand_id', 'Brand / manufacturer', 'All brands', filterOptions?.brand],
+              ['functional', 'Status', 'Functional and non-functional', FUNCTIONAL_OPTIONS],
+            ] as const
+          ).map(([key, label, any, list]) => (
+            <FilterSelect key={key} label={label} value={draft[key]} onChange={(value) => setDraft((d) => ({ ...d, [key]: value }))} className="lg:col-span-4">
+              <option value="">{any}</option>
+              {list?.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </FilterSelect>
+          ))}
           <FilterSelect label="Condition" value={draft.condition} onChange={(condition) => setDraft((d) => ({ ...d, condition }))} className="lg:col-span-2">
             <option value="">All conditions</option>
             {filterOptions?.condition.map((option) => (
@@ -353,6 +395,23 @@ export function EquipmentList() {
               </option>
             ))}
           </FilterSelect>
+          {(
+            [
+              ['estimated_useful_life', 'Estimated useful life', 'Any useful life', filterOptions?.estimated_useful_life],
+              ['transaction_type', 'Latest transaction type', 'All transaction types', filterOptions?.transaction_type],
+              ['accountable_officer_id', 'Accountable officer', 'All accountable officers', filterOptions?.accountable_officer],
+              ['received_by_id', 'Received by (latest transaction)', 'Anyone', filterOptions?.received_by],
+            ] as const
+          ).map(([key, label, any, list]) => (
+            <FilterSelect key={key} label={label} value={draft[key]} onChange={(value) => setDraft((d) => ({ ...d, [key]: value }))} className="lg:col-span-3">
+              <option value="">{any}</option>
+              {list?.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </FilterSelect>
+          ))}
           <FilterSelect
             label="Old property no."
             value={draft.duplicates}

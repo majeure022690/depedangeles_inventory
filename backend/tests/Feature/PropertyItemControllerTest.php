@@ -42,6 +42,9 @@ class PropertyItemControllerTest extends TestCase
         return Equipment::factory()->create([
             'current_accountable_officer_id' => $this->officer->id,
             'current_end_user_id' => null,
+            'item_type_id' => ItemType::where('name', 'Laptop')->valueOrFail('id'),
+            'brand_id' => Brand::firstOrCreate(['name' => 'Dell'], ['is_active' => true])->id,
+            'equipment_condition_id' => EquipmentCondition::where('name', 'Serviceable')->valueOrFail('id'),
             'disposition_status' => 'Normal',
             'non_functional' => false,
             'acquisition_cost' => 10000,

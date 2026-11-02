@@ -26,14 +26,15 @@ use App\Models\Personnel;
 use App\Models\User;
 use App\Services\EquipmentAccountabilityService;
 use App\Services\EquipmentCostOutliers;
+use App\Services\EquipmentFilterOptions;
 use App\Services\EquipmentPeripheralService;
 use App\Services\EquipmentPropertyNumberService;
-use App\Services\GspIctReport;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\HeaderUtils;
@@ -145,6 +146,12 @@ class EquipmentController extends Controller
             ->dispositionStatus($request->string('disposition_status')->toString() ?: null)
             ->dashboardGroup($this->dashboardGroupFilter($request))
             ->itemTypes($this->itemTypeFilter($request))
+            ->when($request->filled('item_type_id'), fn ($query) => $query->where('item_type_id', $request->integer('item_type_id')))
+            ->when($request->filled('brand_id'), fn ($query) => $query->where('brand_id', $request->integer('brand_id')))
+            ->when(in_array($request->string('functional')->toString(), ['functional', 'non_functional'], true), fn ($query) => $query->where('non_functional', $request->string('functional')->toString() === 'non_functional'))
+            ->when($request->filled('estimated_useful_life'), fn ($query) => $query->where('estimated_useful_life', $request->integer('estimated_useful_life')))
+            ->when($request->filled('accountable_officer_id'), fn ($query) => $query->where('current_accountable_officer_id', $request->integer('accountable_officer_id')))
+            ->latestTransaction($request->string('transaction_type')->toString() ?: null, $request->filled('received_by_id') ? $request->integer('received_by_id') : null)
             ->withDuplicateOldPropertyNo($request->user(), $request->boolean('duplicates'))
             ->when($request->boolean('high_cost'), fn ($query) => $query->whereRaw(...$this->costOutliers->condition()))
             ->with(self::LIST_RELATIONS);
@@ -185,7 +192,7 @@ class EquipmentController extends Controller
      * create form's accountability and the transaction form) is only sent
      * to users who may create equipment or record transactions.
      */
-    public function options(Request $request): JsonResponse
+    public function options(Request $request, EquipmentFilterOptions $filterOptions): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -194,11 +201,12 @@ class EquipmentController extends Controller
             'form' => [
                 ...$this->referenceOptions(self::TIER1_FORM_MODELS),
                 ...$this->libraryOptions(EquipmentLibrary::class, self::TIER2_FORM_TYPES),
-                'school_level' => collect(GspIctReport::LEVELS)->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])->values()->all(),
+                'school_level' => collect(Equipment::SCHOOL_LEVELS)->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])->values()->all(),
             ],
             'filters' => [
                 ...$this->referenceOptions(self::TIER1_FILTER_MODELS),
                 ...$this->libraryOptions(EquipmentLibrary::class, self::TIER2_FILTER_TYPES),
+                ...Arr::except($filterOptions->forUser($user), ['equipment_condition', 'disposition_status']),
             ],
             'transaction' => $this->libraryOptions(EquipmentLibrary::class, self::TRANSACTION_FORM_TYPES),
             'classification_defaults' => (object) EquipmentClassification::query()

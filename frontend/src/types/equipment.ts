@@ -157,6 +157,12 @@ export interface EquipmentFilterOptions {
   condition: Option<number>[]
   category: Option<number>[]
   disposition_status: Option<string>[]
+  item_type: Option<number>[]
+  brand: Option<number>[]
+  transaction_type: Option<string>[]
+  estimated_useful_life: Option<number>[]
+  accountable_officer: Option<number>[]
+  received_by: Option<number>[]
 }
 
 export interface EquipmentTransactionOptions {

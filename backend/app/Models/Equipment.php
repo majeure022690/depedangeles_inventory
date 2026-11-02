@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Concerns\DerivesEquipmentFields;
 use App\Enums\DataScope;
 use App\Exceptions\AccountabilitySyncRequiredException;
+use App\Services\GspIctReport;
 use Closure;
 use Database\Factories\EquipmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -126,6 +127,9 @@ class Equipment extends Model
     public const array RELINQUISHED = ['Disposed', 'Donated', 'Transferred'];
 
     public const array MISSING = ['Lost', 'Stolen'];
+
+    /** Level of the school where the item is used; GSP Table 1 counts learner and teacher computers under it. */
+    public const array SCHOOL_LEVELS = [...GspIctReport::LEVELS, 'not_applicable' => 'Not applicable'];
 
     /**
      * Each free-text column => the dropdown it specifies, and that dropdown's lookup model when it stores an id.
@@ -521,6 +525,24 @@ class Equipment extends Model
     {
         $column = $query->qualifyColumn('disposition_status');
         $query->where(fn (Builder $query) => $query->whereNull($column)->orWhereNotIn($column, self::RELINQUISHED));
+    }
+
+    /**
+     * Items whose most recent transaction has this type and/or this receiver.
+     *
+     * @param  Builder<Equipment>  $query
+     */
+    public function scopeLatestTransaction(Builder $query, ?string $type, ?int $receivedById): void
+    {
+        if (blank($type) && $receivedById === null) {
+            return;
+        }
+
+        $query->whereIn($query->qualifyColumn('id'), EquipmentTransaction::query()
+            ->select('equipment_id')
+            ->whereIn('id', EquipmentTransaction::query()->selectRaw('MAX(id)')->groupBy('equipment_id'))
+            ->when(filled($type), fn (Builder $latest) => $latest->where('transaction_type', $type))
+            ->when($receivedById !== null, fn (Builder $latest) => $latest->where('received_by_id', $receivedById)));
     }
 
     /**
