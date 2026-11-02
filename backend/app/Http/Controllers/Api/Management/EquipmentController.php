@@ -147,6 +147,7 @@ class EquipmentController extends Controller
             ->dispositionStatus($request->string('disposition_status')->toString() ?: null)
             ->dashboardGroup($this->dashboardGroupFilter($request))
             ->itemTypes($this->itemTypeFilter($request))
+            ->when($request->boolean('awaiting_receipt'), fn ($query) => $query->whereNotNull('awaiting_receipt_since'))
             ->when($request->filled('ids'), fn ($query) => $query->whereKey($this->idFilter($request)))
             ->when($request->filled('item_type_id'), fn ($query) => $query->where('item_type_id', $request->integer('item_type_id')))
             ->when($request->filled('brand_id'), fn ($query) => $query->where('brand_id', $request->integer('brand_id')))

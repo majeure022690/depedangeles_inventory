@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\Management;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Management\BulkStoreEquipmentTransactionRequest;
+use App\Http\Requests\Management\ConfirmEquipmentReceiptRequest;
 use App\Http\Requests\Management\StoreEquipmentTransactionRequest;
 use App\Http\Resources\Management\EquipmentTransactionResource;
 use App\Models\Equipment;
@@ -64,5 +65,18 @@ class EquipmentTransactionController extends Controller
             'data' => ['count' => $items->count()],
             'message' => trans_choice('Transaction recorded for :count item.|Transaction recorded for :count items.', $items->count()),
         ], 201);
+    }
+
+    /**
+     * Clears the awaiting-receipt flag on the selected items (and their peripherals).
+     */
+    public function confirmReceipt(ConfirmEquipmentReceiptRequest $request, EquipmentAccountabilityService $accountability): JsonResponse
+    {
+        $count = $accountability->confirmReceipt($request->equipment());
+
+        return response()->json([
+            'data' => ['count' => $count],
+            'message' => trans_choice('Receipt confirmed for :count item.|Receipt confirmed for :count items.', $count),
+        ]);
     }
 }

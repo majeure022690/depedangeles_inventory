@@ -111,6 +111,8 @@ export interface Equipment {
   supplier: string | null
   used_by: string | null
   school_level: string | null
+  /** Set when the item moved to another office and that office hasn't confirmed receipt yet. */
+  awaiting_receipt_since: string | null
   current_accountable_officer: PersonnelSummary | null
   current_end_user: PersonnelSummary | null
   dashboard_group: string | null

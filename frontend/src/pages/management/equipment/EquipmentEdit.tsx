@@ -1,4 +1,4 @@
-import { ArrowLeft, Download, History, Info, Printer, Tag, Trash2, Unplug, UserRound } from 'lucide-react'
+import { ArrowLeft, Download, History, Info, PackageCheck, Printer, Tag, Trash2, Unplug, UserRound } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
@@ -162,6 +162,23 @@ export function EquipmentEdit() {
     setSuccess(message)
   }
 
+  const [confirmingReceipt, setConfirmingReceipt] = useState(false)
+
+  async function confirmReceipt() {
+    if (!equipment) return
+    setConfirmingReceipt(true)
+    setFormError(null)
+    try {
+      const response = await equipmentService.confirmReceipt([equipment.id])
+      await load(true)
+      setSuccess(response.message)
+    } catch (error) {
+      setFormError(extractError(error, 'Unable to confirm receipt. Please try again.'))
+    } finally {
+      setConfirmingReceipt(false)
+    }
+  }
+
   async function handlePeripheralsChanged(message: string) {
     setFormError(null)
     await load(true)
@@ -213,14 +230,22 @@ export function EquipmentEdit() {
                 {canEdit ? 'Edit' : 'Equipment'} {displayPropertyNo}
               </h1>
               {!equipment.property_no && <Badge color="warning">Pending</Badge>}
+              {equipment.awaiting_receipt_since && (
+                <Badge color="warning">Awaiting receipt since {new Date(equipment.awaiting_receipt_since).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</Badge>
+              )}
             </div>
             <p className="text-sm text-gray-600">
               {equipment.item ?? 'Equipment'} — currently held by {equipment.current_accountable_officer?.full_name ?? 'no one on record'}
             </p>
           </div>
         </div>
-        {(canViewAudit || canDelete) && (
+        {(canViewAudit || canDelete || (canRecord && equipment.awaiting_receipt_since)) && (
           <div className="page-actions">
+            {canRecord && equipment.awaiting_receipt_since && (
+              <Button size="sm" leftIcon={<PackageCheck className="h-4 w-4" />} isLoading={confirmingReceipt} onClick={confirmReceipt}>
+                Confirm receipt
+              </Button>
+            )}
             {canViewAudit && (
               <Link
                 to={auditLogHref(EQUIPMENT_SUBJECT_TYPE, equipment.id)}

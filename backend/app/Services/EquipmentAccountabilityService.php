@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\Equipment;
 use App\Models\EquipmentTransaction;
+use App\Models\Personnel;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -95,23 +96,63 @@ final class EquipmentAccountabilityService
             $data[$field] = $latest->getAttribute($field);
         }
 
-        return DB::transaction(fn () => $this->append($peripheral, $data, $latest));
+        return DB::transaction(fn () => $this->append($peripheral, $data, $latest, flagReceipt: false));
     }
 
     /**
+     * Clears the awaiting-receipt flag on each item and its peripherals.
+     *
+     * @param  iterable<Equipment>  $items
+     */
+    public function confirmReceipt(iterable $items): int
+    {
+        return DB::transaction(function () use ($items) {
+            $confirmed = 0;
+
+            foreach ($items as $item) {
+                foreach ([$item, ...$item->children()->whereNotNull('awaiting_receipt_since')->get()] as $equipment) {
+                    if ($equipment->awaiting_receipt_since === null) {
+                        continue;
+                    }
+
+                    $since = $equipment->awaiting_receipt_since;
+                    $equipment->update(['awaiting_receipt_since' => null]);
+
+                    activity()
+                        ->performedOn($equipment)
+                        ->event('equipment.receipt.confirmed')
+                        ->withProperties(['awaiting_since' => $since->toIso8601String(), 'accountable_officer_id' => $equipment->current_accountable_officer_id])
+                        ->log('equipment.receipt.confirmed');
+
+                    $confirmed++;
+                }
+            }
+
+            return $confirmed;
+        });
+    }
+
+    /**
+     * Moving an item to an officer in a different office flags it as awaiting receipt there.
+     *
      * @param  array<string, mixed>  $data
      */
-    private function append(Equipment $equipment, array $data, ?EquipmentTransaction $copiedFrom = null): EquipmentTransaction
+    private function append(Equipment $equipment, array $data, ?EquipmentTransaction $copiedFrom = null, bool $flagReceipt = true): EquipmentTransaction
     {
         $transaction = $equipment->transactions()->create([
             ...array_intersect_key($data, array_flip(self::COPIED_FIELDS)),
             'recorded_by_user_id' => $this->auth->id(),
         ]);
 
-        Equipment::withAccountabilitySync(function () use ($equipment, $data) {
+        $fromOffice = $this->officeOf($equipment->current_accountable_officer_id ?? $equipment->current_end_user_id);
+        $toOffice = $this->officeOf($data['accountable_officer_id'] ?? $data['end_user_id'] ?? null);
+        $moved = $flagReceipt && $fromOffice !== null && $toOffice !== null && $fromOffice !== $toOffice;
+
+        Equipment::withAccountabilitySync(function () use ($equipment, $data, $moved) {
             $equipment->update([
                 'current_accountable_officer_id' => $data['accountable_officer_id'] ?? null,
                 'current_end_user_id' => $data['end_user_id'] ?? null,
+                ...($moved ? ['awaiting_receipt_since' => now()] : []),
             ]);
         });
 
@@ -132,5 +173,16 @@ final class EquipmentAccountabilityService
             ->log('equipment.transaction.recorded');
 
         return $transaction;
+    }
+
+    private function officeOf(mixed $personnelId): ?int
+    {
+        if ($personnelId === null) {
+            return null;
+        }
+
+        $office = Personnel::query()->whereKey($personnelId)->value('office_id');
+
+        return $office === null ? null : (int) $office;
     }
 }

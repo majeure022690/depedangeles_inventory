@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowRightLeft, Filter, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react'
+import { ArrowRight, ArrowRightLeft, Filter, PackageCheck, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
@@ -37,6 +37,7 @@ const EMPTY_FILTERS = {
   accountable_officer_id: '',
   received_by_id: '',
   used_by: '',
+  awaiting_receipt: '',
   duplicates: '',
   high_cost: '',
 }
@@ -94,6 +95,7 @@ export function EquipmentList() {
   const [equipmentOptions, setEquipmentOptions] = useState<EquipmentOptions | null>(null)
   const [selected, setSelected] = useState<number[]>([])
   const [transferOpen, setTransferOpen] = useState(false)
+  const [confirmingReceipt, setConfirmingReceipt] = useState(false)
   useEffect(() => {
     equipmentService
       .options()
@@ -166,6 +168,7 @@ export function EquipmentList() {
       { key: 'condition', label: `Condition: ${optionLabel(filterOptions?.condition, Number(applied.condition))}` },
       { key: 'category', label: `Category: ${optionLabel(filterOptions?.category, Number(applied.category))}` },
       { key: 'disposition_status', label: `Disposition: ${optionLabel(filterOptions?.disposition_status, applied.disposition_status)}` },
+      { key: 'awaiting_receipt', label: 'Awaiting receipt only' },
       { key: 'duplicates', label: 'Duplicate old property no. only' },
       { key: 'high_cost', label: 'Cost looks too high' },
     ] as const
@@ -182,6 +185,21 @@ export function EquipmentList() {
   const [pendingDelete, setPendingDelete] = useState<Equipment | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  async function confirmReceipt() {
+    setConfirmingReceipt(true)
+    setActionError(null)
+    try {
+      const response = await equipmentService.confirmReceipt(selected)
+      setFlash(response.message)
+      setSelected([])
+      await reload()
+    } catch (error) {
+      setActionError(extractError(error, 'Unable to confirm receipt for the selected items.'))
+    } finally {
+      setConfirmingReceipt(false)
+    }
+  }
 
   async function confirmDelete() {
     if (!pendingDelete) return
@@ -251,7 +269,12 @@ export function EquipmentList() {
         meta: { className: 'whitespace-nowrap' },
         cell: (info) => {
           const value = info.getValue()
-          return value ? <span className="font-mono text-xs font-medium text-gray-900">{value}</span> : <Badge color="warning">Pending</Badge>
+          return (
+            <span className="inline-flex flex-wrap items-center gap-1">
+              {value ? <span className="font-mono text-xs font-medium text-gray-900">{value}</span> : <Badge color="warning">Pending</Badge>}
+              {info.row.original.awaiting_receipt_since && <Badge color="warning">Awaiting receipt</Badge>}
+            </span>
+          )
         },
       }),
       column.accessor('old_property_no', {
@@ -474,6 +497,10 @@ export function EquipmentList() {
               ))}
             </FilterSelect>
           ))}
+          <FilterSelect label="Receipt" value={draft.awaiting_receipt} onChange={(awaiting_receipt) => setDraft((d) => ({ ...d, awaiting_receipt }))} className="lg:col-span-3">
+            <option value="">All records</option>
+            <option value="1">Awaiting receipt</option>
+          </FilterSelect>
           <FilterSelect
             label="Old property no."
             value={draft.duplicates}
@@ -515,6 +542,9 @@ export function EquipmentList() {
           <div className="flex gap-2">
             <Button size="sm" leftIcon={<ArrowRightLeft className="h-4 w-4" />} disabled={!equipmentOptions} onClick={() => setTransferOpen(true)}>
               Transfer to office
+            </Button>
+            <Button size="sm" variant="outline" leftIcon={<PackageCheck className="h-4 w-4" />} isLoading={confirmingReceipt} onClick={confirmReceipt}>
+              Confirm receipt
             </Button>
             <Button size="sm" variant="outline" leftIcon={<X className="h-4 w-4" />} onClick={() => setSelected([])}>
               Clear
