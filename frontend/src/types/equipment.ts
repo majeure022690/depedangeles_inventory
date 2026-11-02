@@ -110,6 +110,7 @@ export interface Equipment {
   end_warranty_date: string | null
   supplier: string | null
   used_by: string | null
+  school_level: string | null
   current_accountable_officer: PersonnelSummary | null
   current_end_user: PersonnelSummary | null
   dashboard_group: string | null
@@ -149,6 +150,7 @@ export interface EquipmentFormOptions {
   allotment_class: Option<string>[]
   disposition_status: Option<string>[]
   used_by: Option<string>[]
+  school_level: Option<string>[]
 }
 
 export interface EquipmentFilterOptions {
@@ -235,6 +237,7 @@ export interface EquipmentFormData {
   end_warranty_date: string
   supplier: string
   used_by: string
+  school_level: string
 }
 
 /** Mirrors StoreEquipmentTransactionRequest; personnel ids are `null` when not chosen. */

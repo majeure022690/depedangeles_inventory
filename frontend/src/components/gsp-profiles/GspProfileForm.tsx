@@ -283,7 +283,7 @@ export function GspProfileForm({
             <FormField id="as_of" label="As of" required error={errors.as_of} hint="The count date printed under every table title.">
               {(aria) => <Input id="as_of" type="date" value={form.as_of} onChange={(event) => set('as_of', event.target.value)} {...aria} />}
             </FormField>
-            <FormField id="level" label="School level" required error={errors.level} hint="Table 1 rows that learner and teacher computers are counted under.">
+            <FormField id="level" label="School level" required error={errors.level} hint="Table 1 level for learner and teacher computers that have no School level set on the equipment.">
               {(aria) => (
                 <Select id="level" value={form.level} options={options.level} onChange={(event) => set('level', event.target.value as SchoolLevel)} {...aria} />
               )}

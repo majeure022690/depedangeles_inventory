@@ -7,6 +7,7 @@ namespace App\Http\Requests\Management\Concerns;
 use App\Enums\EquipmentLibraryType;
 use App\Models\Equipment;
 use App\Models\EquipmentLibrary;
+use App\Services\GspIctReport;
 use Illuminate\Validation\Rule;
 
 /**
@@ -75,6 +76,7 @@ trait ValidatesEquipmentFields
             'pm_plan' => ['nullable', 'string', 'max:255'],
             'equipment_location' => ['required', 'string'],
             'used_by' => ['required', 'string', Rule::in(EquipmentLibrary::activeValues(EquipmentLibraryType::UsedBy))],
+            'school_level' => ['nullable', 'string', Rule::in(array_keys(GspIctReport::LEVELS))],
 
             'non_functional' => ['required', 'boolean'],
             'equipment_condition_id' => ['required', 'integer', Rule::exists('equipment_conditions', 'id')->where('is_active', true)],
@@ -111,6 +113,7 @@ trait ValidatesEquipmentFields
             'source_fund' => 'source of funds',
             'pm_plan' => 'PM plan',
             'used_by' => 'used by',
+            'school_level' => 'school level',
             'equipment_condition_id' => 'equipment condition',
             'end_warranty_date' => 'warranty end date',
             ...$this->otherAttributes(array_keys(Equipment::OTHER_FIELDS)),

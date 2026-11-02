@@ -28,6 +28,7 @@ use App\Services\EquipmentAccountabilityService;
 use App\Services\EquipmentCostOutliers;
 use App\Services\EquipmentPeripheralService;
 use App\Services\EquipmentPropertyNumberService;
+use App\Services\GspIctReport;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\JsonResponse;
@@ -193,6 +194,7 @@ class EquipmentController extends Controller
             'form' => [
                 ...$this->referenceOptions(self::TIER1_FORM_MODELS),
                 ...$this->libraryOptions(EquipmentLibrary::class, self::TIER2_FORM_TYPES),
+                'school_level' => collect(GspIctReport::LEVELS)->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])->values()->all(),
             ],
             'filters' => [
                 ...$this->referenceOptions(self::TIER1_FILTER_MODELS),

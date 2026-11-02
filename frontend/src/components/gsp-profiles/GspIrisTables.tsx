@@ -55,7 +55,7 @@ export function Table1View({ data, level }: { data: GspIrisData['table_1']; leve
           Equipment
         </Link>
         : functional desktops, laptops, tablets and 2-in-1 tablets of this school, grouped by their <strong>Used by</strong> value. Learner and teacher
-        computers are counted under the profile&rsquo;s school level.
+        computers go under the <strong>School level</strong> set on the equipment, or the profile&rsquo;s level when it is blank.
       </Source>
       {GROUPS.map((group) => (
         <table key={group.key} className="mb-6 w-full min-w-[56rem] border-collapse text-sm last:mb-0">
@@ -80,7 +80,7 @@ export function Table1View({ data, level }: { data: GspIrisData['table_1']; leve
             </tr>
           </thead>
           {(group.levels ? LEVELS : [{ key: 'all', label: '' }]).map((levelRow) => (
-            <tbody key={levelRow.key} className={group.levels && levelRow.key !== level ? 'text-gray-400' : undefined}>
+            <tbody key={levelRow.key}>
               {levelRow.label && (
                 <tr>
                   <th colSpan={data.funds.length + 2} scope="rowgroup" className={`${cell} text-left font-semibold italic`}>

@@ -93,6 +93,7 @@ class EquipmentResource extends JsonResource
             'end_warranty_date' => $this->end_warranty_date?->toDateString(),
             'supplier' => $this->supplier,
             'used_by' => $this->used_by,
+            'school_level' => $this->school_level,
             'current_accountable_officer' => $this->whenLoaded('currentAccountableOfficer', fn () => self::person($this->currentAccountableOfficer)),
             'current_end_user' => $this->whenLoaded('currentEndUser', fn () => self::person($this->currentEndUser)),
             'parent_equipment_id' => $this->parent_equipment_id,

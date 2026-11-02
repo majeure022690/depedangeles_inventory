@@ -93,7 +93,7 @@ use Spatie\Activitylog\Support\LogOptions;
     'allotment_class', 'pm_plan', 'equipment_location', 'non_functional',
     'disposition_status', 'remarks',
     'under_warranty', 'end_warranty_date', 'supplier',
-    'current_accountable_officer_id', 'current_end_user_id', 'used_by',
+    'current_accountable_officer_id', 'current_end_user_id', 'used_by', 'school_level',
     'item_type_id', 'brand_id', 'equipment_category_id',
     'equipment_classification_id', 'equipment_condition_id',
     'item_type_other', 'brand_other', 'dcp_package_other', 'source_fund_other', 'equipment_condition_other',
@@ -612,7 +612,7 @@ class Equipment extends Model
                 'under_warranty', 'end_warranty_date', 'supplier',
                 'item_type_id', 'brand_id', 'equipment_category_id',
                 'equipment_classification_id', 'equipment_condition_id',
-                'created_by_user_id', 'parent_equipment_id', 'used_by',
+                'created_by_user_id', 'parent_equipment_id', 'used_by', 'school_level',
                 'item_type_other', 'brand_other', 'dcp_package_other', 'source_fund_other', 'equipment_condition_other',
             ])
             ->logOnlyDirty()

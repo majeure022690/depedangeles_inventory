@@ -24,12 +24,21 @@ function blankToNull<T extends object>(form: T): { [K in keyof T]: T[K] | null }
   }
 }
 
+/** Only learner and teacher computers are split by school level on GSP Table 1. */
+export function usesSchoolLevel(usedBy: string): boolean {
+  return usedBy === 'Learner' || usedBy === 'Teacher'
+}
+
+function withSchoolLevel(form: EquipmentFormData): EquipmentFormData {
+  return usesSchoolLevel(form.used_by) ? form : { ...form, school_level: '' }
+}
+
 export function toEquipmentPayload(form: EquipmentFormData): EquipmentPayload {
-  return blankToNull(form)
+  return blankToNull(withSchoolLevel(form))
 }
 
 export function toEquipmentCreatePayload(form: EquipmentFormData, accountability: EquipmentTransactionFormData): EquipmentCreatePayload {
-  return { ...blankToNull(form), accountability: blankToNull(accountability) }
+  return { ...blankToNull(withSchoolLevel(form)), accountability: blankToNull(accountability) }
 }
 
 export function toTransactionPayload(form: EquipmentTransactionFormData): EquipmentTransactionPayload {

@@ -249,6 +249,13 @@ class EquipmentControllerTest extends TestCase
 
         $this->actingAs($this->editor())->putJson("/api/equipment/{$equipment->id}", $this->payload(['used_by' => 'Visitor']))
             ->assertJsonValidationErrors(['used_by']);
+
+        $this->actingAs($this->editor())->putJson("/api/equipment/{$equipment->id}", $this->payload(['school_level' => 'college']))
+            ->assertJsonValidationErrors(['school_level']);
+
+        $this->actingAs($this->editor())->putJson("/api/equipment/{$equipment->id}", $this->payload(['used_by' => 'Learner', 'school_level' => 'senior_high']))
+            ->assertOk()
+            ->assertJsonPath('data.school_level', 'senior_high');
     }
 
     public function test_choosing_others_requires_the_specified_value_for_each_dropdown(): void

@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/Textarea'
 import type { FieldErrors } from '@/lib/errors'
 import { selectsOthers, withCurrentOption } from '@/lib/options'
 import { formatDate } from '@/lib/utils'
+import { usesSchoolLevel } from '@/services/equipmentService'
 import type {
   Equipment,
   EquipmentCategoryRule,
@@ -68,6 +69,7 @@ export const EQUIPMENT_FIELD_SECTIONS: { value: EquipmentFieldSection; label: st
       'accountability.supporting_documents2',
       'accountability.par_ics_rrsp_rs_wmr_no',
       'used_by',
+      'school_level',
     ],
   },
   {
@@ -146,6 +148,7 @@ export function emptyEquipmentForm(): EquipmentFormData {
     end_warranty_date: '',
     supplier: '',
     used_by: '',
+    school_level: '',
   }
 }
 
@@ -204,6 +207,7 @@ export function equipmentToForm(equipment: Equipment): EquipmentFormData {
     end_warranty_date: equipment.end_warranty_date ?? '',
     supplier: equipment.supplier ?? '',
     used_by: equipment.used_by ?? '',
+    school_level: equipment.school_level ?? '',
   }
 }
 
@@ -564,11 +568,23 @@ export function EquipmentFields({
       'Select who uses it',
       true,
     )
+    const schoolLevel = usesSchoolLevel(value.used_by)
+      ? stringSelect(
+          'school_level',
+          'School level (optional)',
+          'For schools with more than one level: whose learners or teachers use it. Groups the computer on GSP Table 1; leave blank to use the GSP profile’s level.',
+          formOptions?.school_level,
+          'Use the profile’s level',
+        )
+      : null
 
     if (!isCreate) {
       return (
         <div className="space-y-4">
-          <FormSection title="Usage">{usedBy}</FormSection>
+          <FormSection title="Usage">
+            {usedBy}
+            {schoolLevel}
+          </FormSection>
           <FormSection title="Current accountability">
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:col-span-2 sm:grid-cols-2">
               <div className="min-w-0">
@@ -634,6 +650,7 @@ export function EquipmentFields({
           )}
           {accountabilityText('par_ics_rrsp_rs_wmr_no', 'PAR/ICS/RRSP/RS/WMR no. (optional)', 'Input the document number to track and properly identify the transaction.')}
           {usedBy}
+          {schoolLevel}
         </FormSection>
       </div>
     )

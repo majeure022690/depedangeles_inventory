@@ -272,7 +272,7 @@ class GspIctReport
             ->atOffice($office->id)
             ->functional()
             ->with('itemType:id,name')
-            ->get(['id', 'item_type_id', 'non_dcp', 'dcp_package', 'dcp_year', 'source_acquisition', 'mode_acquisition', 'source_fund', 'used_by', 'parent_equipment_id']);
+            ->get(['id', 'item_type_id', 'non_dcp', 'dcp_package', 'dcp_year', 'source_acquisition', 'mode_acquisition', 'source_fund', 'used_by', 'school_level', 'parent_equipment_id']);
     }
 
     private function cover(Worksheet $sheet, Office $office, string $schoolYear, GspIctProfile $profile): void
@@ -387,8 +387,8 @@ class GspIctReport
         foreach ($equipment as $item) {
             $type = $this->computerType($item);
             [$group, $levelKey] = match ($item->used_by) {
-                'Learner' => ['learner', $level],
-                'Teacher' => ['teacher', $level],
+                'Learner' => ['learner', $item->school_level ?? $level],
+                'Teacher' => ['teacher', $item->school_level ?? $level],
                 'Teaching-Related', 'Non-Teaching' => ['personnel', 'all'],
                 default => [null, null],
             };

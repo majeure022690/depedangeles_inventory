@@ -221,6 +221,20 @@ class GspIctProfileControllerTest extends TestCase
         $this->assertDatabaseHas('activity_log', ['event' => 'report.generated', 'subject_id' => $this->office->id]);
     }
 
+    public function test_gsp_ict_counts_learner_and_teacher_computers_under_their_own_school_level(): void
+    {
+        $this->item('Laptop', ['used_by' => 'Learner']);
+        $this->item('Laptop', ['used_by' => 'Learner', 'school_level' => 'junior_high']);
+        $this->item('Laptop', ['used_by' => 'Teacher', 'school_level' => 'senior_high']);
+        $query = http_build_query(['office_id' => $this->office->id, 'school_year' => '2025-2026', 'level' => 'elementary']);
+
+        $counts = $this->actingAs($this->userWithPermissions([Permission::GspProfilesView]))->getJson("/api/gsp-profiles/preview?{$query}")->assertOk()->json('data.table_1.counts');
+
+        $this->assertSame(1, array_sum($counts['learner']['elementary']['laptop']));
+        $this->assertSame(1, array_sum($counts['learner']['junior_high']['laptop']));
+        $this->assertSame(1, array_sum($counts['teacher']['senior_high']['laptop']));
+    }
+
     public function test_gsp_ict_fills_internet_connectivity_and_ticks_survey_answers(): void
     {
         $pldt = IspProvider::firstOrCreate(['name' => 'PLDT'], ['is_active' => true]);
