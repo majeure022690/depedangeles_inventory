@@ -163,6 +163,7 @@ export interface EquipmentFilterOptions {
   estimated_useful_life: Option<number>[]
   accountable_officer: Option<number>[]
   received_by: Option<number>[]
+  used_by: Option<string>[]
 }
 
 export interface EquipmentTransactionOptions {

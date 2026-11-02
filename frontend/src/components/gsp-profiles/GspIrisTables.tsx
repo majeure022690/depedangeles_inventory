@@ -2,6 +2,7 @@ import { CheckSquare, Database, Square } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { Alert } from '@/components/ui/Alert'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import type { FundKey, GspIrisData } from '@/types/gsp-profile'
 
@@ -57,6 +58,29 @@ export function Table1View({ data, level }: { data: GspIrisData['table_1']; leve
         : functional desktops, laptops, tablets and 2-in-1 tablets of this school, grouped by their <strong>Used by</strong> value. Learner and teacher
         computers go under the <strong>School level</strong> set on the equipment, or the profile&rsquo;s level when it is Not applicable or not yet set.
       </Source>
+      {(data.gaps.missing_used_by > 0 || data.gaps.condition_not_applicable > 0) && (
+        <Alert type="warning" className="mb-4">
+          <p className="font-medium">Some computers at this school are not counted.</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {data.gaps.missing_used_by > 0 && (
+              <li>
+                {data.gaps.missing_used_by} functional computer(s) have no <strong>Used by</strong>, so they can&rsquo;t be placed under learners, teachers or
+                personnel.{' '}
+                <Link to="/equipment?used_by=none" className="font-medium underline">
+                  Find them in Equipment
+                </Link>{' '}
+                and set Used by.
+              </li>
+            )}
+            {data.gaps.condition_not_applicable > 0 && (
+              <li>
+                {data.gaps.condition_not_applicable} computer(s) have the condition <strong>Not Applicable</strong>, so they aren&rsquo;t counted as functional.
+                Set their condition to Serviceable if they work.
+              </li>
+            )}
+          </ul>
+        </Alert>
+      )}
       {GROUPS.map((group) => (
         <table key={group.key} className="mb-6 w-full min-w-[56rem] border-collapse text-sm last:mb-0">
           <thead>

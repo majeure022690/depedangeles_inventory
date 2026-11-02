@@ -123,7 +123,7 @@ class GspIctReport
      * Everything the workbook reads from IRIS records, for showing beside the profile.
      *
      * @return array{
-     *     table_1: array{funds: list<array{key: string, label: string}>, types: list<array{key: string, label: string}>, counts: array<string, array<string, array<string, array<string, int>>>>},
+     *     table_1: array{funds: list<array{key: string, label: string}>, types: list<array{key: string, label: string}>, counts: array<string, array<string, array<string, array<string, int>>>>, gaps: array{missing_used_by: int, condition_not_applicable: int}},
      *     table_2: list<array{label: string, dcp: int, deped_non_dcp: int, others: int}>,
      *     table_3: array{years: list<int>, rows: list<array{label: string, counts: array<int, int>}>},
      *     box_1: array{available_isps: list<array{label: string, checked: bool}>, coverage: list<array{label: string, checked: bool}>, subscriptions: list<array<string, mixed>>, has_survey: bool}
@@ -141,6 +141,7 @@ class GspIctReport
                 'funds' => array_map(fn (string $key, string $label) => ['key' => $key, 'label' => $label], array_keys(self::FUNDS), self::FUNDS),
                 'types' => array_map(fn (string $key, array $type) => ['key' => $key, 'label' => $type[0]], array_keys(self::COMPUTER_TYPES), self::COMPUTER_TYPES),
                 'counts' => $this->table1Counts($equipment, $level),
+                'gaps' => $this->table1Gaps($office, $user, $equipment),
             ],
             'table_2' => $this->table2Rows($equipment),
             'table_3' => ['years' => $years, 'rows' => $this->table3Rows($equipment, $years)],
@@ -402,6 +403,30 @@ class GspIctReport
         }
 
         return $counts;
+    }
+
+    /**
+     * Computers at the school that Table 1 leaves out because a field it needs is missing:
+     * functional ones with no Used by, and otherwise-working ones whose condition is Not Applicable.
+     *
+     * @param  Collection<int, Equipment>  $functional
+     * @return array{missing_used_by: int, condition_not_applicable: int}
+     */
+    private function table1Gaps(Office $office, User $user, Collection $functional): array
+    {
+        $conditionNotApplicable = Equipment::query()
+            ->visibleTo($user)
+            ->atOffice($office->id)
+            ->where('non_functional', false)
+            ->where(fn ($query) => $query->whereNull('disposition_status')->orWhere('disposition_status', 'Normal'))
+            ->whereHas('equipmentCondition', fn ($query) => $query->where('name', 'Not Applicable'))
+            ->with('itemType:id,name')
+            ->get(['id', 'item_type_id', 'parent_equipment_id']);
+
+        return [
+            'missing_used_by' => $functional->filter(fn (Equipment $item) => $this->computerType($item) !== null && blank($item->used_by))->count(),
+            'condition_not_applicable' => $conditionNotApplicable->filter(fn (Equipment $item) => $this->computerType($item) !== null)->count(),
+        ];
     }
 
     /**

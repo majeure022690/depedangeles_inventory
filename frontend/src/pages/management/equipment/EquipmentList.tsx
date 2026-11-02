@@ -35,6 +35,7 @@ const EMPTY_FILTERS = {
   transaction_type: '',
   accountable_officer_id: '',
   received_by_id: '',
+  used_by: '',
   duplicates: '',
   high_cost: '',
 }
@@ -72,7 +73,7 @@ export function EquipmentList() {
     .map(Number)
   const itemTypeFilter = itemTypeIds.join(',')
 
-  function clearUrlFilter(key: 'dashboard_group' | 'item_type') {
+  function clearUrlFilter(key: 'dashboard_group' | 'item_type' | 'used_by') {
     setSearchParams(
       (params) => {
         params.delete(key)
@@ -94,8 +95,8 @@ export function EquipmentList() {
       .catch(() => setFilterOptions(null))
   }, [])
 
-  const [draft, setDraft] = useState(EMPTY_FILTERS)
-  const [applied, setApplied] = useState(EMPTY_FILTERS)
+  const [draft, setDraft] = useState(() => ({ ...EMPTY_FILTERS, used_by: searchParams.get('used_by') ?? '' }))
+  const [applied, setApplied] = useState(() => ({ ...EMPTY_FILTERS, used_by: searchParams.get('used_by') ?? '' }))
   const dirty = JSON.stringify(draft) !== JSON.stringify(applied)
 
   const { items, meta, loading, error, page, setPage, perPage, setPerPage, sortBy, sortDir, onSortChange, reload } = useServerTable(
@@ -114,6 +115,7 @@ export function EquipmentList() {
       (params) => {
         params.delete('dashboard_group')
         params.delete('item_type')
+        params.delete('used_by')
         return params
       },
       { replace: true },
@@ -125,6 +127,7 @@ export function EquipmentList() {
       clearUrlFilter(key)
       return
     }
+    if (key === 'used_by') clearUrlFilter('used_by')
     const next = { ...applied, [key]: '' }
     setApplied(next)
     setDraft(next)
@@ -148,6 +151,7 @@ export function EquipmentList() {
       { key: 'transaction_type', label: `Latest transaction: ${optionLabel(filterOptions?.transaction_type, applied.transaction_type)}` },
       { key: 'accountable_officer_id', label: `Accountable officer: ${optionLabel(filterOptions?.accountable_officer, Number(applied.accountable_officer_id))}` },
       { key: 'received_by_id', label: `Received by: ${optionLabel(filterOptions?.received_by, Number(applied.received_by_id))}` },
+      { key: 'used_by', label: `Used by: ${applied.used_by === 'none' ? 'Not set' : optionLabel(filterOptions?.used_by, applied.used_by)}` },
       { key: 'condition', label: `Condition: ${optionLabel(filterOptions?.condition, Number(applied.condition))}` },
       { key: 'category', label: `Category: ${optionLabel(filterOptions?.category, Number(applied.category))}` },
       { key: 'disposition_status', label: `Disposition: ${optionLabel(filterOptions?.disposition_status, applied.disposition_status)}` },
@@ -401,6 +405,7 @@ export function EquipmentList() {
               ['transaction_type', 'Latest transaction type', 'All transaction types', filterOptions?.transaction_type],
               ['accountable_officer_id', 'Accountable officer', 'All accountable officers', filterOptions?.accountable_officer],
               ['received_by_id', 'Received by (latest transaction)', 'Anyone', filterOptions?.received_by],
+              ['used_by', 'Used by', 'Anyone', [...(filterOptions?.used_by ?? []), { value: 'none', label: 'Not set' }]],
             ] as const
           ).map(([key, label, any, list]) => (
             <FilterSelect key={key} label={label} value={draft[key]} onChange={(value) => setDraft((d) => ({ ...d, [key]: value }))} className="lg:col-span-3">

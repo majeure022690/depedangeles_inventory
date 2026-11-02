@@ -86,6 +86,7 @@ class EquipmentController extends Controller
      */
     private const TIER2_FILTER_TYPES = [
         'disposition_status' => EquipmentLibraryType::DispositionStatus,
+        'used_by' => EquipmentLibraryType::UsedBy,
     ];
 
     /**
@@ -150,6 +151,7 @@ class EquipmentController extends Controller
             ->when($request->filled('brand_id'), fn ($query) => $query->where('brand_id', $request->integer('brand_id')))
             ->when(in_array($request->string('functional')->toString(), ['functional', 'non_functional'], true), fn ($query) => $query->where('non_functional', $request->string('functional')->toString() === 'non_functional'))
             ->when($request->filled('estimated_useful_life'), fn ($query) => $query->where('estimated_useful_life', $request->integer('estimated_useful_life')))
+            ->when($request->filled('used_by'), fn ($query) => $request->string('used_by')->toString() === 'none' ? $query->whereNull('used_by') : $query->where('used_by', $request->string('used_by')->toString()))
             ->when($request->filled('accountable_officer_id'), fn ($query) => $query->where('current_accountable_officer_id', $request->integer('accountable_officer_id')))
             ->latestTransaction($request->string('transaction_type')->toString() ?: null, $request->filled('received_by_id') ? $request->integer('received_by_id') : null)
             ->withDuplicateOldPropertyNo($request->user(), $request->boolean('duplicates'))
