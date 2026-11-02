@@ -10,6 +10,7 @@ use App\Models\EquipmentCategory;
 use App\Models\EquipmentCondition;
 use App\Models\EquipmentTransaction;
 use App\Models\ItemType;
+use App\Models\Office;
 use App\Models\Personnel;
 use App\Models\User;
 use Database\Seeders\ReferenceDataSeeder;
@@ -625,5 +626,20 @@ class EquipmentControllerTest extends TestCase
         $this->expectException(AccountabilitySyncRequiredException::class);
 
         $equipment->update(['current_accountable_officer_id' => $officer->id]);
+    }
+
+    public function test_index_filters_by_office_and_ships_the_items_office(): void
+    {
+        $school = Office::factory()->create(['office_name' => 'Filter ES']);
+        $mine = $this->makeEquipment(['current_accountable_officer_id' => Personnel::factory()->create(['office_id' => $school->id])->id]);
+        $this->makeEquipment(['current_accountable_officer_id' => Personnel::factory()->create(['office_id' => Office::factory()->create()->id])->id]);
+
+        $this->actingAs($this->editor())->getJson("/api/equipment?office_id={$school->id}")
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $mine->id)
+            ->assertJsonPath('data.0.office', ['id' => $school->id, 'office_name' => 'Filter ES']);
+
+        $this->assertContains($school->id, array_column($this->actingAs($this->editor())->getJson('/api/equipment/options')->json('data.filters.office'), 'value'));
     }
 }

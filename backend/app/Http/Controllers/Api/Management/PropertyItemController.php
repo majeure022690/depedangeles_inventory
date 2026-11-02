@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Management;
 
-use App\Enums\DataScope;
 use App\Enums\Permission;
 use App\Http\Controllers\Api\Management\Concerns\ResolvesListParameters;
 use App\Http\Controllers\Controller;
@@ -42,13 +41,6 @@ class PropertyItemController extends Controller
         $user = $request->user();
 
         return response()->json(['data' => [
-            'office' => Office::query()
-                ->active()
-                ->when($user->dataScope() !== DataScope::All, fn (Builder $query) => $query->whereKey($user->office_id ?? 0))
-                ->orderBy('office_name')
-                ->get(['id', 'office_name', 'school_id'])
-                ->map(fn (Office $office) => ['value' => $office->id, 'label' => $office->school_id ? "{$office->office_name} ({$office->school_id})" : $office->office_name])
-                ->all(),
             ...$filterOptions->forUser($user),
         ], 'message' => 'Success']);
     }

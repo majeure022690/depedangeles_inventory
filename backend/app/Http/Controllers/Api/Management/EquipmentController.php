@@ -113,6 +113,10 @@ class EquipmentController extends Controller
     public const LIST_RELATIONS = [
         'currentAccountableOfficer:id,full_name,office_id',
         'currentEndUser:id,full_name,office_id',
+        'currentAccountableOfficer.office:id,office_name',
+        'currentEndUser.office:id,office_name',
+        'createdBy:id,office_id',
+        'createdBy.office:id,office_name',
         'itemType:id,name,dashboard_group',
         'brand:id,name',
         'equipmentCategory:id,name',
@@ -147,6 +151,7 @@ class EquipmentController extends Controller
             ->dispositionStatus($request->string('disposition_status')->toString() ?: null)
             ->dashboardGroup($this->dashboardGroupFilter($request))
             ->itemTypes($this->itemTypeFilter($request))
+            ->when($request->filled('office_id'), fn ($query) => $query->atOffice($request->integer('office_id')))
             ->when($request->boolean('awaiting_receipt'), fn ($query) => $query->whereNotNull('awaiting_receipt_since'))
             ->when($request->boolean('gsp_gaps'), fn ($query) => $query->gspTable1Gaps())
             ->when($request->boolean('pending'), fn ($query) => $query->whereNull('property_no'))

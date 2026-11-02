@@ -109,6 +109,8 @@ interface DataGridProps<T extends RowData> {
   onRowClick?: (row: T) => void
   toolbar?: ReactNode
   rowHeights?: Partial<Record<Density, number>>
+  /** Told the ids of hidden columns on mount and whenever the user shows or hides one. */
+  onHiddenColumnsChange?: (hidden: string[]) => void
 }
 
 export function DataGrid<T extends RowData>({
@@ -130,6 +132,7 @@ export function DataGrid<T extends RowData>({
   onRowClick,
   toolbar,
   rowHeights,
+  onHiddenColumnsChange,
 }: DataGridProps<T>) {
   const storageKey = `dictis.grid.${id}`
   const defaultVisibility = useMemo(
@@ -150,6 +153,11 @@ export function DataGrid<T extends RowData>({
   const measuredRows = useRef(false)
 
   useEffect(() => writeStored(`${storageKey}.columns`, columnVisibility), [storageKey, columnVisibility])
+  const hiddenColumnsListener = useRef(onHiddenColumnsChange)
+  hiddenColumnsListener.current = onHiddenColumnsChange
+  useEffect(() => {
+    hiddenColumnsListener.current?.(Object.entries(columnVisibility).flatMap(([column, visible]) => (visible === false ? [column] : [])))
+  }, [columnVisibility])
   useEffect(() => writeStored(`${storageKey}.density`, density), [storageKey, density])
   useEffect(() => writeStored(`${storageKey}.pageSize`, pageSizeMode), [storageKey, pageSizeMode])
 

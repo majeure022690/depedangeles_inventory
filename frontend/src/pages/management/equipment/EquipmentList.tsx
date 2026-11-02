@@ -26,6 +26,7 @@ const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: '
 
 const EMPTY_FILTERS = {
   search: '',
+  office_id: '',
   item_type_id: '',
   brand_id: '',
   functional: '',
@@ -44,6 +45,18 @@ const EMPTY_FILTERS = {
   warranty_ending: '',
   duplicates: '',
   high_cost: '',
+}
+
+/** Filters that belong to a column: hiding the column hides (and clears) them. */
+const FILTERS_BY_COLUMN: Record<string, string[]> = {
+  office: ['office_id'],
+  item: ['item_type_id', 'brand_id'],
+  category: ['category'],
+  equipment_condition: ['condition'],
+  disposition_status: ['disposition_status'],
+  accountable_officer: ['accountable_officer_id'],
+  old_property_no: ['duplicates'],
+  acquisition_cost: ['high_cost'],
 }
 
 const FUNCTIONAL_OPTIONS: Option<string>[] = [
@@ -128,6 +141,18 @@ export function EquipmentList() {
     { filters: { ...applied, dashboard_group: dashboardGroup, item_type: itemTypeFilter, ids: idFilter }, waitForPerPage: true },
   )
 
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
+  const hiddenFilters = hiddenColumns.flatMap((columnId) => FILTERS_BY_COLUMN[columnId] ?? [])
+  const filterShown = (key: string) => !hiddenFilters.includes(key)
+
+  function changeHiddenColumns(hidden: string[]) {
+    setHiddenColumns(hidden)
+    const cleared = Object.fromEntries(hidden.flatMap((columnId) => FILTERS_BY_COLUMN[columnId] ?? []).map((key) => [key, '']))
+    if (Object.keys(cleared).length === 0) return
+    setDraft((d) => ({ ...d, ...cleared }))
+    setApplied((a) => (Object.keys(cleared).some((key) => a[key as keyof typeof a] !== '') ? { ...a, ...cleared } : a))
+  }
+
   function applyFilters() {
     setApplied(draft)
   }
@@ -177,6 +202,7 @@ export function EquipmentList() {
   const filterChips: FilterChip<ChipKey>[] = (
     [
       { key: 'search', label: `Search: ${applied.search}` },
+      { key: 'office_id', label: `Office: ${optionLabel(filterOptions?.office, Number(applied.office_id))}` },
       { key: 'item_type_id', label: `Item type: ${optionLabel(filterOptions?.item_type, Number(applied.item_type_id))}` },
       { key: 'brand_id', label: `Brand: ${optionLabel(filterOptions?.brand, Number(applied.brand_id))}` },
       { key: 'functional', label: `Status: ${optionLabel(FUNCTIONAL_OPTIONS, applied.functional)}` },
@@ -361,6 +387,12 @@ export function EquipmentList() {
         cell: ({ row }) => row.original.current_accountable_officer?.full_name ?? <span className="text-gray-400">—</span>,
       }),
       column.display({
+        id: 'office',
+        header: 'Office',
+        enableSorting: false,
+        cell: ({ row }) => row.original.office?.office_name ?? <span className="text-gray-400">—</span>,
+      }),
+      column.display({
         id: 'end_user',
         header: 'End User',
         enableSorting: false,
@@ -458,13 +490,25 @@ export function EquipmentList() {
             onSubmit={applyFilters}
             className="sm:col-span-2 lg:col-span-4"
           />
+          {filterShown('office_id') && (filterOptions?.office.length ?? 0) > 1 && (
+            <FilterSelect label="Office" value={draft.office_id} onChange={(office_id) => setDraft((d) => ({ ...d, office_id }))} className="lg:col-span-4">
+              <option value="">All offices</option>
+              {filterOptions?.office.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </FilterSelect>
+          )}
           {(
             [
               ['item_type_id', 'Item type', 'All item types', filterOptions?.item_type],
               ['brand_id', 'Brand / manufacturer', 'All brands', filterOptions?.brand],
               ['functional', 'Status', 'Functional and non-functional', FUNCTIONAL_OPTIONS],
             ] as const
-          ).map(([key, label, any, list]) => (
+          )
+            .filter(([key]) => filterShown(key))
+            .map(([key, label, any, list]) => (
             <FilterSelect key={key} label={label} value={draft[key]} onChange={(value) => setDraft((d) => ({ ...d, [key]: value }))} className="lg:col-span-4">
               <option value="">{any}</option>
               {list?.map((option) => (
@@ -474,7 +518,8 @@ export function EquipmentList() {
               ))}
             </FilterSelect>
           ))}
-          <FilterSelect label="Condition" value={draft.condition} onChange={(condition) => setDraft((d) => ({ ...d, condition }))} className="lg:col-span-2">
+          {filterShown('condition') && (
+<FilterSelect label="Condition" value={draft.condition} onChange={(condition) => setDraft((d) => ({ ...d, condition }))} className="lg:col-span-2">
             <option value="">All conditions</option>
             {filterOptions?.condition.map((option) => (
               <option key={option.value} value={option.value}>
@@ -482,7 +527,9 @@ export function EquipmentList() {
               </option>
             ))}
           </FilterSelect>
-          <FilterSelect label="Category" value={draft.category} onChange={(category) => setDraft((d) => ({ ...d, category }))} className="lg:col-span-3">
+)}
+          {filterShown('category') && (
+<FilterSelect label="Category" value={draft.category} onChange={(category) => setDraft((d) => ({ ...d, category }))} className="lg:col-span-3">
             <option value="">All categories</option>
             {filterOptions?.category.map((option) => (
               <option key={option.value} value={option.value}>
@@ -490,7 +537,9 @@ export function EquipmentList() {
               </option>
             ))}
           </FilterSelect>
-          <FilterSelect
+)}
+          {filterShown('disposition_status') && (
+<FilterSelect
             label="Disposition status"
             value={draft.disposition_status}
             onChange={(disposition_status) => setDraft((d) => ({ ...d, disposition_status }))}
@@ -503,6 +552,7 @@ export function EquipmentList() {
               </option>
             ))}
           </FilterSelect>
+)}
           {(
             [
               ['estimated_useful_life', 'Estimated useful life', 'Any useful life', filterOptions?.estimated_useful_life],
@@ -511,7 +561,9 @@ export function EquipmentList() {
               ['received_by_id', 'Received by (latest transaction)', 'Anyone', filterOptions?.received_by],
               ['used_by', 'Used by', 'Anyone', [...(filterOptions?.used_by ?? []), { value: 'none', label: 'Not set' }]],
             ] as const
-          ).map(([key, label, any, list]) => (
+          )
+            .filter(([key]) => filterShown(key))
+            .map(([key, label, any, list]) => (
             <FilterSelect key={key} label={label} value={draft[key]} onChange={(value) => setDraft((d) => ({ ...d, [key]: value }))} className="lg:col-span-3">
               <option value="">{any}</option>
               {list?.map((option) => (
@@ -525,7 +577,8 @@ export function EquipmentList() {
             <option value="">All records</option>
             <option value="1">Awaiting receipt</option>
           </FilterSelect>
-          <FilterSelect
+          {filterShown('duplicates') && (
+<FilterSelect
             label="Old property no."
             value={draft.duplicates}
             onChange={(duplicates) => setDraft((d) => ({ ...d, duplicates }))}
@@ -534,10 +587,13 @@ export function EquipmentList() {
             <option value="">All records</option>
             <option value="1">Duplicates only</option>
           </FilterSelect>
-          <FilterSelect label="Cost" value={draft.high_cost} onChange={(high_cost) => setDraft((d) => ({ ...d, high_cost }))} className="lg:col-span-3">
+)}
+          {filterShown('high_cost') && (
+<FilterSelect label="Cost" value={draft.high_cost} onChange={(high_cost) => setDraft((d) => ({ ...d, high_cost }))} className="lg:col-span-3">
             <option value="">All costs</option>
             <option value="1">Cost looks too high</option>
           </FilterSelect>
+)}
         </div>
 
         <div className="mt-3 flex flex-col-reverse gap-2 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
@@ -593,6 +649,7 @@ export function EquipmentList() {
         sortDir={sortDir}
         onSortChange={onSortChange}
         rowHeights={{ comfortable: 61, compact: 49 }}
+        onHiddenColumnsChange={changeHiddenColumns}
         emptyMessage="No equipment records found."
         onRowClick={(row) => navigate(`/equipment/${row.id}/edit`)}
       />

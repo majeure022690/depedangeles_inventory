@@ -115,6 +115,8 @@ export interface Equipment {
   awaiting_receipt_since: string | null
   current_accountable_officer: PersonnelSummary | null
   current_end_user: PersonnelSummary | null
+  /** The office the item counts under (accountable officer, else end user, else creator); list and detail only. */
+  office?: { id: number; office_name: string } | null
   dashboard_group: string | null
   parent_equipment_id: number | null
   parent?: EquipmentParentSummary | null
@@ -158,6 +160,7 @@ export interface EquipmentFormOptions {
 }
 
 export interface EquipmentFilterOptions {
+  office: Option<number>[]
   condition: Option<number>[]
   category: Option<number>[]
   disposition_status: Option<string>[]

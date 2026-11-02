@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\DataScope;
 use App\Enums\EquipmentLibraryType;
 use App\Models\Brand;
 use App\Models\Equipment;
@@ -11,6 +12,7 @@ use App\Models\EquipmentCondition;
 use App\Models\EquipmentLibrary;
 use App\Models\EquipmentTransaction;
 use App\Models\ItemType;
+use App\Models\Office;
 use App\Models\Personnel;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -37,6 +39,13 @@ final class EquipmentFilterOptions
             ->all();
 
         return [
+            'office' => Office::query()
+                ->active()
+                ->when($user->dataScope() !== DataScope::All, fn (Builder $query) => $query->whereKey($user->office_id ?? 0))
+                ->orderBy('office_name')
+                ->get(['id', 'office_name', 'school_id'])
+                ->map(fn (Office $office) => ['value' => $office->id, 'label' => $office->school_id ? "{$office->office_name} ({$office->school_id})" : $office->office_name])
+                ->all(),
             'item_type' => ItemType::activeOptions(),
             'brand' => Brand::activeOptions(),
             'equipment_condition' => EquipmentCondition::activeOptions(),

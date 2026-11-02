@@ -556,6 +556,22 @@ class Equipment extends Model
     }
 
     /**
+     * The office the item counts under, by the same rule as scopeAtOffices.
+     */
+    public function heldAtOffice(): ?Office
+    {
+        if ($this->current_accountable_officer_id !== null) {
+            return $this->currentAccountableOfficer?->office;
+        }
+
+        if ($this->current_end_user_id !== null) {
+            return $this->currentEndUser?->office;
+        }
+
+        return $this->createdBy?->office;
+    }
+
+    /**
      * Stand-alone desktops, laptops and tablets: the items GSP Table 1 counts.
      *
      * @param  Builder<Equipment>  $query

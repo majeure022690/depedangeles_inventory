@@ -97,6 +97,7 @@ class EquipmentResource extends JsonResource
             'awaiting_receipt_since' => $this->awaiting_receipt_since?->toIso8601String(),
             'current_accountable_officer' => $this->whenLoaded('currentAccountableOfficer', fn () => self::person($this->currentAccountableOfficer)),
             'current_end_user' => $this->whenLoaded('currentEndUser', fn () => self::person($this->currentEndUser)),
+            'office' => $this->when($this->relationLoaded('createdBy'), fn () => ($office = $this->heldAtOffice()) ? ['id' => $office->id, 'office_name' => $office->office_name] : null),
             'parent_equipment_id' => $this->parent_equipment_id,
             'parent' => $this->whenLoaded('parent', fn () => $this->parent ? [
                 'id' => $this->parent->id,
