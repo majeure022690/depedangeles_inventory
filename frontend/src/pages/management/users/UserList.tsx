@@ -15,6 +15,7 @@ import { SelectPicker } from '@/components/ui/SelectPicker'
 import { Switch } from '@/components/ui/Switch'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useColumnLinkedFilters } from '@/hooks/useColumnLinkedFilters'
 import { useServerTable } from '@/hooks/useServerTable'
 import { extractError, extractFieldErrors, isValidationError } from '@/lib/errors'
 import { roleService } from '@/services/roleService'
@@ -84,6 +85,13 @@ export function UserList() {
   function applyFilters() {
     setAppliedFilters(draftFilters)
   }
+
+  const { filterShown, onHiddenColumnsChange } = useColumnLinkedFilters({ roles: ['role'], is_active: ['is_active'], office: ['office_id'] }, (keys) => {
+    if (keys.includes('role')) setRoleFilter('')
+    if (keys.includes('is_active')) setStatusFilter('')
+    if (keys.includes('office_id')) setOfficeFilter('')
+    setAppliedFilters((current) => (keys.some((key) => current[key as FilterKey] !== '') ? { ...current, ...Object.fromEntries(keys.map((key) => [key, ''])) } : current))
+  })
 
   function clearFilters() {
     syncDraft(emptyFilters)
@@ -390,7 +398,8 @@ export function UserList() {
           <div className="sm:col-span-2 lg:col-span-4">
             <FilterSearch label="Search by name or email" value={search} onChange={setSearch} onSubmit={applyFilters} />
           </div>
-          <FilterSelect label="Role" value={roleFilter} onChange={setRoleFilter} className="lg:col-span-3">
+          {filterShown('role') && (
+<FilterSelect label="Role" value={roleFilter} onChange={setRoleFilter} className="lg:col-span-3">
             <option value="">All roles</option>
             {filterRoles.map((role) => (
               <option key={role.id} value={role.name}>
@@ -398,12 +407,16 @@ export function UserList() {
               </option>
             ))}
           </FilterSelect>
-          <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} className="lg:col-span-2">
+)}
+          {filterShown('is_active') && (
+<FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} className="lg:col-span-2">
             <option value="">All statuses</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
           </FilterSelect>
-          <div className="sm:col-span-2 lg:col-span-3">
+)}
+          {filterShown('office_id') && (
+<div className="sm:col-span-2 lg:col-span-3">
             <SelectPicker
               aria-label="Office"
               placeholder="All offices"
@@ -412,6 +425,7 @@ export function UserList() {
               onSelect={(option) => setOfficeFilter(option ? option.value : '')}
             />
           </div>
+)}
         </div>
 
         <div className="mt-3 flex flex-col-reverse gap-2 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
@@ -435,6 +449,7 @@ export function UserList() {
       </div>
 
       <DataGrid
+        onHiddenColumnsChange={onHiddenColumnsChange}
         id="users"
         columns={columns}
         rows={users}

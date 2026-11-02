@@ -10,6 +10,7 @@ import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/Dat
 import { FilterChips, FilterSearch, FilterSelect, type FilterChip } from '@/components/ui/FilterControls'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useColumnLinkedFilters } from '@/hooks/useColumnLinkedFilters'
 import { useServerTable } from '@/hooks/useServerTable'
 import { scopedTitle } from '@/lib/dataScope'
 import { extractError } from '@/lib/errors'
@@ -56,6 +57,11 @@ export function PersonnelList() {
   function applyFilters() {
     setApplied(draft)
   }
+
+  const { filterShown, onHiddenColumnsChange } = useColumnLinkedFilters({ inactive: ['status'] }, () => {
+    setDraft((d) => ({ ...d, status: DEFAULT_FILTERS.status }))
+    setApplied((current) => (current.status !== DEFAULT_FILTERS.status ? { ...current, status: DEFAULT_FILTERS.status } : current))
+  })
 
   function clearFilters() {
     setDraft(DEFAULT_FILTERS)
@@ -210,7 +216,8 @@ export function PersonnelList() {
             onSubmit={applyFilters}
             className="lg:col-span-5"
           />
-          <FilterSelect
+          {filterShown('status') && (
+<FilterSelect
             label="Status"
             value={draft.status}
             onChange={(status) => setDraft((d) => ({ ...d, status: status as PersonnelStatusFilter }))}
@@ -222,6 +229,7 @@ export function PersonnelList() {
               </option>
             ))}
           </FilterSelect>
+)}
         </div>
 
         <div className="mt-3 flex flex-col-reverse gap-2 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
@@ -245,6 +253,7 @@ export function PersonnelList() {
       </div>
 
       <DataGrid
+        onHiddenColumnsChange={onHiddenColumnsChange}
         id="personnel"
         columns={columns}
         rows={items}

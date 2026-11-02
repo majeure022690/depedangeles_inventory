@@ -10,6 +10,7 @@ import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/Dat
 import { FilterChips, FilterSearch, FilterSelect, type FilterChip } from '@/components/ui/FilterControls'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useColumnLinkedFilters } from '@/hooks/useColumnLinkedFilters'
 import { useServerTable } from '@/hooks/useServerTable'
 import { extractError } from '@/lib/errors'
 import type { PermissionName } from '@/lib/permissions'
@@ -81,6 +82,12 @@ export function IspAccountList() {
     setApplied(next)
     setDraft(next)
   }
+
+  const { filterShown, onHiddenColumnsChange } = useColumnLinkedFilters({ isp: ['isp'], inactive_contract: ['status'] }, (keys) => {
+    const cleared = Object.fromEntries(keys.map((key) => [key, '']))
+    setDraft((d) => ({ ...d, ...cleared }))
+    setApplied((current) => (keys.some((key) => current[key as FilterKey] !== '') ? { ...current, ...cleared } : current))
+  })
 
   function resetFilters() {
     setDraft(EMPTY_FILTERS)
@@ -231,7 +238,8 @@ export function IspAccountList() {
             onSubmit={() => setApplied(draft)}
             className="sm:col-span-2 lg:col-span-6"
           />
-          <FilterSelect label="ISP provider" value={draft.isp} onChange={(isp) => setDraft((d) => ({ ...d, isp }))} className="lg:col-span-3">
+          {filterShown('isp') && (
+<FilterSelect label="ISP provider" value={draft.isp} onChange={(isp) => setDraft((d) => ({ ...d, isp }))} className="lg:col-span-3">
             <option value="">All providers</option>
             {options?.filters.isp_provider.map((provider) => (
               <option key={provider.value} value={provider.value}>
@@ -239,6 +247,7 @@ export function IspAccountList() {
               </option>
             ))}
           </FilterSelect>
+)}
           <FilterSelect
             label="Speed test"
             value={draft.stale_speed_test}
@@ -248,7 +257,8 @@ export function IspAccountList() {
             <option value="">All accounts</option>
             <option value="1">None in 90 days</option>
           </FilterSelect>
-          <FilterSelect
+          {filterShown('status') && (
+<FilterSelect
             label="Contract status"
             value={draft.status}
             onChange={(status) => setDraft((d) => ({ ...d, status: status as IspAccountStatusFilter }))}
@@ -261,6 +271,7 @@ export function IspAccountList() {
               </option>
             ))}
           </FilterSelect>
+)}
         </div>
 
         <div className="mt-3 flex flex-col-reverse gap-2 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
@@ -284,6 +295,7 @@ export function IspAccountList() {
       </form>
 
       <DataGrid
+        onHiddenColumnsChange={onHiddenColumnsChange}
         id="isp-accounts"
         columns={columns}
         rows={items}

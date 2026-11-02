@@ -11,6 +11,7 @@ import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/Dat
 import { FilterChips, FilterSearch, FilterSelect, type FilterChip } from '@/components/ui/FilterControls'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useColumnLinkedFilters } from '@/hooks/useColumnLinkedFilters'
 import { useServerTable } from '@/hooks/useServerTable'
 import { DASHBOARD_GROUP_LABELS } from '@/lib/dashboardGroups'
 import { scopedTitle } from '@/lib/dataScope'
@@ -141,17 +142,11 @@ export function EquipmentList() {
     { filters: { ...applied, dashboard_group: dashboardGroup, item_type: itemTypeFilter, ids: idFilter }, waitForPerPage: true },
   )
 
-  const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
-  const hiddenFilters = hiddenColumns.flatMap((columnId) => FILTERS_BY_COLUMN[columnId] ?? [])
-  const filterShown = (key: string) => !hiddenFilters.includes(key)
-
-  function changeHiddenColumns(hidden: string[]) {
-    setHiddenColumns(hidden)
-    const cleared = Object.fromEntries(hidden.flatMap((columnId) => FILTERS_BY_COLUMN[columnId] ?? []).map((key) => [key, '']))
-    if (Object.keys(cleared).length === 0) return
+  const { filterShown, onHiddenColumnsChange } = useColumnLinkedFilters(FILTERS_BY_COLUMN, (keys) => {
+    const cleared = Object.fromEntries(keys.map((key) => [key, '']))
     setDraft((d) => ({ ...d, ...cleared }))
-    setApplied((a) => (Object.keys(cleared).some((key) => a[key as keyof typeof a] !== '') ? { ...a, ...cleared } : a))
-  }
+    setApplied((current) => (keys.some((key) => current[key as keyof typeof current] !== '') ? { ...current, ...cleared } : current))
+  })
 
   function applyFilters() {
     setApplied(draft)
@@ -649,7 +644,7 @@ export function EquipmentList() {
         sortDir={sortDir}
         onSortChange={onSortChange}
         rowHeights={{ comfortable: 61, compact: 49 }}
-        onHiddenColumnsChange={changeHiddenColumns}
+        onHiddenColumnsChange={onHiddenColumnsChange}
         emptyMessage="No equipment records found."
         onRowClick={(row) => navigate(`/equipment/${row.id}/edit`)}
       />

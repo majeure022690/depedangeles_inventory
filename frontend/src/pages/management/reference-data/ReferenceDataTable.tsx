@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/Select'
 import { Switch } from '@/components/ui/Switch'
 import { Textarea } from '@/components/ui/Textarea'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useColumnLinkedFilters } from '@/hooks/useColumnLinkedFilters'
 import { useServerTable } from '@/hooks/useServerTable'
 import { extractError, extractFieldErrors, isValidationError } from '@/lib/errors'
 import { referenceDataService } from '@/services/referenceDataService'
@@ -82,6 +83,7 @@ function ReferenceDataTableView({ table }: { table: string }) {
   const hasAbbreviation = table === 'item-types'
 
   const [typeFilter, setTypeFilter] = useState('')
+  const { filterShown, onHiddenColumnsChange } = useColumnLinkedFilters({ type: ['type'] }, () => setTypeFilter(''))
   const { items, meta, loading, error, page, setPage, perPage, setPerPage, setSearch, reload } = useServerTable(
     (params) =>
       referenceDataService.list(table, params).then((response) => {
@@ -356,6 +358,7 @@ function ReferenceDataTableView({ table }: { table: string }) {
       )}
 
       <DataGrid
+        onHiddenColumnsChange={onHiddenColumnsChange}
         id={`reference-data.${table}`}
         columns={columns}
         rows={items}
@@ -379,7 +382,7 @@ function ReferenceDataTableView({ table }: { table: string }) {
                 onSubmit={() => setSearch(searchDraft.trim())}
               />
             </div>
-            {!isTier1 && types.length > 0 && (
+            {!isTier1 && types.length > 0 && filterShown('type') && (
               <FilterSelect label="Filter by type" value={typeFilter} onChange={setTypeFilter} className="w-full sm:w-56">
                 <option value="">All types</option>
                 {types.map((type) => (

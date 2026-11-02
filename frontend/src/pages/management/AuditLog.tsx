@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } f
 import { FilterChips, FilterSearch, FilterSelect, filterFieldClass, type FilterChip } from '@/components/ui/FilterControls'
 import { SelectPicker } from '@/components/ui/SelectPicker'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useColumnLinkedFilters } from '@/hooks/useColumnLinkedFilters'
 import { useServerTable } from '@/hooks/useServerTable'
 import { extractError } from '@/lib/errors'
 import { auditLogService } from '@/services/auditLogService'
@@ -207,6 +208,13 @@ export function AuditLog() {
     setAppliedFilters(draftFilters)
   }
 
+  const { filterShown, onHiddenColumnsChange } = useColumnLinkedFilters({ description: ['event'], subject: ['subject_type'], actor: ['causer_id'] }, (keys) => {
+    if (!keys.some((key) => appliedFilters[key as FilterKey] !== '')) return
+    const next = { ...appliedFilters, ...Object.fromEntries(keys.map((key) => [key, ''])), ...(keys.includes('subject_type') ? { subject_id: '' } : {}) }
+    setAppliedFilters(next)
+    syncDraft(next)
+  })
+
   function clearFilters() {
     syncDraft(emptyFilters)
     setAppliedFilters(emptyFilters)
@@ -336,7 +344,8 @@ export function AuditLog() {
           <div className="sm:col-span-2 lg:col-span-4">
             <FilterSearch label="Search by action or person" value={search} onChange={setSearch} onSubmit={applyFilters} />
           </div>
-          <FilterSelect label="Action" value={event} onChange={setEvent} className="lg:col-span-4">
+          {filterShown('event') && (
+<FilterSelect label="Action" value={event} onChange={setEvent} className="lg:col-span-4">
             <option value="">All actions</option>
             {options.events.map((value) => (
               <option key={value} value={value}>
@@ -344,7 +353,9 @@ export function AuditLog() {
               </option>
             ))}
           </FilterSelect>
-          <FilterSelect label="Record type" value={subjectType} onChange={setSubjectType} className="lg:col-span-4">
+)}
+          {filterShown('subject_type') && (
+<FilterSelect label="Record type" value={subjectType} onChange={setSubjectType} className="lg:col-span-4">
             <option value="">All record types</option>
             {options.subject_types.map((type) => (
               <option key={type.value} value={type.value}>
@@ -352,6 +363,7 @@ export function AuditLog() {
               </option>
             ))}
           </FilterSelect>
+)}
           <label className="flex items-center gap-2 text-xs text-gray-500 lg:col-span-3">
             <span className="w-10 shrink-0">From</span>
             <input
@@ -374,7 +386,8 @@ export function AuditLog() {
               className={filterFieldClass}
             />
           </label>
-          <div className="sm:col-span-2 lg:col-span-6">
+          {filterShown('causer_id') && (
+<div className="sm:col-span-2 lg:col-span-6">
             <SelectPicker
               aria-label="Performed by"
               placeholder="Anyone"
@@ -383,6 +396,7 @@ export function AuditLog() {
               onSelect={(option) => setCauserId(option ? option.value : '')}
             />
           </div>
+)}
         </div>
 
         <div className="mt-3 flex flex-col-reverse gap-2 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
@@ -406,6 +420,7 @@ export function AuditLog() {
       </div>
 
       <DataGrid
+        onHiddenColumnsChange={onHiddenColumnsChange}
         id="audit-log"
         columns={columns}
         rows={entries}
