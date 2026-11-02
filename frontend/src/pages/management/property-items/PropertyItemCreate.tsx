@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 import { DetailPageSkeleton } from '@/components/DetailPageSkeleton'
 import { PropertyItemForm } from '@/components/property-items/PropertyItemForm'
@@ -9,12 +9,11 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { hasAllScope } from '@/lib/dataScope'
 import { extractError } from '@/lib/errors'
 import { emptyPropertyItemForm, propertyItemService } from '@/services/propertyItemService'
-import type { PropertyCategory, PropertyItemOptions } from '@/types/property-item'
+import type { PropertyItemOptions } from '@/types/property-item'
 
 export function PropertyItemCreate() {
   usePageTitle('Add school property')
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const { user } = useAuth()
   const officeLocked = !hasAllScope(user)
 
@@ -42,10 +41,7 @@ export function PropertyItemCreate() {
       {!options && !loadError && <DetailPageSkeleton />}
       {options && (
         <PropertyItemForm
-          initial={{
-            ...emptyPropertyItemForm(officeLocked && typeof user?.office_id === 'number' ? String(user.office_id) : ''),
-            category: (options.category.find((option) => option.value === searchParams.get('category'))?.value ?? '') as PropertyCategory | '',
-          }}
+          initial={emptyPropertyItemForm(officeLocked && typeof user?.office_id === 'number' ? String(user.office_id) : '')}
           options={options}
           officeLocked={officeLocked}
           submit={propertyItemService.create}

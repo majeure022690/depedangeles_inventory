@@ -1,15 +1,6 @@
 import type { Option } from '@/types/lookup'
 
-export type PropertyCategory =
-  | 'it_equipment'
-  | 'office_equipment'
-  | 'furniture_fixtures'
-  | 'school_building'
-  | 'other_structure'
-  | 'tle_equipment'
-  | 'science_math_equipment'
-  | 'sports_music_equipment'
-  | 'books'
+export type PropertyCategory = 'it_equipment'
 
 /** `PropertyItemResource`. */
 export interface PropertyItem {
@@ -27,7 +18,6 @@ export interface PropertyItem {
   quantity: number
   on_hand_count: number
   total_value: number | null
-  grade_level: string | null
   source: string | null
   condition: string | null
   with_are: boolean
@@ -41,12 +31,27 @@ export interface PropertyItem {
   updated_at: string | null
 }
 
+/** `GET /api/property-items/equipment`: an Equipment-module item the RPCPPE counts. */
+export interface PropertyItemEquipment {
+  id: number
+  article: string | null
+  description: string
+  property_no: string | null
+  office: string | null
+  unit_value: number | null
+  semi_expendable: boolean
+  on_hand: number
+  condition: string | null
+  disposition_status: string | null
+  accountable_officer: string | null
+  end_user: string | null
+}
+
 /** `GET /api/property-items/options`; `personnel` only comes back when `office_id` is sent. */
 export interface PropertyItemOptions {
   category: (Option<PropertyCategory> & { articles: string[] })[]
   source: Option<string>[]
   condition: Option<string>[]
-  grade_level: Option<string>[]
   office: Option<number>[]
   unit_of_measure: Option<string>[]
   personnel?: Option<number>[]
@@ -64,7 +69,6 @@ export interface PropertyItemFormData {
   unit_value: string
   quantity: string
   on_hand_count: string
-  grade_level: string
   source: string
   condition: string
   with_are: boolean

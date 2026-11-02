@@ -14,11 +14,11 @@ use PhpOffice\PhpSpreadsheet\Shared\Date;
 class PropertyItemExport
 {
     private const HEADINGS = [
-        'A' => ['Office', 30], 'B' => ['Category', 22], 'C' => ['Article', 26], 'D' => ['Description', 36],
-        'E' => ['Property No.', 18], 'F' => ['Unit', 10], 'G' => ['Date Acquired', 13], 'H' => ['Unit Value', 14],
-        'I' => ['Qty (Card)', 10], 'J' => ['On Hand', 10], 'K' => ['Total Value', 15], 'L' => ['Grade Level', 13],
-        'M' => ['Transferred / Donated By', 18], 'N' => ['Condition', 14], 'O' => ['With MR/ARE', 11],
-        'P' => ['Accountable Officer', 24], 'Q' => ['End User / Teacher', 24], 'R' => ['Location', 22], 'S' => ['Remarks', 30],
+        'A' => ['Office', 30], 'B' => ['Article', 26], 'C' => ['Description', 36], 'D' => ['Property No.', 18],
+        'E' => ['Unit', 10], 'F' => ['Date Acquired', 13], 'G' => ['Unit Value', 14], 'H' => ['Qty (Card)', 10],
+        'I' => ['On Hand', 10], 'J' => ['Total Value', 15], 'K' => ['Transferred / Donated By', 18], 'L' => ['Condition', 14],
+        'M' => ['With MR/ARE', 11], 'N' => ['Accountable Officer', 24], 'O' => ['End User', 24], 'P' => ['Location', 22],
+        'Q' => ['Remarks', 30],
     ];
 
     /**
@@ -29,20 +29,19 @@ class PropertyItemExport
         $spreadsheet = WorkbookStyle::workbook();
         $sheet = WorkbookStyle::sheet($spreadsheet, 'School Property', landscape: true);
 
-        WorkbookStyle::banner($sheet, 'A1:S1', 'SCHOOL PROPERTY', 13);
-        WorkbookStyle::text($sheet, 'A2:S2', 'Exported '.now()->format('F j, Y g:i A').' · '.$items->count().' item(s)', italic: true);
+        WorkbookStyle::banner($sheet, 'A1:Q1', 'SCHOOL PROPERTY', 13);
+        WorkbookStyle::text($sheet, 'A2:Q2', 'Exported '.now()->format('F j, Y g:i A').' · '.$items->count().' item(s)', italic: true);
 
         foreach (self::HEADINGS as $column => [$heading, $width]) {
             $sheet->setCellValue("{$column}4", $heading);
             $sheet->getColumnDimension($column)->setWidth($width);
         }
-        WorkbookStyle::header($sheet, 'A4:S4');
+        WorkbookStyle::header($sheet, 'A4:Q4');
 
         $row = 5;
         foreach ($items as $item) {
             $sheet->fromArray([
                 $item->office?->office_name,
-                $item->category->label(),
                 $item->article,
                 $item->description,
                 $item->property_no,
@@ -52,7 +51,6 @@ class PropertyItemExport
                 $item->quantity,
                 $item->on_hand_count,
                 $item->totalValue(),
-                $item->grade_level,
                 $item->source?->label(),
                 $item->condition === null ? null : ucfirst($item->condition),
                 $item->with_are ? 'Yes' : 'No',
@@ -65,11 +63,11 @@ class PropertyItemExport
         }
 
         $last = max($row - 1, 5);
-        WorkbookStyle::borders($sheet, "A4:S{$last}");
-        $sheet->getStyle("G5:G{$last}")->getNumberFormat()->setFormatCode('m/d/yyyy');
-        WorkbookStyle::money($sheet, "H5:H{$last}");
-        WorkbookStyle::money($sheet, "K5:K{$last}");
-        $sheet->setAutoFilter("A4:S{$last}");
+        WorkbookStyle::borders($sheet, "A4:Q{$last}");
+        $sheet->getStyle("F5:F{$last}")->getNumberFormat()->setFormatCode('m/d/yyyy');
+        WorkbookStyle::money($sheet, "G5:G{$last}");
+        WorkbookStyle::money($sheet, "J5:J{$last}");
+        $sheet->setAutoFilter("A4:Q{$last}");
         $sheet->freezePane('A5');
         $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(4, 4);
 

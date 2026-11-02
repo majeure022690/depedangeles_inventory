@@ -138,13 +138,9 @@ class ReportControllerTest extends TestCase
         $this->item('Laptop', ['property_no' => 'GONE-001', 'disposition_status' => 'Transferred']);
         $this->item('Copier / Xerox Machine', ['acquisition_cost' => 60000, 'property_no' => 'OFC-001']);
         PropertyItem::factory()->create([
-            'office_id' => $this->office->id, 'category' => PropertyCategory::FurnitureFixtures, 'article' => 'Monoblock Chair',
+            'office_id' => $this->office->id, 'category' => PropertyCategory::ItEquipment, 'article' => 'Mouse',
             'quantity' => 40, 'on_hand_count' => 38, 'unit_value' => 350, 'source' => PropertySource::Lgu,
-            'accountable_officer_id' => $this->officer->id, 'end_user_id' => $teacher->id, 'grade_level' => 'Grade 1', 'date_acquired' => null,
-        ]);
-        PropertyItem::factory()->create([
-            'office_id' => $this->office->id, 'category' => PropertyCategory::Books, 'article' => 'English', 'grade_level' => 'Grade 2',
-            'description' => 'English Learner’s Material', 'quantity' => 30, 'on_hand_count' => 28, 'accountable_officer_id' => $this->officer->id,
+            'accountable_officer_id' => $this->officer->id, 'end_user_id' => $teacher->id, 'date_acquired' => null,
         ]);
 
         $response = $this->rpcppe($this->reporter(), [
@@ -158,12 +154,12 @@ class ReportControllerTest extends TestCase
         $book = $this->workbook($response);
         $ppe = $book->getSheetByNameOrThrow('IT');
         $semi = $book->getSheetByNameOrThrow('IT Semi-Exp');
-        $furniture = $book->getSheetByNameOrThrow('F&F');
 
         $this->assertSame('MARIA S. REYES', $ppe->getCell('B6')->getValue());
         $this->assertSame('JANUARY 2, 2025', $ppe->getCell('P6')->getValue());
-        $this->assertSame('PPE-001', $ppe->getCell('C11')->getValue());
-        $this->assertSame('=SUM(F11:F11)', $ppe->getCell('F12')->getValue());
+        $this->rowOf($ppe, 'C', 'PPE-001');
+        $this->rowOf($ppe, 'C', 'OFC-001');
+        $this->assertSame('=SUM(F11:F12)', $ppe->getCell('F13')->getValue());
 
         $this->assertSame(['SE-001', 'SE-002'], [$semi->getCell('C11')->getValue(), $semi->getCell('C12')->getValue()]);
         $this->assertSame(0, $semi->getCell('I12')->getValue());
@@ -172,20 +168,10 @@ class ReportControllerTest extends TestCase
         $this->rowOf($semi, 'B', 'ANA C. LOPEZ');
         $this->rowOf($semi, 'F', 'MARIA S. REYES');
 
-        $this->assertSame('OFC-001', $book->getSheetByNameOrThrow('Office Eqpt')->getCell('C11')->getValue());
-
-        $this->assertSame('Monoblock Chair', $furniture->getCell('A11')->getValue());
-        $this->assertSame([40, 38], [$furniture->getCell('H11')->getValue(), $furniture->getCell('I11')->getValue()]);
-        $this->assertSame('✓', $furniture->getCell('N11')->getValue());
-
-        $books = $book->getSheetByNameOrThrow('Books');
-        $this->assertSame(['English', 'Grade 2', 30, 28], [$books->getCell('A10')->getValue(), $books->getCell('B10')->getValue(), $books->getCell('E10')->getValue(), $books->getCell('F10')->getValue()]);
-
-        $attachment = $book->getSheetByNameOrThrow('F&F per Teacher');
-        $this->assertSame('Monoblock Chair', $attachment->getCell('B8')->getValue());
-        $this->assertSame('Grade 1', $attachment->getCell('A9')->getValue());
-        $this->assertSame('Lopez, Ana C.', $attachment->getCell('A10')->getValue());
-        $this->assertSame(40, $attachment->getCell('B10')->getValue());
+        $this->assertSame('Mouse', $semi->getCell('A13')->getValue());
+        $this->assertSame([40, 38], [$semi->getCell('H13')->getValue(), $semi->getCell('I13')->getValue()]);
+        $this->assertSame('✓', $semi->getCell('N13')->getValue());
+        $this->assertSame(['IT', 'IT Semi-Exp'], $book->getSheetNames());
 
         foreach ([$ppe, $semi] as $sheet) {
             for ($row = 11; $row <= $sheet->getHighestRow(); $row++) {

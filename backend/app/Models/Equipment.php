@@ -122,6 +122,11 @@ class Equipment extends Model
 
     public const string OTHERS = 'Others';
 
+    /** No longer in the office's custody, so not counted on the RPCPPE. */
+    public const array RELINQUISHED = ['Disposed', 'Donated', 'Transferred'];
+
+    public const array MISSING = ['Lost', 'Stolen'];
+
     /**
      * Each free-text column => the dropdown it specifies, and that dropdown's lookup model when it stores an id.
      *
@@ -151,6 +156,21 @@ class Equipment extends Model
     public function specified(string $otherField, ?string $name): ?string
     {
         return $name === self::OTHERS && filled($this->{$otherField}) ? $this->{$otherField} : $name;
+    }
+
+    /**
+     * Brand and model (or specifications), with the serial number, as printed on the RPCPPE.
+     */
+    public function propertyDescription(): string
+    {
+        $brand = $this->specified('brand_other', $this->brand?->name);
+        $model = trim((string) $this->model);
+        $brand = in_array($brand, [null, self::OTHERS], true) || str_starts_with(strtolower($model), strtolower((string) $brand)) ? null : $brand;
+        $name = trim(implode(' ', array_filter([$brand, $model])));
+        $name = $name !== '' ? $name : (string) ($this->specifications ?: $this->itemType?->name);
+        $serial = trim((string) $this->serial_number);
+
+        return $serial !== '' && ! in_array(strtoupper($serial), ['N/A', 'NA', 'NONE', '-'], true) ? "{$name} (S/N: {$serial})" : $name;
     }
 
     protected function casts(): array
@@ -492,6 +512,14 @@ class Equipment extends Model
                         $creator,
                         User::query()->select('id')->where('office_id', $officeId),
                     )))));
+    }
+
+    /**
+     * @param  Builder<Equipment>  $query
+     */
+    public function scopeInCustody(Builder $query): void
+    {
+        $query->whereNotIn($query->qualifyColumn('disposition_status'), self::RELINQUISHED);
     }
 
     /**

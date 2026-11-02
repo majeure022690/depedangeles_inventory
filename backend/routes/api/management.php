@@ -103,6 +103,7 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     Route::get('/property-items/options', [PropertyItemController::class, 'options'])->middleware($can(P::PropertyItemsView, P::PropertyItemsCreate, P::PropertyItemsEdit));
     Route::get('/property-items/export', [PropertyItemController::class, 'export'])->middleware([$can(P::PropertyItemsView), 'throttle:20,1']);
     Route::get('/property-items', [PropertyItemController::class, 'index'])->middleware($can(P::PropertyItemsView));
+    Route::get('/property-items/equipment', [PropertyItemController::class, 'equipment'])->middleware($can(P::PropertyItemsView));
     Route::get('/property-items/{propertyItem}', [PropertyItemController::class, 'show'])->middleware($can(P::PropertyItemsView))->whereNumber('propertyItem');
     Route::post('/property-items', [PropertyItemController::class, 'store'])->middleware($can(P::PropertyItemsCreate));
     Route::put('/property-items/{propertyItem}', [PropertyItemController::class, 'update'])->middleware($can(P::PropertyItemsEdit))->whereNumber('propertyItem');

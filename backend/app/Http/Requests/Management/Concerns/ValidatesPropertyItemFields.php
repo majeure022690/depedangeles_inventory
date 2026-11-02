@@ -27,7 +27,6 @@ trait ValidatesPropertyItemFields
             'unit_value' => ['nullable', 'numeric', 'min:0', 'max:999999999999.99'],
             'quantity' => ['required', 'integer', 'min:0', 'max:1000000'],
             'on_hand_count' => ['required', 'integer', 'min:0', 'max:1000000'],
-            'grade_level' => ['nullable', 'string', Rule::in(PropertyItem::GRADE_LEVELS)],
             'source' => ['nullable', Rule::enum(PropertySource::class)],
             'condition' => ['nullable', 'string', Rule::in(PropertyItem::CONDITIONS)],
             'with_are' => ['boolean'],

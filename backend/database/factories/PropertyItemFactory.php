@@ -18,8 +18,8 @@ class PropertyItemFactory extends Factory
 
         return [
             'office_id' => Office::factory(),
-            'category' => PropertyCategory::FurnitureFixtures,
-            'article' => 'Monoblock Chair',
+            'category' => PropertyCategory::ItEquipment,
+            'article' => 'Laptop Computer',
             'description' => fake()->optional()->sentence(4),
             'property_no' => fake()->optional()->bothify('PROP-####'),
             'unit_of_measure' => 'pc',

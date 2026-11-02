@@ -36,8 +36,8 @@ const EMPTY_FORM: RpcppeReportParams = {
 }
 
 /**
- * The RPCPPE workbook for one office: every category sheet from IRIS equipment
- * plus School Property, then books and furniture per teacher.
+ * The RPCPPE workbook for one office: the IT equipment and semi-expendable
+ * sheets from IRIS equipment plus School Property.
  */
 export function RpcppeDownloadDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [options, setOptions] = useState<ReportOptions | null>(null)
@@ -115,8 +115,8 @@ export function RpcppeDownloadDialog({ open, onOpenChange }: { open: boolean; on
       <DialogContent size="xl">
         <DialogTitle>Download RPCPPE</DialogTitle>
         <DialogDescription>
-          Report on the Physical Count of Property, Plant and Equipment: every category sheet from IRIS equipment and School Property, plus books and furniture
-          per teacher.
+          Report on the Physical Count of Property, Plant and Equipment: the IT Equipment and IT Semi-Expendable sheets, filled from the Equipment module and
+          School Property.
         </DialogDescription>
         <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-4">
           {message && (

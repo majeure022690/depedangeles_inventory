@@ -15,13 +15,7 @@ import { extractError, extractFieldErrors, isValidationError, type FieldErrors }
 import { propertyItemService } from '@/services/propertyItemService'
 import type { PropertyItem, PropertyItemFormData, PropertyItemOptions } from '@/types/property-item'
 
-const WITH_GRADE_LEVEL = ['furniture_fixtures', 'books']
-
-/**
- * Shared by the create and edit pages. Books relabel the count fields
- * (received in June / actual in March); furniture adds the grade level
- * used to group the per-teacher attachment of the RPCPPE.
- */
+/** Shared by the create and edit pages. */
 export function PropertyItemForm({
   initial,
   options,
@@ -66,7 +60,6 @@ export function PropertyItemForm({
 
   const personnel = personnelList && personnelList.officeId === form.office_id ? personnelList.people : []
   const category = options.category.find((option) => option.value === form.category)
-  const isBooks = form.category === 'books'
 
   function set<K extends keyof PropertyItemFormData>(field: K, value: PropertyItemFormData[K]) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -139,57 +132,23 @@ export function PropertyItemForm({
               />
             )}
           </FormField>
-          <FormField id="category" label="Category" required error={errors.category} hint="Decides which RPCPPE sheet the item is reported on.">
-            {(aria) => (
-              <Select
-                id="category"
-                value={form.category}
-                placeholder="Select a category"
-                options={options.category.map((option) => ({
-                  value: option.value,
-                  label: option.label,
-                }))}
-                onChange={(event) => set('category', event.target.value as PropertyItemFormData['category'])}
-                {...aria}
-              />
-            )}
-          </FormField>
-          <FormField id="article" label={isBooks ? 'Learning area' : 'Article'} required error={errors.article} hint="Pick a suggestion or type your own.">
+          <FormField id="article" label="Article" required error={errors.article} hint="Pick a suggestion or type your own.">
             {() => (
               <SuggestInput
                 value={form.article}
                 onChange={(value) => set('article', value)}
                 suggestions={category?.articles ?? []}
                 maxLength={150}
-                placeholder={category ? `e.g. ${category.articles[0]}` : 'Choose a category first'}
-                aria-label={isBooks ? 'Learning area' : 'Article'}
+                placeholder={category ? `e.g. ${category.articles[0]}` : undefined}
+                aria-label="Article"
               />
             )}
           </FormField>
-          <FormField id="description" label={isBooks ? 'Title / material (optional)' : 'Description (optional)'} error={errors.description}>
+          <FormField id="description" label="Description (optional)" error={errors.description}>
             {(aria) => (
               <Input id="description" value={form.description} maxLength={500} onChange={(event) => set('description', event.target.value)} {...aria} />
             )}
           </FormField>
-          {WITH_GRADE_LEVEL.includes(form.category) && (
-            <FormField
-              id="grade_level"
-              label="Grade level (optional)"
-              error={errors.grade_level}
-              hint={isBooks ? 'Grade level the material is for.' : 'Grade of the classroom using it; groups the furniture-per-teacher sheet.'}
-            >
-              {(aria) => (
-                <Select
-                  id="grade_level"
-                  value={form.grade_level}
-                  placeholder="None"
-                  options={options.grade_level}
-                  onChange={(event) => set('grade_level', event.target.value)}
-                  {...aria}
-                />
-              )}
-            </FormField>
-          )}
           <FormField id="property_no" label="Property number (optional)" error={errors.property_no}>
             {(aria) => (
               <Input id="property_no" value={form.property_no} maxLength={100} onChange={(event) => set('property_no', event.target.value)} {...aria} />
@@ -198,10 +157,10 @@ export function PropertyItemForm({
         </FormSection>
 
         <FormSection title="Count and value" columns={4}>
-          <FormField id="quantity" label={isBooks ? 'Receipt (June)' : 'Balance per card (quantity)'} required error={errors.quantity}>
+          <FormField id="quantity" label="Balance per card (quantity)" required error={errors.quantity}>
             {(aria) => <Input id="quantity" type="number" min={0} value={form.quantity} onChange={(event) => set('quantity', event.target.value)} {...aria} />}
           </FormField>
-          <FormField id="on_hand_count" label={isBooks ? 'Actual (March)' : 'On hand per count (quantity)'} required error={errors.on_hand_count}>
+          <FormField id="on_hand_count" label="On hand per count (quantity)" required error={errors.on_hand_count}>
             {(aria) => (
               <Input
                 id="on_hand_count"
@@ -294,9 +253,9 @@ export function PropertyItemForm({
           </FormField>
           <FormField
             id="end_user_id"
-            label="End user / teacher (optional)"
+            label="End user (optional)"
             error={errors.end_user_id}
-            hint="The teacher or staff member using the item. Listed by name on the furniture-per-teacher sheet."
+            hint="The teacher or staff member using the item."
           >
             {(aria) => (
               <Select
@@ -335,7 +294,7 @@ export function PropertyItemForm({
           type="button"
           variant="outline"
           leftIcon={<ArrowLeft className="h-4 w-4" />}
-          onClick={() => navigate(initial.category ? `/school-property?tab=${initial.category}` : '/school-property')}
+          onClick={() => navigate('/school-property')}
         >
           Back to list
         </Button>

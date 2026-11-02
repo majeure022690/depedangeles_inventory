@@ -106,7 +106,7 @@ const PERMISSION_DESCRIPTIONS: Record<PermissionName, string> = {
   'office.create': 'Add new offices.',
   'office.edit': 'Edit office details.',
   'office.delete': 'Delete offices that nothing else refers to.',
-  'property_items.view': 'See school property (furniture, buildings, books, …) within the role’s data scope and export it to Excel.',
+  'property_items.view': 'See school IT property within the role’s data scope and export it to Excel.',
   'property_items.create': 'Add school property items.',
   'property_items.edit': 'Edit school property items.',
   'property_items.delete': 'Delete school property items.',

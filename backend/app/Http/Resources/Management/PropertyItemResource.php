@@ -32,7 +32,6 @@ class PropertyItemResource extends JsonResource
             'quantity' => $this->quantity,
             'on_hand_count' => $this->on_hand_count,
             'total_value' => $this->totalValue(),
-            'grade_level' => $this->grade_level,
             'source' => $this->source?->value,
             'condition' => $this->condition,
             'with_are' => $this->with_are,

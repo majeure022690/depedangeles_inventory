@@ -1,7 +1,8 @@
 import { ArrowRight, Download, FileSpreadsheet, Filter, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
+import { PropertyItemEquipmentTable } from '@/components/property-items/PropertyItemEquipmentTable'
 import { RpcppeDownloadDialog } from '@/components/property-items/RpcppeDownloadDialog'
 
 import { Alert } from '@/components/ui/Alert'
@@ -10,14 +11,13 @@ import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/DataGrid'
 import { FilterChips, FilterSearch, FilterSelect, type FilterChip } from '@/components/ui/FilterControls'
-import { TabPanel, Tabs } from '@/components/ui/Tabs'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useServerTable } from '@/hooks/useServerTable'
 import { hasAllScope } from '@/lib/dataScope'
 import { extractError } from '@/lib/errors'
 import { propertyItemService } from '@/services/propertyItemService'
-import type { PropertyCategory, PropertyItem, PropertyItemFilters, PropertyItemOptions } from '@/types/property-item'
+import type { PropertyItem, PropertyItemFilters, PropertyItemOptions } from '@/types/property-item'
 
 const column = gridColumnHelper<PropertyItem>()
 
@@ -25,21 +25,6 @@ const currency = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
 })
-
-/** One tab per RPCPPE sheet, in workbook order. */
-const TABS: { value: PropertyCategory; label: string }[] = [
-  { value: 'it_equipment', label: 'IT Equipment' },
-  { value: 'office_equipment', label: 'Office Equipment' },
-  { value: 'furniture_fixtures', label: 'Furniture & Fixtures' },
-  { value: 'school_building', label: 'School Buildings' },
-  { value: 'other_structure', label: 'Other Structures' },
-  { value: 'tle_equipment', label: 'TLE' },
-  { value: 'science_math_equipment', label: 'Science & Math' },
-  { value: 'sports_music_equipment', label: 'Sports & Music' },
-  { value: 'books', label: 'Books' },
-]
-
-const TABS_ID = 'school-property'
 
 const EMPTY_FILTERS = { search: '', office_id: '' }
 
@@ -50,10 +35,7 @@ type Feedback = { type: 'success' | 'error'; message: string } | null
 export function PropertyItemList() {
   usePageTitle('School Property')
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
   const { can, user } = useAuth()
-  const tab = TABS.find((item) => item.value === searchParams.get('tab'))?.value ?? TABS[0].value
-  const tabLabel = TABS.find((item) => item.value === tab)?.label ?? ''
   const [rpcppeOpen, setRpcppeOpen] = useState(false)
   const canCreate = can('property_items.create')
   const canEdit = can('property_items.edit')
@@ -70,7 +52,7 @@ export function PropertyItemList() {
 
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS)
   const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS)
-  const query: PropertyItemFilters = useMemo(() => ({ ...applied, category: tab }), [applied, tab])
+  const query: PropertyItemFilters = useMemo(() => ({ ...applied, category: 'it_equipment' }), [applied])
   const dirty = JSON.stringify(draft) !== JSON.stringify(applied)
 
   const { items, meta, loading, error, page, setPage, perPage, setPerPage, sortBy, sortDir, onSortChange, reload } = useServerTable(
@@ -195,16 +177,9 @@ export function PropertyItemList() {
         cell: (info) => (info.getValue() === null ? '—' : currency.format(info.getValue() as number)),
       }),
       column.accessor('end_user', {
-        header: 'End user / teacher',
+        header: 'End user',
         enableSorting: false,
         cell: (info) => info.getValue() ?? <span className="text-gray-400">—</span>,
-      }),
-      column.accessor('grade_level', {
-        header: 'Grade level',
-        enableSorting: false,
-        meta: {
-          defaultHidden: tab !== 'books' && tab !== 'furniture_fixtures',
-        },
       }),
       column.accessor('condition', {
         header: 'Condition',
@@ -257,7 +232,7 @@ export function PropertyItemList() {
         ),
       }),
     ],
-    [canDelete, canEdit, navigate, showOffice, tab],
+    [canDelete, canEdit, navigate, showOffice],
   )
 
   return (
@@ -265,11 +240,11 @@ export function PropertyItemList() {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">School Property</h1>
-          <p className="text-sm text-gray-600">One tab per RPCPPE sheet. IRIS equipment is added to the IT and Office sheets of the report automatically.</p>
+          <p className="text-sm text-gray-600">IT equipment counted on the RPCPPE: items recorded here, plus the office's Equipment-module items listed below.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" leftIcon={<Download className="h-4 w-4" />} isLoading={exporting} onClick={exportList}>
-            Export this tab
+            Export to Excel
           </Button>
           {can('reports.rpcppe') && (
             <Button variant="outline" size="sm" leftIcon={<FileSpreadsheet className="h-4 w-4 text-green-600" />} onClick={() => setRpcppeOpen(true)}>
@@ -277,8 +252,8 @@ export function PropertyItemList() {
             </Button>
           )}
           {canCreate && (
-            <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => navigate(`/school-property/new?category=${tab}`)}>
-              Add {tabLabel}
+            <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => navigate('/school-property/new')}>
+              Add IT Equipment
             </Button>
           )}
         </div>
@@ -301,7 +276,7 @@ export function PropertyItemList() {
       >
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-12">
           <FilterSearch
-            label={tab === 'books' ? 'Search by learning area, title or property no...' : 'Search by article, description or property no...'}
+            label="Search by article, description or property no..."
             value={draft.search}
             onChange={(search) => setDraft((d) => ({ ...d, search }))}
             onSubmit={() => setApplied(draft)}
@@ -344,43 +319,33 @@ export function PropertyItemList() {
         </div>
       </form>
 
-      <Tabs
-        id={TABS_ID}
-        label="RPCPPE sheets"
-        tabs={TABS}
-        value={tab}
-        onChange={(next) =>
-          setSearchParams(
-            (prev) => {
-              const params = new URLSearchParams(prev)
-              params.set('tab', next)
-              return params
-            },
-            { replace: true },
-          )
-        }
-        className="mb-4"
+      <h2 className="mb-2 text-sm font-semibold text-gray-900">Recorded in School Property</h2>
+      <DataGrid
+        id="school-property"
+        columns={columns}
+        rows={items}
+        rowKey={(row) => row.id}
+        loading={loading}
+        error={error}
+        meta={meta}
+        page={page}
+        onPageChange={setPage}
+        perPage={perPage}
+        onPerPageChange={setPerPage}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        onSortChange={onSortChange}
+        emptyMessage="No IT equipment recorded yet."
+        onRowClick={(row) => navigate(`/school-property/${row.id}/edit`)}
       />
-      <TabPanel tabsId={TABS_ID} value={tab} active>
-        <DataGrid
-          id="school-property"
-          columns={columns}
-          rows={items}
-          rowKey={(row) => row.id}
-          loading={loading}
-          error={error}
-          meta={meta}
-          page={page}
-          onPageChange={setPage}
-          perPage={perPage}
-          onPerPageChange={setPerPage}
-          sortBy={sortBy}
-          sortDir={sortDir}
-          onSortChange={onSortChange}
-          emptyMessage={`No ${tabLabel} recorded yet.`}
-          onRowClick={(row) => navigate(`/school-property/${row.id}/edit`)}
-        />
-      </TabPanel>
+
+      <section aria-labelledby="school-property-equipment-heading" className="mt-8">
+        <h2 id="school-property-equipment-heading" className="text-sm font-semibold text-gray-900">
+          From the Equipment module
+        </h2>
+        <p className="mb-2 text-xs text-gray-500">Counted on the RPCPPE automatically. Edit these in Equipment.</p>
+        <PropertyItemEquipmentTable filters={applied} showOffice={showOffice} />
+      </section>
 
       <RpcppeDownloadDialog open={rpcppeOpen} onOpenChange={setRpcppeOpen} />
 

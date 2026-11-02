@@ -95,7 +95,7 @@ enum Permission: string
     case OfficeEdit = 'office.edit';
     case OfficeDelete = 'office.delete';
 
-    // Non-ICT school property (furniture, buildings, books, ...) counted for the RPCPPE. Reach follows the role's data scope.
+    // School IT property counted for the RPCPPE. Reach follows the role's data scope.
     case PropertyItemsView = 'property_items.view';
     case PropertyItemsCreate = 'property_items.create';
     case PropertyItemsEdit = 'property_items.edit';

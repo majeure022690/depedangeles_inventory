@@ -13,7 +13,9 @@ use App\Http\Controllers\Api\Management\Concerns\ResolvesListParameters;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Management\StorePropertyItemRequest;
 use App\Http\Requests\Management\UpdatePropertyItemRequest;
+use App\Http\Resources\Management\PropertyItemEquipmentResource;
 use App\Http\Resources\Management\PropertyItemResource;
+use App\Models\Equipment;
 use App\Models\EquipmentLibrary;
 use App\Models\Office;
 use App\Models\Personnel;
@@ -82,7 +84,6 @@ class PropertyItemController extends Controller
             ], PropertyCategory::cases()),
             'source' => PropertySource::options(),
             'condition' => [['value' => 'functional', 'label' => 'Functional'], ['value' => 'unserviceable', 'label' => 'Unserviceable']],
-            'grade_level' => array_map(fn (string $level) => ['value' => $level, 'label' => $level], PropertyItem::GRADE_LEVELS),
             'office' => Office::query()
                 ->active()
                 ->when($user->dataScope() !== DataScope::All, fn (Builder $query) => $query->whereKey($user->office_id ?? 0))
@@ -143,6 +144,32 @@ class PropertyItemController extends Controller
         $propertyItem->delete();
 
         return response()->noContent();
+    }
+
+    /**
+     * Equipment-module items the RPCPPE adds to the IT sheets, listed beside School Property.
+     */
+    public function equipment(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', PropertyItem::class);
+        $request->validate(['search' => ['nullable', 'string', 'max:100'], 'office_id' => ['nullable', 'integer']]);
+
+        $query = Equipment::query()
+            ->visibleTo($request->user())
+            ->inCustody()
+            ->search($request->string('search')->toString() ?: null)
+            ->when($request->filled('office_id'), fn (Builder $query) => $query->atOffice($request->integer('office_id')))
+            ->with([
+                'itemType:id,name', 'brand:id,name', 'equipmentCondition:id,name',
+                'currentAccountableOfficer:id,full_name,office_id', 'currentAccountableOfficer.office:id,office_name',
+                'currentEndUser:id,full_name,office_id', 'currentEndUser.office:id,office_name',
+            ])
+            ->orderBy('received_date')
+            ->orderBy('property_no');
+
+        return PropertyItemEquipmentResource::collection($query->paginate($this->perPage($request))->withQueryString())
+            ->additional(['message' => 'Success'])
+            ->response();
     }
 
     /**

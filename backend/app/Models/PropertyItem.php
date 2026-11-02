@@ -16,8 +16,8 @@ use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
 
 /**
- * School property not tracked as individual Equipment records (furniture,
- * buildings, books, and so on), counted for the RPCPPE. One row may cover
+ * School IT equipment not tracked as individual Equipment records, counted
+ * for the RPCPPE. One row may cover
  * many identical units: `quantity` is the balance per property card and
  * `on_hand_count` the latest physical count.
  *
@@ -26,7 +26,7 @@ use Spatie\Activitylog\Support\LogOptions;
  */
 #[Fillable([
     'office_id', 'category', 'article', 'description', 'property_no', 'unit_of_measure',
-    'date_acquired', 'unit_value', 'quantity', 'on_hand_count', 'grade_level', 'source',
+    'date_acquired', 'unit_value', 'quantity', 'on_hand_count', 'source',
     'condition', 'with_are', 'accountable_officer_id', 'end_user_id', 'location', 'remarks',
 ])]
 class PropertyItem extends Model
@@ -35,8 +35,6 @@ class PropertyItem extends Model
     use HasFactory, LogsActivity, SoftDeletes;
 
     public const CONDITIONS = ['functional', 'unserviceable'];
-
-    public const GRADE_LEVELS = ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
 
     protected function casts(): array
     {
@@ -136,7 +134,7 @@ class PropertyItem extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'office_id', 'category', 'article', 'description', 'property_no', 'unit_of_measure',
-                'date_acquired', 'unit_value', 'quantity', 'on_hand_count', 'grade_level', 'source',
+                'date_acquired', 'unit_value', 'quantity', 'on_hand_count', 'source',
                 'condition', 'with_are', 'accountable_officer_id', 'end_user_id', 'location', 'remarks',
             ])
             ->logOnlyDirty()

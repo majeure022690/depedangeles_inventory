@@ -1,7 +1,7 @@
 import { api } from '@/lib/api'
 import { downloadFile } from '@/lib/download'
 import type { ApiResponse, PaginatedResponse } from '@/types/api'
-import type { PropertyItem, PropertyItemFilters, PropertyItemFormData, PropertyItemOptions } from '@/types/property-item'
+import type { PropertyItem, PropertyItemEquipment, PropertyItemFilters, PropertyItemFormData, PropertyItemOptions } from '@/types/property-item'
 
 function text(value: string): string | null {
   return value.trim() === '' ? null : value.trim()
@@ -21,7 +21,7 @@ function id(value: string): number | null {
 export function emptyPropertyItemForm(officeId = ''): PropertyItemFormData {
   return {
     office_id: officeId,
-    category: '',
+    category: 'it_equipment',
     article: '',
     description: '',
     property_no: '',
@@ -30,7 +30,6 @@ export function emptyPropertyItemForm(officeId = ''): PropertyItemFormData {
     unit_value: '',
     quantity: '1',
     on_hand_count: '1',
-    grade_level: '',
     source: '',
     condition: 'functional',
     with_are: false,
@@ -53,7 +52,6 @@ export function propertyItemFormFrom(item: PropertyItem): PropertyItemFormData {
     unit_value: item.unit_value === null ? '' : String(item.unit_value),
     quantity: String(item.quantity),
     on_hand_count: String(item.on_hand_count),
-    grade_level: item.grade_level ?? '',
     source: item.source ?? '',
     condition: item.condition ?? '',
     with_are: item.with_are,
@@ -76,7 +74,6 @@ function payload(form: PropertyItemFormData) {
     unit_value: numeric(form.unit_value),
     quantity: numeric(form.quantity),
     on_hand_count: numeric(form.on_hand_count),
-    grade_level: text(form.grade_level),
     source: text(form.source),
     condition: text(form.condition),
     with_are: form.with_are,
@@ -89,6 +86,8 @@ function payload(form: PropertyItemFormData) {
 
 export const propertyItemService = {
   list: (params: Record<string, string | number>) => api.get<PaginatedResponse<PropertyItem>>('/property-items', { params }).then((r) => r.data),
+  equipment: (params: Record<string, string | number>) =>
+    api.get<PaginatedResponse<PropertyItemEquipment>>('/property-items/equipment', { params }).then((r) => r.data),
   options: (officeId?: number) =>
     api
       .get<ApiResponse<PropertyItemOptions>>('/property-items/options', {
