@@ -14,6 +14,8 @@ return new class extends Migration
 
     public function up(): void
     {
+        Schema::dropIfExists('equipment_transaction_documents');
+
         Schema::create('equipment_transaction_documents', function (Blueprint $table) {
             $table->id();
             $table->foreignId('equipment_transaction_id')->nullable()->constrained('equipment_transactions')->cascadeOnDelete();
@@ -28,8 +30,8 @@ return new class extends Migration
             $table->foreignId('uploaded_by_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
-            $table->index(['equipment_transaction_id', 'id']);
-            $table->index(['uploaded_by_user_id', 'equipment_transaction_id']);
+            $table->index(['equipment_transaction_id', 'id'], 'etd_transaction_id_index');
+            $table->index(['uploaded_by_user_id', 'equipment_transaction_id'], 'etd_uploader_pending_index');
         });
 
         DB::table('equipment_transactions')
