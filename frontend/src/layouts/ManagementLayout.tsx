@@ -75,21 +75,6 @@ const navGroups: NavGroup[] = [
         permission: 'personnel.view',
       },
       {
-        title: (user) => scopedTitle('equipment', user.data_scope),
-        to: '/equipment',
-        icon: Monitor,
-        color: 'text-sky-500',
-        permission: 'equipment.view',
-      },
-      { title: 'ISP Accounts', to: '/isp-accounts', icon: Wifi, color: 'text-emerald-600', permission: 'isp_accounts.view' },
-      { title: 'School Property', to: '/school-property', icon: Armchair, color: 'text-amber-500', permission: 'property_items.view' },
-      { title: 'GSP ICT Profiles', to: '/gsp-profiles', icon: FileSpreadsheet, color: 'text-green-600', permission: 'gsp_profiles.view' },
-    ],
-  },
-  {
-    title: 'Office Profiles',
-    items: [
-      {
         title: (user) => scopedTitle('stakeholder_profile', user.data_scope),
         to: (user) => officeRecordPath('/stakeholder-profiles', user),
         icon: School,
@@ -97,12 +82,27 @@ const navGroups: NavGroup[] = [
         permission: 'stakeholder_profile.view',
       },
       {
+        title: (user) => scopedTitle('equipment', user.data_scope),
+        to: '/equipment',
+        icon: Monitor,
+        color: 'text-sky-500',
+        permission: 'equipment.view',
+      },
+      { title: 'ISP Accounts', to: '/isp-accounts', icon: Wifi, color: 'text-emerald-600', permission: 'isp_accounts.view' },
+      {
         title: (user) => scopedTitle('internet_connectivity', user.data_scope),
         to: (user) => officeRecordPath('/internet-connectivity-surveys', user),
         icon: Signal,
         color: 'text-teal-600',
         permission: 'internet_connectivity.view',
       },
+    ],
+  },
+  {
+    title: 'Reports',
+    items: [
+      { title: 'GSP ICT Profile', to: '/gsp-profiles', icon: FileSpreadsheet, color: 'text-green-600', permission: 'gsp_profiles.view' },
+      { title: 'School Property', to: '/school-property', icon: Armchair, color: 'text-amber-500', permission: 'property_items.view' },
     ],
   },
   {
