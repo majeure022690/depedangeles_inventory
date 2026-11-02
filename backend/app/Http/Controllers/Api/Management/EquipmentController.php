@@ -287,7 +287,7 @@ class EquipmentController extends Controller
 
         DB::transaction(function () use ($request, $equipment) {
             $equipment->update($request->safe()->except('property_no'));
-            $this->propertyNumbers->renumberUnknownYear($equipment);
+            $this->propertyNumbers->renumberUnknownYear($equipment) || $this->propertyNumbers->matchAcquisitionYear($equipment);
         });
 
         return new EquipmentResource($equipment->fresh([...self::LIST_RELATIONS, ...self::BUNDLE_RELATIONS]))

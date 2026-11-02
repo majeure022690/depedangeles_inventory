@@ -321,7 +321,7 @@ class EquipmentControllerTest extends TestCase
         $this->assertCount(5, collect($this->actingAs($this->editor())->getJson('/api/equipment')->json('data'))->where('cost_looks_high', false));
     }
 
-    public function test_a_number_issued_without_a_year_takes_the_acquisition_year_once_it_is_entered(): void
+    public function test_a_generated_number_follows_the_acquisition_year(): void
     {
         $equipment = $this->makeEquipment(['property_no' => 'AC-0000-IT-LPT-000777', 'received_date' => null]);
         $dated = $this->makeEquipment(['property_no' => 'AC-2019-IT-LPT-000778']);
@@ -332,7 +332,13 @@ class EquipmentControllerTest extends TestCase
 
         $this->actingAs($this->editor())->putJson("/api/equipment/{$dated->id}", $this->payload(['received_date' => '2023-01-01']))
             ->assertOk()
-            ->assertJsonPath('data.property_no', 'AC-2019-IT-LPT-000778');
+            ->assertJsonPath('data.property_no', 'AC-2023-IT-LPT-000778');
+
+        $manual = $this->makeEquipment(['property_no' => 'OLD-PROP-0042']);
+
+        $this->actingAs($this->editor())->putJson("/api/equipment/{$manual->id}", $this->payload(['received_date' => '2023-01-01']))
+            ->assertOk()
+            ->assertJsonPath('data.property_no', 'OLD-PROP-0042');
     }
 
     public function test_the_backfill_takes_the_dcp_year_when_there_is_no_acquisition_date(): void

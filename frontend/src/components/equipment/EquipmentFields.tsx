@@ -218,6 +218,15 @@ function parseCost(cost: string): number | null {
 }
 
 /** The stored category/GL-SL while the cost is unchanged on edit, otherwise the preview from the options' rules. */
+/** The property number a save will give `current` once its acquisition year changes; mirrors EquipmentPropertyNumberService. */
+function propertyNumberAfterYearChange(current: Equipment | null | undefined, receivedDate: string): { from: string; to: string | null } | null {
+  const parts = /^AC-(d{4})(-IT-[A-Z0-9]+-d{6})$/.exec(current?.property_no ?? '')
+  const year = /^(d{4})-/.exec(receivedDate)?.[1]
+  if (!current?.property_no || !parts || !year || Number(year) < 1 || parts[1] === year) return null
+  if (current.parent_equipment_id !== null || (current.children?.length ?? 0) > 0) return null
+  return { from: current.property_no, to: parts[1] === '0000' ? null : `AC-${year}${parts[2]}` }
+}
+
 function accountingPreview(cost: string, rules: EquipmentCategoryRules | undefined, current: Equipment | null | undefined): EquipmentCategoryRule | null {
   const amount = parseCost(cost)
   if (current && amount === current.acquisition_cost) {
@@ -469,6 +478,7 @@ export function EquipmentFields({
   }
 
   if (section === 'acquisition') {
+    const numberChange = isCreate ? null : propertyNumberAfterYearChange(current, value.received_date)
     return (
       <div className="space-y-4">
         <FormSection title="Acquisition & funds">
@@ -479,6 +489,22 @@ export function EquipmentFields({
             { type: 'number', step: '0.01', min: '0', inputMode: 'decimal', required: true },
           )}
           {text('received_date', 'Acquisition date', 'Input when the equipment was acquired in the \'MM/DD/YYYY\' date format.', { type: 'date', required: true })}
+          {numberChange && (
+            <Alert type="warning" className="sm:col-span-2">
+              <span role="status">
+                {numberChange.to ? (
+                  <>
+                    Saving will change the property number from <strong>{numberChange.from}</strong> to <strong>{numberChange.to}</strong> because the acquisition
+                    year changed. Update any printed sticker or PAR/ICS that shows the old number.
+                  </>
+                ) : (
+                  <>
+                    Saving will replace <strong>{numberChange.from}</strong> with a property number for the new acquisition year.
+                  </>
+                )}
+              </span>
+            </Alert>
+          )}
           {stringSelect(
             'mode_acquisition',
             'Mode of acquisition',

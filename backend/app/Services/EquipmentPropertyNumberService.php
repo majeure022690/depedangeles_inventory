@@ -47,6 +47,33 @@ final class EquipmentPropertyNumberService
         return true;
     }
 
+    /**
+     * Moves a generated number to the acquisition year when that year changes, keeping its
+     * series number (unique across years). Bundled desktops and peripherals keep theirs.
+     */
+    public function matchAcquisitionYear(Equipment $equipment): bool
+    {
+        $year = $equipment->received_date === null ? null : (int) $equipment->received_date->format('Y');
+
+        if ($year === null || $year < 1 || ! preg_match('/^AC-(\d{4})(-IT-[A-Z0-9]+-\d{6})$/', (string) $equipment->property_no, $parts)
+            || (int) $parts[1] === 0 || (int) $parts[1] === $year
+            || $equipment->parent_equipment_id !== null || $equipment->children()->exists()) {
+            return false;
+        }
+
+        $equipment->property_no = sprintf('AC-%04d%s', $year, $parts[2]);
+
+        try {
+            DB::transaction(fn () => $equipment->save());
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages([
+                'received_date' => __('Property number :number is already used by another record.', ['number' => $equipment->property_no]),
+            ]);
+        }
+
+        return true;
+    }
+
     public function saveNumbered(Equipment $equipment, ?int $year = null): void
     {
         DB::transaction(function () use ($equipment, $year) {
