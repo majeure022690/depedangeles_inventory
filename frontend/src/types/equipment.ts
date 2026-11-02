@@ -199,7 +199,7 @@ export interface EquipmentOptions {
   donor_sources: string[]
   category_rules: EquipmentCategoryRules
   attachment_document_types: string[]
-  personnel?: (Option<number> & { school_level_rule?: SchoolLevelRule | null })[]
+  personnel?: (Option<number> & { office_id?: number | null; office_name?: string | null; is_school_head?: boolean; school_level_rule?: SchoolLevelRule | null })[]
 }
 
 /**

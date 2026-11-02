@@ -60,6 +60,8 @@ export const equipmentService = {
   qrCode: (id: number) => api.get<Blob>(`/equipment/${id}/qr-code`, { responseType: 'blob' }).then((r) => r.data),
   recordTransaction: (id: number, payload: EquipmentTransactionPayload) =>
     api.post<ApiResponse<EquipmentTransaction>>(`/equipment/${id}/transactions`, payload).then((r) => r.data),
+  bulkTransaction: (payload: EquipmentTransactionPayload & { equipment_ids: number[] }) =>
+    api.post<ApiResponse<{ count: number }>>('/equipment/transactions/bulk', payload).then((r) => r.data),
   addPeripherals: (id: number, peripherals: EquipmentPeripheralPayload[]) =>
     api.post<ApiResponse<Equipment[]>>(`/equipment/${id}/peripherals/batch`, { peripherals }).then((r) => r.data),
   linkPeripheral: (id: number, equipmentId: number) =>

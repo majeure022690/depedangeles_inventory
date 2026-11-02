@@ -219,6 +219,16 @@ class Personnel extends Model
     }
 
     /**
+     * Same test as scopeSchoolHeads(), for a loaded row.
+     */
+    public function isSchoolHead(): bool
+    {
+        $position = mb_strtolower((string) $this->personnelPosition?->name);
+
+        return (bool) $this->oic || str_contains($position, 'principal') || str_contains($position, 'head teacher') || str_contains($position, 'school head');
+    }
+
+    /**
      * @param  Builder<Personnel>  $query
      */
     public function scopeWithPositionLike(Builder $query, string $title): void

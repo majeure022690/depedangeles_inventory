@@ -10,7 +10,7 @@ import { Select } from '@/components/ui/Select'
 import { SelectPicker } from '@/components/ui/SelectPicker'
 import { extractError, extractFieldErrors, type FieldErrors } from '@/lib/errors'
 import { equipmentService, toTransactionPayload } from '@/services/equipmentService'
-import type { EquipmentTransaction, EquipmentTransactionFormData, EquipmentTransactionOptions } from '@/types/equipment'
+import type { EquipmentOptions, EquipmentTransaction, EquipmentTransactionFormData, EquipmentTransactionOptions } from '@/types/equipment'
 import type { Option } from '@/types/lookup'
 
 function emptyTransaction(): EquipmentTransactionFormData {
@@ -46,7 +46,7 @@ interface TransactionLogProps {
   equipmentId: number
   transactions: EquipmentTransaction[]
   options: EquipmentTransactionOptions | null
-  personnelOptions: Option<number>[]
+  personnelOptions: NonNullable<EquipmentOptions['personnel']>
   /** Whether to show the record form (`equipment.transactions.create`). */
   canRecord: boolean
   /** Called after a transaction is recorded, so the page can reload the record's accountability. */
@@ -63,7 +63,19 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const people = personnelOptions.map((option) => ({ value: String(option.value), label: option.label }))
+  const [officeFilter, setOfficeFilter] = useState('')
+  const offices = [...new Map(personnelOptions.filter((p) => p.office_id != null).map((p) => [p.office_id as number, p.office_name ?? `Office #${p.office_id}`])).entries()]
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+  const people = personnelOptions
+    .filter((option) => officeFilter === '' || String(option.office_id) === officeFilter)
+    .map((option) => ({ value: String(option.value), label: option.label }))
+
+  function changeOffice(next: string) {
+    const heads = personnelOptions.filter((person) => String(person.office_id) === next && person.is_school_head)
+    setOfficeFilter(next)
+    setForm((current) => ({ ...current, accountable_officer_id: heads.length === 1 ? heads[0].value : null, end_user_id: null, received_by_id: null }))
+  }
 
   function set<K extends keyof EquipmentTransactionFormData>(key: K, next: EquipmentTransactionFormData[K]) {
     setForm((current) => ({ ...current, [key]: next }))
@@ -77,6 +89,7 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
     try {
       const response = await equipmentService.recordTransaction(equipmentId, toTransactionPayload(form))
       setForm(emptyTransaction())
+      setOfficeFilter('')
       onRecorded(response.message)
     } catch (error) {
       const fieldErrors = extractFieldErrors(error)
@@ -174,6 +187,16 @@ export function TransactionLog({ equipmentId, transactions, options, personnelOp
                   'Select a transaction type',
                   'sm:col-span-2',
                 )}
+                <FormField
+                  id="tx-office"
+                  label="Transfer to office (optional)"
+                  hint="Narrows the people lists to one office; its school head is picked as accountable officer when there is only one."
+                  className="sm:col-span-2"
+                >
+                  {(aria) => (
+                    <Select id="tx-office" value={officeFilter} options={offices} placeholder="All offices" onChange={(e) => changeOffice(e.target.value)} {...aria} />
+                  )}
+                </FormField>
                 {personField('accountable_officer_id', 'Accountable officer', 'Choose the employee accountable for the equipment from the dropdown.')}
                 {textField(
                   'date_assigned_accountable_officer',

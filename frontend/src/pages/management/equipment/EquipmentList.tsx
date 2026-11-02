@@ -1,7 +1,8 @@
-import { ArrowRight, Filter, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { ArrowRight, ArrowRightLeft, Filter, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
+import { BulkTransferDialog } from '@/components/equipment/BulkTransferDialog'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -16,7 +17,7 @@ import { scopedTitle } from '@/lib/dataScope'
 import { extractError } from '@/lib/errors'
 import { equipmentService } from '@/services/equipmentService'
 import { optionLabel } from '@/services/lookupService'
-import type { Equipment, EquipmentFilterOptions } from '@/types/equipment'
+import type { Equipment, EquipmentFilterOptions, EquipmentOptions } from '@/types/equipment'
 import type { Option } from '@/types/lookup'
 
 const column = gridColumnHelper<Equipment>()
@@ -58,6 +59,7 @@ export function EquipmentList() {
   const canCreate = can('equipment.create')
   const canEdit = can('equipment.edit')
   const canDelete = can('equipment.delete')
+  const canTransfer = can('equipment.transactions.create')
 
   const [flash, setFlash] = useState<string | null>((location.state as { flash?: string } | null)?.flash ?? null)
   useEffect(() => {
@@ -89,12 +91,16 @@ export function EquipmentList() {
 
   const [filterOptions, setFilterOptions] = useState<EquipmentFilterOptions | null>(null)
   const [itemTypeOptions, setItemTypeOptions] = useState<Option<number>[]>([])
+  const [equipmentOptions, setEquipmentOptions] = useState<EquipmentOptions | null>(null)
+  const [selected, setSelected] = useState<number[]>([])
+  const [transferOpen, setTransferOpen] = useState(false)
   useEffect(() => {
     equipmentService
       .options()
       .then((options) => {
         setFilterOptions(options.filters)
         setItemTypeOptions(options.form.item_type)
+        setEquipmentOptions(options)
       })
       .catch(() => setFilterOptions(null))
   }, [])
@@ -194,8 +200,51 @@ export function EquipmentList() {
     }
   }
 
-  const columns = useMemo<GridColumn<Equipment>[]>(
-    () => [
+  const columns: GridColumn<Equipment>[] = (() => {
+    const selectable = items.filter((row) => row.parent_equipment_id === null)
+    const allOnPageSelected = selectable.length > 0 && selectable.every((row) => selected.includes(row.id))
+    const toggleSelected = (id: number, checked: boolean) =>
+      setSelected((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((existing) => existing !== id)))
+    const togglePage = (checked: boolean) => {
+      const ids = selectable.map((row) => row.id)
+      setSelected((prev) => (checked ? [...new Set([...prev, ...ids])] : prev.filter((existing) => !ids.includes(existing))))
+    }
+
+    return [
+      ...(canTransfer
+        ? [
+            column.display({
+              id: 'select',
+              header: () => (
+                <input
+                  type="checkbox"
+                  aria-label="Select all items on this page"
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600"
+                  checked={allOnPageSelected}
+                  onChange={(e) => togglePage(e.target.checked)}
+                />
+              ),
+              enableHiding: false,
+              enableSorting: false,
+              cell: ({ row }) => {
+                const peripheral = row.original.parent_equipment_id !== null
+                return (
+                  <span onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${row.original.property_no ?? 'pending equipment record'}`}
+                      title={peripheral ? 'Moves with its desktop' : undefined}
+                      className="h-4 w-4 rounded border-gray-300 text-primary-600 disabled:opacity-40"
+                      disabled={peripheral}
+                      checked={selected.includes(row.original.id)}
+                      onChange={(e) => toggleSelected(row.original.id, e.target.checked)}
+                    />
+                  </span>
+                )
+              },
+            }),
+          ]
+        : []),
       column.accessor('property_no', {
         header: 'Property No.',
         enableHiding: false,
@@ -323,9 +372,8 @@ export function EquipmentList() {
           )
         },
       }),
-    ],
-    [canEdit, canDelete, navigate],
-  )
+    ]
+  })()
 
   return (
     <div>
@@ -461,6 +509,20 @@ export function EquipmentList() {
         </div>
       </div>
 
+      {canTransfer && selected.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm" role="status">
+          <span className="font-medium text-primary-900">{selected.length} selected</span>
+          <div className="flex gap-2">
+            <Button size="sm" leftIcon={<ArrowRightLeft className="h-4 w-4" />} disabled={!equipmentOptions} onClick={() => setTransferOpen(true)}>
+              Transfer to office
+            </Button>
+            <Button size="sm" variant="outline" leftIcon={<X className="h-4 w-4" />} onClick={() => setSelected([])}>
+              Clear
+            </Button>
+          </div>
+        </div>
+      )}
+
       <DataGrid
         id="equipment"
         columns={columns}
@@ -480,6 +542,20 @@ export function EquipmentList() {
         emptyMessage="No equipment records found."
         onRowClick={(row) => navigate(`/equipment/${row.id}/edit`)}
       />
+
+      {equipmentOptions && (
+        <BulkTransferDialog
+          open={transferOpen}
+          onOpenChange={setTransferOpen}
+          equipmentIds={selected}
+          options={equipmentOptions}
+          onTransferred={(message) => {
+            setFlash(message)
+            setSelected([])
+            void reload()
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={pendingDelete !== null}

@@ -241,9 +241,15 @@ class EquipmentController extends Controller
                 ->active()
                 ->orderBy('last_name')
                 ->orderBy('first_name')
-                ->with(['personnelPosition:id,name', 'office:id,office_type,school_id'])
-                ->get(['id', 'full_name', 'position_id', 'office_id'])
-                ->map(fn (Personnel $person) => [...$person->toOption(), 'school_level_rule' => $person->office?->schoolLevelRule()])
+                ->with(['personnelPosition:id,name', 'office:id,office_name,office_type,school_id'])
+                ->get(['id', 'full_name', 'position_id', 'office_id', 'oic'])
+                ->map(fn (Personnel $person) => [
+                    ...$person->toOption(),
+                    'office_id' => $person->office_id,
+                    'office_name' => $person->office?->office_name,
+                    'is_school_head' => $person->isSchoolHead(),
+                    'school_level_rule' => $person->office?->schoolLevelRule(),
+                ])
                 ->all();
         }
 
