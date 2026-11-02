@@ -199,6 +199,17 @@ class IspAccount extends Model
         }
     }
 
+    /**
+     * Active accounts with no speed test in the last 90 days.
+     *
+     * @param  Builder<IspAccount>  $query
+     */
+    public function scopeStaleSpeedTest(Builder $query): void
+    {
+        $query->where('inactive_contract', false)
+            ->whereDoesntHave('speedTests', fn (Builder $query) => $query->where('tested_at', '>=', now()->subDays(90)));
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

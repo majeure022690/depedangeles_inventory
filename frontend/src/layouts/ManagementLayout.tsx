@@ -27,6 +27,7 @@ import { ErrorBoundary, RouteErrorFallback } from '@/components/ErrorBoundary'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Spinner } from '@/components/ui/Spinner'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { NotificationBell } from '@/components/management/NotificationBell'
 import { useAuth } from '@/context/AuthContext'
 import { usePortalTheme } from '@/hooks/usePortalTheme'
 import { BRANDING as branding } from '@/lib/branding'
@@ -303,6 +304,7 @@ export function ManagementLayout() {
 
           <div className="flex-1" />
 
+          <NotificationBell />
           <ThemeToggle preference={theme.preference} onChange={theme.choose} />
 
           {user && (

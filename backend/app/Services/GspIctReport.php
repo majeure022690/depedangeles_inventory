@@ -414,19 +414,18 @@ class GspIctReport
      */
     private function table1Gaps(Office $office, User $user, Collection $functional): array
     {
-        $conditionNotApplicable = Equipment::query()
-            ->visibleTo($user)
-            ->atOffice($office->id)
-            ->where('non_functional', false)
-            ->where(fn ($query) => $query->whereNull('disposition_status')->orWhere('disposition_status', 'Normal'))
-            ->whereHas('equipmentCondition', fn ($query) => $query->where('name', 'Not Applicable'))
-            ->with('itemType:id,name')
-            ->get(['id', 'item_type_id', 'parent_equipment_id']);
-
         return [
             'missing_used_by' => $functional->filter(fn (Equipment $item) => $this->computerType($item) !== null && blank($item->used_by))->pluck('id')->values()->all(),
-            'condition_not_applicable' => $conditionNotApplicable->filter(fn (Equipment $item) => $this->computerType($item) !== null)->pluck('id')->values()->all(),
+            'condition_not_applicable' => Equipment::query()->visibleTo($user)->atOffice($office->id)->conditionNotApplicableComputers()->pluck('id')->all(),
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function computerItemTypeNames(): array
+    {
+        return array_merge(...array_map(fn (array $type) => $type[1], array_values(self::COMPUTER_TYPES)));
     }
 
     /**

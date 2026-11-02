@@ -69,7 +69,7 @@ class UserController extends Controller
             ))
             ->when($role !== '', fn ($query) => $query->whereHas('roles', fn ($q) => $q->where('name', $role)))
             ->when($request->filled('is_active'), fn ($query) => $query->where('is_active', $request->boolean('is_active')))
-            ->when($request->filled('office_id'), fn ($query) => $query->where('office_id', $request->integer('office_id')));
+            ->when($request->filled('office_id'), fn ($query) => $request->string('office_id')->toString() === 'none' ? $query->whereNull('office_id') : $query->where('office_id', $request->integer('office_id')));
 
         if (! $this->applySort($query, $request, self::SORTABLE)) {
             $query->orderBy('name');

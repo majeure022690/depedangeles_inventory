@@ -126,6 +126,7 @@ class AuthController extends Controller
                     'email' => $credentials['email'],
                     'ip' => $request->ip(),
                 ]);
+                activity()->event('auth.login_failed')->withProperties(['email' => $credentials['email'], 'ip' => $request->ip()])->log('auth.login_failed');
 
                 throw ValidationException::withMessages([
                     'email' => __('Invalid credentials.'),
@@ -152,6 +153,7 @@ class AuthController extends Controller
                 'email' => $credentials['email'],
                 'ip' => $request->ip(),
             ]);
+            activity()->event('auth.login_failed')->withProperties(['email' => $credentials['email'], 'ip' => $request->ip(), 'reason' => 'inactive'])->log('auth.login_failed');
 
             throw ValidationException::withMessages([
                 'email' => __('Invalid credentials.'),

@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Management\InternetConnectivitySurveyController;
 use App\Http\Controllers\Api\Management\IspAccountController;
 use App\Http\Controllers\Api\Management\IspSpeedTestController;
 use App\Http\Controllers\Api\Management\IspSubscriptionCostController;
+use App\Http\Controllers\Api\Management\NotificationController;
 use App\Http\Controllers\Api\Management\OfficeController;
 use App\Http\Controllers\Api\Management\PermissionController;
 use App\Http\Controllers\Api\Management\PersonnelController;
@@ -36,6 +37,9 @@ $can = fn (P ...$permissions): string => 'permission:'.implode('|', array_map(fn
 
 Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout::class, 'throttle:authenticated-api'])->group(function () use ($can) {
     // Authenticated: each section is included only for holders of its dashboard.* permission.
+    // Authenticated: each entry is included only for holders of its permission, counted within their data scope.
+    Route::get('/notifications', [NotificationController::class, 'index'])->middleware('throttle:60,1');
+
     Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
     Route::get('/dashboard/filters', [DashboardController::class, 'filters']);
 

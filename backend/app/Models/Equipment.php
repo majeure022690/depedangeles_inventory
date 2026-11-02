@@ -556,6 +556,48 @@ class Equipment extends Model
     }
 
     /**
+     * Stand-alone desktops, laptops and tablets: the items GSP Table 1 counts.
+     *
+     * @param  Builder<Equipment>  $query
+     */
+    public function scopeComputers(Builder $query): void
+    {
+        $query->whereNull($query->qualifyColumn('parent_equipment_id'))
+            ->whereHas('itemType', fn (Builder $query) => $query->whereIn('name', GspIctReport::computerItemTypeNames()));
+    }
+
+    /**
+     * @param  Builder<Equipment>  $query
+     */
+    public function scopeConditionNotApplicableComputers(Builder $query): void
+    {
+        $query->computers()
+            ->where($query->qualifyColumn('non_functional'), false)
+            ->where(fn (Builder $query) => $query->whereNull('disposition_status')->orWhere('disposition_status', 'Normal'))
+            ->whereHas('equipmentCondition', fn (Builder $query) => $query->where('name', 'Not Applicable'));
+    }
+
+    /**
+     * Computers GSP Table 1 leaves out: functional with no Used by, or working with condition Not Applicable.
+     *
+     * @param  Builder<Equipment>  $query
+     */
+    public function scopeGspTable1Gaps(Builder $query): void
+    {
+        $query->where(fn (Builder $query) => $query
+            ->where(fn (Builder $query) => $query->computers()->functional()->where(fn (Builder $query) => $query->whereNull('used_by')->orWhere('used_by', '')))
+            ->orWhere(fn (Builder $query) => $query->conditionNotApplicableComputers()));
+    }
+
+    /**
+     * @param  Builder<Equipment>  $query
+     */
+    public function scopeWarrantyEndingWithin(Builder $query, int $days): void
+    {
+        $query->whereBetween($query->qualifyColumn('end_warranty_date'), [now()->toDateString(), now()->addDays($days)->toDateString()]);
+    }
+
+    /**
      * Items whose accountable officer belongs to the office, else whose end
      * user does, else (unissued) whose creator does.
      *

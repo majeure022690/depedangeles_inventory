@@ -1,6 +1,6 @@
 import { ArrowRight, Filter, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -22,7 +22,7 @@ const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: '
 
 const STATUS_LABELS: Record<Exclude<IspAccountStatusFilter, ''>, string> = { active: 'Active', inactive: 'Inactive' }
 
-const EMPTY_FILTERS = { search: '', isp: '', status: '' as IspAccountStatusFilter }
+const EMPTY_FILTERS = { search: '', isp: '', status: '' as IspAccountStatusFilter, stale_speed_test: '' }
 
 type Filters = typeof EMPTY_FILTERS
 type FilterKey = keyof Filters
@@ -42,8 +42,16 @@ export function IspAccountList() {
     ispAccountService.options().then(setOptions).catch(() => setOptions(null))
   }, [])
 
-  const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS)
-  const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS)
+  const [searchParams] = useSearchParams()
+  const fromUrl = (): Filters => ({ ...EMPTY_FILTERS, stale_speed_test: searchParams.get('stale_speed_test') === '1' ? '1' : '' })
+  const [draft, setDraft] = useState<Filters>(fromUrl)
+  const [applied, setApplied] = useState<Filters>(fromUrl)
+  const [syncedSearch, setSyncedSearch] = useState(searchParams.toString())
+  if (searchParams.toString() !== syncedSearch) {
+    setSyncedSearch(searchParams.toString())
+    setDraft(fromUrl())
+    setApplied(fromUrl())
+  }
   const dirty = JSON.stringify(draft) !== JSON.stringify(applied)
 
   const { items, meta, loading, error, page, setPage, perPage, setPerPage, sortBy, sortDir, onSortChange, reload } = useServerTable(
@@ -62,6 +70,7 @@ export function IspAccountList() {
       { key: 'search', label: `Search: ${applied.search}` },
       { key: 'isp', label: providerName(applied.isp) },
       { key: 'status', label: applied.status ? STATUS_LABELS[applied.status] : '' },
+      { key: 'stale_speed_test', label: 'No speed test in 90 days' },
     ] as const
   )
     .filter((chip) => applied[chip.key] !== '')
@@ -229,6 +238,15 @@ export function IspAccountList() {
                 {provider.label}
               </option>
             ))}
+          </FilterSelect>
+          <FilterSelect
+            label="Speed test"
+            value={draft.stale_speed_test}
+            onChange={(stale_speed_test) => setDraft((d) => ({ ...d, stale_speed_test }))}
+            className="lg:col-span-3"
+          >
+            <option value="">All accounts</option>
+            <option value="1">None in 90 days</option>
           </FilterSelect>
           <FilterSelect
             label="Contract status"

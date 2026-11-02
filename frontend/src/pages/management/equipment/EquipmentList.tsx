@@ -38,6 +38,10 @@ const EMPTY_FILTERS = {
   received_by_id: '',
   used_by: '',
   awaiting_receipt: '',
+  gsp_gaps: '',
+  pending: '',
+  school_level: '',
+  warranty_ending: '',
   duplicates: '',
   high_cost: '',
 }
@@ -107,8 +111,16 @@ export function EquipmentList() {
       .catch(() => setFilterOptions(null))
   }, [])
 
-  const [draft, setDraft] = useState(() => ({ ...EMPTY_FILTERS, used_by: searchParams.get('used_by') ?? '' }))
-  const [applied, setApplied] = useState(() => ({ ...EMPTY_FILTERS, used_by: searchParams.get('used_by') ?? '' }))
+  const urlFilters = () => ({ ...EMPTY_FILTERS, ...Object.fromEntries(Object.keys(EMPTY_FILTERS).flatMap((key) => (searchParams.get(key) ? [[key, searchParams.get(key) as string]] : []))) })
+  const [draft, setDraft] = useState(urlFilters)
+  const [applied, setApplied] = useState(urlFilters)
+  const [syncedSearch, setSyncedSearch] = useState(searchParams.toString())
+  if (searchParams.toString() !== syncedSearch) {
+    setSyncedSearch(searchParams.toString())
+    const next = urlFilters()
+    setDraft(next)
+    setApplied(next)
+  }
   const dirty = JSON.stringify(draft) !== JSON.stringify(applied)
 
   const { items, meta, loading, error, page, setPage, perPage, setPerPage, sortBy, sortDir, onSortChange, reload } = useServerTable(
@@ -127,8 +139,8 @@ export function EquipmentList() {
       (params) => {
         params.delete('dashboard_group')
         params.delete('item_type')
-        params.delete('used_by')
         params.delete('ids')
+        Object.keys(EMPTY_FILTERS).forEach((key) => params.delete(key))
         return params
       },
       { replace: true },
@@ -140,7 +152,15 @@ export function EquipmentList() {
       clearUrlFilter(key)
       return
     }
-    if (key === 'used_by') clearUrlFilter('used_by')
+    if (searchParams.has(key)) {
+      setSearchParams(
+        (params) => {
+          params.delete(key)
+          return params
+        },
+        { replace: true },
+      )
+    }
     const next = { ...applied, [key]: '' }
     setApplied(next)
     setDraft(next)
@@ -169,6 +189,10 @@ export function EquipmentList() {
       { key: 'category', label: `Category: ${optionLabel(filterOptions?.category, Number(applied.category))}` },
       { key: 'disposition_status', label: `Disposition: ${optionLabel(filterOptions?.disposition_status, applied.disposition_status)}` },
       { key: 'awaiting_receipt', label: 'Awaiting receipt only' },
+      { key: 'gsp_gaps', label: 'Left out of GSP Table 1' },
+      { key: 'pending', label: 'Waiting for a property number' },
+      { key: 'school_level', label: 'No school level' },
+      { key: 'warranty_ending', label: 'Warranty ends within 30 days' },
       { key: 'duplicates', label: 'Duplicate old property no. only' },
       { key: 'high_cost', label: 'Cost looks too high' },
     ] as const

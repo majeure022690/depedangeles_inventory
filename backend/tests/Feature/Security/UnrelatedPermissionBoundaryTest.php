@@ -28,7 +28,7 @@ class UnrelatedPermissionBoundaryTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const OPEN_TO_ANY_USER = ['GET api/dashboard/summary', 'GET api/dashboard/filters'];
+    private const OPEN_TO_ANY_USER = ['GET api/dashboard/summary', 'GET api/dashboard/filters', 'GET api/notifications'];
 
     public function test_every_management_route_is_forbidden_for_a_holder_of_an_unrelated_permission(): void
     {

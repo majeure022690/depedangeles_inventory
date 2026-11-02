@@ -1,5 +1,6 @@
 import { Filter, Pencil, RotateCcw, ShieldCheck, ShieldOff, UserX } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -54,8 +55,16 @@ export function UserList() {
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [officeFilter, setOfficeFilter] = useState('')
-  const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
+  const [searchParams] = useSearchParams()
+  const fromUrl = () => ({ ...emptyFilters, office_id: searchParams.get('office_id') ?? '' })
+  const [officeFilter, setOfficeFilter] = useState(() => fromUrl().office_id)
+  const [appliedFilters, setAppliedFilters] = useState(fromUrl)
+  const [syncedSearch, setSyncedSearch] = useState(searchParams.toString())
+  if (searchParams.toString() !== syncedSearch) {
+    setSyncedSearch(searchParams.toString())
+    setOfficeFilter(fromUrl().office_id)
+    setAppliedFilters(fromUrl())
+  }
 
   const { items: users, meta, loading, page, setPage, perPage, setPerPage, sortBy, sortDir, onSortChange, reload } = useServerTable(
     (params) => userService.list(params),
@@ -106,7 +115,7 @@ export function UserList() {
       .catch(() => setAllRoles([]))
   }, [canViewRoles])
 
-  const officePickerOptions = useMemo(() => options.offices.map((o) => ({ label: o.label, value: String(o.value) })), [options.offices])
+  const officePickerOptions = useMemo(() => [{ label: 'No office', value: 'none' }, ...options.offices.map((o) => ({ label: o.label, value: String(o.value) }))], [options.offices])
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
@@ -220,7 +229,7 @@ export function UserList() {
     }
   }
 
-  const officeLabel = (id: string) => options.offices.find((o) => String(o.value) === id)?.label ?? 'Office'
+  const officeLabel = (id: string) => (id === 'none' ? 'No office' : (options.offices.find((o) => String(o.value) === id)?.label ?? 'Office'))
   const filterRoles = allRoles.length > 0 ? allRoles : options.roles
   const roleLabel = (name: string) => filterRoles.find((r) => r.name === name)?.label ?? name
 

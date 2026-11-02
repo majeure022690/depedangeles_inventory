@@ -72,6 +72,7 @@ class IspAccountController extends Controller
             ->search($request->string('search')->toString() ?: null)
             ->provider($request->filled('isp') ? $request->integer('isp') : null)
             ->status($request->string('status')->toString() ?: null)
+            ->when($request->boolean('stale_speed_test'), fn ($query) => $query->staleSpeedTest())
             ->with(['ispProvider:id,name', 'office:id,office_name']);
 
         if (! $this->applySort($query, $request, self::SORTABLE)) {
