@@ -212,7 +212,7 @@ class EquipmentPropertyNumberTest extends TestCase
 
     public function test_the_property_number_cannot_be_edited_and_blank_ones_stay_blank(): void
     {
-        $numbered = $this->existing('AC-2019-IT-LPT-000005');
+        $numbered = $this->existing('AC-2026-IT-LPT-000005');
         $blank = $this->existing('PN-TEMP');
         $blank->update(['property_no' => null]);
 
@@ -226,7 +226,7 @@ class EquipmentPropertyNumberTest extends TestCase
 
         $this->actingAs($this->editor)->putJson("/api/equipment/{$numbered->id}", $this->equipmentFields())
             ->assertOk()
-            ->assertJsonPath('data.property_no', 'AC-2019-IT-LPT-000005');
+            ->assertJsonPath('data.property_no', 'AC-2026-IT-LPT-000005');
         $this->actingAs($this->editor)->putJson("/api/equipment/{$blank->id}", $this->equipmentFields(['property_no' => null]))
             ->assertOk()
             ->assertJsonPath('data.property_no', null);

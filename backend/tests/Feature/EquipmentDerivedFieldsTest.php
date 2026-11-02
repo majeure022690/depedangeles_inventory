@@ -128,7 +128,7 @@ class EquipmentDerivedFieldsTest extends TestCase
     public function test_an_existing_record_keeps_its_stored_category_and_gl_sl_code_until_its_cost_changes(): void
     {
         $legacy = Equipment::factory()->create($this->equipmentFields([
-            'property_no' => 'AC-2019-IT-LPT-000007',
+            'property_no' => 'AC-2026-IT-LPT-000007',
             'acquisition_cost' => 30000,
             'equipment_category_id' => $this->categoryId('High-value'),
             'gl_sl_code' => '10605030',
@@ -140,7 +140,7 @@ class EquipmentDerivedFieldsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.category', 'High-value')
             ->assertJsonPath('data.gl_sl_code', '10605030')
-            ->assertJsonPath('data.property_no', 'AC-2019-IT-LPT-000007');
+            ->assertJsonPath('data.property_no', 'AC-2026-IT-LPT-000007');
 
         $activity = Activity::query()->where('subject_id', $legacy->id)->where('event', 'updated')->sole();
         $this->assertArrayNotHasKey('equipment_category_id', $activity->attribute_changes['attributes']);
