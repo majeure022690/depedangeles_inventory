@@ -8,7 +8,7 @@ import { ManagementLayout } from '@/layouts/ManagementLayout'
 import { SETTINGS_PERMISSIONS } from '@/lib/permissions'
 import { recaptchaSiteKey } from '@/lib/recaptcha'
 import { NotFound } from '@/pages/NotFound'
-import { GuestOnly, RequireAuth, RequireDataScope, RequirePermission } from '@/router/Guards'
+import { GuestOnly, RedirectCountOnlyUsers, RequireAuth, RequireDataScope, RequirePermission } from '@/router/Guards'
 
 // Every page is its own chunk (recharts alone, on the dashboard, is the
 // heaviest dependency the app ships). ManagementLayout suspends inside its
@@ -42,6 +42,11 @@ const ReferenceDataTable = page(() => import('@/pages/management/reference-data/
 const GspProfileCreate = page(() => import('@/pages/management/gsp-profiles/GspProfileCreate'), 'GspProfileCreate')
 const GspProfileEdit = page(() => import('@/pages/management/gsp-profiles/GspProfileEdit'), 'GspProfileEdit')
 const GspProfileList = page(() => import('@/pages/management/gsp-profiles/GspProfileList'), 'GspProfileList')
+const InventoryCountConduct = page(() => import('@/pages/management/inventory-counts/InventoryCountConduct'), 'InventoryCountConduct')
+const InventoryCountCreate = page(() => import('@/pages/management/inventory-counts/InventoryCountCreate'), 'InventoryCountCreate')
+const InventoryCountEdit = page(() => import('@/pages/management/inventory-counts/InventoryCountEdit'), 'InventoryCountEdit')
+const InventoryCountList = page(() => import('@/pages/management/inventory-counts/InventoryCountList'), 'InventoryCountList')
+const InventoryCountShow = page(() => import('@/pages/management/inventory-counts/InventoryCountShow'), 'InventoryCountShow')
 const PropertyItemList = page(() => import('@/pages/management/property-items/PropertyItemList'), 'PropertyItemList')
 const RoleList = page(() => import('@/pages/management/roles/RoleList'), 'RoleList')
 const StakeholderProfileEdit = page(() => import('@/pages/management/stakeholder-profiles/StakeholderProfileEdit'), 'StakeholderProfileEdit')
@@ -89,7 +94,9 @@ export function App() {
 
           <Route element={<RequireAuth />}>
             <Route element={<ManagementLayout />}>
-              <Route path="dashboard" element={<ManagementDashboard />} />
+              <Route element={<RedirectCountOnlyUsers />}>
+                <Route path="dashboard" element={<ManagementDashboard />} />
+              </Route>
               <Route path="profile" element={<ProfileSettings />} />
 
               <Route element={<RequirePermission permission="personnel.view" />}>
@@ -127,6 +134,18 @@ export function App() {
                 <Route path="gsp-profiles/:id/edit" element={<GspProfileEdit />} />
                 <Route element={<RequirePermission permission="gsp_profiles.create" />}>
                   <Route path="gsp-profiles/new" element={<GspProfileCreate />} />
+                </Route>
+              </Route>
+
+              <Route element={<RequirePermission permission={['inventory_count.view', 'inventory_count.conduct']} />}>
+                <Route path="inventory-counts" element={<InventoryCountList />} />
+                <Route path="inventory-counts/:id" element={<InventoryCountShow />} />
+                <Route element={<RequirePermission permission="inventory_count.conduct" />}>
+                  <Route path="inventory-counts/:id/count" element={<InventoryCountConduct />} />
+                </Route>
+                <Route element={<RequirePermission permission="inventory_count.manage" />}>
+                  <Route path="inventory-counts/new" element={<InventoryCountCreate />} />
+                  <Route path="inventory-counts/:id/edit" element={<InventoryCountEdit />} />
                 </Route>
               </Route>
 

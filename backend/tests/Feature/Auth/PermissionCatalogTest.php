@@ -62,7 +62,8 @@ class PermissionCatalogTest extends TestCase
         $all = array_map(fn (Permission $permission) => $permission->value, Permission::cases());
         $roleWrites = [Permission::RolesCreate->value, Permission::RolesEdit->value, Permission::RolesDelete->value];
 
-        $this->assertEqualsCanonicalizing(['super_administrator', 'system_administrator', 'encoder', 'office_encoder', 'viewer'], Role::pluck('name')->all());
+        $this->assertEqualsCanonicalizing(['super_administrator', 'system_administrator', 'encoder', 'office_encoder', 'inventory_team', 'viewer'], Role::pluck('name')->all());
+        $this->assertEqualsCanonicalizing([Permission::InventoryCountView->value, Permission::InventoryCountConduct->value], $this->permissionsOf('inventory_team'));
         $this->assertEqualsCanonicalizing($all, $this->permissionsOf('super_administrator'));
         $this->assertEqualsCanonicalizing(array_values(array_diff($all, $roleWrites)), $this->permissionsOf('system_administrator'));
         $this->assertNotContains(Permission::IspAccountsView->value, $this->permissionsOf('viewer'));
@@ -91,7 +92,7 @@ class PermissionCatalogTest extends TestCase
 
     public function test_every_permission_has_one_of_the_picker_groups(): void
     {
-        $groups = ['Dashboard', 'Personnel', 'Equipment', 'ISP Accounts', 'Offices', 'Stakeholder Profile', 'Internet Connectivity', 'School Property', 'GSP ICT Profile', 'Reports', 'Administration'];
+        $groups = ['Dashboard', 'Personnel', 'Equipment', 'ISP Accounts', 'Offices', 'Stakeholder Profile', 'Internet Connectivity', 'School Property', 'GSP ICT Profile', 'Inventory Count', 'Reports', 'Administration'];
 
         foreach (Permission::cases() as $permission) {
             $this->assertContains($permission->group(), $groups, $permission->value);

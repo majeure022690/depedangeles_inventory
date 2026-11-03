@@ -17,6 +17,7 @@
     "clsx": "^2.1.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.513.0",
+    "qr-scanner": "^1.4.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-easy-crop": "^5.5.7",

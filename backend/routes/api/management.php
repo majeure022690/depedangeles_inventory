@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Management\EquipmentPeripheralController;
 use App\Http\Controllers\Api\Management\EquipmentTransactionController;
 use App\Http\Controllers\Api\Management\GspIctProfileController;
 use App\Http\Controllers\Api\Management\InternetConnectivitySurveyController;
+use App\Http\Controllers\Api\Management\InventoryCountController;
 use App\Http\Controllers\Api\Management\IspAccountController;
 use App\Http\Controllers\Api\Management\IspSpeedTestController;
 use App\Http\Controllers\Api\Management\IspSubscriptionCostController;
@@ -121,6 +122,22 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     Route::post('/gsp-profiles', [GspIctProfileController::class, 'store'])->middleware($can(P::GspProfilesCreate));
     Route::put('/gsp-profiles/{gspIctProfile}', [GspIctProfileController::class, 'update'])->middleware($can(P::GspProfilesEdit))->whereNumber('gspIctProfile');
     Route::delete('/gsp-profiles/{gspIctProfile}', [GspIctProfileController::class, 'destroy'])->middleware($can(P::GspProfilesDelete))->whereNumber('gspIctProfile');
+
+    // Permission-protected, data-scoped: inventory_count.* (physical count rounds); counters see only the offices and equipment their scope reaches.
+    Route::get('/inventory-counts/options', [InventoryCountController::class, 'options'])->middleware($can(P::InventoryCountView, P::InventoryCountConduct, P::InventoryCountManage));
+    Route::get('/inventory-counts', [InventoryCountController::class, 'index'])->middleware($can(P::InventoryCountView, P::InventoryCountConduct));
+    Route::post('/inventory-counts', [InventoryCountController::class, 'store'])->middleware($can(P::InventoryCountManage));
+    Route::get('/inventory-counts/{inventoryCount}', [InventoryCountController::class, 'show'])->middleware($can(P::InventoryCountView, P::InventoryCountConduct))->whereNumber('inventoryCount');
+    Route::put('/inventory-counts/{inventoryCount}', [InventoryCountController::class, 'update'])->middleware($can(P::InventoryCountManage))->whereNumber('inventoryCount');
+    Route::delete('/inventory-counts/{inventoryCount}', [InventoryCountController::class, 'destroy'])->middleware($can(P::InventoryCountManage))->whereNumber('inventoryCount');
+    Route::post('/inventory-counts/{inventoryCount}/open', [InventoryCountController::class, 'open'])->middleware([$can(P::InventoryCountManage), 'throttle:10,1'])->whereNumber('inventoryCount');
+    Route::post('/inventory-counts/{inventoryCount}/close', [InventoryCountController::class, 'close'])->middleware($can(P::InventoryCountManage))->whereNumber('inventoryCount');
+    Route::post('/inventory-counts/{inventoryCount}/cancel', [InventoryCountController::class, 'cancel'])->middleware($can(P::InventoryCountManage))->whereNumber('inventoryCount');
+    Route::get('/inventory-counts/{inventoryCount}/items', [InventoryCountController::class, 'items'])->middleware($can(P::InventoryCountView, P::InventoryCountConduct))->whereNumber('inventoryCount');
+    Route::get('/inventory-counts/{inventoryCount}/lookup', [InventoryCountController::class, 'lookup'])->middleware([$can(P::InventoryCountConduct), 'throttle:120,1'])->whereNumber('inventoryCount');
+    Route::put('/inventory-counts/{inventoryCount}/items/{item}', [InventoryCountController::class, 'updateItem'])->middleware([$can(P::InventoryCountConduct), 'throttle:240,1'])->whereNumber(['inventoryCount', 'item'])->scopeBindings();
+    Route::get('/inventory-counts/{inventoryCount}/found-items', [InventoryCountController::class, 'foundItems'])->middleware($can(P::InventoryCountView, P::InventoryCountConduct))->whereNumber('inventoryCount');
+    Route::post('/inventory-counts/{inventoryCount}/found-items', [InventoryCountController::class, 'storeFoundItem'])->middleware([$can(P::InventoryCountConduct), 'throttle:60,1'])->whereNumber('inventoryCount');
 
     // Permission-protected, data-scoped: the RPCPPE for one {office}, downloaded from School Property; the Form Request re-checks permission and office reach.
     Route::get('/reports/options', [ReportController::class, 'options'])->middleware($can(P::ReportsRpcppe));

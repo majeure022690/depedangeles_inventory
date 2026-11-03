@@ -6,6 +6,7 @@ use App\Enums\Permission;
 use App\Models\Equipment;
 use App\Models\EquipmentAttachment;
 use App\Models\GspIctProfile;
+use App\Models\InventoryCount;
 use App\Models\IspAccount;
 use App\Models\ItemType;
 use App\Models\Office;
@@ -57,6 +58,8 @@ class UnrelatedPermissionBoundaryTest extends TestCase
             'user' => $target->id,
             'role' => Role::create(['name' => 'boundary-role', 'label' => 'Boundary Role'])->id,
             'gspIctProfile' => GspIctProfile::factory()->create()->id,
+            'inventoryCount' => ($count = InventoryCount::query()->forceCreate(['name' => 'Boundary', 'as_of_date' => '2026-12-31', 'status' => InventoryCount::OPEN, 'office_ids' => []]))->id,
+            'item' => $count->items()->forceCreate(['equipment_id' => $equipment->id])->id,
             'table' => 'item-types',
             'id' => ItemType::create(['name' => 'Boundary', 'sort_order' => 0, 'is_active' => true])->id,
         ];

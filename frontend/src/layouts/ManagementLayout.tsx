@@ -1,6 +1,7 @@
 import {
   Armchair,
   Building2,
+  ClipboardCheck,
   FileSpreadsheet,
   History,
   LayoutDashboard,
@@ -96,6 +97,18 @@ const navGroups: NavGroup[] = [
         icon: Signal,
         color: 'text-teal-600',
         permission: 'internet_connectivity.view',
+      },
+    ],
+  },
+  {
+    title: 'Inventory',
+    items: [
+      {
+        title: 'Inventory Count',
+        to: '/inventory-counts',
+        icon: ClipboardCheck,
+        color: 'text-blue-600',
+        permission: ['inventory_count.view', 'inventory_count.conduct'],
       },
     ],
   },

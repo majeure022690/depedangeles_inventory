@@ -45,6 +45,8 @@ class RolePermissionSeeder extends Seeder
         PermissionEnum::GspProfilesEdit,
         PermissionEnum::ReportsGspIct,
         PermissionEnum::ReportsRpcppe,
+        PermissionEnum::InventoryCountView,
+        PermissionEnum::InventoryCountConduct,
     ];
 
     /**
@@ -84,6 +86,15 @@ class RolePermissionSeeder extends Seeder
                     'manage reference data/users.',
                 'data_scope' => DataScope::School,
                 'permissions' => $encoder,
+            ],
+            'inventory_team' => [
+                'label' => 'Inventory Team',
+                'description' => 'Inventory Committee members: can see physical counts and mark items found or not found.',
+                'data_scope' => DataScope::All,
+                'permissions' => [
+                    PermissionEnum::InventoryCountView->value,
+                    PermissionEnum::InventoryCountConduct->value,
+                ],
             ],
             'viewer' => [
                 'label' => 'Viewer',

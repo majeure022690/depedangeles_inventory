@@ -106,6 +106,18 @@ export function RequirePermission({ permission }: { permission: PermissionName |
   return <Outlet />
 }
 
+/** Members of the Inventory Team, who see no dashboard section, land on their counts instead. */
+export function RedirectCountOnlyUsers() {
+  const { user, can } = useAuth()
+  const seesDashboard = user?.permissions.some((p) => p.startsWith('dashboard.')) ?? false
+
+  if (!seesDashboard && (can('inventory_count.conduct') || can('inventory_count.view'))) {
+    return <Navigate to="/inventory-counts" replace />
+  }
+
+  return <Outlet />
+}
+
 /** UX only: hides routes outside the user's data scope. The server enforces scope on every request. */
 export function RequireDataScope({ scope }: { scope: DataScope | DataScope[] }) {
   const { user } = useAuth()
