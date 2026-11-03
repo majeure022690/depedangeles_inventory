@@ -1,16 +1,18 @@
-import { ArrowRight, Filter, Plus, RotateCcw, ScanLine } from 'lucide-react'
+import { ArrowRight, Filter, Plus, RotateCcw, ScanLine, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DataGrid, gridColumnHelper, type GridColumn } from '@/components/ui/DataGrid'
-import { FilterSearch } from '@/components/ui/FilterControls'
-import { Select } from '@/components/ui/Select'
+import { FilterSearch, FilterSelect } from '@/components/ui/FilterControls'
 import { CountProgressBar } from '@/components/inventory-counts/CountProgressBar'
 import { useAuth } from '@/context/AuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useServerTable } from '@/hooks/useServerTable'
+import { extractError } from '@/lib/errors'
 import { formatDate } from '@/lib/utils'
 import { inventoryCountService } from '@/services/inventoryCountService'
 import { STATUS_COLORS, STATUS_LABELS, type InventoryCount, type InventoryCountStatus } from '@/types/inventory-count'
@@ -27,14 +29,19 @@ export function InventoryCountList() {
   const { can } = useAuth()
   const canManage = can('inventory_count.manage')
   const canConduct = can('inventory_count.conduct')
+  const canDelete = can('inventory_count.delete')
 
   const [draft, setDraft] = useState(EMPTY_FILTERS)
   const [applied, setApplied] = useState(EMPTY_FILTERS)
 
-  const { items, meta, loading, error, page, setPage, perPage, setPerPage, sortBy, sortDir, onSortChange } = useServerTable(
+  const { items, meta, loading, error, page, setPage, perPage, setPerPage, sortBy, sortDir, onSortChange, reload } = useServerTable(
     (params) => inventoryCountService.list(params),
     { filters: applied, waitForPerPage: true },
   )
+
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<InventoryCount | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const columns = useMemo<GridColumn<InventoryCount>[]>(
     () => [
@@ -89,6 +96,20 @@ export function InventoryCountList() {
                 Count
               </Button>
             )}
+            {canDelete && (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`Delete ${row.original.name}`}
+                title="Delete"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setPendingDelete(row.original)
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-error-600" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -105,8 +126,23 @@ export function InventoryCountList() {
         ),
       }),
     ],
-    [canConduct, navigate],
+    [canConduct, canDelete, navigate],
   )
+
+  async function confirmDelete() {
+    if (!pendingDelete) return
+    setDeleting(true)
+    try {
+      await inventoryCountService.remove(pendingDelete.id)
+      setFeedback({ type: 'success', message: 'Inventory count deleted.' })
+      await reload()
+    } catch (deleteError) {
+      setFeedback({ type: 'error', message: extractError(deleteError, 'Unable to delete the count. Please try again.') })
+    } finally {
+      setPendingDelete(null)
+      setDeleting(false)
+    }
+  }
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(applied)
 
@@ -123,6 +159,12 @@ export function InventoryCountList() {
           </Button>
         )}
       </div>
+
+      {feedback && (
+        <Alert type={feedback.type} className="mb-4">
+          <span role={feedback.type === 'error' ? 'alert' : 'status'}>{feedback.message}</span>
+        </Alert>
+      )}
 
       <form
         className="mb-4 rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
@@ -141,14 +183,14 @@ export function InventoryCountList() {
             onSubmit={() => setApplied(draft)}
             className="sm:col-span-2 lg:col-span-8"
           />
-          <Select
-            aria-label="Status"
-            placeholder="All statuses"
-            options={STATUS_OPTIONS}
-            value={draft.status}
-            onChange={(event) => setDraft((d) => ({ ...d, status: event.target.value }))}
-            className="lg:col-span-4"
-          />
+          <FilterSelect label="Status" value={draft.status} onChange={(status) => setDraft((d) => ({ ...d, status }))} className="lg:col-span-4">
+            <option value="">All statuses</option>
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </FilterSelect>
         </div>
         <div className="mt-3 flex justify-end gap-2 border-t border-gray-100 pt-3">
           <Button
@@ -187,6 +229,23 @@ export function InventoryCountList() {
         onSortChange={onSortChange}
         emptyMessage="No inventory counts yet."
         onRowClick={(row) => navigate(`/inventory-counts/${row.id}`)}
+      />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && !deleting && setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Delete inventory count?"
+        description={
+          pendingDelete
+            ? pendingDelete.status === 'draft'
+              ? `The draft "${pendingDelete.name}" will be deleted.`
+              : `"${pendingDelete.name}" and every result recorded in it will be deleted. This cannot be undone.`
+            : ''
+        }
+        confirmText="Delete"
+        confirmVariant="danger"
       />
     </div>
   )

@@ -108,6 +108,7 @@ enum Permission: string
     case InventoryCountView = 'inventory_count.view';
     case InventoryCountConduct = 'inventory_count.conduct';
     case InventoryCountManage = 'inventory_count.manage';
+    case InventoryCountDelete = 'inventory_count.delete';
 
     // Excel exports of the office's equipment and connectivity data, limited to the role's data scope.
     case ReportsGspIct = 'reports.gsp_ict';
@@ -134,6 +135,7 @@ enum Permission: string
             self::InventoryCountView => 'View inventory counts',
             self::InventoryCountConduct => 'Conduct inventory counts',
             self::InventoryCountManage => 'Manage inventory counts',
+            self::InventoryCountDelete => 'Delete inventory counts',
             self::ReportsGspIct => 'Generate GSP ICT report (Part VI)',
             self::ReportsRpcppe => 'Generate RPCPPE report',
             default => Str::of($this->value)->replace('.', ' ')->replace('_', ' ')->title()->toString(),
@@ -159,7 +161,8 @@ enum Permission: string
             self::InternetConnectivityView, self::InternetConnectivityEdit => 'Internet Connectivity',
             self::PropertyItemsView => 'School Property',
             self::GspProfilesView, self::GspProfilesCreate, self::GspProfilesEdit, self::GspProfilesDelete => 'GSP ICT Profile',
-            self::InventoryCountView, self::InventoryCountConduct, self::InventoryCountManage => 'Inventory Count',
+            self::InventoryCountView, self::InventoryCountConduct, self::InventoryCountManage,
+            self::InventoryCountDelete => 'Inventory Count',
             self::ReportsGspIct, self::ReportsRpcppe => 'Reports',
             self::ReferenceDataManage, self::UsersView, self::UsersEdit,
             self::UsersResetTwoFactor, self::RolesView, self::RolesCreate,

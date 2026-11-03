@@ -11,6 +11,7 @@ use App\Models\InventoryCountItem;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class InventoryCountService
 {
@@ -21,6 +22,7 @@ class InventoryCountService
     {
         DB::transaction(function () use ($count, $user) {
             $now = now();
+            $listed = 0;
 
             Equipment::query()
                 ->visibleTo($user)
@@ -29,7 +31,8 @@ class InventoryCountService
                 ->select(['equipment.id', 'equipment.equipment_condition_id', 'equipment.current_accountable_officer_id', 'equipment.equipment_location'])
                 ->selectRaw(Equipment::OFFICE_SQL.' as office_id')
                 ->orderBy('equipment.id')
-                ->chunk(500, function ($items) use ($count, $now) {
+                ->chunk(500, function ($items) use ($count, $now, &$listed) {
+                    $listed += $items->count();
                     InventoryCountItem::query()->insert($items->map(fn (Equipment $item) => [
                         'inventory_count_id' => $count->id,
                         'equipment_id' => $item->id,
@@ -42,6 +45,12 @@ class InventoryCountService
                         'updated_at' => $now,
                     ])->all());
                 });
+
+            if ($listed === 0) {
+                throw ValidationException::withMessages([
+                    'office_ids' => 'No equipment is held at the selected offices, so there is nothing to count. Check that the accountable officers in Personnel have an office.',
+                ]);
+            }
 
             $count->forceFill(['status' => InventoryCount::OPEN, 'opened_by_user_id' => $user->id, 'opened_at' => $now])->save();
         });

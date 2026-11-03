@@ -129,7 +129,7 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, EnforceIdleTimeout
     Route::post('/inventory-counts', [InventoryCountController::class, 'store'])->middleware($can(P::InventoryCountManage));
     Route::get('/inventory-counts/{inventoryCount}', [InventoryCountController::class, 'show'])->middleware($can(P::InventoryCountView, P::InventoryCountConduct))->whereNumber('inventoryCount');
     Route::put('/inventory-counts/{inventoryCount}', [InventoryCountController::class, 'update'])->middleware($can(P::InventoryCountManage))->whereNumber('inventoryCount');
-    Route::delete('/inventory-counts/{inventoryCount}', [InventoryCountController::class, 'destroy'])->middleware($can(P::InventoryCountManage))->whereNumber('inventoryCount');
+    Route::delete('/inventory-counts/{inventoryCount}', [InventoryCountController::class, 'destroy'])->middleware($can(P::InventoryCountDelete))->whereNumber('inventoryCount');
     Route::post('/inventory-counts/{inventoryCount}/open', [InventoryCountController::class, 'open'])->middleware([$can(P::InventoryCountManage), 'throttle:10,1'])->whereNumber('inventoryCount');
     Route::post('/inventory-counts/{inventoryCount}/close', [InventoryCountController::class, 'close'])->middleware($can(P::InventoryCountManage))->whereNumber('inventoryCount');
     Route::post('/inventory-counts/{inventoryCount}/cancel', [InventoryCountController::class, 'cancel'])->middleware($can(P::InventoryCountManage))->whereNumber('inventoryCount');

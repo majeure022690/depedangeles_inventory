@@ -49,7 +49,7 @@ const ACTION_COPY: Record<Action, { title: string; description: string; confirm:
     danger: false,
   },
   cancel: { title: 'Cancel this count?', description: 'The count stops and its results are kept for the record.', confirm: 'Cancel count', danger: true },
-  delete: { title: 'Delete this draft?', description: 'The draft count will be deleted.', confirm: 'Delete', danger: true },
+  delete: { title: 'Delete this count?', description: 'The count and every result recorded in it will be deleted. This cannot be undone.', confirm: 'Delete', danger: true },
 }
 
 function Change({ before, after, changed }: { before: string | null; after: string | null; changed: boolean }) {
@@ -68,6 +68,7 @@ export function InventoryCountShow() {
   const { can } = useAuth()
   const canManage = can('inventory_count.manage')
   const canConduct = can('inventory_count.conduct')
+  const canDelete = can('inventory_count.delete')
 
   const [count, setCount] = useState<InventoryCount | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -282,7 +283,7 @@ export function InventoryCountShow() {
               </Button>
             </>
           )}
-          {canManage && count.status === 'draft' && (
+          {canDelete && (
             <Button variant="ghost" size="sm" className="flex-1 sm:flex-none" leftIcon={<Trash2 className="h-4 w-4 text-error-600" />} onClick={() => setPending('delete')}>
               Delete
             </Button>

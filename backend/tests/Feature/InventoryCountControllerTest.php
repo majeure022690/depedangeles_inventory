@@ -22,7 +22,7 @@ class InventoryCountControllerTest extends TestCase
 {
     use CreatesUsersWithRoles, RefreshDatabase;
 
-    private const ALL = [Permission::InventoryCountView, Permission::InventoryCountConduct, Permission::InventoryCountManage];
+    private const ALL = [Permission::InventoryCountView, Permission::InventoryCountConduct, Permission::InventoryCountManage, Permission::InventoryCountDelete];
 
     private Office $office;
 
@@ -171,8 +171,9 @@ class InventoryCountControllerTest extends TestCase
         $this->actingAs($user)->putJson("/api/inventory-counts/{$count->id}/items/{$itemId}", ['result' => 'found'])->assertForbidden();
     }
 
-    public function test_offices_are_fixed_once_open_and_only_drafts_can_be_deleted(): void
+    public function test_offices_are_fixed_once_open_and_a_count_can_be_deleted(): void
     {
+        $this->item();
         $user = $this->manager();
         $count = $this->openCount($user, [$this->office->id]);
 
@@ -188,7 +189,25 @@ class InventoryCountControllerTest extends TestCase
             'office_ids' => [$this->office->id],
         ])->assertOk()->assertJsonPath('data.name', 'Renamed');
 
-        $this->actingAs($user)->deleteJson("/api/inventory-counts/{$count->id}")->assertForbidden();
+        $manageOnly = $this->userWithPermissions([Permission::InventoryCountView, Permission::InventoryCountManage]);
+        $this->actingAs($manageOnly)->deleteJson("/api/inventory-counts/{$count->id}")->assertForbidden();
+
+        $this->actingAs($user)->deleteJson("/api/inventory-counts/{$count->id}")->assertNoContent();
+        $this->assertDatabaseMissing('inventory_counts', ['id' => $count->id]);
+        $this->assertSame(0, InventoryCountItem::query()->count());
+    }
+
+    public function test_a_count_with_no_equipment_at_its_offices_cannot_be_opened(): void
+    {
+        $user = $this->manager();
+        $id = $this->actingAs($user)->postJson('/api/inventory-counts', [
+            'name' => 'Empty',
+            'as_of_date' => '2026-12-31',
+            'office_ids' => [$this->otherOffice->id],
+        ])->assertCreated()->json('data.id');
+
+        $this->actingAs($user)->postJson("/api/inventory-counts/{$id}/open")->assertUnprocessable()->assertJsonValidationErrors('office_ids');
+        $this->assertSame(InventoryCount::DRAFT, InventoryCount::findOrFail($id)->status);
     }
 
     public function test_a_school_scoped_counter_sees_only_counts_and_items_at_their_office(): void

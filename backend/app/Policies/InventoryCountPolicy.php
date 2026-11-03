@@ -38,10 +38,15 @@ class InventoryCountPolicy
 
     public function delete(User $user, InventoryCount $count): Response
     {
-        $response = $this->permittedAndVisible($user, $count, Permission::InventoryCountManage);
+        $response = $this->permittedAndVisible($user, $count, Permission::InventoryCountDelete);
 
-        if ($response->allowed() && ! $count->isDraft()) {
-            return Response::deny('Only a draft count can be deleted. Cancel an open count instead.');
+        if ($response->denied()) {
+            activity()
+                ->causedBy($user)
+                ->performedOn($count)
+                ->event('authorization.denied')
+                ->withProperties(['permission' => Permission::InventoryCountDelete->value])
+                ->log('authorization.denied');
         }
 
         return $response;
