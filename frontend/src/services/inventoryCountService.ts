@@ -28,9 +28,6 @@ export function emptyInventoryCountForm(officeIds: number[] = [], today = new Da
     name: defaultCountName(asOf),
     as_of_date: asOf,
     office_ids: officeIds,
-    committee_chair_id: '',
-    committee_member_ids: [],
-    coa_representative: '',
     remarks: '',
   }
 }
@@ -40,9 +37,6 @@ export function inventoryCountFormFrom(count: InventoryCount): InventoryCountFor
     name: count.name,
     as_of_date: count.as_of_date,
     office_ids: count.office_ids,
-    committee_chair_id: count.committee_chair_id === null ? '' : String(count.committee_chair_id),
-    committee_member_ids: count.committee_member_ids,
-    coa_representative: count.coa_representative ?? '',
     remarks: count.remarks ?? '',
   }
 }
@@ -52,9 +46,6 @@ function payload(form: InventoryCountFormData) {
     name: form.name.trim(),
     as_of_date: form.as_of_date,
     office_ids: form.office_ids,
-    committee_chair_id: form.committee_chair_id === '' ? null : Number(form.committee_chair_id),
-    committee_member_ids: form.committee_member_ids,
-    coa_representative: text(form.coa_representative),
     remarks: text(form.remarks),
   }
 }

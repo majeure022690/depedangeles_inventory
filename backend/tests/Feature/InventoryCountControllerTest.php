@@ -186,7 +186,6 @@ class InventoryCountControllerTest extends TestCase
             'name' => 'Renamed',
             'as_of_date' => '2026-12-31',
             'office_ids' => [$this->office->id],
-            'coa_representative' => 'State Auditor',
         ])->assertOk()->assertJsonPath('data.name', 'Renamed');
 
         $this->actingAs($user)->deleteJson("/api/inventory-counts/{$count->id}")->assertForbidden();

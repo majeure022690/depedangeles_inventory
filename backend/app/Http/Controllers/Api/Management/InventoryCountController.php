@@ -74,7 +74,7 @@ class InventoryCountController extends Controller
     }
 
     /**
-     * Form options; `?office_ids[]=` adds the active personnel at those offices for the committee and holder pickers.
+     * Form options; `?office_ids[]=` adds the active personnel at those offices for the holder picker.
      */
     public function options(Request $request): JsonResponse
     {
@@ -279,7 +279,6 @@ class InventoryCountController extends Controller
 
     private function detail(InventoryCount $count, User $user, string $message): JsonResponse
     {
-        $count->load(['committeeChair:id,full_name,position_id', 'committeeChair.personnelPosition:id,name']);
         $officeIds = $count->officeIdsFor($user);
 
         $count->setAttribute('offices_list', Office::query()
@@ -288,12 +287,6 @@ class InventoryCountController extends Controller
             ->get(['id', 'office_name', 'school_id'])
             ->map(fn (Office $office) => ['id' => $office->id, 'office_name' => $office->office_name, 'school_id' => $office->school_id])
             ->all());
-        $count->setAttribute('committee_members_list', array_values(Personnel::query()
-            ->whereIn('id', $count->committee_member_ids ?? [])
-            ->with('personnelPosition:id,name')
-            ->get(['id', 'full_name', 'position_id'])
-            ->map(fn (Personnel $personnel) => $personnel->toOption())
-            ->all()));
 
         if (! $count->isDraft()) {
             $count->setAttribute('summary', $this->counts->summary($count, $user));

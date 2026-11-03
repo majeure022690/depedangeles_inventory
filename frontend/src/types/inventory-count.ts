@@ -15,7 +15,7 @@ export interface CountOfficeProgress {
   found_at_station: number
 }
 
-/** `InventoryCountResource`. `offices`, `committee_members` and `summary` only on the detail endpoint. */
+/** `InventoryCountResource`. `offices` and `summary` only on the detail endpoint. */
 export interface InventoryCount {
   id: number
   name: string
@@ -23,11 +23,6 @@ export interface InventoryCount {
   status: InventoryCountStatus
   office_ids: number[]
   offices?: { id: number; office_name: string; school_id: number | null }[]
-  committee_chair_id: number | null
-  committee_chair?: PersonOption | null
-  committee_member_ids: number[]
-  committee_members?: PersonOption[]
-  coa_representative: string | null
   remarks: string | null
   items_count?: number
   counted_count?: number
@@ -110,9 +105,6 @@ export interface InventoryCountFormData {
   name: string
   as_of_date: string
   office_ids: number[]
-  committee_chair_id: string
-  committee_member_ids: number[]
-  coa_representative: string
   remarks: string
 }
 

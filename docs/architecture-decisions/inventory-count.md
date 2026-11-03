@@ -30,7 +30,7 @@ These come from secondary sources (division memos, COA circular copies). Verify 
 **`inventory_counts`**: `name`, `as_of_date`, `status` (`draft` | `open` | `closed` | `cancelled`), `remarks`, `opened_by` / `opened_at`, `closed_by` / `closed_at`, timestamps.
 
 - Offices in scope: JSON array of office ids (per the lookup ADR convention; no pivot).
-- Committee: `committee_chair_id` and `committee_member_ids` (JSON array) reference Personnel at the counted offices. `coa_representative` is free text, since the COA auditor is not in Personnel. These are the report signatories.
+- No committee or signatory fields (removed by the owner, 2026-11-03). Report signatories are entered when a report is generated, not stored on the count.
 
 **`inventory_count_items`** (expected list, one row per equipment item):
 
@@ -60,7 +60,7 @@ All three models use `LogsActivity`. Open, close, cancel and reconcile are logge
 |---|---|
 | `inventory_count.view` | See counts, progress and results |
 | `inventory_count.conduct` | Mark items and add found-at-station items |
-| `inventory_count.manage` | Create, open, close and cancel counts; set offices and committee |
+| `inventory_count.manage` | Create, open, close and cancel counts; set their offices |
 | `inventory_count.reconcile` | Phase 2: apply discrepancies to Equipment through transactions |
 
 The migration grants `view` to roles holding `equipment.view`, `conduct` to roles holding `equipment.transactions.create`, and `manage` to roles holding `equipment.delete`. It also adds an "Inventory Team" role (`view` + `conduct`, data scope All). A user who sees no dashboard section and holds a count permission is redirected from the dashboard to `/inventory-counts`. Every lookup and list is constrained by `Equipment::visibleTo($user)` and the offices the user's scope reaches.
@@ -89,7 +89,7 @@ Logic lives in `InventoryCountService`: building the expected list (same scope a
 
 ## Screens (frontend, `pages/management/inventory-counts/`)
 
-1. **Inventory Count list:** counts with as-of date, status and progress. `[+ New Count]` opens a form with Name (auto, editable), As-of date, Offices, Committee (chair, members, COA rep) and Remarks.
+1. **Inventory Count list:** counts with as-of date, status and progress. `[+ New Count]` opens a form with Name (auto, editable), As-of date, Offices and Remarks.
 2. **Count details:** progress per office, the discrepancy table filterable by bucket, Close / Reconcile actions, and "Report due Jan 31" for Dec 31 counts.
 3. **Count screen (`/inventory-counts/:id/count`):** pick an office, then scan (camera button only where a camera exists, using `qr-scanner` so it also works on iPhone) or type a property or serial number. Tapping an item opens a dialog prefilled with the recorded condition, holder and location, so a match is a single tap on Found. Add found-at-station items. Shows "12 / 48 counted." The same screen serves phone and PC.
 
@@ -97,7 +97,7 @@ New files: `services/inventoryCountService.ts`, `types/inventory-count.ts`, `com
 
 ## Reports
 
-- RPCPPE and a new RPCSP download take an optional closed count. When one is given, "On Hand" and condition come from the count results and the committee fills the signatories.
+- RPCPPE and a new RPCSP download take an optional closed count. When one is given, "On Hand" and condition come from the count results. Signatories are picked in the download dialog, as the RPCPPE does today.
 - Printable ICF per day / counter from `counted_by` / `counted_at`.
 
 ## Delivery

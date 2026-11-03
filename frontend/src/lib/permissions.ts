@@ -113,7 +113,7 @@ const PERMISSION_DESCRIPTIONS: Record<PermissionName, string> = {
   'gsp_profiles.delete': 'Delete GSP ICT profiles.',
   'inventory_count.view': 'See physical counts, their progress and their results, within the role’s data scope.',
   'inventory_count.conduct': 'Mark items found or not found during an open count and record items found at station.',
-  'inventory_count.manage': 'Create, open, close and cancel physical counts and set their offices and committee.',
+  'inventory_count.manage': 'Create, open, close and cancel physical counts and set their offices.',
   'reports.gsp_ict': 'Download the Government School Profile Part VI (ICT in Schools) workbook from a GSP ICT profile.',
   'reports.rpcppe': 'Download the Report on the Physical Count of Property, Plant and Equipment (equipment and school property) within the role’s data scope.',
   'audit_log.view': 'See who changed what across the system.',

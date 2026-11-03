@@ -6,7 +6,6 @@ use App\Enums\DataScope;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
@@ -16,9 +15,8 @@ use Spatie\Activitylog\Support\LogOptions;
  * into `items` with the values on record at that moment, which the counted values are compared against.
  *
  * @property list<int> $office_ids
- * @property list<int>|null $committee_member_ids
  */
-#[Fillable(['name', 'as_of_date', 'office_ids', 'committee_chair_id', 'committee_member_ids', 'coa_representative', 'remarks'])]
+#[Fillable(['name', 'as_of_date', 'office_ids', 'remarks'])]
 class InventoryCount extends Model
 {
     use LogsActivity;
@@ -36,7 +34,6 @@ class InventoryCount extends Model
         return [
             'as_of_date' => 'date',
             'office_ids' => 'array',
-            'committee_member_ids' => 'array',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
         ];
@@ -56,14 +53,6 @@ class InventoryCount extends Model
     public function foundItems(): HasMany
     {
         return $this->hasMany(InventoryCountFoundItem::class);
-    }
-
-    /**
-     * @return BelongsTo<Personnel, $this>
-     */
-    public function committeeChair(): BelongsTo
-    {
-        return $this->belongsTo(Personnel::class, 'committee_chair_id');
     }
 
     public function isDraft(): bool
@@ -113,8 +102,7 @@ class InventoryCount extends Model
     {
         return LogOptions::defaults()
             ->logOnly([
-                'name', 'as_of_date', 'status', 'office_ids', 'committee_chair_id', 'committee_member_ids',
-                'coa_representative', 'remarks', 'opened_at', 'closed_at',
+                'name', 'as_of_date', 'status', 'office_ids', 'remarks', 'opened_at', 'closed_at',
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()

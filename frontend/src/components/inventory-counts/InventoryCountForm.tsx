@@ -1,9 +1,8 @@
 import { Save, X } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 
 import { FormField } from '@/components/forms/FormField'
 import { FormSection } from '@/components/forms/FormSection'
-import { PersonPicker } from '@/components/forms/PersonPicker'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -11,10 +10,9 @@ import { SelectPicker } from '@/components/ui/SelectPicker'
 import { SuggestInput } from '@/components/ui/SuggestInput'
 import { Textarea } from '@/components/ui/Textarea'
 import { extractError, extractFieldErrors, isValidationError, type FieldErrors } from '@/lib/errors'
-import { defaultCountName, inventoryCountService } from '@/services/inventoryCountService'
+import { defaultCountName } from '@/services/inventoryCountService'
 import type { ApiResponse } from '@/types/api'
 import type { InventoryCount, InventoryCountFormData, InventoryCountOptions } from '@/types/inventory-count'
-import type { PersonOption } from '@/types/lookup'
 
 function Chip({ label, onRemove, disabled }: { label: string; onRemove: () => void; disabled?: boolean }) {
   return (
@@ -49,39 +47,19 @@ export function InventoryCountForm({
   initial: InventoryCountFormData
   options: InventoryCountOptions
   officesLocked: boolean
-  current?: Pick<InventoryCount, 'committee_chair' | 'committee_members' | 'offices'>
+  current?: Pick<InventoryCount, 'offices'>
   submit: (form: InventoryCountFormData) => Promise<ApiResponse<InventoryCount>>
   onSaved: (count: InventoryCount, message: string) => void
   onCancel: () => void
 }) {
   const [form, setForm] = useState(initial)
   const [nameTouched, setNameTouched] = useState(initial.name !== defaultCountName(initial.as_of_date))
-  const [people, setPeople] = useState<PersonOption[]>(options.people)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const officeKey = form.office_ids.join(',')
-  useEffect(() => {
-    if (form.office_ids.length === 0) {
-      setPeople([])
-      return
-    }
-    let cancelled = false
-    inventoryCountService
-      .options(form.office_ids)
-      .then((loaded) => !cancelled && setPeople(loaded.people))
-      .catch(() => !cancelled && setPeople([]))
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [officeKey])
-
   const officeLabel = (id: number) =>
     options.office.find((office) => office.value === id)?.label ?? current?.offices?.find((office) => office.id === id)?.office_name ?? `Office #${id}`
-  const knownPeople = [...people, ...(current?.committee_members ?? []), ...(current?.committee_chair ? [current.committee_chair] : [])]
-  const personLabel = (id: number) => knownPeople.find((person) => person.value === id)?.label ?? `Personnel #${id}`
 
   function set<K extends keyof InventoryCountFormData>(key: K, value: InventoryCountFormData[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -103,7 +81,7 @@ export function InventoryCountForm({
     }
   }
 
-  const fieldError = (key: string) => errors[key] ?? Object.entries(errors).find(([name]) => name.startsWith(`${key}.`))?.[1]
+  const officeError = errors.office_ids ?? Object.entries(errors).find(([name]) => name.startsWith('office_ids.'))?.[1]
 
   return (
     <form onSubmit={onSubmit} className="space-y-6" noValidate>
@@ -147,13 +125,7 @@ export function InventoryCountForm({
 
       <FormSection title="Offices" columns={2}>
         <div className="sm:col-span-2">
-          <FormField
-            id="count-offices"
-            label="Offices to count"
-            required
-            error={fieldError('office_ids')}
-            note={officesLocked ? 'Fixed once the count is open.' : undefined}
-          >
+          <FormField id="count-offices" label="Offices to count" required error={officeError} note={officesLocked ? 'Fixed once the count is open.' : undefined}>
             {(aria) => (
               <div className="space-y-3">
                 {!officesLocked && (
@@ -172,7 +144,7 @@ export function InventoryCountForm({
                     />
                     <Button
                       variant="outline"
-                      size="sm"
+                      className="h-10 shrink-0 whitespace-nowrap"
                       disabled={form.office_ids.length === options.office.length}
                       onClick={() => set('office_ids', options.office.map((office) => office.value))}
                     >
@@ -193,67 +165,6 @@ export function InventoryCountForm({
                           set(
                             'office_ids',
                             form.office_ids.filter((officeId) => officeId !== id),
-                          )
-                        }
-                      />
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </FormField>
-        </div>
-      </FormSection>
-
-      <FormSection title="Inventory Committee" columns={2}>
-        <PersonPicker
-          id="count-chair"
-          label="Chair (optional)"
-          people={people}
-          current={current?.committee_chair ?? null}
-          value={form.committee_chair_id}
-          onChange={(value) => set('committee_chair_id', value)}
-          placeholder={form.office_ids.length === 0 ? 'Add an office first' : 'Select the chair...'}
-          disabled={form.office_ids.length === 0}
-          error={errors.committee_chair_id}
-        />
-        <FormField id="count-coa" label="COA representative (optional)" error={errors.coa_representative}>
-          {(aria) => (
-            <Input
-              id="count-coa"
-              value={form.coa_representative}
-              maxLength={150}
-              onChange={(event) => set('coa_representative', event.target.value)}
-              {...aria}
-            />
-          )}
-        </FormField>
-        <div className="sm:col-span-2">
-          <FormField id="count-members" label="Members (optional)" error={fieldError('committee_member_ids')}>
-            {(aria) => (
-              <div className="space-y-3">
-                <SelectPicker
-                  id="count-members"
-                  aria-labelledby="count-members-label"
-                  options={people
-                    .filter((person) => !form.committee_member_ids.includes(person.value))
-                    .map((person) => ({ value: String(person.value), label: person.label }))}
-                  selectedValue={null}
-                  onSelect={(option) => option && set('committee_member_ids', [...form.committee_member_ids, Number(option.value)])}
-                  placeholder={form.office_ids.length === 0 ? 'Add an office first' : 'Add a member...'}
-                  disabled={form.office_ids.length === 0}
-                  {...aria}
-                />
-                {form.committee_member_ids.length > 0 && (
-                  <ul className="flex flex-wrap gap-2" aria-label="Committee members">
-                    {form.committee_member_ids.map((id) => (
-                      <Chip
-                        key={id}
-                        label={personLabel(id)}
-                        onRemove={() =>
-                          set(
-                            'committee_member_ids',
-                            form.committee_member_ids.filter((memberId) => memberId !== id),
                           )
                         }
                       />

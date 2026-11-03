@@ -297,7 +297,7 @@ export function InventoryCountShow() {
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className={count.remarks ? 'lg:col-span-2' : 'lg:col-span-3'}>
           <CardContent className="space-y-3">
             <h2 className="text-base font-semibold text-gray-900">Progress</h2>
             {!opened ? (
@@ -324,22 +324,14 @@ export function InventoryCountShow() {
             )}
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="space-y-2 text-sm">
-            <h2 className="text-base font-semibold text-gray-900">Inventory Committee</h2>
-            <p>
-              <span className="text-gray-500">Chair:</span> {count.committee_chair?.label ?? '—'}
-            </p>
-            <p>
-              <span className="text-gray-500">Members:</span>{' '}
-              {count.committee_members && count.committee_members.length > 0 ? count.committee_members.map((member) => member.label).join(', ') : '—'}
-            </p>
-            <p>
-              <span className="text-gray-500">COA representative:</span> {count.coa_representative ?? '—'}
-            </p>
-            {count.remarks && <p className="text-gray-600 italic">{count.remarks}</p>}
-          </CardContent>
-        </Card>
+        {count.remarks && (
+          <Card>
+            <CardContent className="space-y-2 text-sm">
+              <h2 className="text-base font-semibold text-gray-900">Remarks</h2>
+              <p className="whitespace-pre-line text-gray-700">{count.remarks}</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {opened && summary && (

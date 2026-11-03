@@ -20,10 +20,6 @@ trait ValidatesInventoryCountFields
             'as_of_date' => ['required', 'date'],
             'office_ids' => ['required', 'array', 'min:1', 'max:500'],
             'office_ids.*' => ['integer', 'distinct', Rule::exists('offices', 'id')->where('is_active', true)],
-            'committee_chair_id' => ['nullable', 'integer', Rule::exists('personnel', 'id')],
-            'committee_member_ids' => ['nullable', 'array', 'max:20'],
-            'committee_member_ids.*' => ['integer', 'distinct', Rule::exists('personnel', 'id')],
-            'coa_representative' => ['nullable', 'string', 'max:150'],
             'remarks' => ['nullable', 'string', 'max:2000'],
         ];
     }
@@ -51,10 +47,6 @@ trait ValidatesInventoryCountFields
             'as_of_date' => 'as-of date',
             'office_ids' => 'offices',
             'office_ids.*' => 'office',
-            'committee_chair_id' => 'committee chair',
-            'committee_member_ids' => 'committee members',
-            'committee_member_ids.*' => 'committee member',
-            'coa_representative' => 'COA representative',
         ];
     }
 }
